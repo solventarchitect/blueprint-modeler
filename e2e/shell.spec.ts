@@ -1,6 +1,7 @@
 import AxeBuilder from "@axe-core/playwright";
 import { expect, test } from "@playwright/test";
 import { contrastOf } from "./contrast";
+import { watchForeignRequests } from "./network";
 
 for (const scheme of ["dark", "light"] as const) {
   test(`home has no WCAG 2.2 AA violations (${scheme})`, async ({ page }) => {
@@ -15,12 +16,7 @@ for (const scheme of ["dark", "light"] as const) {
 }
 
 test("the page makes no requests beyond its own origin", async ({ page, baseURL }) => {
-  const origin = new URL(baseURL!).origin;
-  const foreign: string[] = [];
-  page.on("request", (r) => {
-    const u = new URL(r.url());
-    if (u.protocol.startsWith("http") && u.origin !== origin) foreign.push(r.url());
-  });
+  const foreign = watchForeignRequests(page, baseURL);
   await page.goto("/", { waitUntil: "networkidle" });
   expect(foreign).toEqual([]);
 });

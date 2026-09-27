@@ -3,7 +3,7 @@
 
 /* Semantic roles — the ONLY color names components may use. Same Blueprint roles and
  * contrast pairs as mikereams.com (ratios measured there against --surface).
- * Dark is the default; the light "blueprint paper" roles follow the OS setting. */
+ * Dark is the default; the light "blueprint paper" roles follow the OS setting or the theme toggle. */
 :root {
   --surface: var(--color-neutral-950);
   --surface-raised: color-mix(in oklab, var(--color-neutral-900) 60%, var(--color-neutral-950));
@@ -19,13 +19,14 @@
   --grid-line: color-mix(in oklab, var(--color-primary-400) 7%, transparent);
   /* Editor canvas: recessed below the chrome so its edges read at a glance; grid is decorative. */
   --canvas: color-mix(in oklab, var(--color-neutral-950) 72%, var(--color-black));
-  --canvas-grid: color-mix(in oklab, var(--color-primary-400) 11%, transparent);
-  --canvas-grid-major: color-mix(in oklab, var(--color-primary-400) 22%, transparent);
+  --canvas-grid: color-mix(in oklab, var(--color-primary-400) 5%, transparent);
+  --canvas-grid-major: color-mix(in oklab, var(--color-primary-400) 10%, transparent);
   color-scheme: dark;
 }
 
+/* Light roles: the OS setting unless the viewer picked a theme (header toggle sets data-theme). */
 @media (prefers-color-scheme: light) {
-  :root {
+  :root:not([data-theme="dark"]) {
     --surface: var(--color-neutral-50);
     --surface-raised: var(--color-white);
     --ink: var(--color-neutral-950);
@@ -39,10 +40,29 @@
     --border-strong: var(--color-neutral-500);
     --grid-line: color-mix(in oklab, var(--color-primary-700) 9%, transparent);
     --canvas: var(--color-neutral-100);
-    --canvas-grid: color-mix(in oklab, var(--color-primary-700) 12%, transparent);
-    --canvas-grid-major: color-mix(in oklab, var(--color-primary-700) 24%, transparent);
+    --canvas-grid: color-mix(in oklab, var(--color-primary-700) 6%, transparent);
+    --canvas-grid-major: color-mix(in oklab, var(--color-primary-700) 12%, transparent);
     color-scheme: light;
   }
+}
+
+:root[data-theme="light"] {
+  --surface: var(--color-neutral-50);
+  --surface-raised: var(--color-white);
+  --ink: var(--color-neutral-950);
+  --ink-soft: var(--color-neutral-800);
+  --ink-muted: var(--color-neutral-600);
+  --accent: var(--color-primary-800);
+  --accent-ink: var(--color-white);
+  --status: var(--color-warning-800);
+  --ai: var(--color-ai-600);
+  --border: var(--color-neutral-200);
+  --border-strong: var(--color-neutral-500);
+  --grid-line: color-mix(in oklab, var(--color-primary-700) 9%, transparent);
+  --canvas: var(--color-neutral-100);
+  --canvas-grid: color-mix(in oklab, var(--color-primary-700) 6%, transparent);
+  --canvas-grid-major: color-mix(in oklab, var(--color-primary-700) 12%, transparent);
+  color-scheme: light;
 }
 
 @theme inline {
@@ -104,13 +124,13 @@
 .react-flow__edge-path,
 .react-flow__connection-path {
   stroke: var(--border-strong);
-  stroke-width: 1.25;
+  stroke-width: 1.5;
 }
 .react-flow__edge.selected .react-flow__edge-path {
   stroke: var(--accent);
 }
 .react-flow__edge-text {
-  fill: var(--ink-muted);
+  fill: var(--ink-soft);
   font-family: var(--font-mono);
   font-size: 11px;
 }

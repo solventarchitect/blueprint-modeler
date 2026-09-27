@@ -4,8 +4,8 @@ A free, browser-only canvas for modeling application architecture with ServiceNo
 (CSDM): capability → business application → application service → technology. No sign-up, no server; your models
 stay in your browser and in files you export.
 
-**Status:** M0–M4 done — canvas, conformance hints, class guide, examples, JSON import/export, SVG export
-(light/dark) and auto-layout by CSDM layer. Live at https://model.mikereams.com. Plan and requirements: [`SPEC.md`](SPEC.md);
+**Status:** M0–M4 done, M5 (launch) in progress — canvas, conformance hints, class guide, examples, JSON
+import/export, SVG export (light/dark), auto-layout by CSDM layer, About, Privacy and a theme toggle. Live at https://model.mikereams.com. Plan and requirements: [`SPEC.md`](SPEC.md);
 constraints: [`CLAUDE.md`](CLAUDE.md).
 
 ## Develop

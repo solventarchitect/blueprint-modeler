@@ -1,6 +1,7 @@
 import AxeBuilder from "@axe-core/playwright";
 import { readFile } from "node:fs/promises";
 import { expect, test, type Page } from "@playwright/test";
+import { watchForeignRequests } from "./network";
 
 const tags = ["wcag2a", "wcag2aa", "wcag21aa", "wcag22aa"];
 
@@ -74,12 +75,7 @@ test.describe("import, export and layout (desktop)", () => {
   });
 
   test("auto-layout runs in a worker, stays same-origin, and undo restores positions", async ({ page, baseURL }) => {
-    const origin = new URL(baseURL!).origin;
-    const foreign: string[] = [];
-    page.on("request", (r) => {
-      const u = new URL(r.url());
-      if (u.protocol.startsWith("http") && u.origin !== origin) foreign.push(r.url());
-    });
+    const foreign = watchForeignRequests(page, baseURL);
     const workers: string[] = [];
     page.on("worker", (w) => workers.push(w.url()));
 

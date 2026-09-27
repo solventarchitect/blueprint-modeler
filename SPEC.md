@@ -65,7 +65,7 @@
 | Netlify DNS | `model` CNAME on mikereams.com | existing | yes (2026-09-26) |
 | GitHub `solventarchitect/blueprint-modeler` | source, CI | free, public | yes (2026-09-26) |
 | `@xyflow/react`, `elkjs`, `zod` | canvas, layout, file validation | MIT | yes (2026-09-26) |
-| Cloudflare Web Analytics | visit counts, cookie-less | $0 | optional, pending |
+| Cloudflare Web Analytics | visit counts, cookieless | $0 | **approved 2026-09-27**; production only; token shared with mikereams.com |
 
 ## 8. Milestones
 
@@ -76,7 +76,7 @@
 | M2 | Canvas | palette, add/rename/delete, allowed-only connections, undo/redo, autosave, keyboard path | F-01, F-02, F-04; Playwright hero flow | **done 2026-09-27** — `/editor`; inspector gives a full keyboard path (rename, add/remove relationships, delete); drag-connect refuses disallowed pairs with a reason; model switcher + New model |
 | M3 | Hints + guide | conformance hints with sources and highlighting; class guide; 3 examples | F-03, F-08 | **done 2026-09-27** — `evaluateHints` (8 hint kinds incl. capability depth/cycles); Hints tab scoped to the selection, click to highlight + zoom; `/guide` lists classes, relationships (evidence) and hints with sources; 3 fictional examples from the empty state or toolbar; header nav, side-to-side edges in a lane |
 | M4 | Import/export + layout | JSON import/export, SVG export light/dark, ELK layout in a worker | F-05, F-06, F-07 | **done 2026-09-27** — Import… (invalid files refused with a reason, nothing changed; same id → imported as a copy); Export menu: JSON, SVG dark/light (standalone: system fonts, no scripts or remote refs); Auto-layout = elkjs 0.12.0 (EPL-2.0, approved) in its own worker, layered top-down with partitions per CSDM layer, one undo step |
-| M5 | Launch | landing, About (not-affiliated notice), privacy, a11y + 5-breakpoint pass, a post on mikereams.com linking to it | preview checks, axe, Lighthouse, live on the domain | |
+| M5 | Launch | landing, About (not-affiliated notice), privacy, a11y + 5-breakpoint pass, a post on mikereams.com linking to it | preview checks, axe, Lighthouse, live on the domain | **in progress** — app side done 2026-09-27: /about, /privacy, theme toggle (Auto/Light/Dark), Cloudflare beacon (production only), sitemap + robots, axe on every page in forced themes, 320–1536px; fixes: nodes no longer vanish while dragging, subtler canvas grid, stronger edges and labels. Open: mikereams.com link + post |
 
 ## 9. Open questions
 
@@ -84,14 +84,14 @@
 |---|---|---|---|
 | Q1 Product name — avoid using "CSDM" in the name | Mike | M0 | **Blueprint Modeler** (Mike, 2026-09-26) |
 | Q2 Reuse ArchTruth's DSL package? Copying it here open-sources it under MIT | Mike | M1 | no for v1 — JSON model format (default taken at M1) |
-| Q3 Cloudflare Web Analytics on the app? | Mike | M5 | |
+| Q3 Cloudflare Web Analytics on the app? | Mike | M5 | **Yes** (Mike, 2026-09-27) |
 | Q4 Approve deps `@xyflow/react`, `elkjs`, `zod`; new Vercel project; GitHub repo; DNS record | Mike | M0 | **Approved** (Mike, 2026-09-26); deps added when first used (M1 zod, M2 xyflow, M4 elkjs) |
-| Q5 Link from mikereams.com nav/Work page at launch? | Mike | M5 | |
+| Q5 Link from mikereams.com nav/Work page at launch? | Mike | M5 | **Yes** (Mike, 2026-09-27); theme toggle also approved |
 
 ## 10. Status
 
 - **Last deploy:** `1375d84` → https://model.mikereams.com on 2026-09-26 (Vercel `dpl_EsKmcGeCtTwo96toQaHTAHfdfgD9`, TLS valid; CI run 36283442780 green)
 - **Done:** plan approved (2026-09-26); M0 scaffold — Next 15 static export, Blueprint tokens + self-hosted Plex, CI, unit + Playwright (axe dark/light, no third-party requests, 5 breakpoints) green locally; M1 metamodel + model format; M2 canvas; M3 hints, guide, examples; M4 import/export, SVG, auto-layout
-- **Next:** M5 — launch: About (not-affiliated notice), privacy, a11y + 5-breakpoint pass, a post on mikereams.com
+- **Next:** finish M5 — link from mikereams.com (nav + Work page) and a launch post (draft for Mike's review)
 - **Metamodel evidence:** every class, pairing and hint cites the CSDM 5 white paper or a ServiceNow Community thread. Relationship *type labels* are marked `reported` (Business application → Application service: `Uses::Used by`, CSDM 4 `Consumes::Consumed by` kept as legacy) or `conventional` (standard CMDB types the public text does not name for that pair) — conventional labels approved by Mike (2026-09-27)
 - **Blocked on Mike:** —

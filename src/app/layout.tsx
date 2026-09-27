@@ -1,6 +1,8 @@
 import type { Metadata, Viewport } from "next";
 import Link from "next/link";
 import localFont from "next/font/local";
+import { Analytics } from "@/components/Analytics";
+import { ThemeToggle, themeBootScript } from "@/components/ThemeToggle";
 import { site } from "@/lib/site";
 import "./globals.css";
 
@@ -39,7 +41,10 @@ export const viewport: Viewport = {
 
 export default function RootLayout({ children }: Readonly<{ children: React.ReactNode }>) {
   return (
-    <html lang="en" className={`${sans.variable} ${mono.variable}`}>
+    <html lang="en" className={`${sans.variable} ${mono.variable}`} suppressHydrationWarning>
+      <head>
+        <script dangerouslySetInnerHTML={{ __html: themeBootScript }} />
+      </head>
       <body className="flex min-h-dvh flex-col bg-surface text-ink">
         <a
           href="#main-content"
@@ -56,7 +61,7 @@ export default function RootLayout({ children }: Readonly<{ children: React.Reac
               >
                 BM
               </span>
-              <span className="font-mono text-sm font-medium tracking-[0.14em] uppercase max-[399px]:sr-only">{site.name}</span>
+              <span className="font-mono text-sm font-medium tracking-[0.14em] uppercase max-[479px]:sr-only">{site.name}</span>
             </Link>
             <nav aria-label="Main" className="ml-auto">
               <ul className="flex items-center gap-1 text-sm">
@@ -72,6 +77,7 @@ export default function RootLayout({ children }: Readonly<{ children: React.Reac
                 </li>
               </ul>
             </nav>
+            <ThemeToggle />
           </div>
         </header>
         <main id="main-content" className="flex-1">
@@ -91,8 +97,17 @@ export default function RootLayout({ children }: Readonly<{ children: React.Reac
               .
             </p>
             <p>{site.notAffiliated}</p>
+            <p className="flex gap-4">
+              <Link className="text-accent underline underline-offset-4" href="/about">
+                About
+              </Link>
+              <Link className="text-accent underline underline-offset-4" href="/privacy">
+                Privacy
+              </Link>
+            </p>
           </div>
         </footer>
+        <Analytics />
       </body>
     </html>
   );

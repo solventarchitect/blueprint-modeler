@@ -1,5 +1,6 @@
 import AxeBuilder from "@axe-core/playwright";
 import { expect, test, type Page } from "@playwright/test";
+import { watchForeignRequests } from "./network";
 
 const palette = (page: Page) => page.getByRole("navigation", { name: "Element palette" });
 const inspector = (page: Page) => page.getByRole("complementary", { name: "Inspector" });
@@ -101,12 +102,7 @@ test.describe("editor (desktop)", () => {
   }
 
   test("the editor makes no requests beyond its own origin", async ({ page, baseURL }) => {
-    const origin = new URL(baseURL!).origin;
-    const foreign: string[] = [];
-    page.on("request", (r) => {
-      const u = new URL(r.url());
-      if (u.protocol.startsWith("http") && u.origin !== origin) foreign.push(r.url());
-    });
+    const foreign = watchForeignRequests(page, baseURL);
     await openEditor(page);
     await addNamed(page, "Business application", "Checkout");
     await page.waitForLoadState("networkidle");

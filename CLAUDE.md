@@ -23,8 +23,8 @@
 4. **Framework lock:** Next.js 15 App Router + TypeScript strict, static export. Canvas = `@xyflow/react` behind a
    `CanvasRenderer` interface; ELK layout in a Web Worker. No second canvas library, no CSS-in-JS.
 5. **No new runtime dependency, paid service, or storage provider without Mike's explicit approval.** Approved set
-   (2026-09-26): `@xyflow/react`, `zod` (MIT) and `elkjs` (EPL-2.0, used unmodified), added when first used. Analytics (Cloudflare Web Analytics, cookie-less,
-   $0) only if approved.
+   (2026-09-26): `@xyflow/react`, `zod` (MIT) and `elkjs` (EPL-2.0, used unmodified), added when first used. Cloudflare Web Analytics (cookieless, $0)
+   **approved 2026-09-27** — production builds only (`VERCEL_ENV=production`), token shared with mikereams.com.
 6. **Not affiliated.** "ServiceNow" and "CSDM" are used nominatively; the footer and About page carry a
    not-affiliated notice. No ServiceNow logos.
 
@@ -51,7 +51,7 @@
 - Every canvas action reachable by keyboard; axe clean; contrast verified by script on token changes
 - Responsive at all five breakpoints; built artifact verified on the Vercel preview URL
 - `src/metamodel/` test: every class, relationship and hint has a `source` URL on a ServiceNow public domain
-- No network requests at runtime other than same-origin static assets (Playwright asserts)
+- No network requests at runtime other than same-origin static assets, plus the Cloudflare beacon on production only (Playwright asserts, `e2e/network.ts`)
 
 ## Stop-and-ask tripwires
 

@@ -74,6 +74,9 @@ function EditorInner() {
   const [activeHint, setActiveHint] = useState<HintResult | null>(null);
   const drag = useRef<Record<string, { x: number; y: number }>>({});
   const [dragTick, setDragTick] = useState(0);
+  // Measured node sizes. The canvas is controlled, so every rebuilt node must carry its size, or
+  // React Flow hides it until it is measured again (nodes vanished while dragging).
+  const measured = useRef<Record<string, { width: number; height: number }>>({});
   const [layingOut, setLayingOut] = useState(false);
   const [ioError, setIoError] = useState<string | null>(null);
   const engine = useRef<ReturnType<typeof createWorkerEngine> | null>(null);
@@ -123,11 +126,12 @@ function EditorInner() {
         id: n.id,
         type: "csdm",
         position: drag.current[n.id] ?? model.layout[n.id] ?? { x: 0, y: 0 },
+        measured: measured.current[n.id],
         data: { name: n.name, cls: n.class, hint: hintLevel.get(n.id), highlight: highlighted.has(n.id) },
         selected: n.id === selectedId,
         ariaLabel: `${classById(n.class)?.label ?? n.class}: ${n.name || "Untitled"}${hintLevel.get(n.id) ? " (has hints)" : ""}`,
       })),
-    // eslint-disable-next-line react-hooks/exhaustive-deps -- drag is a ref; dragTick re-runs this
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- drag and measured are refs; dragTick re-runs this
     [model, selectedId, dragTick, hintLevel, highlighted],
   );
 
@@ -156,7 +160,15 @@ function EditorInner() {
   const onNodesChange = useCallback(
     (changes: NodeChange<ClassFlowNode>[]) => {
       for (const c of changes) {
-        if (c.type === "position") {
+        if (c.type === "dimensions") {
+          if (c.dimensions) {
+            const prev = measured.current[c.id];
+            if (prev?.width !== c.dimensions.width || prev?.height !== c.dimensions.height) {
+              measured.current = { ...measured.current, [c.id]: c.dimensions };
+              setDragTick((n) => n + 1);
+            }
+          }
+        } else if (c.type === "position") {
           if (c.dragging && c.position) {
             drag.current = { ...drag.current, [c.id]: c.position };
             setDragTick((n) => n + 1);
