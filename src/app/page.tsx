@@ -15,12 +15,20 @@ export default function Home() {
         Model application architecture the CSDM way.
       </h1>
       <p className="mt-6 max-w-2xl text-lg text-ink-soft">{site.description}</p>
-      <a
-        href="/editor"
-        className="mt-8 inline-flex min-h-11 items-center gap-2 bg-accent px-5 font-medium text-accent-ink hover:opacity-90"
-      >
-        Open the modeler <span aria-hidden="true">→</span>
-      </a>
+      <div className="mt-8 flex flex-wrap gap-3">
+        <a
+          href="/editor"
+          className="inline-flex min-h-11 items-center gap-2 bg-accent px-5 font-medium text-accent-ink hover:opacity-90"
+        >
+          Open the modeler <span aria-hidden="true">→</span>
+        </a>
+        <a
+          href="/guide"
+          className="inline-flex min-h-11 items-center gap-2 border border-border px-5 font-medium hover:border-accent hover:text-accent"
+        >
+          Read the class guide
+        </a>
+      </div>
 
       <ol className="mt-12 grid gap-px border border-border bg-border sm:grid-cols-2 lg:grid-cols-4">
         {layers.map((l) => (

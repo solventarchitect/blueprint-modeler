@@ -134,3 +134,7 @@
 .react-flow__attribution a {
   color: var(--ink-muted);
 }
+.react-flow__edge.hinted .react-flow__edge-path {
+  stroke: var(--status);
+  stroke-width: 2;
+}

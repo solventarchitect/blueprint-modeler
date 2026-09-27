@@ -1,6 +1,7 @@
 "use client";
 
 import { classes, type ClassId, type Layer } from "@/metamodel";
+import { layerAccent } from "./layerAccent";
 
 const LAYERS: { id: Layer; label: string }[] = [
   { id: "business", label: "Business" },
@@ -27,10 +28,12 @@ export function Palette({ onAdd }: { onAdd: (cls: ClassId) => void }) {
                   <button
                     type="button"
                     onClick={() => onAdd(c.id)}
-                    className="w-full cursor-pointer border border-border px-2.5 py-1.5 text-left text-sm text-ink hover:border-accent hover:text-accent"
+                    className={`flex w-full cursor-pointer items-center gap-2 border border-border border-l-4 bg-surface-raised px-2.5 py-1.5 text-left text-sm leading-snug text-ink hover:border-accent hover:text-accent ${layerAccent[c.layer]}`}
                   >
-                    <span aria-hidden="true">+ </span>
-                    {c.label}
+                    <span className="min-w-0 flex-1">{c.label}</span>
+                    <span aria-hidden="true" className="font-mono text-ink-muted">
+                      +
+                    </span>
                   </button>
                 </li>
               ))}

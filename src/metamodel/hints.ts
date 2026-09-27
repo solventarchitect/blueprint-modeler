@@ -1,8 +1,8 @@
 import type { SourceRef } from "./sources";
 
 /**
- * Conformance hint catalogue. Hints advise; they never block. Evaluation lands in M3; this is
- * the catalogue with its sources so the wording can be reviewed before any logic depends on it.
+ * Conformance hint catalogue. Hints advise; they never block. `evaluateHints` (src/model/hints.ts)
+ * decides which apply to a model; the wording and sources live here.
  */
 export type HintDef = {
   id: string;
@@ -54,6 +54,13 @@ export const hints = [
     severity: "warning",
     title: "Circular capability hierarchy",
     explanation: "A capability cannot be its own ancestor. Remove one parent link to break the loop.",
+    source: { id: "whitepaper" },
+  },
+  {
+    id: "disallowed-relationship",
+    severity: "warning",
+    title: "Relationship not used in CSDM",
+    explanation: "These two element types are not related this way in CSDM. Remove the relationship, or route it through the element CSDM puts between them.",
     source: { id: "whitepaper" },
   },
   {

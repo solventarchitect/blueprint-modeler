@@ -8,14 +8,18 @@ import {
   MarkerType,
   ReactFlow,
   ReactFlowProvider,
+  useReactFlow,
   type Connection,
   type Edge as FlowEdge,
   type EdgeChange,
   type NodeChange,
 } from "@xyflow/react";
-import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState, type KeyboardEvent as ReactKeyboardEvent } from "react";
+import { examples } from "@/examples";
 import { classById, classes, type ClassId } from "@/metamodel";
+import { evaluateHints, type HintResult } from "@/model";
 import { ClassNode, type ClassFlowNode } from "./ClassNode";
+import { HintsPanel } from "./HintsPanel";
 import { Inspector } from "./Inspector";
 import { Palette } from "./Palette";
 import { connectionProblem } from "./state";
@@ -33,7 +37,8 @@ const statusText: Record<SaveStatus, string> = {
 };
 
 const toolbarButton =
-  "cursor-pointer border border-border-strong px-2.5 py-1 text-sm text-ink hover:border-accent hover:text-accent disabled:cursor-not-allowed disabled:opacity-60";
+  "inline-flex min-h-8 cursor-pointer items-center gap-1.5 border border-border-strong bg-surface-raised px-2.5 text-sm text-ink hover:border-accent hover:text-accent disabled:cursor-not-allowed disabled:opacity-60";
+const toolbarSelect = "min-h-8 max-w-60 border border-border-strong bg-surface-raised px-2 text-sm text-ink";
 
 function useIsWide() {
   const [wide, setWide] = useState(true);
@@ -47,17 +52,34 @@ function useIsWide() {
   return wide;
 }
 
+type Tab = "details" | "hints";
+
 function EditorInner() {
   const doc = useModelDocument();
   const { model, dispatch } = doc;
   const wide = useIsWide();
+  const flow = useReactFlow();
   const [selectedId, setSelectedId] = useState<string | null>(null);
   const [focusName, setFocusName] = useState(0);
   const [message, setMessage] = useState("");
+  const [tab, setTab] = useState<Tab>("details");
+  const [activeHint, setActiveHint] = useState<HintResult | null>(null);
   const drag = useRef<Record<string, { x: number; y: number }>>({});
   const [dragTick, setDragTick] = useState(0);
 
-  // Undo / redo from the keyboard, except while typing in a field (native undo applies there).
+  const hints = useMemo(() => evaluateHints(model), [model]);
+  const hintLevel = useMemo(() => {
+    const level = new Map<string, "warning" | "info">();
+    for (const h of hints) for (const id of h.nodeIds) if (level.get(id) !== "warning") level.set(id, h.hint.severity);
+    return level;
+  }, [hints]);
+  const highlighted = useMemo(() => new Set(activeHint?.nodeIds ?? []), [activeHint]);
+
+  // A focused hint that no longer applies (fixed, undone, model switched) stops highlighting.
+  useEffect(() => {
+    if (activeHint && !hints.some((h) => h.id === activeHint.id)) setActiveHint(null);
+  }, [hints, activeHint]);
+
   useEffect(() => {
     const onKey = (e: KeyboardEvent) => {
       const el = e.target as HTMLElement | null;
@@ -77,7 +99,6 @@ function EditorInner() {
     return () => window.removeEventListener("keydown", onKey);
   }, [dispatch]);
 
-  // Selection must point at something that still exists (after undo or delete).
   useEffect(() => {
     if (selectedId && !model.nodes.some((n) => n.id === selectedId)) setSelectedId(null);
   }, [model.nodes, selectedId]);
@@ -88,31 +109,36 @@ function EditorInner() {
         id: n.id,
         type: "csdm",
         position: drag.current[n.id] ?? model.layout[n.id] ?? { x: 0, y: 0 },
-        data: { name: n.name, cls: n.class },
+        data: { name: n.name, cls: n.class, hint: hintLevel.get(n.id), highlight: highlighted.has(n.id) },
         selected: n.id === selectedId,
-        ariaLabel: `${classById(n.class)?.label ?? n.class}: ${n.name || "Untitled"}`,
+        ariaLabel: `${classById(n.class)?.label ?? n.class}: ${n.name || "Untitled"}${hintLevel.get(n.id) ? " (has hints)" : ""}`,
       })),
     // eslint-disable-next-line react-hooks/exhaustive-deps -- drag is a ref; dragTick re-runs this
-    [model, selectedId, dragTick],
+    [model, selectedId, dragTick, hintLevel, highlighted],
   );
 
+  const hintedEdges = useMemo(() => new Set(activeHint?.edgeIds ?? []), [activeHint]);
   const edges: FlowEdge[] = useMemo(
     () =>
       model.edges.map((e) => {
-        // Route each edge between facing handles: downward edges leave the bottom, upward the top.
-        const down = (model.layout[e.from]?.y ?? 0) <= (model.layout[e.to]?.y ?? 0);
+        const a = model.layout[e.from] ?? { x: 0, y: 0 };
+        const b = model.layout[e.to] ?? { x: 0, y: 0 };
+        // Same lane: connect side to side, so the edge does not loop round the nodes.
+        const [sourceHandle, targetHandle] =
+          Math.abs(a.y - b.y) < 60 ? (a.x <= b.x ? ["right", "left"] : ["left", "right"]) : a.y < b.y ? ["bottom", "top"] : ["top", "bottom"];
         return {
-        id: e.id,
-        source: e.from,
-        target: e.to,
-        sourceHandle: down ? "bottom" : "top",
-        targetHandle: down ? "top" : "bottom",
-        label: e.type.startsWith("reference:") ? "reference" : e.type.split("::")[0],
-        markerEnd: { type: MarkerType.ArrowClosed, color: "var(--border-strong)" },
-        ariaLabel: `${e.type} from ${model.nodes.find((n) => n.id === e.from)?.name} to ${model.nodes.find((n) => n.id === e.to)?.name}`,
+          id: e.id,
+          source: e.from,
+          target: e.to,
+          sourceHandle,
+          targetHandle,
+          label: e.type.startsWith("reference:") ? "reference" : e.type.split("::")[0],
+          className: hintedEdges.has(e.id) ? "hinted" : undefined,
+          markerEnd: { type: MarkerType.ArrowClosed, color: hintedEdges.has(e.id) ? "var(--status)" : "var(--border-strong)" },
+          ariaLabel: `${e.type} from ${model.nodes.find((n) => n.id === e.from)?.name} to ${model.nodes.find((n) => n.id === e.to)?.name}`,
         };
       }),
-    [model],
+    [model, hintedEdges],
   );
 
   const onNodesChange = useCallback(
@@ -130,8 +156,10 @@ function EditorInner() {
             if (pos) dispatch({ type: "move-node", id: c.id, x: pos.x, y: pos.y });
           }
         } else if (c.type === "select") {
-          if (c.selected) setSelectedId(c.id);
-          else setSelectedId((cur) => (cur === c.id ? null : cur));
+          if (c.selected) {
+            setSelectedId(c.id);
+            setTab("details");
+          } else setSelectedId((cur) => (cur === c.id ? null : cur));
         } else if (c.type === "remove") {
           dispatch({ type: "delete-node", id: c.id });
         }
@@ -165,20 +193,51 @@ function EditorInner() {
     const label = classes.find((c) => c.id === cls)!.label;
     dispatch({ type: "add-node", id, class: cls, name: `New ${label.toLowerCase()}` });
     setSelectedId(id);
+    setTab("details");
     setFocusName((n) => n + 1);
     setMessage(`${label} added. Type its name.`);
   };
 
+  const focusHint = (r: HintResult) => {
+    setActiveHint((cur) => (cur?.id === r.id ? null : r));
+    if (r.nodeIds.length) void flow.fitView({ nodes: r.nodeIds.map((id) => ({ id })), maxZoom: 1, duration: 300, padding: 0.4 });
+    setMessage(`${r.hint.title}: ${r.message}`);
+  };
+
+  const loadExample = async (exampleId: string) => {
+    const ex = examples.find((e) => e.id === exampleId);
+    if (!ex) return;
+    setSelectedId(null);
+    setActiveHint(null);
+    await doc.createFrom(ex.create());
+    setMessage(`Opened the example “${ex.name}” as a new model.`);
+    setTimeout(() => void flow.fitView({ maxZoom: 1, padding: 0.15 }), 50);
+  };
+
+  const selected = model.nodes.find((n) => n.id === selectedId);
+  const scopedHints = selected ? hints.filter((h) => h.nodeIds.includes(selected.id)) : hints;
+  const warnings = hints.filter((h) => h.hint.severity === "warning").length;
+
+  const onTabKey = (e: ReactKeyboardEvent) => {
+    if (e.key === "ArrowRight" || e.key === "ArrowLeft") {
+      e.preventDefault();
+      const next: Tab = tab === "details" ? "hints" : "details";
+      setTab(next);
+      document.getElementById(`tab-${next}`)?.focus();
+    }
+  };
+
   return (
-    <div className="flex h-[calc(100dvh-4.75rem)] min-h-[32rem] flex-col">
+    <div className="flex h-[calc(100dvh-3.5rem)] min-h-[34rem] flex-col">
       <div className="flex flex-wrap items-center gap-2 border-b border-border px-4 py-2">
         <label className="flex items-center gap-2 text-sm">
           <span className="sr-only">Open model</span>
           <select
-            className="max-w-56 border border-border-strong bg-surface px-2 py-1 text-sm text-ink"
+            className={toolbarSelect}
             value={model.id}
             onChange={(e) => {
               setSelectedId(null);
+              setActiveHint(null);
               void doc.open(e.target.value);
             }}
           >
@@ -192,6 +251,17 @@ function EditorInner() {
         <button type="button" className={toolbarButton} onClick={() => void doc.newModel()}>
           New model
         </button>
+        <label className="flex items-center text-sm">
+          <span className="sr-only">Start from an example</span>
+          <select className={toolbarSelect} value="" onChange={(e) => void loadExample(e.target.value)}>
+            <option value="">Start from an example…</option>
+            {examples.map((ex) => (
+              <option key={ex.id} value={ex.id}>
+                {ex.name}
+              </option>
+            ))}
+          </select>
+        </label>
         <span className="mx-1 h-5 w-px bg-border" aria-hidden="true" />
         <button type="button" className={toolbarButton} disabled={!doc.canUndo} onClick={() => dispatch({ type: "undo" })} aria-keyshortcuts="Control+Z">
           Undo
@@ -199,6 +269,19 @@ function EditorInner() {
         <button type="button" className={toolbarButton} disabled={!doc.canRedo} onClick={() => dispatch({ type: "redo" })} aria-keyshortcuts="Control+Shift+Z">
           Redo
         </button>
+        {wide && (
+          <button
+            type="button"
+            className={toolbarButton}
+            onClick={() => {
+              setSelectedId(null);
+              setTab("hints");
+            }}
+          >
+            Hints
+            <span className={`min-w-5 rounded-full px-1.5 font-mono text-xs ${warnings ? "bg-status text-accent-ink" : "bg-border text-ink"}`}>{hints.length}</span>
+          </button>
+        )}
         <p className="ml-auto text-xs text-ink-muted" data-testid="save-status">
           {statusText[doc.status]}
         </p>
@@ -215,7 +298,7 @@ function EditorInner() {
 
       <div className="flex min-h-0 flex-1">
         {wide && (
-          <aside className="w-56 shrink-0 overflow-y-auto border-r border-border" aria-label="Palette">
+          <aside className="w-60 shrink-0 overflow-y-auto border-r border-border" aria-label="Palette">
             <Palette onAdd={addNode} />
           </aside>
         )}
@@ -228,30 +311,66 @@ function EditorInner() {
             onNodesChange={onNodesChange}
             onEdgesChange={onEdgesChange}
             onConnect={onConnect}
+            onPaneClick={() => setActiveHint(null)}
             connectionMode={ConnectionMode.Loose}
             nodesDraggable={wide}
             nodesConnectable={wide}
             deleteKeyCode={wide ? ["Delete", "Backspace"] : null}
             fitView
-            fitViewOptions={{ maxZoom: 1 }}
+            fitViewOptions={{ maxZoom: 1, padding: 0.15 }}
             minZoom={0.2}
-            proOptions={{ hideAttribution: false }}
           >
             <Background gap={32} color="var(--grid-line)" />
             <Controls showInteractive={false} />
           </ReactFlow>
-          {model.nodes.length === 0 && (
-            <p className="pointer-events-none absolute inset-x-0 top-1/3 text-center text-sm text-ink-muted">
-              {wide ? "Add an element from the palette to start." : "This model is empty."}
-            </p>
+          {model.nodes.length === 0 && doc.status !== "loading" && (
+            <div className="pointer-events-none absolute inset-0 flex items-center justify-center p-6">
+              <div className="pointer-events-auto max-w-lg border border-border bg-surface-raised p-6">
+                <p className="font-mono text-xs tracking-[0.14em] text-accent uppercase">{"// Empty model"}</p>
+                <h2 className="mt-2 text-lg font-semibold">Start from the palette, or open an example</h2>
+                <ul className="mt-4 flex flex-col gap-2">
+                  {examples.map((ex) => (
+                    <li key={ex.id}>
+                      <button type="button" onClick={() => void loadExample(ex.id)} className="w-full cursor-pointer border border-border p-3 text-left hover:border-accent">
+                        <span className="block text-sm font-medium text-ink">{ex.name}</span>
+                        <span className="mt-1 block text-xs text-ink-muted">{ex.summary}</span>
+                      </button>
+                    </li>
+                  ))}
+                </ul>
+              </div>
+            </div>
           )}
         </div>
 
-        {wide ? (
-          <aside className="w-80 shrink-0 overflow-y-auto border-l border-border" aria-label="Inspector">
-            <Inspector model={model} selectedId={selectedId} dispatch={dispatch} focusName={focusName} onSelect={setSelectedId} newId={newId} />
+        {wide && (
+          <aside className="flex w-80 shrink-0 flex-col border-l border-border" aria-label="Inspector">
+            <div role="tablist" aria-label="Panel" className="flex border-b border-border" onKeyDown={onTabKey}>
+              {(["details", "hints"] as const).map((t) => (
+                <button
+                  key={t}
+                  id={`tab-${t}`}
+                  role="tab"
+                  type="button"
+                  aria-selected={tab === t}
+                  aria-controls={`panel-${t}`}
+                  tabIndex={tab === t ? 0 : -1}
+                  onClick={() => setTab(t)}
+                  className={`flex-1 cursor-pointer px-3 py-2 text-sm ${tab === t ? "border-b-2 border-accent font-medium text-ink" : "text-ink-muted hover:text-ink"}`}
+                >
+                  {t === "details" ? "Details" : `Hints (${scopedHints.length})`}
+                </button>
+              ))}
+            </div>
+            <div id={`panel-${tab}`} role="tabpanel" aria-labelledby={`tab-${tab}`} className="min-h-0 flex-1 overflow-y-auto">
+              {tab === "details" ? (
+                <Inspector model={model} selectedId={selectedId} dispatch={dispatch} focusName={focusName} onSelect={setSelectedId} newId={newId} />
+              ) : (
+                <HintsPanel results={scopedHints} activeId={activeHint?.id ?? null} onFocus={focusHint} scopeName={selected?.name} />
+              )}
+            </div>
           </aside>
-        ) : null}
+        )}
       </div>
 
       <div className="flex flex-wrap items-center justify-between gap-2 border-t border-border px-4 py-1.5 text-xs text-ink-muted">

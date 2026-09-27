@@ -85,8 +85,20 @@ export function useModelDocument() {
     await open(m.id);
   }, [open]);
 
+  /** Save a ready-made model (an example) as a new model and open it. */
+  const createFrom = useCallback(
+    async (m: Model) => {
+      const s = store.current;
+      if (!s) return;
+      await s.put(m);
+      await open(m.id);
+    },
+    [open],
+  );
+
   return {
     model,
+    createFrom,
     canUndo: history.past.length > 0,
     canRedo: history.future.length > 0,
     dispatch: dispatchRaw,

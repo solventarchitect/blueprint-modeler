@@ -1,4 +1,5 @@
 import type { Metadata, Viewport } from "next";
+import Link from "next/link";
 import localFont from "next/font/local";
 import { site } from "@/lib/site";
 import "./globals.css";
@@ -46,15 +47,31 @@ export default function RootLayout({ children }: Readonly<{ children: React.Reac
         >
           Skip to content
         </a>
-        <header className="border-b border-border">
-          <div className="mx-auto flex max-w-6xl items-center gap-3 px-4 py-5 sm:px-6">
-            <span
-              aria-hidden="true"
-              className="flex size-9 items-center justify-center border border-accent font-mono text-xs font-medium text-accent"
-            >
-              BM
-            </span>
-            <span className="font-mono text-sm font-medium tracking-[0.14em] uppercase">{site.name}</span>
+        <header className="h-14 border-b border-border">
+          <div className="flex h-full items-center gap-3 px-4 sm:px-6">
+            <Link href="/" className="flex min-h-11 items-center gap-3 hover:text-accent">
+              <span
+                aria-hidden="true"
+                className="flex size-8 items-center justify-center border border-accent font-mono text-xs font-medium text-accent"
+              >
+                BM
+              </span>
+              <span className="font-mono text-sm font-medium tracking-[0.14em] uppercase max-[399px]:sr-only">{site.name}</span>
+            </Link>
+            <nav aria-label="Main" className="ml-auto">
+              <ul className="flex items-center gap-1 text-sm">
+                <li>
+                  <Link href="/editor" className="inline-flex min-h-11 items-center px-3 text-ink-soft hover:text-accent">
+                    Editor
+                  </Link>
+                </li>
+                <li>
+                  <Link href="/guide" className="inline-flex min-h-11 items-center px-3 text-ink-soft hover:text-accent">
+                    Guide
+                  </Link>
+                </li>
+              </ul>
+            </nav>
           </div>
         </header>
         <main id="main-content" className="flex-1">

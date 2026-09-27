@@ -17,7 +17,7 @@ describe("editor state", () => {
   it("places new elements in their layer lane, left to right", () => {
     const s = run([...base, { type: "add-node", id: "ba2", class: "business_application", name: "Billing" }]);
     expect(s.present.layout.ba).toEqual({ x: 0, y: laneY.design });
-    expect(s.present.layout.ba2).toEqual({ x: 240, y: laneY.design });
+    expect(s.present.layout.ba2).toEqual({ x: 288, y: laneY.design });
     expect(s.present.layout.host).toEqual({ x: 0, y: laneY.infrastructure });
   });
 

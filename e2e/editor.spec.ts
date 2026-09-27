@@ -67,7 +67,7 @@ test.describe("editor (desktop)", () => {
     await page.getByRole("button", { name: "Undo" }).click(); // rename
     await page.getByRole("button", { name: "Undo" }).click(); // add
     await expect(canvasNode(page, "Order management")).toHaveCount(0);
-    await page.locator(".react-flow__pane").click();
+    await page.locator(".react-flow__pane").click({ position: { x: 5, y: 5 } }); // clear of the empty-state card
     await page.keyboard.press("Control+Shift+Z");
     await page.keyboard.press("Control+Shift+Z");
     await expect(canvasNode(page, "Order management")).toBeVisible();
