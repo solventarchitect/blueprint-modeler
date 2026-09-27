@@ -36,6 +36,12 @@ export function ArchimateGlyph({ type, className = "" }: { type: ArchimateElemen
     case "Node":
       body = <path {...common} d="M1.5 4.5h10v7h-10z M1.5 4.5l2.5-2.5h10l-2.5 2.5 M14 2v7l-2.5 2.5" />;
       break;
+    case "TechnologyInterface":
+      body = <path {...common} d="M1 7h6 M10.5 7m-3.5 0a3.5 3.5 0 1 0 7 0a3.5 3.5 0 1 0-7 0" />;
+      break;
+    case "Grouping":
+      body = <path {...common} strokeDasharray="2 1.5" d="M1.5 4.5h13v7h-13z M1.5 4.5v-2h6v2" />;
+      break;
     case "CommunicationNetwork":
       body = <path {...common} d="M1.5 9.5h13 M4 9.5V5.5 M12 9.5V5.5 M4 5.5h8" />;
       break;

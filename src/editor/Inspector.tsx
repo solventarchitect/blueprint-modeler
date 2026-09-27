@@ -115,7 +115,8 @@ export function Inspector({ model, selectedId, dispatch, focusName, onSelect, ne
         <p className="mt-1 text-sm text-ink-soft">{def?.description}</p>
         {def && (
           <a className="mt-1 inline-block text-xs text-accent underline underline-offset-4" href={sources[def.source.id].url} target="_blank" rel="noopener noreferrer">
-            Source: CSDM 5 white paper{"page" in def.source ? `, p. ${def.source.page}` : ""}
+            Source: {def.source.id === "whitepaper" ? "CSDM 5 white paper" : sources[def.source.id].title}
+            {"page" in def.source ? `, p. ${def.source.page}` : ""}
             <span className="sr-only"> (opens in a new tab)</span>
           </a>
         )}

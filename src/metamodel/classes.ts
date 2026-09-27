@@ -142,6 +142,62 @@ export const classes = [
     description: "Network infrastructure a service depends on.",
     source: { id: "whitepaper", page: 38 },
   },
+  // Kubernetes: the CMDB classes Kubernetes discovery creates, so container platforms can be drawn
+  // with their own vocabulary instead of approximating them with applications and hosts.
+  {
+    id: "kubernetes_cluster",
+    label: "Kubernetes cluster",
+    domain: "service-delivery",
+    layer: "infrastructure",
+    table: "cmdb_ci_kubernetes_cluster",
+    description: "A Kubernetes cluster: the control plane and nodes that run containerized workloads.",
+    source: { id: "k8sDiscovery" },
+  },
+  {
+    id: "kubernetes_node",
+    label: "Kubernetes node",
+    domain: "service-delivery",
+    layer: "infrastructure",
+    table: "cmdb_ci_kubernetes_node",
+    description: "A worker machine in a cluster, hosted on a server.",
+    source: { id: "k8sDiscovery" },
+  },
+  {
+    id: "kubernetes_namespace",
+    label: "Kubernetes namespace",
+    domain: "service-delivery",
+    layer: "functional",
+    table: "cmdb_ci_kubernetes_namespace",
+    description: "A named partition of a cluster, often one per team, application or environment.",
+    source: { id: "k8sDiscovery" },
+  },
+  {
+    id: "kubernetes_workload",
+    label: "Kubernetes workload",
+    domain: "service-delivery",
+    layer: "functional",
+    table: "cmdb_ci_kubernetes_workload",
+    description: "A deployment, daemon set or stateful set: the containers a cluster keeps running for an application.",
+    source: { id: "k8sExtensionClasses" },
+  },
+  {
+    id: "kubernetes_service",
+    label: "Kubernetes service",
+    domain: "service-delivery",
+    layer: "functional",
+    table: "cmdb_ci_kubernetes_service",
+    description: "A stable network endpoint in front of a workload's pods. Not a CSDM service: it is a runtime object.",
+    source: { id: "k8sDiscovery" },
+  },
+  {
+    id: "kubernetes_pod",
+    label: "Kubernetes pod",
+    domain: "service-delivery",
+    layer: "functional",
+    table: "cmdb_ci_kubernetes_pod",
+    description: "The smallest unit a cluster schedules: one or more containers running together on a server.",
+    source: { id: "k8sDiscovery" },
+  },
 ] as const satisfies readonly ClassDef[];
 
 export type ClassId = (typeof classes)[number]["id"];

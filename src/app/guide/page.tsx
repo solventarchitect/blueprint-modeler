@@ -37,7 +37,7 @@ export default function GuidePage() {
       <h1 className="mt-4 text-3xl font-semibold tracking-tight sm:text-4xl">Class guide</h1>
       <p className="mt-4 max-w-2xl text-ink-soft">
         Every class, relationship and hint the modeler knows, written in our own words from ServiceNow&apos;s public
-        CSDM material. Each entry links to its source so you can check it.
+        material: the CSDM white paper, and the product documentation for the Kubernetes classes. Each entry links to its source so you can check it.
       </p>
       <nav aria-label="On this page" className="mt-6 flex flex-wrap gap-x-5 gap-y-2 text-sm">
         <a className="text-accent underline underline-offset-4" href="#classes">Classes</a>

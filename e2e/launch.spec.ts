@@ -6,6 +6,8 @@ const pages = ["/", "/editor", "/guide", "/about", "/privacy"];
 
 test("the theme toggle cycles Auto → Light → Dark, applies at once and survives a reload", async ({ page }) => {
   await page.emulateMedia({ colorScheme: "dark" });
+  const errors: string[] = [];
+  page.on("pageerror", (e) => errors.push(e.message));
   await page.goto("/about");
   const toggle = page.getByTestId("theme-toggle");
   await expect(toggle).toHaveAccessibleName(/Color theme: Auto/);
@@ -18,7 +20,7 @@ test("the theme toggle cycles Auto → Light → Dark, applies at once and survi
   expect(await bg()).not.toBe(dark);
 
   await page.reload();
-  await expect(page.locator("html")).toHaveAttribute("data-theme", "light");
+  await expect(page.locator("html"), `page errors: ${errors.join(" | ")}`).toHaveAttribute("data-theme", "light");
   await expect(page.getByTestId("theme-toggle")).toHaveAccessibleName(/Color theme: Light/);
 
   await page.getByTestId("theme-toggle").click();

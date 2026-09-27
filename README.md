@@ -37,11 +37,11 @@ General diagramming tools will draw any line you ask for. Blueprint Modeler know
 
 | Feature | What you get |
 |---|---|
-| **Palette by layer** | 13 CSDM classes, from business capability to host and network, placed in lanes from business at the top to infrastructure at the bottom. |
-| **Allowed relationships only** | Connect two elements and choose from the types CSDM uses for that pair (16 pairs). A pair CSDM does not relate is refused with the reason. |
+| **Palette by layer** | 19 classes: 13 from the CSDM white paper, from business capability to host and network, plus 6 CMDB Kubernetes classes (cluster, node, namespace, workload, service, pod), placed in lanes from business at the top to infrastructure at the bottom. |
+| **Allowed relationships only** | Connect two elements and choose from the types CSDM uses for that pair (26 pairs). A pair CSDM does not relate is refused with the reason. |
 | **Conformance hints** | 8 checks, such as a business application with no capability, a service nobody can request, or a capability hierarchy deeper than six levels. Hints advise rather than block, highlight the elements involved and link to their source. |
 | **Class guide** | [Every class, relationship and hint](https://model.mikereams.com/guide) on one page, with its source and how well the public text supports each relationship type. |
-| **Examples** | Five fictional models to start from: an online store checkout, a storefront on Kubernetes, an enterprise AI assistant, an HR portal and a shared database platform. Three of them trigger hints on purpose. |
+| **Examples** | Five fictional models to start from: an online store checkout, a storefront on Kubernetes (in the CMDB's Kubernetes classes), an enterprise AI assistant, an HR portal and a shared database platform. Three of them trigger hints on purpose. |
 | **Import and export** | A versioned JSON model file that round-trips exactly, standalone SVG images in light or dark for docs and slides, and an ArchiMate® Model Exchange File that opens in Archi and other ArchiMate tools. |
 | **Auto-layout** | One click lays the model out top-down by CSDM layer, in a background worker, as a single undo step. |
 | **ArchiMate lens** | Switch to CSDM + ArchiMate 3.2 and every element also shows its mapped ArchiMate element and notation icon; relationships read in ArchiMate terms. View-only: files stay in CSDM terms. |
@@ -71,7 +71,7 @@ Three rules shape the code:
 
 ## Clean-room by design
 
-Every class, relationship and hint is written in our own words from ServiceNow's public CSDM material, mainly the CSDM 5 white paper and ServiceNow Community posts. Nothing comes from any employer, customer or instance, and the app never connects to a ServiceNow instance. Contributions must follow the same rule: public source, linked, in your own words.
+Every class, relationship and hint is written in our own words from ServiceNow's public material: mainly the CSDM 5 white paper, ServiceNow Community posts, and the product documentation for the Kubernetes classes. Nothing comes from any employer, customer or instance, and the app never connects to a ServiceNow instance. Contributions must follow the same rule: public source, linked, in your own words.
 
 ## Privacy
 

@@ -52,6 +52,19 @@ describe("relationships", () => {
   });
 });
 
+describe("Kubernetes", () => {
+  it("uses the relationship types the Kubernetes discovery documentation reports", () => {
+    expect(allowedTypes("kubernetes_cluster", "kubernetes_namespace")).toEqual(["Contains::Contained by"]);
+    expect(allowedTypes("kubernetes_cluster", "kubernetes_node")).toEqual(["Cluster of::Cluster"]);
+    expect(allowedTypes("kubernetes_workload", "kubernetes_cluster")).toEqual(["Hosted on::Hosts"]);
+    expect(allowedTypes("kubernetes_service", "kubernetes_workload")).toEqual(["Provides::Provided by"]);
+    expect(allowedTypes("host", "kubernetes_node")).toEqual(["Hosts::Hosted on"]);
+    for (const r of relationships.filter((r) => r.from.startsWith("kubernetes_") || r.to.startsWith("kubernetes_"))) {
+      if (r.from !== "application_service") expect(r.typeEvidence, `${r.from}->${r.to}`).toBe("reported");
+    }
+  });
+});
+
 describe("hints", () => {
   it("have unique ids and a public source each", () => {
     expect(new Set(hints.map((h) => h.id)).size).toBe(hints.length);

@@ -17,6 +17,14 @@ export const sources = {
     title: "CSDM 5.0 — Business App to Service Instance relationship change (ServiceNow Community)",
     url: "https://www.servicenow.com/community/common-service-data-model-forum/csdm-5-0-business-app-to-service-instance-relationship-change/m-p/3299351",
   },
+  k8sDiscovery: {
+    title: "Kubernetes discovery using patterns (ServiceNow docs, Yokohama)",
+    url: "https://www.servicenow.com/docs/bundle/yokohama-it-operations-management/page/product/service-mapping/concept/kubernetes-discovery.html",
+  },
+  k8sExtensionClasses: {
+    title: "Kubernetes extension classes (ServiceNow docs, Yokohama)",
+    url: "https://www.servicenow.com/docs/r/yokohama/servicenow-platform/cmdb-ci-class-models/cmdb-ci-class-models-kubernetes.html",
+  },
   whatIsCsdm: {
     title: "What is CSDM? (ServiceNow)",
     url: "https://www.servicenow.com/products/it-operations-management/what-is-csdm.html",

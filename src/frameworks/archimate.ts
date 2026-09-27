@@ -20,7 +20,7 @@ export const archimateSources = {
 } as const satisfies Record<string, { title: string; url: string }>;
 
 export type ArchimateSourceId = keyof typeof archimateSources;
-export type ArchimateLayer = "Strategy" | "Business" | "Application" | "Technology";
+export type ArchimateLayer = "Strategy" | "Business" | "Application" | "Technology" | "Other";
 
 /** Element type names as the exchange format spells them (ElementTypeEnum). */
 export type ArchimateElementType =
@@ -34,10 +34,12 @@ export type ArchimateElementType =
   | "TechnologyService"
   | "SystemSoftware"
   | "Node"
-  | "CommunicationNetwork";
+  | "TechnologyInterface"
+  | "CommunicationNetwork"
+  | "Grouping";
 
 /** Relationship type names as the exchange format spells them (RelationshipTypeEnum). */
-export type ArchimateRelationshipType = "Composition" | "Aggregation" | "Realization" | "Serving" | "Access" | "Association";
+export type ArchimateRelationshipType = "Composition" | "Aggregation" | "Assignment" | "Realization" | "Serving" | "Access" | "Association";
 
 export type ElementMapping = {
   type: ArchimateElementType;
@@ -97,6 +99,42 @@ export const archimateElements = {
   },
   host: { type: "Node", label: "Node", layer: "Technology", note: "Use Device when you mean physical hardware.", source: "technology" },
   network: { type: "CommunicationNetwork", label: "Communication Network", layer: "Technology", source: "technology" },
+  kubernetes_cluster: {
+    type: "Node",
+    label: "Node",
+    layer: "Technology",
+    note: "A cluster is a node that aggregates other nodes.",
+    source: "technology",
+  },
+  kubernetes_node: { type: "Node", label: "Node", layer: "Technology", source: "technology" },
+  kubernetes_namespace: {
+    type: "Grouping",
+    label: "Grouping",
+    layer: "Other",
+    note: "A namespace partitions a cluster; ArchiMate groups things with a grouping.",
+    source: "spec",
+  },
+  kubernetes_workload: {
+    type: "SystemSoftware",
+    label: "System Software",
+    layer: "Technology",
+    note: "A containerized workload; model its container image as an Artifact if you need it.",
+    source: "technology",
+  },
+  kubernetes_service: {
+    type: "TechnologyInterface",
+    label: "Technology Interface",
+    layer: "Technology",
+    note: "A stable endpoint to reach a workload, which is what an ArchiMate interface is, not an ArchiMate Technology Service.",
+    source: "technology",
+  },
+  kubernetes_pod: {
+    type: "Node",
+    label: "Node",
+    layer: "Technology",
+    note: "An execution environment for its containers.",
+    source: "technology",
+  },
 } as const satisfies Record<ClassId, ElementMapping>;
 
 export type RelationshipMapping = {
@@ -129,6 +167,16 @@ export const archimateRelationships: Record<string, RelationshipMapping> = {
   "application_service>application_service": { type: "Serving", reverse: true, reads: "the dependency serves the dependent instance" },
   "application>host": { type: "Aggregation", reverse: true, reads: "the node aggregates the system software" },
   "business_capability>business_capability": { type: "Aggregation", reverse: true, reads: "the parent capability aggregates the child" },
+  "kubernetes_cluster>kubernetes_namespace": { type: "Aggregation", reverse: false, reads: "the cluster aggregates the namespace" },
+  "kubernetes_cluster>kubernetes_node": { type: "Aggregation", reverse: false, reads: "the cluster aggregates its nodes" },
+  "kubernetes_cluster>kubernetes_pod": { type: "Aggregation", reverse: false, reads: "the cluster aggregates the pod" },
+  "kubernetes_cluster>kubernetes_service": { type: "Composition", reverse: false, reads: "the cluster is composed of the interface" },
+  "kubernetes_workload>kubernetes_cluster": { type: "Assignment", reverse: true, reads: "the cluster is assigned to run the workload" },
+  "kubernetes_service>kubernetes_workload": { type: "Composition", reverse: true, reads: "the workload is reached through the interface" },
+  "host>kubernetes_node": { type: "Assignment", reverse: false, reads: "the host is assigned to run the Kubernetes node" },
+  "host>kubernetes_pod": { type: "Aggregation", reverse: false, reads: "the host aggregates the pod" },
+  "application_service>kubernetes_workload": { type: "Serving", reverse: true, reads: "the workload serves the instance" },
+  "application_service>kubernetes_cluster": { type: "Serving", reverse: true, reads: "the cluster serves the instance" },
 };
 
 export const archimateRelationshipFor = (from: string, to: string): RelationshipMapping | undefined => archimateRelationships[`${from}>${to}`];

@@ -5,7 +5,7 @@ import { nextPosition } from "@/editor/state";
 /**
  * Starter models. Fictional organizations and systems only — nothing here describes a real
  * company's estate. Each one teaches something: a complete chain, a planned application with
- * no deployment yet, a shared platform service, a Kubernetes deployment drawn with the starter
+ * no deployment yet, a shared platform service, a Kubernetes deployment in the CMDB's Kubernetes
  * classes, and an AI assistant modeled like any other application.
  */
 type Spec = { id: string; name: string; summary: string; nodes: [string, ClassId, string][]; edges: [string, string][] };
@@ -102,7 +102,7 @@ const specs: Spec[] = [
   {
     id: "kubernetes",
     name: "Storefront on Kubernetes",
-    summary: "A containerized app: the platform team's cluster is a technology service offering the storefront depends on, its workloads are applications, and the cluster nodes are hosts. (The CMDB has dedicated Kubernetes classes this starter set does not include yet.)",
+    summary: "A containerized app in the CMDB's Kubernetes classes: the storefront's service instance depends on its workloads and cluster, a Kubernetes service fronts the catalog, and the cluster's nodes are hosted on servers — all offered by the platform team.",
     nodes: [
       ["cap", "business_capability", "Digital commerce"],
       ["ba", "business_application", "Storefront"],
@@ -112,11 +112,15 @@ const specs: Spec[] = [
       ["tmso", "technology_management_service_offering", "Kubernetes — production"],
       ["svc", "application_service", "Storefront — production"],
       ["api", "api", "Catalog API"],
-      ["web", "application", "storefront-web (deployment)"],
-      ["cat", "application", "catalog-service (deployment)"],
-      ["n1", "host", "k8s-node-a"],
-      ["n2", "host", "k8s-node-b"],
-      ["net", "network", "Cluster network"],
+      ["ns", "kubernetes_namespace", "storefront"],
+      ["web", "kubernetes_workload", "storefront-web"],
+      ["cat", "kubernetes_workload", "catalog-service"],
+      ["ksvc", "kubernetes_service", "catalog"],
+      ["cluster", "kubernetes_cluster", "prod-cluster"],
+      ["n1", "kubernetes_node", "node-a"],
+      ["n2", "kubernetes_node", "node-b"],
+      ["h1", "host", "vm-node-a"],
+      ["h2", "host", "vm-node-b"],
     ],
     edges: [
       ["ba", "cap"],
@@ -128,11 +132,16 @@ const specs: Spec[] = [
       ["svc", "api"],
       ["svc", "web"],
       ["svc", "cat"],
-      ["svc", "net"],
-      ["web", "n1"],
-      ["web", "n2"],
-      ["cat", "n1"],
-      ["cat", "n2"],
+      ["svc", "cluster"],
+      ["web", "cluster"],
+      ["cat", "cluster"],
+      ["ksvc", "cat"],
+      ["cluster", "ns"],
+      ["cluster", "ksvc"],
+      ["cluster", "n1"],
+      ["cluster", "n2"],
+      ["h1", "n1"],
+      ["h2", "n2"],
     ],
   },
   {

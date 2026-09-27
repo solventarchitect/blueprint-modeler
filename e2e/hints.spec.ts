@@ -37,6 +37,19 @@ test.describe("examples and hints (desktop)", () => {
     await expect(page.getByRole("tab", { name: "Hints (1)" })).toBeVisible();
   });
 
+  test("the Kubernetes example uses the CMDB's Kubernetes classes, sourced from the product docs", async ({ page }) => {
+    await page.goto("/editor");
+    await expect(page.getByTestId("save-status")).toHaveText("Saved in this browser");
+    await page.getByRole("combobox", { name: "Start from an example" }).selectOption({ label: "Storefront on Kubernetes" });
+    const workload = page.locator(".react-flow__node").filter({ hasText: "catalog-service" });
+    await expect(workload).toContainText("Kubernetes workload");
+    await workload.click();
+    const inspector = page.getByRole("complementary", { name: "Inspector" });
+    await expect(inspector.getByRole("link", { name: /Kubernetes extension classes/ })).toHaveAttribute("href", /servicenow\.com\/docs/);
+    await expect(inspector).toContainText("Hosted on::Hosts");
+    await expect(page.getByRole("tab", { name: "Hints (0)" })).toBeVisible();
+  });
+
   test("tabs work from the keyboard", async ({ page }) => {
     await page.goto("/editor");
     await page.getByRole("tab", { name: "Details" }).focus();
@@ -76,7 +89,7 @@ test.describe("class guide", () => {
     await page.goto("/guide");
     const section = page.getByTestId("archimate-section");
     await expect(section.getByRole("heading", { name: /ArchiMate® 3.2 mapping/ })).toBeVisible();
-    await expect(section.getByRole("region", { name: "ArchiMate element mapping" }).locator("tbody tr")).toHaveCount(13);
+    await expect(section.getByRole("region", { name: "ArchiMate element mapping" }).locator("tbody tr")).toHaveCount(19);
     for (const href of await section.locator("a[target=_blank]").evaluateAll((as) => as.map((a) => (a as HTMLAnchorElement).href))) {
       expect(new URL(href).hostname).toBe("pubs.opengroup.org");
     }

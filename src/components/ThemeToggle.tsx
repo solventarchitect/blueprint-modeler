@@ -7,16 +7,34 @@ export const THEME_KEY = "bm-theme";
 const next: Record<Theme, Theme> = { auto: "light", light: "dark", dark: "auto" };
 const label: Record<Theme, string> = { auto: "Auto", light: "Light", dark: "Dark" };
 
-/** Runs before first paint (inline in <head>) so a saved theme never flashes the wrong one. */
+/** Runs before first paint (first thing in <body>) so a saved theme never flashes the wrong one. */
 export const themeBootScript = `try{var t=localStorage.getItem("${THEME_KEY}");if(t==="light"||t==="dark")document.documentElement.dataset.theme=t}catch(e){}`;
 
 /** Cycles Auto (OS setting) → Light → Dark. The choice is kept in this browser only. */
 export function ThemeToggle() {
   const [theme, setTheme] = useState<Theme>("auto");
 
+  // Storage is the source of truth: re-apply it on mount, and again if anything resets <html>
+  // (React rebuilds it after a recoverable hydration error, which drops data-theme).
   useEffect(() => {
-    const t = document.documentElement.dataset.theme;
-    if (t === "light" || t === "dark") setTheme(t);
+    const stored = () => {
+      try {
+        return localStorage.getItem(THEME_KEY);
+      } catch {
+        return null;
+      }
+    };
+    const root = document.documentElement;
+    const t = stored() ?? root.dataset.theme ?? null;
+    if (t !== "light" && t !== "dark") return;
+    root.dataset.theme = t;
+    setTheme(t);
+    const observer = new MutationObserver(() => {
+      const current = stored();
+      if ((current === "light" || current === "dark") && root.dataset.theme !== current) root.dataset.theme = current;
+    });
+    observer.observe(root, { attributes: true, attributeFilter: ["data-theme"] });
+    return () => observer.disconnect();
   }, []);
 
   const choose = (t: Theme) => {
