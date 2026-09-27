@@ -1,7 +1,9 @@
 "use client";
 
 import { useEffect, useId, useRef, useState } from "react";
-import { allowedTypes, classById, sources } from "@/metamodel";
+import { ARCHIMATE_TRADEMARK, archimateElements, archimateRelationshipFor, archimateSources, type ElementMapping, type Lens } from "@/frameworks";
+import { ArchimateGlyph } from "@/frameworks/ArchimateGlyph";
+import { allowedTypes, classById, isClassId, sources } from "@/metamodel";
 import type { Model } from "@/model";
 import type { Action } from "./state";
 
@@ -12,6 +14,7 @@ type Props = {
   focusName: number;
   onSelect: (id: string | null) => void;
   newId: () => string;
+  lens?: Lens;
 };
 
 const input =
@@ -50,10 +53,20 @@ function NameField({ id, value, label, onCommit, focusToken }: { id: string; val
   );
 }
 
+/** Reads a CSDM edge in ArchiMate terms, e.g. "Serving — the node serves the instance". */
+function archimateRelFor(model: Model) {
+  const classOf = new Map(model.nodes.map((n) => [n.id, n.class]));
+  return (from: string, to: string) => {
+    const m = archimateRelationshipFor(classOf.get(from) ?? "", classOf.get(to) ?? "");
+    return m ? `${m.type} — ${m.reads}` : undefined;
+  };
+}
+
 /** Details of the selected element, its relationships, and a keyboard way to add more. */
-export function Inspector({ model, selectedId, dispatch, focusName, onSelect, newId }: Props) {
+export function Inspector({ model, selectedId, dispatch, focusName, onSelect, newId, lens = "csdm" }: Props) {
   const node = model.nodes.find((n) => n.id === selectedId);
   const connectId = useId();
+  const archimateRel = archimateRelFor(model);
   const [target, setTarget] = useState("");
   useEffect(() => setTarget(""), [selectedId]);
 
@@ -85,6 +98,8 @@ export function Inspector({ model, selectedId, dispatch, focusName, onSelect, ne
       return !model.edges.some((e) => e.from === from && e.to === to && e.type === t);
     });
 
+  const am: ElementMapping | undefined = lens === "archimate" && isClassId(node.class) ? archimateElements[node.class] : undefined;
+
   const addRelationship = () => {
     const [dir, other, t] = target.split("|");
     if (!other || !t) return;
@@ -105,6 +120,24 @@ export function Inspector({ model, selectedId, dispatch, focusName, onSelect, ne
           </a>
         )}
       </div>
+      {am && (
+        <section aria-labelledby="archimate-heading" className="border border-border p-3" data-testid="lens-panel">
+          <h2 id="archimate-heading" className="font-mono text-[0.65rem] tracking-[0.14em] text-ink-muted uppercase">
+            In ArchiMate 3.2
+          </h2>
+          <p className="mt-1.5 flex items-center gap-1.5 text-sm font-medium text-ai">
+            <ArchimateGlyph type={am.type} />
+            {am.label}
+          </p>
+          <p className="text-xs text-ink-muted">{am.layer} layer</p>
+          {am.note && <p className="mt-1 text-xs text-ink-soft">{am.note}</p>}
+          <a className="mt-1 inline-block text-xs text-accent underline underline-offset-4" href={archimateSources[am.source].url} target="_blank" rel="noopener noreferrer">
+            Source: {archimateSources[am.source].title.replace("ArchiMate® 3.2 Specification — ", "ArchiMate 3.2, ")}
+            <span className="sr-only"> (opens in a new tab)</span>
+          </a>
+          <p className="mt-1 text-[0.65rem] text-ink-muted">{ARCHIMATE_TRADEMARK}</p>
+        </section>
+      )}
       <NameField id={node.id} value={node.name} label="Name" focusToken={focusName} onCommit={(name) => dispatch({ type: "rename-node", id: node.id, name })} />
 
       <section aria-labelledby="rel-heading" className="flex flex-col gap-2">
@@ -118,6 +151,7 @@ export function Inspector({ model, selectedId, dispatch, focusName, onSelect, ne
               <span className="flex flex-col">
                 <span>{text}</span>
                 <span className="font-mono text-xs text-ink-muted">{e.type}</span>
+                {lens === "archimate" && archimateRel(e.from, e.to) && <span className="text-xs text-ai">ArchiMate: {archimateRel(e.from, e.to)}</span>}
               </span>
               <button type="button" className={button} onClick={() => dispatch({ type: "delete-edge", id: e.id })} aria-label={`Remove relationship ${text} ${e.type}`}>
                 Remove

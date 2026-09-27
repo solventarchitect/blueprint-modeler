@@ -17,13 +17,14 @@ import {
 } from "@xyflow/react";
 import { useCallback, useEffect, useMemo, useRef, useState, type KeyboardEvent as ReactKeyboardEvent } from "react";
 import { examples } from "@/examples";
+import { archimateElements, lenses, readLens, saveLens, type Lens } from "@/frameworks";
 import { downloadText } from "@/io/download";
 import { exportJson, fileBase, importJson, MAX_FILE_CHARS } from "@/io/file";
 import { modelToSvg } from "@/io/svg";
 import { edgeSides } from "@/layout/geometry";
 import { autoLayout, DEFAULT_SIZE } from "@/layout/layout";
 import { createWorkerEngine } from "@/layout/worker-engine";
-import { classById, classes, type ClassId } from "@/metamodel";
+import { classById, classes, isClassId, type ClassId } from "@/metamodel";
 import { evaluateHints, type HintResult } from "@/model";
 import { ClassNode, type ClassFlowNode } from "./ClassNode";
 import { ExportMenu, type ExportKind } from "./ExportMenu";
@@ -71,6 +72,12 @@ function EditorInner() {
   const [focusName, setFocusName] = useState(0);
   const [message, setMessage] = useState("");
   const [tab, setTab] = useState<Tab>("details");
+  const [lens, setLensState] = useState<Lens>("csdm");
+  useEffect(() => setLensState(readLens()), []);
+  const setLens = (l: Lens) => {
+    setLensState(l);
+    saveLens(l);
+  };
   const [activeHint, setActiveHint] = useState<HintResult | null>(null);
   const drag = useRef<Record<string, { x: number; y: number }>>({});
   const [dragTick, setDragTick] = useState(0);
@@ -127,12 +134,18 @@ function EditorInner() {
         type: "csdm",
         position: drag.current[n.id] ?? model.layout[n.id] ?? { x: 0, y: 0 },
         measured: measured.current[n.id],
-        data: { name: n.name, cls: n.class, hint: hintLevel.get(n.id), highlight: highlighted.has(n.id) },
+        data: {
+          name: n.name,
+          cls: n.class,
+          hint: hintLevel.get(n.id),
+          highlight: highlighted.has(n.id),
+          alt: lens === "archimate" && isClassId(n.class) ? { type: archimateElements[n.class].type, label: archimateElements[n.class].label } : undefined,
+        },
         selected: n.id === selectedId,
         ariaLabel: `${classById(n.class)?.label ?? n.class}: ${n.name || "Untitled"}${hintLevel.get(n.id) ? " (has hints)" : ""}`,
       })),
     // eslint-disable-next-line react-hooks/exhaustive-deps -- drag and measured are refs; dragTick re-runs this
-    [model, selectedId, dragTick, hintLevel, highlighted],
+    [model, selectedId, dragTick, hintLevel, highlighted, lens],
   );
 
   const hintedEdges = useMemo(() => new Set(activeHint?.edgeIds ?? []), [activeHint]);
@@ -284,7 +297,7 @@ function EditorInner() {
     } else {
       const theme = kind === "svg-dark" ? "dark" : "light";
       const filename = `${fileBase(model)}-${theme}.svg`;
-      downloadText(filename, modelToSvg(model, theme), "image/svg+xml");
+      downloadText(filename, modelToSvg(model, theme, { lens }), "image/svg+xml");
       setMessage(`Exported ${filename}.`);
     }
   };
@@ -370,6 +383,16 @@ function EditorInner() {
           </>
         )}
         <ExportMenu onExport={exportAs} buttonClass={toolbarButton} />
+        <label className="flex items-center text-sm">
+          <span className="sr-only">Framework lens</span>
+          <select className={toolbarSelect} value={lens} onChange={(e) => setLens(e.target.value as Lens)} data-testid="lens-select">
+            {lenses.map((l) => (
+              <option key={l.id} value={l.id}>
+                {l.label}
+              </option>
+            ))}
+          </select>
+        </label>
         {wide && (
           <button
             type="button"
@@ -408,7 +431,7 @@ function EditorInner() {
       <div className="flex min-h-0 flex-1">
         {wide && (
           <aside className="w-60 shrink-0 overflow-y-auto border-r border-border" aria-label="Palette">
-            <Palette onAdd={addNode} />
+            <Palette onAdd={addNode} lens={lens} />
           </aside>
         )}
 
@@ -474,7 +497,7 @@ function EditorInner() {
             </div>
             <div id={`panel-${tab}`} role="tabpanel" aria-labelledby={`tab-${tab}`} className="min-h-0 flex-1 overflow-y-auto">
               {tab === "details" ? (
-                <Inspector model={model} selectedId={selectedId} dispatch={dispatch} focusName={focusName} onSelect={setSelectedId} newId={newId} />
+                <Inspector model={model} selectedId={selectedId} dispatch={dispatch} focusName={focusName} onSelect={setSelectedId} newId={newId} lens={lens} />
               ) : (
                 <HintsPanel results={scopedHints} activeId={activeHint?.id ?? null} onFocus={focusHint} scopeName={selected?.name} />
               )}

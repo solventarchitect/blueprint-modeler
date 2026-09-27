@@ -2,10 +2,19 @@
 
 import { Handle, Position, type Node, type NodeProps } from "@xyflow/react";
 import { memo } from "react";
+import { ArchimateGlyph } from "@/frameworks/ArchimateGlyph";
+import type { ArchimateElementType } from "@/frameworks";
 import { classById } from "@/metamodel";
 import { layerAccent } from "./layerAccent";
 
-export type ClassNodeData = { name: string; cls: string; hint?: "warning" | "info"; highlight?: boolean };
+export type ClassNodeData = {
+  name: string;
+  cls: string;
+  hint?: "warning" | "info";
+  highlight?: boolean;
+  /** The element this class maps to under the active framework lens. */
+  alt?: { type: ArchimateElementType; label: string };
+};
 export type ClassFlowNode = Node<ClassNodeData, "csdm">;
 
 /** One CSDM element on the canvas. Handles on all four sides; connection mode is loose. */
@@ -17,6 +26,12 @@ function ClassNodeView({ data, selected }: NodeProps<ClassFlowNode>) {
       <Handle id="top" type="source" position={Position.Top} className="!size-2.5 !border-accent !bg-surface" />
       <p className="font-mono text-[0.65rem] tracking-[0.12em] text-ink-muted uppercase">{def?.label ?? data.cls}</p>
       <p className="mt-0.5 truncate text-sm font-medium text-ink">{data.name || "Untitled"}</p>
+      {data.alt && (
+        <p className="mt-1.5 flex items-center gap-1.5 border-t border-border pt-1.5 font-mono text-[0.65rem] tracking-[0.04em] text-ai" data-testid="lens-label">
+          <ArchimateGlyph type={data.alt.type} />
+          <span className="truncate">{data.alt.label}</span>
+        </p>
+      )}
       {data.hint && (
         <span
           aria-hidden="true"

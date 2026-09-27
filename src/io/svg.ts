@@ -1,4 +1,5 @@
-import { classById, type Layer } from "@/metamodel";
+import { archimateElements, type Lens } from "@/frameworks";
+import { classById, isClassId, type Layer } from "@/metamodel";
 import type { Model } from "@/model";
 import { edgeSides, type Side } from "@/layout/geometry";
 
@@ -56,13 +57,15 @@ function anchor(b: Box, side: Side) {
  * The model as a standalone SVG in the chosen theme: same boxes, lanes and edge routing as the
  * canvas, system fonts (IBM Plex if installed), no scripts, no external references.
  */
-export function modelToSvg(model: Model, theme: SvgTheme): string {
+export function modelToSvg(model: Model, theme: SvgTheme, opts: { lens?: Lens } = {}): string {
+  const lens = opts.lens ?? "csdm";
+  const altOf = (cls: string) => (lens === "archimate" && isClassId(cls) ? archimateElements[cls].label : undefined);
   const p = palettes[theme];
   const boxes = new Map<string, Box & { lines: string[] }>();
   for (const n of model.nodes) {
     const pos = model.layout[n.id] ?? { x: 0, y: 0 };
     const lines = wrap((classById(n.class)?.label ?? n.class).toUpperCase(), CLASS_CHARS);
-    boxes.set(n.id, { x: pos.x, y: pos.y, w: W, h: 20 + lines.length * 14 + 22, lines });
+    boxes.set(n.id, { x: pos.x, y: pos.y, w: W, h: 20 + lines.length * 14 + 22 + (altOf(n.class) ? 20 : 0), lines });
   }
 
   const all = [...boxes.values()];
@@ -98,6 +101,7 @@ export function modelToSvg(model: Model, theme: SvgTheme): string {
   for (const n of model.nodes) {
     const b = boxes.get(n.id)!;
     const layer = classById(n.class)?.layer ?? "design";
+    const alt = altOf(n.class);
     const cls = b.lines
       .map((l, i) => `<text x="${b.x + 14}" y="${b.y + 22 + i * 14}" font-family="${MONO}" font-size="10" letter-spacing="1.2" fill="${p.muted}">${esc(l)}</text>`)
       .join("");
@@ -105,12 +109,19 @@ export function modelToSvg(model: Model, theme: SvgTheme): string {
       `<g><rect x="${b.x}" y="${b.y}" width="${b.w}" height="${b.h}" fill="${p.node}" stroke="${p.line}"/>` +
         `<rect x="${b.x}" y="${b.y}" width="4" height="${b.h}" fill="${layerColor(p, layer)}"/>` +
         cls +
-        `<text x="${b.x + 14}" y="${b.y + b.h - 14}" font-family="${SANS}" font-size="14" font-weight="500" fill="${p.ink}">${esc(clip(n.name || "Untitled", NAME_CHARS))}</text></g>`,
+        `<text x="${b.x + 14}" y="${b.y + b.h - 14 - (alt ? 20 : 0)}" font-family="${SANS}" font-size="14" font-weight="500" fill="${p.ink}">${esc(clip(n.name || "Untitled", NAME_CHARS))}</text>` +
+        (alt
+          ? `<line x1="${b.x + 14}" y1="${b.y + b.h - 26}" x2="${b.x + b.w - 10}" y2="${b.y + b.h - 26}" stroke="${p.line}" stroke-opacity="0.4"/>` +
+            `<text x="${b.x + 14}" y="${b.y + b.h - 10}" font-family="${MONO}" font-size="10" fill="${p.ai}">ArchiMate · ${esc(alt)}</text>`
+          : "") +
+        `</g>`,
     );
   }
 
   const title = esc(model.name || "Untitled model");
-  const desc = esc(`CSDM model with ${model.nodes.length} elements and ${model.edges.length} relationships, exported from Blueprint Modeler.`);
+  const desc = esc(
+    `CSDM model with ${model.nodes.length} elements and ${model.edges.length} relationships${lens === "archimate" ? ", with ArchiMate 3.2 element names" : ""}, exported from Blueprint Modeler.`,
+  );
   return [
     `<?xml version="1.0" encoding="UTF-8"?>`,
     `<svg xmlns="http://www.w3.org/2000/svg" viewBox="${minX} ${minY} ${width} ${height}" width="${width}" height="${height}" role="img" aria-labelledby="t d">`,

@@ -56,6 +56,13 @@ describe("SVG export", () => {
     expect(svg).not.toContain("<script>");
   });
 
+  it("adds ArchiMate element names under the ArchiMate lens", () => {
+    const svg = modelToSvg(model(), "dark", { lens: "archimate" });
+    expect(svg).toContain("ArchiMate · Application Component");
+    expect(svg).toContain("ArchiMate · Capability");
+    expect(modelToSvg(model(), "dark")).not.toContain("ArchiMate");
+  });
+
   it("uses different colors per theme", () => {
     expect(modelToSvg(model(), "dark")).toContain("#121e2b");
     expect(modelToSvg(model(), "light")).toContain("#f6f7f9");

@@ -1,5 +1,6 @@
 "use client";
 
+import { archimateElements, type Lens } from "@/frameworks";
 import { classes, type ClassId, type Layer } from "@/metamodel";
 import { layerAccent } from "./layerAccent";
 
@@ -12,7 +13,7 @@ const LAYERS: { id: Layer; label: string }[] = [
 ];
 
 /** Element palette, grouped by layer. Each button adds one element and hands focus to its name. */
-export function Palette({ onAdd }: { onAdd: (cls: ClassId) => void }) {
+export function Palette({ onAdd, lens = "csdm" }: { onAdd: (cls: ClassId) => void; lens?: Lens }) {
   return (
     <nav aria-label="Element palette" className="flex flex-col gap-4 p-4">
       {LAYERS.map((layer) => (
@@ -30,7 +31,10 @@ export function Palette({ onAdd }: { onAdd: (cls: ClassId) => void }) {
                     onClick={() => onAdd(c.id)}
                     className={`flex w-full cursor-pointer items-center gap-2 border border-border border-l-4 bg-surface-raised px-2.5 py-1.5 text-left text-sm leading-snug text-ink hover:border-accent hover:text-accent ${layerAccent[c.layer]}`}
                   >
-                    <span className="min-w-0 flex-1">{c.label}</span>
+                    <span className="flex min-w-0 flex-1 flex-col">
+                      <span>{c.label}</span>
+                      {lens === "archimate" && <span aria-hidden="true" className="font-mono text-[0.65rem] text-ai">{archimateElements[c.id].label}</span>}
+                    </span>
                     <span aria-hidden="true" className="font-mono text-ink-muted">
                       +
                     </span>

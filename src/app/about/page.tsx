@@ -24,6 +24,14 @@ export default function AboutPage() {
         and relationship types are labeled by how well the public text supports them. Nothing here is copied from any
         employer, customer or instance, and the tool never connects to a ServiceNow instance.
       </p>
+      <h2>Other frameworks</h2>
+      <p>
+        Switch the lens to <strong>CSDM + ArchiMate 3.2</strong> and every element also shows the ArchiMate element it
+        maps to, with the notation icon. The model itself stays in CSDM terms, so nothing about your files changes. The
+        mapping is written in our own words and linked to the public ArchiMate specification in the{" "}
+        <a href="/guide#archimate">class guide</a>. ArchiMate® is a registered trademark of The Open Group; this tool is
+        not affiliated with or endorsed by The Open Group.
+      </p>
       <h2>No account, no server</h2>
       <p>
         The app is a static site. Your models are saved only in your browser, and import, export and auto-layout all

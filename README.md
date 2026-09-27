@@ -44,6 +44,7 @@ General diagramming tools will draw any line you ask for. Blueprint Modeler know
 | **Examples** | Five fictional models to start from: an online store checkout, a storefront on Kubernetes, an enterprise AI assistant, an HR portal and a shared database platform. Three of them trigger hints on purpose. |
 | **Import and export** | A versioned JSON model file that round-trips exactly, plus standalone SVG images in light or dark for docs and slides. |
 | **Auto-layout** | One click lays the model out top-down by CSDM layer, in a background worker, as a single undo step. |
+| **ArchiMate lens** | Switch to CSDM + ArchiMate 3.2 and every element also shows its mapped ArchiMate element and notation icon; relationships read in ArchiMate terms. View-only: files stay in CSDM terms. |
 | **Keyboard and themes** | Every canvas action has a keyboard path. Auto, light and dark themes. Checked against WCAG 2.2 AA. |
 
 ## How it works
@@ -151,4 +152,4 @@ Issues and pull requests are welcome. For metamodel changes (a class, relationsh
 
 [MIT](LICENSE) © 2026 [Mike Reams](https://mikereams.com). IBM Plex fonts: SIL Open Font License (see `src/fonts/README.md`). Auto-layout uses [elkjs](https://github.com/kieler/elkjs) (unmodified, EPL-2.0), loaded in a Web Worker only when you click Auto-layout.
 
-Not affiliated with or endorsed by ServiceNow. ServiceNow and CSDM are trademarks of ServiceNow, Inc., used here only to describe what the tool models.
+Not affiliated with or endorsed by ServiceNow or The Open Group. ServiceNow and CSDM are trademarks of ServiceNow, Inc.; ArchiMate® is a registered trademark of The Open Group. They are used here only to describe what the tool models.

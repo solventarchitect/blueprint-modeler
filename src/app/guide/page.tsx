@@ -1,6 +1,8 @@
 import type { Metadata } from "next";
 import { classById, classes, hints, relationships, sources, type Layer, type SourceRef } from "@/metamodel";
 import { layerAccent } from "@/editor/layerAccent";
+import { ARCHIMATE_TRADEMARK, archimateElements, archimateRelationshipFor, archimateSources, type ElementMapping } from "@/frameworks";
+import { ArchimateGlyph } from "@/frameworks/ArchimateGlyph";
 
 export const metadata: Metadata = {
   title: "Class guide",
@@ -41,6 +43,7 @@ export default function GuidePage() {
         <a className="text-accent underline underline-offset-4" href="#classes">Classes</a>
         <a className="text-accent underline underline-offset-4" href="#relationships">Relationships</a>
         <a className="text-accent underline underline-offset-4" href="#hints">Hints</a>
+        <a className="text-accent underline underline-offset-4" href="#archimate">ArchiMate mapping</a>
       </nav>
 
       <section aria-labelledby="classes" className="mt-12">
@@ -133,6 +136,78 @@ export default function GuidePage() {
             </li>
           ))}
         </ul>
+      </section>
+
+      <section aria-labelledby="archimate" className="mt-16" data-testid="archimate-section">
+        <h2 id="archimate" className="text-2xl font-semibold tracking-tight">ArchiMate® 3.2 mapping</h2>
+        <p className="mt-2 max-w-2xl text-sm text-ink-muted">
+          Switch the editor&apos;s lens to <strong className="font-medium text-ink-soft">CSDM + ArchiMate 3.2</strong> to see
+          these names on the canvas. The mapping is our interpretation; each element links to the chapter of the{" "}
+          <a className="text-accent underline underline-offset-4" href={archimateSources.spec.url} target="_blank" rel="noopener noreferrer">
+            public specification
+          </a>{" "}
+          that defines it, and every relationship is an allowed ArchiMate relationship. {ARCHIMATE_TRADEMARK}
+        </p>
+        <div className="mt-6 overflow-x-auto border border-border" tabIndex={0} role="region" aria-label="ArchiMate element mapping">
+          <table className="w-full min-w-[40rem] text-left text-sm">
+            <thead className="bg-surface-raised font-mono text-xs tracking-[0.1em] text-ink-muted uppercase">
+              <tr>
+                <th scope="col" className="px-3 py-2.5 font-medium">CSDM class</th>
+                <th scope="col" className="px-3 py-2.5 font-medium">ArchiMate element</th>
+                <th scope="col" className="px-3 py-2.5 font-medium">Layer</th>
+                <th scope="col" className="px-3 py-2.5 font-medium">Note</th>
+              </tr>
+            </thead>
+            <tbody>
+              {classes.map((c) => {
+                const m: ElementMapping = archimateElements[c.id];
+                return (
+                  <tr key={c.id} className="border-t border-border align-top">
+                    <td className="px-3 py-2.5">{c.label}</td>
+                    <td className="px-3 py-2.5">
+                      <a
+                        className="inline-flex items-center gap-1.5 text-accent underline underline-offset-4"
+                        href={archimateSources[m.source].url}
+                        target="_blank"
+                        rel="noopener noreferrer"
+                      >
+                        <ArchimateGlyph type={m.type} />
+                        {m.label}
+                      </a>
+                    </td>
+                    <td className="px-3 py-2.5">{m.layer}</td>
+                    <td className="px-3 py-2.5 text-xs text-ink-soft">{m.note ?? ""}</td>
+                  </tr>
+                );
+              })}
+            </tbody>
+          </table>
+        </div>
+        <div className="mt-6 overflow-x-auto border border-border" tabIndex={0} role="region" aria-label="ArchiMate relationship mapping">
+          <table className="w-full min-w-[40rem] text-left text-sm">
+            <thead className="bg-surface-raised font-mono text-xs tracking-[0.1em] text-ink-muted uppercase">
+              <tr>
+                <th scope="col" className="px-3 py-2.5 font-medium">CSDM relationship</th>
+                <th scope="col" className="px-3 py-2.5 font-medium">ArchiMate relationship</th>
+                <th scope="col" className="px-3 py-2.5 font-medium">Reads as</th>
+              </tr>
+            </thead>
+            <tbody>
+              {relationships.map((r) => {
+                const m = archimateRelationshipFor(r.from, r.to);
+                return (
+                  <tr key={`${r.from}-${r.to}`} className="border-t border-border align-top">
+                    <td className="px-3 py-2.5">
+                      {label(r.from)} → {label(r.to)}
+                    </td>
+                    <td className="px-3 py-2.5 font-mono text-xs">{m ? `${m.type}${m.reverse ? " (reversed)" : ""}` : "—"}</td>
+                    <td className="px-3 py-2.5 text-xs text-ink-soft">{m?.reads ?? ""}</td>
+                  </tr>
+                );
+              })}
+            </tbody>
+          </table>
+        </div>
       </section>
     </div>
   );

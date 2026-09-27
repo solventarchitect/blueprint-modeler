@@ -65,11 +65,22 @@ test.describe("class guide", () => {
     await expect(page.getByRole("heading", { level: 1, name: "Class guide" })).toBeVisible();
     await expect(page.getByText("Business application", { exact: true }).first()).toBeVisible();
     await expect(page.getByRole("table").locator("tbody tr")).not.toHaveCount(0);
-    const links = page.locator("main a[target=_blank]");
+    const links = page.locator("main section:not([data-testid=archimate-section]) a[target=_blank]");
     expect(await links.count()).toBeGreaterThan(20);
     for (const href of await links.evaluateAll((as) => as.map((a) => (a as HTMLAnchorElement).href))) {
       expect(new URL(href).hostname).toMatch(/(^|\.)servicenow\.com$/);
     }
+  });
+
+  test("the ArchiMate mapping links only to The Open Group's public specification", async ({ page }) => {
+    await page.goto("/guide");
+    const section = page.getByTestId("archimate-section");
+    await expect(section.getByRole("heading", { name: /ArchiMate® 3.2 mapping/ })).toBeVisible();
+    await expect(section.getByRole("region", { name: "ArchiMate element mapping" }).locator("tbody tr")).toHaveCount(13);
+    for (const href of await section.locator("a[target=_blank]").evaluateAll((as) => as.map((a) => (a as HTMLAnchorElement).href))) {
+      expect(new URL(href).hostname).toBe("pubs.opengroup.org");
+    }
+    await expect(section).toContainText("registered trademark of The Open Group");
   });
 
   test("the header links to the editor and the guide", async ({ page }) => {

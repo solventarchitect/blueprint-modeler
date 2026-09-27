@@ -38,6 +38,7 @@
 | Storage | IndexedDB via a small in-repo wrapper; import/export = JSON model file (versioned schema), SVG |
 | Model | `src/model/` typed JSON: nodes `{id, class, name, attrs}`, edges `{id, from, to, type}`; layout is a sidecar keyed by id |
 | Metamodel | `src/metamodel/` — CSDM classes, allowed relationship types, conformance hints; each entry has `source` (public URL) |
+| Frameworks | `src/frameworks/` — view-only lenses (ArchiMate 3.2). Mapping in our own words, each element cites a public Open Group spec chapter; every relationship must be allowed by the ArchiMate relationship tables; carry the ArchiMate® trademark notice wherever the lens appears |
 | Tests | Vitest (model, metamodel, hints, import/export round-trip) · Playwright (hero flow, keyboard, axe) |
 | Copy | American English in UI text, docs and comments (modeling, color, center, catalog) |
 | License | MIT, © Mike Reams |

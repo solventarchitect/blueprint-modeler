@@ -9,7 +9,8 @@ async function openExample(page: Page, name: string) {
   await page.goto("/editor");
   await expect(page.getByTestId("save-status")).toHaveText("Saved in this browser");
   await page.getByRole("combobox", { name: "Start from an example" }).selectOption({ label: name });
-  await expect(page.getByRole("combobox", { name: "Open model" })).toHaveValue(/.+/);
+  // Wait until the example is stored and open, not just the placeholder model (a race made counts flaky).
+  await expect(page.getByRole("combobox", { name: "Open model" }).locator("option:checked")).toHaveText(name);
   await expect(page.locator(".react-flow__node")).not.toHaveCount(0);
 }
 
