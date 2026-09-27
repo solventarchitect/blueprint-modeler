@@ -7,14 +7,14 @@ import type { Locator } from "@playwright/test";
  * background gradient" for any text over the drafting grid (body background-image), and
  * files it as *incomplete*, not a violation. A 3.3:1 error message passed axe that way.
  * This walks up the ancestors compositing background-colors (the grid is decorative and
- * ~7% alpha, so it is ignored), normalises every colour through a canvas — computed
+ * ~7% alpha, so it is ignored), normalizes every color through a canvas — computed
  * values may be oklab()/color-mix() — and returns the ratio.
  */
 export type ContrastProp = "text" | "outline";
 
 /**
- * `prop`: "text" measures the glyph colour (CSS `color`, or `fill` for SVG text);
- * "outline" measures the focus outline colour against the same background (WCAG 1.4.11).
+ * `prop`: "text" measures the glyph color (CSS `color`, or `fill` for SVG text);
+ * "outline" measures the focus outline color against the same background (WCAG 1.4.11).
  */
 export async function contrastOf(locator: Locator, prop: ContrastProp = "text"): Promise<number> {
   return locator.evaluate((el, which) => {

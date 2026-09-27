@@ -16,7 +16,7 @@ const def = (id: HintId) => hints.find((h) => h.id === id)!;
 
 /**
  * Which conformance hints apply to `model`. Pure and deterministic: same model, same hints, in
- * the same order (warnings first, then by hint catalogue order, then by element order).
+ * the same order (warnings first, then by hint catalog order, then by element order).
  */
 export function evaluateHints(model: Model): HintResult[] {
   const out: HintResult[] = [];

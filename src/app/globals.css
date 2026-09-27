@@ -1,7 +1,7 @@
 @import "tailwindcss";
 @import "./tokens.css";
 
-/* Semantic roles — the ONLY colour names components may use. Same Blueprint roles and
+/* Semantic roles — the ONLY color names components may use. Same Blueprint roles and
  * contrast pairs as mikereams.com (ratios measured there against --surface).
  * Dark is the default; the light "blueprint paper" roles follow the OS setting. */
 :root {
@@ -17,6 +17,10 @@
   --border: var(--color-neutral-800);
   --border-strong: var(--color-neutral-400);
   --grid-line: color-mix(in oklab, var(--color-primary-400) 7%, transparent);
+  /* Editor canvas: recessed below the chrome so its edges read at a glance; grid is decorative. */
+  --canvas: color-mix(in oklab, var(--color-neutral-950) 72%, var(--color-black));
+  --canvas-grid: color-mix(in oklab, var(--color-primary-400) 11%, transparent);
+  --canvas-grid-major: color-mix(in oklab, var(--color-primary-400) 22%, transparent);
   color-scheme: dark;
 }
 
@@ -34,6 +38,9 @@
     --border: var(--color-neutral-200);
     --border-strong: var(--color-neutral-500);
     --grid-line: color-mix(in oklab, var(--color-primary-700) 9%, transparent);
+    --canvas: var(--color-neutral-100);
+    --canvas-grid: color-mix(in oklab, var(--color-primary-700) 12%, transparent);
+    --canvas-grid-major: color-mix(in oklab, var(--color-primary-700) 24%, transparent);
     color-scheme: light;
   }
 }
@@ -50,6 +57,7 @@
   --color-ai: var(--ai);
   --color-border: var(--border);
   --color-border-strong: var(--border-strong);
+  --color-canvas: var(--canvas);
   --font-sans: var(--font-plex-sans), "IBM Plex Sans", system-ui, sans-serif;
   --font-mono: var(--font-plex-mono), "IBM Plex Mono", ui-monospace, monospace;
 }
@@ -92,7 +100,7 @@
   }
 }
 
-/* Canvas (React Flow) in Blueprint roles. base.css supplies layout only; colour lives here. */
+/* Canvas (React Flow) in Blueprint roles. base.css supplies layout only; color lives here. */
 .react-flow__edge-path,
 .react-flow__connection-path {
   stroke: var(--border-strong);

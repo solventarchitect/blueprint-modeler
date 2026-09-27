@@ -1,7 +1,7 @@
 import type { SourceRef } from "./sources";
 
 /**
- * Conformance hint catalogue. Hints advise; they never block. `evaluateHints` (src/model/hints.ts)
+ * Conformance hint catalog. Hints advise; they never block. `evaluateHints` (src/model/hints.ts)
  * decides which apply to a model; the wording and sources live here.
  */
 export type HintDef = {

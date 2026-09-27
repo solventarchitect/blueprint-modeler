@@ -3,6 +3,7 @@
 import "@xyflow/react/dist/base.css";
 import {
   Background,
+  BackgroundVariant,
   ConnectionMode,
   Controls,
   MarkerType,
@@ -228,7 +229,7 @@ function EditorInner() {
   };
 
   return (
-    <div className="flex h-[calc(100dvh-3.5rem)] min-h-[34rem] flex-col">
+    <div className="flex h-[calc(100dvh-3.5rem)] min-h-[34rem] flex-col bg-surface">
       <div className="flex flex-wrap items-center gap-2 border-b border-border px-4 py-2">
         <label className="flex items-center gap-2 text-sm">
           <span className="sr-only">Open model</span>
@@ -303,7 +304,7 @@ function EditorInner() {
           </aside>
         )}
 
-        <div className="relative min-w-0 flex-1" aria-label="Model canvas" role="region">
+        <div className="relative min-w-0 flex-1 bg-canvas" aria-label="Model canvas" role="region">
           <ReactFlow<ClassFlowNode, FlowEdge>
             nodes={nodes}
             edges={edges}
@@ -320,7 +321,8 @@ function EditorInner() {
             fitViewOptions={{ maxZoom: 1, padding: 0.15 }}
             minZoom={0.2}
           >
-            <Background gap={32} color="var(--grid-line)" />
+            <Background id="minor" variant={BackgroundVariant.Lines} gap={32} color="var(--canvas-grid)" />
+            <Background id="major" variant={BackgroundVariant.Lines} gap={160} color="var(--canvas-grid-major)" />
             <Controls showInteractive={false} />
           </ReactFlow>
           {model.nodes.length === 0 && doc.status !== "loading" && (

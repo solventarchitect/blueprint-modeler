@@ -1,6 +1,6 @@
 import type { Layer } from "@/metamodel";
 
-/** Left-border colour per canvas lane; shared by nodes, the palette and the guide (server-safe). */
+/** Left-border color per canvas lane; shared by nodes, the palette and the guide (server-safe). */
 export const layerAccent: Record<Layer, string> = {
   business: "border-l-status",
   design: "border-l-accent",

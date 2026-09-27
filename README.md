@@ -1,6 +1,6 @@
 # Blueprint Modeler
 
-A free, browser-only canvas for modelling application architecture with ServiceNow's Common Service Data Model
+A free, browser-only canvas for modeling application architecture with ServiceNow's Common Service Data Model
 (CSDM): capability → business application → application service → technology. No sign-up, no server; your models
 stay in your browser and in files you export.
 

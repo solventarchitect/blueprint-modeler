@@ -33,7 +33,7 @@
 | F-05 | Architect | to export and import a model file | I can back up, move and version it in Git | Export JSON → clear → import → deep-equal model + layout; files from older schema versions migrate; invalid files are rejected with a readable error and change nothing |
 | F-06 | Architect | to export SVG in light or dark | I can put it in a doc or slide | SVG export matches the canvas, embeds fonts or uses system fonts, and loads nothing remote |
 | F-07 | Architect | auto-layout by CSDM layer | a messy sketch becomes readable | One action lays out top-down by domain in a worker; the UI stays responsive; undo restores positions |
-| F-08 | Learner | starter examples and a short guide to each class | I learn CSDM while modelling | Each palette class has a description and source link; three example models load from the start screen |
+| F-08 | Learner | starter examples and a short guide to each class | I learn CSDM while modeling | Each palette class has a description and source link; three example models load from the start screen |
 
 ## 4. Data model
 

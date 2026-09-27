@@ -39,6 +39,7 @@
 | Model | `src/model/` typed JSON: nodes `{id, class, name, attrs}`, edges `{id, from, to, type}`; layout is a sidecar keyed by id |
 | Metamodel | `src/metamodel/` — CSDM classes, allowed relationship types, conformance hints; each entry has `source` (public URL) |
 | Tests | Vitest (model, metamodel, hints, import/export round-trip) · Playwright (hero flow, keyboard, axe) |
+| Copy | American English in UI text, docs and comments (modeling, color, center, catalog) |
 | License | MIT, © Mike Reams |
 | Commits | Conventional Commits; verify + commit after each SPEC milestone |
 

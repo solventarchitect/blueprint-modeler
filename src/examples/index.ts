@@ -84,7 +84,7 @@ const specs: Spec[] = [
       ["pg", "application", "PostgreSQL cluster"],
       ["h1", "host", "pg-node-01"],
       ["h2", "host", "pg-node-02"],
-      ["net", "network", "Data-centre network"],
+      ["net", "network", "Data-center network"],
     ],
     edges: [
       ["tms", "tmso"],

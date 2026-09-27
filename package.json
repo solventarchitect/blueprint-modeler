@@ -2,7 +2,7 @@
   "name": "blueprint-modeler",
   "version": "0.0.1",
   "private": true,
-  "description": "Blueprint Modeler — a free, browser-only canvas for modelling application architecture the CSDM way.",
+  "description": "Blueprint Modeler — a free, browser-only canvas for modeling application architecture the CSDM way.",
   "homepage": "https://model.mikereams.com",
   "license": "MIT",
   "packageManager": "pnpm@11.8.0",

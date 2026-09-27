@@ -47,16 +47,16 @@ export function useModelDocument() {
   }, []);
 
   useEffect(() => {
-    let cancelled = false;
+    let canceled = false;
     openBrowserStore().then(async (opened) => {
-      if (cancelled) return;
+      if (canceled) return;
       store.current = opened.store;
       persistent.current = opened.persistent;
       await open();
       setStatus(opened.persistent ? "saved" : "memory-only");
     });
     return () => {
-      cancelled = true;
+      canceled = true;
     };
   }, [open]);
 
