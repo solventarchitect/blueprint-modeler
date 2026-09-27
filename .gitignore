@@ -45,3 +45,6 @@ desktop.ini
 *.log
 npm-debug.log*
 pnpm-debug.log*
+
+# Local research notes and third-party feedback (never published)
+raw/
