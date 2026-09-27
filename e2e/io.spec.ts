@@ -94,17 +94,22 @@ test.describe("import, export and layout (desktop)", () => {
     expect(file.name).toBe("online-store-checkout.drawio");
     await expect(page.getByRole("status")).toContainText("Import › draw.io");
     await expect(page.getByRole("status")).toContainText("needs a paid Lucid plan");
-    const counts = await page.evaluate((xml) => {
+    const counts = await page.evaluate(async (file) => {
+      // Lucid only imports compressed diagrams: unpack the way draw.io does, then parse.
+      const packed = new DOMParser().parseFromString(file, "application/xml").getElementsByTagName("diagram")[0]!.textContent!;
+      const bytes = Uint8Array.from(atob(packed), (c) => c.charCodeAt(0));
+      const xml = decodeURIComponent(await new Response(new Blob([bytes]).stream().pipeThrough(new DecompressionStream("deflate-raw"))).text());
       const doc = new DOMParser().parseFromString(xml, "application/xml");
       const cells = [...doc.getElementsByTagName("mxCell")];
       return {
         error: doc.getElementsByTagName("parsererror").length,
         root: doc.documentElement.tagName,
+        file: file.startsWith('<?xml version="1.0" encoding="UTF-8"?>\n<mxfile '),
         vertices: cells.filter((c) => c.getAttribute("vertex") === "1").length,
         edges: cells.filter((c) => c.getAttribute("edge") === "1").length,
       };
     }, file.text);
-    expect(counts).toEqual({ error: 0, root: "mxfile", vertices: nodes, edges });
+    expect(counts).toEqual({ error: 0, root: "mxGraphModel", file: true, vertices: nodes, edges });
   });
 
   test("the export menu works from the keyboard and closes on Escape", async ({ page }) => {

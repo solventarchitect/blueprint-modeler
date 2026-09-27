@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 import { examples } from "@/examples";
-import { modelToDrawio } from "./drawio";
+import { decompressDiagram, modelToDrawio, modelToDrawioFile } from "./drawio";
 import { LUCID_FREE, lucidFit, lucidFitMessage, lucidFitNote } from "./lucid";
 
 const at = new Date("2026-09-27T00:00:00Z");
@@ -55,6 +55,27 @@ describe("draw.io export", () => {
     for (const ex of examples) {
       const m = ex.create(at, ex.id);
       expect(modelToDrawio(m, { now: at }).match(/vertex="1"/g) ?? []).toHaveLength(m.nodes.length);
+    }
+  });
+});
+
+describe("draw.io file (compressed, what Lucid imports)", () => {
+  it("wraps the same diagram, compressed the way draw.io does, and round-trips exactly", async () => {
+    const m = checkout();
+    const plain = modelToDrawio(m, { now: at });
+    const file = await modelToDrawioFile(m, { now: at });
+    expect(file).not.toContain("<mxGraphModel");
+    const packed = /<diagram [^>]*>([A-Za-z0-9+/=]+)<\/diagram>/.exec(file)![1]!;
+    const graph = plain.slice(plain.indexOf("<mxGraphModel"), plain.indexOf("</mxGraphModel>") + 15);
+    expect(await decompressDiagram(packed)).toBe(graph);
+    expect(file.replace(packed, "")).toBe(plain.replace(`\n${graph}\n`, ""));
+  });
+
+  it("compresses every example (non-ASCII names included)", async () => {
+    for (const ex of examples) {
+      const file = await modelToDrawioFile(ex.create(at, ex.id), { now: at });
+      const packed = /<diagram [^>]*>([^<]+)<\/diagram>/.exec(file)![1]!;
+      expect(await decompressDiagram(packed)).toContain("—");
     }
   });
 });

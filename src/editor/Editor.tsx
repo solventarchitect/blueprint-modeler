@@ -30,7 +30,7 @@ import { archimateElements, lenses, readLens, saveLens, type Lens } from "@/fram
 import { downloadText } from "@/io/download";
 import { exportJson, fileBase, importJson, MAX_FILE_CHARS } from "@/io/file";
 import { modelToArchimateXml } from "@/io/archimate";
-import { modelToDrawio } from "@/io/drawio";
+import { modelToDrawioFile } from "@/io/drawio";
 import { lucidFit, lucidFitMessage, lucidFitNote } from "@/io/lucid";
 import { modelToSvg } from "@/io/svg";
 import { LAYERS, layerBoxes, layerLanes, settleIntoLane } from "@/layout/bands";
@@ -341,8 +341,10 @@ function EditorInner() {
       setMessage(`Exported ${filename}. In Archi: File › Import › Open Exchange XML Model.`);
     } else if (kind === "drawio") {
       const filename = `${fileBase(model)}.drawio`;
-      downloadText(filename, modelToDrawio(model, { lens }), "application/vnd.jgraph.mxfile");
-      setMessage(`Exported ${filename}. In Lucidchart: Import › draw.io. ${lucidFitMessage(lucidFit(model))}`);
+      void modelToDrawioFile(model, { lens }).then((text) => {
+        downloadText(filename, text, "application/vnd.jgraph.mxfile");
+        setMessage(`Exported ${filename}. In Lucidchart: Import › draw.io. ${lucidFitMessage(lucidFit(model))}`);
+      });
     } else {
       const theme = kind === "svg-dark" ? "dark" : "light";
       const filename = `${fileBase(model)}-${theme}.svg`;

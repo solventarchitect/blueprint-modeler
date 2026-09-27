@@ -4,10 +4,11 @@ import type { Model } from "@/model";
 import { edgeSides } from "@/layout/geometry";
 
 /**
- * The model as an uncompressed draw.io file (.drawio, mxGraph XML). draw.io opens it, and
- * Lucidchart imports it (Import › draw.io). Each element carries its CSDM class, ServiceNow table
- * and layer as properties, so they survive as shape data where the importing tool keeps them.
- * Built as a string in the browser: no library, no network.
+ * The model as a draw.io file (.drawio, mxGraph XML). `modelToDrawio` returns the readable,
+ * uncompressed form; `modelToDrawioFile` compresses the diagram the way draw.io does, which is
+ * what Lucidchart's importer requires (it rejects uncompressed files as "not a valid Draw.io XML
+ * file" — verified 2026-09-27). Each element carries its CSDM class, ServiceNow table and layer as
+ * draw.io properties; draw.io keeps them, Lucid's importer drops them. No library, no network.
  */
 
 const W = 224;
@@ -136,4 +137,29 @@ export function modelToDrawio(model: Model, opts: { lens?: Lens; now?: Date } = 
     `</mxfile>`,
     "",
   ].join("\n");
+}
+
+/** draw.io's diagram compression: encodeURIComponent → raw deflate → base64. */
+export async function compressDiagram(xml: string): Promise<string> {
+  const stream = new Blob([encodeURIComponent(xml)]).stream().pipeThrough(new CompressionStream("deflate-raw"));
+  const bytes = new Uint8Array(await new Response(stream).arrayBuffer());
+  let bin = "";
+  for (let i = 0; i < bytes.length; i += 0x8000) bin += String.fromCharCode(...bytes.subarray(i, i + 0x8000));
+  return btoa(bin);
+}
+
+/** Inverse of `compressDiagram` (tests and round-trip checks). */
+export async function decompressDiagram(b64: string): Promise<string> {
+  const bytes = Uint8Array.from(atob(b64), (c) => c.charCodeAt(0));
+  const stream = new Blob([bytes]).stream().pipeThrough(new DecompressionStream("deflate-raw"));
+  return decodeURIComponent(await new Response(stream).text());
+}
+
+/** The file to download: same document with the diagram compressed (Lucid-importable). */
+export async function modelToDrawioFile(model: Model, opts: { lens?: Lens; now?: Date } = {}): Promise<string> {
+  const xml = modelToDrawio(model, opts);
+  const start = xml.indexOf("<mxGraphModel");
+  const end = xml.indexOf("</mxGraphModel>") + "</mxGraphModel>".length;
+  const packed = await compressDiagram(xml.slice(start, end));
+  return `${xml.slice(0, start).replace(/\n$/, "")}${packed}${xml.slice(end).replace(/^\n/, "")}`;
 }
