@@ -48,10 +48,10 @@ export function evaluateHints(model: Model): HintResult[] {
   for (const n of model.nodes) {
     if (n.class === "business_application") {
       if (!outgoing(n.id).some((e) => classOf(e.to) === "business_capability")) {
-        push("ba-without-capability", n.id, `${label(n.id)} is not related to a business capability.`, [n.id]);
+        push("ba-without-capability", n.id, `${label(n.id)} is not related to a Business Capability.`, [n.id]);
       }
       if (!outgoing(n.id).some((e) => classOf(e.to) === "application_service")) {
-        push("ba-without-service-instance", n.id, `${label(n.id)} has no application service.`, [n.id]);
+        push("ba-without-service-instance", n.id, `${label(n.id)} has no Application Service.`, [n.id]);
       }
     }
     if (n.class === "application_service") {

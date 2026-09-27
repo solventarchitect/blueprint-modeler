@@ -13,7 +13,7 @@ export default function AboutPage() {
     <Prose eyebrow="About" title="About Blueprint Modeler">
       <p>
         Blueprint Modeler is a free canvas for sketching application architecture with the Common Service Data Model
-        (CSDM): from business capability to business application, application service and the technology underneath.
+        (CSDM): from Business Capability to Business Application, Application Service and the technology underneath.
         It suggests only the relationships the model uses, flags common gaps as you draw, and exports a file you can
         keep in Git or an image you can put in a slide.
       </p>

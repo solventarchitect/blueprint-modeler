@@ -49,7 +49,7 @@ describe("ArchiMate exchange export", () => {
 
   it("keeps the CSDM class and relationship type as properties, and an empty model stays valid", () => {
     const xml = modelToArchimateXml(checkout());
-    expect(xml).toContain('<property propertyDefinitionRef="pd-csdm-class"><value xml:lang="en">Business application</value></property>');
+    expect(xml).toContain('<property propertyDefinitionRef="pd-csdm-class"><value xml:lang="en">Business Application</value></property>');
     expect(xml).toContain('<property propertyDefinitionRef="pd-csdm-type"><value xml:lang="en">Uses::Used by</value></property>');
     const empty = modelToArchimateXml({ ...checkout(), nodes: [], edges: [], layout: {} });
     expect(empty).not.toContain("<elements>");

@@ -42,7 +42,7 @@ test.describe("examples and hints (desktop)", () => {
     await expect(page.getByTestId("save-status")).toHaveText("Saved in this browser");
     await page.getByRole("combobox", { name: "Start from an example" }).selectOption({ label: "Storefront on Kubernetes" });
     const workload = page.locator(".react-flow__node").filter({ hasText: "catalog-service" });
-    await expect(workload).toContainText("Kubernetes workload");
+    await expect(workload).toContainText("Kubernetes Workload");
     await workload.click();
     const inspector = page.getByRole("complementary", { name: "Inspector" });
     await expect(inspector.getByRole("link", { name: /Kubernetes extension classes/ })).toHaveAttribute("href", /servicenow\.com\/docs/);
@@ -76,7 +76,7 @@ test.describe("class guide", () => {
   test("lists classes, relationships and hints, each with a source", async ({ page }) => {
     await page.goto("/guide");
     await expect(page.getByRole("heading", { level: 1, name: "Class guide" })).toBeVisible();
-    await expect(page.getByText("Business application", { exact: true }).first()).toBeVisible();
+    await expect(page.getByText("Business Application", { exact: true }).first()).toBeVisible();
     await expect(page.getByRole("table").locator("tbody tr")).not.toHaveCount(0);
     const links = page.locator("main section:not([data-testid=archimate-section]) a[target=_blank]");
     expect(await links.count()).toBeGreaterThan(20);

@@ -14,7 +14,7 @@ const specs: Spec[] = [
   {
     id: "checkout",
     name: "Online store checkout",
-    summary: "A complete chain: capability → business application → production and test service instances → software → hosts, exposed through a business service offering.",
+    summary: "A complete chain: capability → Business Application → production and test service instances → software → hosts, exposed through a Business Service Offering.",
     nodes: [
       ["cap", "business_capability", "Order management"],
       ["ba", "business_application", "Checkout"],
@@ -74,7 +74,7 @@ const specs: Spec[] = [
   {
     id: "db-platform",
     name: "Shared database platform",
-    summary: "A technology management service offering shared databases: two application services depend on the same database software and network — one is not exposed yet.",
+    summary: "A Technology Management Service Offering shared databases: two Application Services depend on the same database software and network — one is not exposed yet.",
     nodes: [
       ["tms", "technology_management_service", "Database hosting"],
       ["tmso", "technology_management_service_offering", "PostgreSQL — production"],
@@ -102,7 +102,7 @@ const specs: Spec[] = [
   {
     id: "kubernetes",
     name: "Storefront on Kubernetes",
-    summary: "A containerized app in the CMDB's Kubernetes classes: the storefront's service instance depends on its workloads and cluster, a Kubernetes service fronts the catalog, and the cluster's nodes are hosted on servers — all offered by the platform team.",
+    summary: "A containerized app in the CMDB's Kubernetes classes: the storefront's service instance depends on its workloads and cluster, a Kubernetes Service fronts the catalog, and the cluster's nodes are hosted on servers — all offered by the platform team.",
     nodes: [
       ["cap", "business_capability", "Digital commerce"],
       ["ba", "business_application", "Storefront"],
@@ -147,7 +147,7 @@ const specs: Spec[] = [
   {
     id: "enterprise-ai",
     name: "Enterprise AI assistant",
-    summary: "An AI assistant modeled like any other application: a business application with its knowledge source, a production service on an AI platform offering, and the model and index it runs on. A planned refund agent has no deployment yet — watch the hints.",
+    summary: "An AI assistant modeled like any other application: a Business Application with its knowledge source, a production service on an AI platform offering, and the model and index it runs on. A planned refund agent has no deployment yet — watch the hints.",
     nodes: [
       ["proc", "business_process", "Resolve a customer case"],
       ["cap", "business_capability", "Customer support"],

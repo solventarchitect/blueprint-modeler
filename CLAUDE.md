@@ -40,7 +40,7 @@
 | Metamodel | `src/metamodel/` — CSDM classes, allowed relationship types, conformance hints; each entry has `source` (public URL) |
 | Frameworks | `src/frameworks/` — view-only lenses (ArchiMate 3.2). Mapping in our own words, each element cites a public Open Group spec chapter; every relationship must be allowed by the ArchiMate relationship tables; carry the ArchiMate® trademark notice wherever the lens appears |
 | Tests | Vitest (model, metamodel, hints, import/export round-trip) · Playwright (hero flow, keyboard, axe) |
-| Copy | American English in UI text, docs and comments (modeling, color, center, catalog) |
+| Copy | American English in UI text, docs and comments (modeling, color, center, catalog). Entity (class) names in Title Case everywhere they appear as entities: Business Application, Application Service, Kubernetes Workload; never lowercase a class label in messages. Source quotes stay verbatim |
 | License | MIT, © Mike Reams |
 | Commits | Conventional Commits; verify + commit after each SPEC milestone |
 

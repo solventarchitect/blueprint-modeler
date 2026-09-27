@@ -21,6 +21,9 @@
   --canvas: color-mix(in oklab, var(--color-neutral-950) 72%, var(--color-black));
   --canvas-grid: color-mix(in oklab, var(--color-primary-400) 5%, transparent);
   --canvas-grid-major: color-mix(in oklab, var(--color-primary-400) 10%, transparent);
+  /* Connection feedback while dragging: always paired with a ✓/✕ label, never color alone. */
+  --valid: var(--color-success-400);
+  --invalid: var(--color-error-300);
   color-scheme: dark;
 }
 
@@ -42,6 +45,8 @@
     --canvas: var(--color-neutral-100);
     --canvas-grid: color-mix(in oklab, var(--color-primary-700) 6%, transparent);
     --canvas-grid-major: color-mix(in oklab, var(--color-primary-700) 12%, transparent);
+    --valid: var(--color-success-800);
+    --invalid: var(--color-error-600);
     color-scheme: light;
   }
 }
@@ -62,6 +67,8 @@
   --canvas: var(--color-neutral-100);
   --canvas-grid: color-mix(in oklab, var(--color-primary-700) 6%, transparent);
   --canvas-grid-major: color-mix(in oklab, var(--color-primary-700) 12%, transparent);
+  --valid: var(--color-success-800);
+  --invalid: var(--color-error-600);
   color-scheme: light;
 }
 

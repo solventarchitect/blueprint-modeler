@@ -28,6 +28,7 @@ import { createWorkerEngine } from "@/layout/worker-engine";
 import { classById, classes, isClassId, type ClassId } from "@/metamodel";
 import { evaluateHints, type HintResult } from "@/model";
 import { ClassNode, type ClassFlowNode } from "./ClassNode";
+import { ConnectionLine, ConnectionModelContext } from "./ConnectionLine";
 import { ExportMenu, type ExportKind } from "./ExportMenu";
 import { HintsPanel } from "./HintsPanel";
 import { Inspector } from "./Inspector";
@@ -229,7 +230,7 @@ function EditorInner() {
   const addNode = (cls: ClassId) => {
     const id = newId();
     const label = classes.find((c) => c.id === cls)!.label;
-    dispatch({ type: "add-node", id, class: cls, name: `New ${label.toLowerCase()}` });
+    dispatch({ type: "add-node", id, class: cls, name: `New ${label}` });
     setSelectedId(id);
     setTab("details");
     setFocusName((n) => n + 1);
@@ -441,26 +442,34 @@ function EditorInner() {
         )}
 
         <div className="relative min-w-0 flex-1 bg-canvas" aria-label="Model canvas" role="region">
-          <ReactFlow<ClassFlowNode, FlowEdge>
-            nodes={nodes}
-            edges={edges}
-            nodeTypes={nodeTypes}
-            onNodesChange={onNodesChange}
-            onEdgesChange={onEdgesChange}
-            onConnect={onConnect}
-            onPaneClick={() => setActiveHint(null)}
-            connectionMode={ConnectionMode.Loose}
-            nodesDraggable={wide}
-            nodesConnectable={wide}
-            deleteKeyCode={wide ? ["Delete", "Backspace"] : null}
-            fitView
-            fitViewOptions={{ maxZoom: 1, padding: 0.15 }}
-            minZoom={0.2}
-          >
-            <Background id="minor" variant={BackgroundVariant.Lines} gap={32} color="var(--canvas-grid)" />
-            <Background id="major" variant={BackgroundVariant.Lines} gap={160} color="var(--canvas-grid-major)" />
-            <Controls showInteractive={false} />
-          </ReactFlow>
+          <ConnectionModelContext.Provider value={model}>
+            <ReactFlow<ClassFlowNode, FlowEdge>
+              nodes={nodes}
+              edges={edges}
+              nodeTypes={nodeTypes}
+              onNodesChange={onNodesChange}
+              onEdgesChange={onEdgesChange}
+              onConnect={onConnect}
+              isValidConnection={(c) => connectionProblem(model, c.source, c.target) === null}
+              onConnectEnd={(_, state) => {
+                // Refused connections never reach onConnect, so explain them here.
+                if (state.fromNode && state.toNode && !state.isValid) setMessage(connectionProblem(model, state.fromNode.id, state.toNode.id) ?? "");
+              }}
+              connectionLineComponent={ConnectionLine}
+              onPaneClick={() => setActiveHint(null)}
+              connectionMode={ConnectionMode.Loose}
+              nodesDraggable={wide}
+              nodesConnectable={wide}
+              deleteKeyCode={wide ? ["Delete", "Backspace"] : null}
+              fitView
+              fitViewOptions={{ maxZoom: 1, padding: 0.15 }}
+              minZoom={0.2}
+            >
+              <Background id="minor" variant={BackgroundVariant.Lines} gap={32} color="var(--canvas-grid)" />
+              <Background id="major" variant={BackgroundVariant.Lines} gap={160} color="var(--canvas-grid-major)" />
+              <Controls showInteractive={false} />
+            </ReactFlow>
+          </ConnectionModelContext.Provider>
           {model.nodes.length === 0 && doc.status !== "loading" && (
             <div className="pointer-events-none absolute inset-0 flex items-center justify-center p-6">
               <div className="pointer-events-auto max-h-full max-w-lg overflow-y-auto border border-border bg-surface-raised p-6">

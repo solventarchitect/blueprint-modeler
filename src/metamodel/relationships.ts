@@ -64,7 +64,7 @@ export const relationships = [
     types: ["Depends on::Used by"],
     typeEvidence: "conventional",
     source: { id: "whitepaper", quote: "Business applications are related to Business Processes and Business Process Activities" },
-    note: "The single Business Process reference field on a business application is legacy in CSDM 5; use a relationship.",
+    note: "The single Business Process reference field on a Business Application is legacy in CSDM 5; use a relationship.",
   },
   {
     from: "business_service",

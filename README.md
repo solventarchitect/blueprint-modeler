@@ -3,7 +3,7 @@
     <picture>
       <source media="(prefers-color-scheme: dark)" srcset="assets/banner-dark.png">
       <source media="(prefers-color-scheme: light)" srcset="assets/banner-light.png">
-      <img alt="Blueprint Modeler: model application architecture the CSDM way; your models stay in your browser. Fig.01 shows the realization chain from business capability to business application, application service and host, with a dashed shortcut from the business application straight to the host flagged as not related directly." src="assets/banner-dark.png" width="100%">
+      <img alt="Blueprint Modeler: model application architecture the CSDM way; your models stay in your browser. Fig.01 shows the realization chain from Business Capability to Business Application, Application Service and Host, with a dashed shortcut from the Business Application straight to the Host flagged as not related directly." src="assets/banner-dark.png" width="100%">
     </picture>
   </a>
 </p>
@@ -21,7 +21,7 @@
 
 ## Why this exists
 
-Most CSDM conversations start with a box for an application, a box for a server, and a line between them. That line is the problem: the model exists to put an application service between those two boxes, and the rule that says so sits deep in a long white paper.
+Most CSDM conversations start with a box for an application, a box for a server, and a line between them. That line is the problem: the model exists to put an Application Service between those two boxes, and the rule that says so sits deep in a long white paper.
 
 General diagramming tools will draw any line you ask for. Blueprint Modeler knows the model. It places each element in its CSDM layer, lets you connect only the pairs CSDM relates, and flags common gaps as you draw, with a link to the page each rule came from. It is built for people learning CSDM and for architects sketching a design before anything exists in an instance.
 
@@ -37,9 +37,9 @@ General diagramming tools will draw any line you ask for. Blueprint Modeler know
 
 | Feature | What you get |
 |---|---|
-| **Palette by layer** | 19 classes: 13 from the CSDM white paper, from business capability to host and network, plus 6 CMDB Kubernetes classes (cluster, node, namespace, workload, service, pod), placed in lanes from business at the top to infrastructure at the bottom. |
-| **Allowed relationships only** | Connect two elements and choose from the types CSDM uses for that pair (26 pairs). A pair CSDM does not relate is refused with the reason. |
-| **Conformance hints** | 8 checks, such as a business application with no capability, a service nobody can request, or a capability hierarchy deeper than six levels. Hints advise rather than block, highlight the elements involved and link to their source. |
+| **Palette by layer** | 19 classes: 13 from the CSDM white paper, from Business Capability to Host and Network, plus 6 CMDB Kubernetes classes (Cluster, Node, Namespace, Workload, Service, Pod), placed in lanes from business at the top to infrastructure at the bottom. |
+| **Allowed relationships only** | Connect two elements and choose from the types CSDM uses for that pair (26 pairs). While you drag, the line turns green with the relationship type over a valid target, or red with the reason over an invalid one, before you let go. |
+| **Conformance hints** | 8 checks, such as a Business Application with no Business Capability, a service nobody can request, or a capability hierarchy deeper than six levels. Hints advise rather than block, highlight the elements involved and link to their source. |
 | **Class guide** | [Every class, relationship and hint](https://model.mikereams.com/guide) on one page, with its source and how well the public text supports each relationship type. |
 | **Examples** | Five fictional models to start from: an online store checkout, a storefront on Kubernetes (in the CMDB's Kubernetes classes), an enterprise AI assistant, an HR portal and a shared database platform. Three of them trigger hints on purpose. |
 | **Import and export** | A versioned JSON model file that round-trips exactly, standalone SVG images in light or dark for docs and slides, and an ArchiMate® Model Exchange File that opens in Archi and other ArchiMate tools. |

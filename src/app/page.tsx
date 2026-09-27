@@ -1,9 +1,9 @@
 import { site } from "@/lib/site";
 
 const layers = [
-  { code: "01", name: "Business capability", note: "what the business does" },
-  { code: "02", name: "Business application", note: "the software that serves it" },
-  { code: "03", name: "Application service", note: "a deployed, running instance" },
+  { code: "01", name: "Business Capability", note: "what the business does" },
+  { code: "02", name: "Business Application", note: "the software that serves it" },
+  { code: "03", name: "Application Service", note: "a deployed, running instance" },
   { code: "04", name: "Technology", note: "servers, databases, platforms underneath" },
 ];
 

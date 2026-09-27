@@ -28,6 +28,9 @@ const SLOT = 288; // node width (224) + room for a side-to-side edge label
 
 export const initialHistory = (model: Model): History => ({ past: [], present: model, future: [] });
 
+/** "a Host" / "an Application Service": class labels are title-cased entity names. */
+const withArticle = (label: string) => `${/^[AEIOU]/.test(label) ? "an" : "a"} ${label}`;
+
 /** Why a connection is refused, or null when it is allowed. */
 export function connectionProblem(model: Model, from: string, to: string, edgeType?: string): string | null {
   const a = model.nodes.find((n) => n.id === from);
@@ -40,11 +43,11 @@ export function connectionProblem(model: Model, from: string, to: string, edgeTy
   if (types.length === 0) {
     const reverse = relationshipsBetween(b.class, a.class).length > 0;
     return reverse
-      ? `Draw it the other way: from the ${bLabel.toLowerCase()} to the ${aLabel.toLowerCase()}.`
-      : `A ${aLabel.toLowerCase()} is not related directly to a ${bLabel.toLowerCase()} in CSDM.`;
+      ? `Draw it the other way: from the ${bLabel} to the ${aLabel}.`
+      : `${withArticle(aLabel).replace(/^a/, "A")} is not related directly to ${withArticle(bLabel)} in CSDM.`;
   }
   const type = edgeType ?? types[0]!;
-  if (!types.includes(type)) return `"${type}" is not used between a ${aLabel.toLowerCase()} and a ${bLabel.toLowerCase()}.`;
+  if (!types.includes(type)) return `"${type}" is not used between ${withArticle(aLabel)} and ${withArticle(bLabel)}.`;
   if (model.edges.some((e) => edgeKey(e) === edgeKey({ from, to, type }))) return "That relationship already exists.";
   return null;
 }

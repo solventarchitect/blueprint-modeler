@@ -25,8 +25,8 @@ test.describe("editor (desktop)", () => {
 
   test("add, name, connect with an allowed type, and survive a reload", async ({ page }) => {
     await openEditor(page);
-    await addNamed(page, "Business application", "Checkout");
-    await addNamed(page, "Application service", "Checkout prod");
+    await addNamed(page, "Business Application", "Checkout");
+    await addNamed(page, "Application Service", "Checkout prod");
     await addNamed(page, "Host", "web-01");
 
     // Keyboard path: select the service, then connect it to its host via the inspector.
@@ -54,7 +54,7 @@ test.describe("editor (desktop)", () => {
 
   test("dragging a disallowed connection explains why and creates nothing", async ({ page }) => {
     await openEditor(page);
-    await addNamed(page, "Business application", "Billing");
+    await addNamed(page, "Business Application", "Billing");
     await addNamed(page, "Host", "db-01");
     await page.locator(".react-flow__pane").click({ position: { x: 5, y: 5 } });
     await canvasNode(page, "Billing").locator(".react-flow__handle-bottom").dragTo(canvasNode(page, "db-01").locator(".react-flow__handle-top"));
@@ -64,7 +64,7 @@ test.describe("editor (desktop)", () => {
 
   test("undo and redo from the toolbar and the keyboard", async ({ page }) => {
     await openEditor(page);
-    await addNamed(page, "Business capability", "Order management");
+    await addNamed(page, "Business Capability", "Order management");
     await page.getByRole("button", { name: "Undo" }).click(); // rename
     await page.getByRole("button", { name: "Undo" }).click(); // add
     await expect(canvasNode(page, "Order management")).toHaveCount(0);
@@ -73,12 +73,12 @@ test.describe("editor (desktop)", () => {
     await page.keyboard.press("Control+Shift+Z");
     await expect(canvasNode(page, "Order management")).toBeVisible();
     await page.keyboard.press("Control+Z");
-    await expect(canvasNode(page, "New business capability")).toBeVisible();
+    await expect(canvasNode(page, "New Business Capability")).toBeVisible();
   });
 
   test("keyboard only: palette → name → delete", async ({ page }) => {
     await openEditor(page);
-    const add = palette(page).getByRole("button", { name: "Information object", exact: true });
+    const add = palette(page).getByRole("button", { name: "Information Object", exact: true });
     await add.focus();
     await page.keyboard.press("Enter");
     const field = inspector(page).getByLabel("Name", { exact: true });
@@ -95,7 +95,7 @@ test.describe("editor (desktop)", () => {
     test(`editor has no WCAG 2.2 AA violations (${scheme})`, async ({ page }) => {
       await page.emulateMedia({ colorScheme: scheme });
       await openEditor(page);
-      await addNamed(page, "Business application", "Checkout");
+      await addNamed(page, "Business Application", "Checkout");
       const results = await new AxeBuilder({ page }).withTags(["wcag2a", "wcag2aa", "wcag21aa", "wcag22aa"]).analyze();
       expect(results.violations).toEqual([]);
     });
@@ -104,7 +104,7 @@ test.describe("editor (desktop)", () => {
   test("the editor makes no requests beyond its own origin", async ({ page, baseURL }) => {
     const foreign = watchForeignRequests(page, baseURL);
     await openEditor(page);
-    await addNamed(page, "Business application", "Checkout");
+    await addNamed(page, "Business Application", "Checkout");
     await page.waitForLoadState("networkidle");
     expect(foreign).toEqual([]);
   });
