@@ -1,4 +1,4 @@
-import { allowedTypes, classById, relationshipsBetween, type ClassId, type Layer } from "@/metamodel";
+import { acceptedTypes, allowedTypes, classById, relationshipsBetween, type ClassId, type Layer } from "@/metamodel";
 import { edgeKey, type Edge, type Model, type Node } from "@/model";
 
 /**
@@ -14,8 +14,10 @@ export type Action =
   | { type: "rename-node"; id: string; name: string }
   | { type: "move-node"; id: string; x: number; y: number }
   | { type: "delete-node"; id: string }
+  | { type: "delete-nodes"; ids: string[] }
   | { type: "add-edge"; id: string; from: string; to: string; edgeType?: string }
   | { type: "delete-edge"; id: string }
+  | { type: "update-edge"; id: string; from: string; to: string; edgeType: string }
   | { type: "set-layout"; layout: Model["layout"] }
   | { type: "undo" }
   | { type: "redo" };
@@ -62,6 +64,21 @@ export function nextPosition(model: Model, cls: ClassId): { x: number; y: number
   return { x: xs.length ? Math.max(...xs) + SLOT : 0, y };
 }
 
+/**
+ * The CSDM 5 form of a legacy edge (an older type, or a pair older files drew the other way), or
+ * null when the edge is already current or has no current form.
+ */
+export function modernEdge(model: Model, edge: Edge): { from: string; to: string; type: string } | null {
+  const a = model.nodes.find((n) => n.id === edge.from);
+  const b = model.nodes.find((n) => n.id === edge.to);
+  if (!a || !b) return null;
+  if (allowedTypes(a.class, b.class).includes(edge.type) || !acceptedTypes(a.class, b.class).includes(edge.type)) return null;
+  const same = allowedTypes(a.class, b.class)[0];
+  if (same) return { from: edge.from, to: edge.to, type: same };
+  const flipped = allowedTypes(b.class, a.class)[0];
+  return flipped ? { from: edge.to, to: edge.from, type: flipped } : null;
+}
+
 function apply(model: Model, action: Action): Model | null {
   switch (action.type) {
     case "rename-model":
@@ -104,6 +121,27 @@ function apply(model: Model, action: Action): Model | null {
         edges: model.edges.filter((e) => e.from !== action.id && e.to !== action.id),
         layout,
       };
+    }
+    case "delete-nodes": {
+      // A whole layer at once, as one undo step.
+      const ids = new Set(action.ids.filter((id) => model.nodes.some((n) => n.id === id)));
+      if (ids.size === 0) return null;
+      const layout = { ...model.layout };
+      for (const id of ids) delete layout[id];
+      return {
+        ...model,
+        nodes: model.nodes.filter((n) => !ids.has(n.id)),
+        edges: model.edges.filter((e) => !ids.has(e.from) && !ids.has(e.to)),
+        layout,
+      };
+    }
+    case "update-edge": {
+      // Replace one edge in place (e.g. bring a legacy edge to its CSDM 5 type and direction).
+      const edge = model.edges.find((e) => e.id === action.id);
+      if (!edge) return null;
+      const others = { ...model, edges: model.edges.filter((e) => e.id !== action.id) };
+      if (connectionProblem(others, action.from, action.to, action.edgeType)) return null;
+      return { ...model, edges: model.edges.map((e) => (e.id === action.id ? { ...e, from: action.from, to: action.to, type: action.edgeType } : e)) };
     }
     case "add-edge": {
       if (connectionProblem(model, action.from, action.to, action.edgeType)) return null;

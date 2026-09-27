@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 import { createModel } from "@/model";
-import { connectionProblem, initialHistory, laneY, reduce, type Action, type History } from "./state";
+import { connectionProblem, initialHistory, laneY, modernEdge, reduce, type Action, type History } from "./state";
 
 const T = "2026-09-27T12:00:00.000Z";
 const now = () => T;
@@ -70,6 +70,29 @@ describe("editor state", () => {
     const undone = reduce(s, { type: "undo" }, now);
     expect(undone.present.layout.ba).toEqual({ x: 0, y: laneY.design });
     expect(reduce(s, { type: "set-layout", layout: s.present.layout }, now)).toBe(s);
+  });
+
+  it("deletes several elements (a layer) as one undo step", () => {
+    const s = run([...base, { type: "add-edge", id: "e1", from: "ba", to: "svc" }, { type: "delete-nodes", ids: ["ba", "svc", "ghost"] }]);
+    expect(s.present.nodes.map((n) => n.id)).toEqual(["host"]);
+    expect(s.present.edges).toEqual([]);
+    expect(Object.keys(s.present.layout)).toEqual(["host"]);
+    expect(reduce(s, { type: "undo" }, now).present.nodes).toHaveLength(3);
+    expect(reduce(s, { type: "delete-nodes", ids: ["ghost"] }, now)).toBe(s);
+  });
+
+  it("brings a legacy edge to its CSDM 5 type and direction in one step", () => {
+    const start = run([
+      { type: "add-node", id: "cap", class: "business_capability", name: "Orders" },
+      { type: "add-node", id: "ba", class: "business_application", name: "Checkout" },
+    ]);
+    const legacy = { ...start, present: { ...start.present, edges: [{ id: "e1", from: "ba", to: "cap", type: "Provides::Provided by" }] } };
+    const fix = modernEdge(legacy.present, legacy.present.edges[0]!);
+    expect(fix).toEqual({ from: "cap", to: "ba", type: "Provided by::Provides" });
+    const s = reduce(legacy, { type: "update-edge", id: "e1", from: fix!.from, to: fix!.to, edgeType: fix!.type }, now);
+    expect(s.present.edges).toEqual([{ id: "e1", from: "cap", to: "ba", type: "Provided by::Provides" }]);
+    expect(modernEdge(s.present, s.present.edges[0]!)).toBeNull();
+    expect(reduce(s, { type: "update-edge", id: "e1", from: "ba", to: "cap", edgeType: "Provides::Provided by" }, now)).toBe(s);
   });
 
   it("stamps updated on change", () => {

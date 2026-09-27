@@ -15,28 +15,38 @@ import {
   type EdgeChange,
   type NodeChange,
 } from "@xyflow/react";
-import { useCallback, useEffect, useMemo, useRef, useState, type KeyboardEvent as ReactKeyboardEvent } from "react";
+import {
+  useCallback,
+  useEffect,
+  useMemo,
+  useRef,
+  useState,
+  type KeyboardEvent as ReactKeyboardEvent,
+  type MouseEvent as ReactMouseEvent,
+  type PointerEvent as ReactPointerEvent,
+} from "react";
 import { examples } from "@/examples";
 import { archimateElements, lenses, readLens, saveLens, type Lens } from "@/frameworks";
 import { downloadText } from "@/io/download";
 import { exportJson, fileBase, importJson, MAX_FILE_CHARS } from "@/io/file";
 import { modelToArchimateXml } from "@/io/archimate";
 import { modelToSvg } from "@/io/svg";
-import { layerBoxes, layerLanes, settleIntoLane } from "@/layout/bands";
+import { LAYERS, layerBoxes, layerLanes, settleIntoLane } from "@/layout/bands";
 import { edgeSides } from "@/layout/geometry";
 import { autoLayout, DEFAULT_SIZE } from "@/layout/layout";
 import { createWorkerEngine } from "@/layout/worker-engine";
-import { classById, classes, isClassId, type ClassId } from "@/metamodel";
+import { classById, classes, isClassId, type ClassId, type Layer } from "@/metamodel";
 import { evaluateHints, type HintResult } from "@/model";
 import { ClassNode, type ClassFlowNode } from "./ClassNode";
 import { ConnectionLine, ConnectionModelContext } from "./ConnectionLine";
 import { ExportMenu, type ExportKind } from "./ExportMenu";
-import { LayerOverlay } from "./LayerOverlay";
+import { ContextMenu, type MenuItem } from "./ContextMenu";
+import { LayerOverlay, layerHandleId, type LayerHandlers } from "./LayerOverlay";
 import { DEFAULT_VIEW, readView, saveView, ViewMenu, type ViewOptions } from "./ViewMenu";
 import { HintsPanel } from "./HintsPanel";
 import { Inspector } from "./Inspector";
 import { Palette } from "./Palette";
-import { connectionProblem } from "./state";
+import { connectionProblem, modernEdge } from "./state";
 import { useModelDocument, type SaveStatus } from "./useModelDocument";
 
 const nodeTypes = { csdm: ClassNode };
@@ -75,6 +85,11 @@ function EditorInner() {
   const flow = useReactFlow();
   const [selectedId, setSelectedId] = useState<string | null>(null);
   const [focusName, setFocusName] = useState(0);
+  const [focusConnect, setFocusConnect] = useState(0);
+  const [selectedLayer, setSelectedLayer] = useState<Layer | null>(null);
+  const [menu, setMenu] = useState<{ x: number; y: number; label: string; items: MenuItem[] } | null>(null);
+  const menuReturn = useRef<HTMLElement | null>(null);
+  const layerDrag = useRef<{ layer: Layer; x: number; y: number; zoom: number; origin: Record<string, { x: number; y: number }>; moved: boolean } | null>(null);
   const [message, setMessage] = useState("");
   const [tab, setTab] = useState<Tab>("details");
   const [view, setViewState] = useState<ViewOptions>(DEFAULT_VIEW);
@@ -342,6 +357,207 @@ function EditorInner() {
     [liveModel, dragTick],
   );
 
+  // Layers: select one by its label, then drag it (or its box) or use the arrow keys to move it
+  // with everything in it. A move is one undo step.
+  const layerName = (layer: Layer) => LAYERS.find((l) => l.id === layer)!.name;
+  const layerIds = (layer: Layer) => boxes.find((b) => b.layer === layer)?.nodeIds ?? [];
+  const moveLayerBy = (layer: Layer, dx: number, dy: number) => {
+    const ids = layerIds(layer);
+    if (ids.length === 0) return;
+    dispatch({ type: "set-layout", layout: Object.fromEntries(ids.map((id) => [id, { x: model.layout[id]!.x + dx, y: model.layout[id]!.y + dy }])) });
+    setMessage(`Moved the ${layerName(layer)} layer.`);
+  };
+  const layerHandlers: LayerHandlers = {
+    selected: selectedLayer,
+    onPointerDown: (layer, e: ReactPointerEvent<HTMLElement>) => {
+      if (e.button !== 0) return;
+      e.stopPropagation();
+      const fromHandle = e.currentTarget.dataset.testid === "layer-handle";
+      const origin = Object.fromEntries(layerIds(layer).map((id) => [id, model.layout[id]!]));
+      layerDrag.current = { layer, x: e.clientX, y: e.clientY, zoom: flow.getZoom(), origin, moved: false };
+      const move = (ev: PointerEvent) => {
+        const d = layerDrag.current;
+        if (!d || (!d.moved && Math.hypot(ev.clientX - d.x, ev.clientY - d.y) < 4)) return;
+        d.moved = true;
+        let dx = (ev.clientX - d.x) / d.zoom;
+        let dy = (ev.clientY - d.y) / d.zoom;
+        if (view.snap) [dx, dy] = [Math.round(dx / 16) * 16, Math.round(dy / 16) * 16];
+        drag.current = Object.fromEntries(Object.entries(d.origin).map(([id, p]) => [id, { x: p.x + dx, y: p.y + dy }]));
+        setDragTick((n) => n + 1);
+      };
+      const up = () => {
+        window.removeEventListener("pointermove", move);
+        window.removeEventListener("pointerup", up);
+        window.removeEventListener("pointercancel", up);
+        const d = layerDrag.current;
+        layerDrag.current = null;
+        if (d?.moved) {
+          dispatch({ type: "set-layout", layout: drag.current });
+          drag.current = {};
+          setDragTick((n) => n + 1);
+          setSelectedLayer(layer);
+          setMessage(`Moved the ${layerName(layer)} layer.`);
+        } else if (fromHandle) {
+          setSelectedLayer((cur) => (cur === layer ? null : layer));
+        }
+      };
+      window.addEventListener("pointermove", move);
+      window.addEventListener("pointerup", up);
+      window.addEventListener("pointercancel", up);
+    },
+    // Pointer presses select in pointerup; this handles Enter and Space (detail 0).
+    onClick: (layer, e) => {
+      if (e.detail === 0) setSelectedLayer((cur) => (cur === layer ? null : layer));
+    },
+    onKeyDown: (layer, e) => {
+      const step = e.shiftKey ? 64 : 16;
+      const arrows: Record<string, [number, number]> = { ArrowLeft: [-step, 0], ArrowRight: [step, 0], ArrowUp: [0, -step], ArrowDown: [0, step] };
+      const d = arrows[e.key];
+      if (d) {
+        e.preventDefault();
+        e.stopPropagation();
+        setSelectedLayer(layer);
+        moveLayerBy(layer, d[0], d[1]);
+      } else if (e.key === "Escape" && selectedLayer) {
+        e.stopPropagation();
+        setSelectedLayer(null);
+      } else if (e.key === "ContextMenu" || (e.shiftKey && e.key === "F10")) {
+        e.preventDefault();
+        e.stopPropagation();
+        const r = e.currentTarget.getBoundingClientRect();
+        openMenu(r.left, r.bottom, `${layerName(layer)} layer menu`, layerMenu(layer), e.currentTarget);
+      }
+    },
+    onContextMenu: (layer, e: ReactMouseEvent<HTMLElement>) => {
+      e.preventDefault();
+      e.stopPropagation();
+      openMenu(e.clientX, e.clientY, `${layerName(layer)} layer menu`, layerMenu(layer), e.currentTarget);
+    },
+  };
+  useEffect(() => {
+    if (selectedLayer && !boxes.some((b) => b.layer === selectedLayer)) setSelectedLayer(null);
+  }, [boxes, selectedLayer]);
+
+  // Right-click menus, built for what was clicked.
+  const openMenu = (x: number, y: number, label: string, items: MenuItem[], returnTo: HTMLElement | null) => {
+    menuReturn.current = returnTo;
+    setMenu({ x, y, label, items });
+  };
+  const closeMenu = useCallback((restoreFocus: boolean) => {
+    setMenu(null);
+    const el = menuReturn.current;
+    if (restoreFocus && el?.isConnected) setTimeout(() => !document.querySelector("[data-testid=context-menu]") && el.focus(), 0);
+  }, []);
+  const selectNode = (id: string) => {
+    setSelectedId(id);
+    setTab("details");
+  };
+  const focusLayerHandle = (layer: Layer) => setTimeout(() => document.getElementById(layerHandleId(layer))?.focus(), 0);
+  const nodeMenu = (id: string): MenuItem[] => {
+    const n = model.nodes.find((x) => x.id === id);
+    if (!n) return [];
+    const name = n.name || "Untitled";
+    const count = hints.filter((h) => h.nodeIds.includes(id)).length;
+    const layer = classById(n.class)?.layer;
+    return [
+      { kind: "item", label: "Rename", onSelect: () => (selectNode(id), setFocusName((k) => k + 1)) },
+      { kind: "item", label: "Add a relationship…", onSelect: () => (selectNode(id), setFocusConnect((k) => k + 1)) },
+      {
+        kind: "item",
+        label: "Duplicate",
+        onSelect: () => {
+          const copy = newId();
+          dispatch({ type: "add-node", id: copy, class: n.class as ClassId, name: `${name} (copy)` });
+          selectNode(copy);
+          setMessage(`Duplicated ${name}. Relationships are not copied.`);
+        },
+      },
+      { kind: "item", label: count ? `Show hints (${count})` : "No hints", disabled: count === 0, onSelect: () => (setSelectedId(id), setTab("hints")) },
+      ...(layer && (view.boxes || view.lanes)
+        ? [{ kind: "item" as const, label: `Select the ${layerName(layer)} layer`, onSelect: () => (setSelectedLayer(layer), focusLayerHandle(layer)) }]
+        : []),
+      { kind: "separator" },
+      { kind: "item", label: "Delete", danger: true, onSelect: () => (dispatch({ type: "delete-node", id }), setMessage(`Deleted ${name}. Undo restores it.`)) },
+    ];
+  };
+  const edgeMenu = (id: string): MenuItem[] => {
+    const e = model.edges.find((x) => x.id === id);
+    if (!e) return [];
+    const fix = modernEdge(model, e);
+    const name = (nid: string) => model.nodes.find((n) => n.id === nid)?.name || "Untitled";
+    return [
+      ...(fix
+        ? [
+            {
+              kind: "item" as const,
+              label: `Update to CSDM 5 (${fix.type})`,
+              onSelect: () => {
+                dispatch({ type: "update-edge", id, from: fix.from, to: fix.to, edgeType: fix.type });
+                setMessage(`Updated to ${fix.type}${fix.from !== e.from ? ", drawn from " + name(fix.from) : ""}.`);
+              },
+            },
+            { kind: "separator" as const },
+          ]
+        : []),
+      { kind: "item", label: `Select ${name(e.from)}`, onSelect: () => selectNode(e.from) },
+      { kind: "item", label: `Select ${name(e.to)}`, onSelect: () => selectNode(e.to) },
+      { kind: "separator" },
+      { kind: "item", label: "Delete relationship", danger: true, onSelect: () => (dispatch({ type: "delete-edge", id }), setMessage("Deleted the relationship. Undo restores it.")) },
+    ];
+  };
+  const layerMenu = (layer: Layer): MenuItem[] => {
+    const ids = layerIds(layer);
+    return [
+      { kind: "item", label: "Zoom to layer", disabled: ids.length === 0, onSelect: () => void flow.fitView({ nodes: ids.map((id) => ({ id })), padding: 0.3, maxZoom: 1.25, duration: 300 }) },
+      { kind: "item", label: selectedLayer === layer ? "Deselect layer" : "Select layer", onSelect: () => setSelectedLayer(selectedLayer === layer ? null : layer) },
+      { kind: "separator" },
+      {
+        kind: "item",
+        label: `Delete ${ids.length} element${ids.length === 1 ? "" : "s"} in this layer`,
+        danger: true,
+        disabled: ids.length === 0,
+        onSelect: () => {
+          dispatch({ type: "delete-nodes", ids });
+          setSelectedLayer(null);
+          setMessage(`Deleted ${ids.length} element${ids.length === 1 ? "" : "s"} from the ${layerName(layer)} layer. Undo restores them.`);
+        },
+      },
+    ];
+  };
+  const paneMenu = (): MenuItem[] => [
+    { kind: "item", label: "Undo", disabled: !doc.canUndo, onSelect: () => dispatch({ type: "undo" }) },
+    { kind: "item", label: "Redo", disabled: !doc.canRedo, onSelect: () => dispatch({ type: "redo" }) },
+    { kind: "separator" },
+    { kind: "item", label: "Fit view", onSelect: () => void flow.fitView({ maxZoom: 1, padding: 0.15, duration: 300 }) },
+    { kind: "item", label: "Auto-layout", disabled: model.nodes.length === 0 || layingOut, onSelect: () => void runLayout() },
+    { kind: "separator" },
+    { kind: "check", label: "Layer boxes", checked: view.boxes, onSelect: () => setView({ ...view, boxes: !view.boxes }) },
+    { kind: "check", label: "Lanes", checked: view.lanes, onSelect: () => setView({ ...view, lanes: !view.lanes }) },
+    { kind: "check", label: "Snap to grid", checked: view.snap, onSelect: () => setView({ ...view, snap: !view.snap }) },
+  ];
+  const canMenu = wide && !presenting;
+  const labelOf = (id: string) => {
+    const n = model.nodes.find((x) => x.id === id);
+    return `${n?.name || "Untitled"} menu`;
+  };
+  const onCanvasKeyDown = (e: ReactKeyboardEvent<HTMLDivElement>) => {
+    if (!canMenu || !(e.key === "ContextMenu" || (e.shiftKey && e.key === "F10"))) return;
+    const t = e.target as HTMLElement;
+    e.preventDefault();
+    const nodeEl = t.closest<HTMLElement>(".react-flow__node");
+    const edgeEl = t.closest<HTMLElement>(".react-flow__edge");
+    if (nodeEl?.dataset.id) {
+      const r = nodeEl.getBoundingClientRect();
+      openMenu(r.left + 8, r.bottom + 4, labelOf(nodeEl.dataset.id), nodeMenu(nodeEl.dataset.id), nodeEl);
+    } else if (edgeEl?.dataset.id) {
+      const r = edgeEl.getBoundingClientRect();
+      openMenu(r.left + r.width / 2, r.top + r.height / 2, "Relationship menu", edgeMenu(edgeEl.dataset.id), edgeEl);
+    } else {
+      const r = e.currentTarget.getBoundingClientRect();
+      openMenu(r.left + r.width / 2, r.top + r.height / 2, "Canvas menu", paneMenu(), t);
+    }
+  };
+
   // Present mode: the canvas alone, full screen, stepping through the model layer by layer.
   const steps = useMemo(() => [{ name: "Overview", nodeIds: [] as string[] }, ...boxes.map((b) => ({ name: b.name, nodeIds: b.nodeIds }))], [boxes]);
   const goTo = useCallback(
@@ -570,7 +786,7 @@ function EditorInner() {
           </aside>
         )}
 
-        <div className="relative min-w-0 flex-1 bg-canvas" aria-label="Model canvas" role="region">
+        <div className="relative min-w-0 flex-1 bg-canvas" aria-label="Model canvas" role="region" onKeyDown={onCanvasKeyDown}>
           <ConnectionModelContext.Provider value={model}>
             <ReactFlow<ClassFlowNode, FlowEdge>
               nodes={nodes}
@@ -585,7 +801,36 @@ function EditorInner() {
                 if (state.fromNode && state.toNode && !state.isValid) setMessage(connectionProblem(model, state.fromNode.id, state.toNode.id) ?? "");
               }}
               connectionLineComponent={ConnectionLine}
-              onPaneClick={() => setActiveHint(null)}
+              onPaneClick={() => {
+                setActiveHint(null);
+                setSelectedLayer(null);
+              }}
+              onNodeContextMenu={
+                canMenu
+                  ? (e, node) => {
+                      e.preventDefault();
+                      openMenu(e.clientX, e.clientY, labelOf(node.id), nodeMenu(node.id), e.currentTarget as HTMLElement);
+                    }
+                  : undefined
+              }
+              onEdgeContextMenu={
+                canMenu
+                  ? (e, edge) => {
+                      e.preventDefault();
+                      openMenu(e.clientX, e.clientY, "Relationship menu", edgeMenu(edge.id), null);
+                    }
+                  : undefined
+              }
+              onPaneContextMenu={
+                canMenu
+                  ? (e) => {
+                      e.preventDefault();
+                      openMenu(e.clientX, e.clientY, "Canvas menu", paneMenu(), null);
+                    }
+                  : undefined
+              }
+              // Only a pan or zoom by the user closes a menu; programmatic moves (fit, focus auto-pan) keep it.
+              onMoveStart={(e) => e && closeMenu(false)}
               connectionMode={ConnectionMode.Loose}
               nodesDraggable={wide && !presenting}
               nodesConnectable={wide && !presenting}
@@ -600,7 +845,7 @@ function EditorInner() {
               <Background id="minor" variant={BackgroundVariant.Lines} gap={32} color="var(--canvas-grid)" />
               <Background id="major" variant={BackgroundVariant.Lines} gap={160} color="var(--canvas-grid-major)" />
               {!presenting && <Controls showInteractive={false} />}
-              <LayerOverlay boxes={boxes} lanes={lanes} showBoxes={view.boxes || presenting} showLanes={view.lanes} />
+              <LayerOverlay boxes={boxes} lanes={lanes} showBoxes={view.boxes || presenting} showLanes={view.lanes} handlers={canMenu ? layerHandlers : undefined} />
             </ReactFlow>
           </ConnectionModelContext.Provider>
           {model.nodes.length === 0 && doc.status !== "loading" && (
@@ -644,7 +889,7 @@ function EditorInner() {
             </div>
             <div id={`panel-${tab}`} role="tabpanel" aria-labelledby={`tab-${tab}`} className="min-h-0 flex-1 overflow-y-auto">
               {tab === "details" ? (
-                <Inspector model={model} selectedId={selectedId} dispatch={dispatch} focusName={focusName} onSelect={setSelectedId} newId={newId} lens={lens} />
+                <Inspector model={model} selectedId={selectedId} dispatch={dispatch} focusName={focusName} focusConnect={focusConnect} onSelect={setSelectedId} newId={newId} lens={lens} />
               ) : (
                 <HintsPanel results={scopedHints} activeId={activeHint?.id ?? null} onFocus={focusHint} scopeName={selected?.name} />
               )}
@@ -653,6 +898,7 @@ function EditorInner() {
         )}
       </div>
 
+      {menu && <ContextMenu x={menu.x} y={menu.y} label={menu.label} items={menu.items} onClose={closeMenu} />}
       <div className={`${presenting ? "hidden" : "flex"} flex-wrap items-center justify-between gap-2 border-t border-border px-4 py-1.5 text-xs text-ink-muted`}>
         <p role="status" aria-live="polite">
           {message}

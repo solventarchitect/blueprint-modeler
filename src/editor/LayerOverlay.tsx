@@ -1,5 +1,6 @@
 "use client";
 
+import type { KeyboardEvent, MouseEvent, PointerEvent } from "react";
 import { useViewport, ViewportPortal } from "@xyflow/react";
 import type { Layer } from "@/metamodel";
 import type { Lane, LayerBox } from "@/layout/bands";
@@ -18,18 +19,76 @@ const labelColor: Record<Layer, string> = { ...layerColor, functional: "var(--in
 
 const LANE_SPAN = 200_000;
 
+/** What the canvas does with a layer's handle (a box or lane label) when editing is possible. */
+export type LayerHandlers = {
+  selected: Layer | null;
+  onPointerDown: (layer: Layer, e: PointerEvent<HTMLElement>) => void;
+  onClick: (layer: Layer, e: MouseEvent<HTMLElement>) => void;
+  onKeyDown: (layer: Layer, e: KeyboardEvent<HTMLElement>) => void;
+  onContextMenu: (layer: Layer, e: MouseEvent<HTMLElement>) => void;
+};
+
+export const layerHandleId = (layer: Layer) => `layer-handle-${layer}`;
+const HELP_ID = "layer-handle-help";
+
 /**
  * Translucent layer boxes and full-width lanes, drawn in flow coordinates behind edges and nodes.
- * Decorative: pointer events pass through, and every element is aria-hidden (the node labels
- * already name each element's class). With lanes on, the lane labels name the layers, so boxes drop
- * theirs rather than repeat them.
+ * The boxes and bands are decorative. Each layer's label is a handle when editing is possible:
+ * press it to select the layer, drag it (or the selected box) to move the layer with everything in
+ * it, or use the arrow keys. With lanes on, the lane labels are the handles, so boxes drop theirs.
  */
-export function LayerOverlay({ boxes, lanes, showBoxes, showLanes }: { boxes: LayerBox[]; lanes: Lane[]; showBoxes: boolean; showLanes: boolean }) {
+export function LayerOverlay({
+  boxes,
+  lanes,
+  showBoxes,
+  showLanes,
+  handlers,
+}: {
+  boxes: LayerBox[];
+  lanes: Lane[];
+  showBoxes: boolean;
+  showLanes: boolean;
+  /** Absent while presenting or on small screens: labels are plain text then. */
+  handlers?: LayerHandlers;
+}) {
   const { x, zoom } = useViewport();
   const visibleLeft = -x / zoom;
+  const count = (layer: Layer) => boxes.find((b) => b.layer === layer)?.nodeIds.length ?? 0;
+
+  const handle = (layer: Layer, name: string, extra: string) =>
+    handlers ? (
+      <button
+        type="button"
+        id={layerHandleId(layer)}
+        data-testid="layer-handle"
+        aria-pressed={handlers.selected === layer}
+        aria-label={`${name} layer, ${count(layer)} element${count(layer) === 1 ? "" : "s"}`}
+        aria-describedby={HELP_ID}
+        className={`nopan nodrag nowheel pointer-events-auto absolute flex min-h-6 cursor-grab items-center px-1.5 font-mono tracking-[0.14em] uppercase active:cursor-grabbing hover:bg-surface-raised focus-visible:bg-surface-raised ${
+          handlers.selected === layer ? "bg-surface-raised ring-2 ring-accent" : ""
+        } ${extra}`}
+        style={{ color: labelColor[layer] }}
+        onPointerDown={(e) => handlers.onPointerDown(layer, e)}
+        onClick={(e) => handlers.onClick(layer, e)}
+        onKeyDown={(e) => handlers.onKeyDown(layer, e)}
+        onContextMenu={(e) => handlers.onContextMenu(layer, e)}
+      >
+        {name}
+      </button>
+    ) : (
+      <span aria-hidden="true" className={`absolute font-mono tracking-[0.14em] uppercase ${extra}`} style={{ color: labelColor[layer] }}>
+        {name}
+      </span>
+    );
+
   return (
     <ViewportPortal>
-      <div aria-hidden="true" className="pointer-events-none absolute top-0 left-0" style={{ zIndex: -1 }}>
+      <div className="pointer-events-none absolute top-0 left-0" style={{ zIndex: -1 }}>
+        {handlers && (
+          <p id={HELP_ID} className="sr-only">
+            Press to select the layer. Drag it, or use the arrow keys, to move the layer with everything in it; Shift with an arrow moves it further. Shift+F10 opens its menu.
+          </p>
+        )}
         {showLanes &&
           lanes.map((l, i) => (
             <div
@@ -40,38 +99,56 @@ export function LayerOverlay({ boxes, lanes, showBoxes, showLanes }: { boxes: La
                 transform: `translate(${-LANE_SPAN / 2}px, ${l.top}px)`,
                 width: LANE_SPAN,
                 height: l.bottom - l.top,
-                background: i % 2 === 0 ? `color-mix(in oklab, ${layerColor[l.layer]} 5%, transparent)` : "transparent",
+                background:
+                  handlers?.selected === l.layer
+                    ? `color-mix(in oklab, ${layerColor[l.layer]} 14%, transparent)`
+                    : i % 2 === 0
+                      ? `color-mix(in oklab, ${layerColor[l.layer]} 5%, transparent)`
+                      : "transparent",
                 borderTop: i === 0 ? "none" : `1px dashed color-mix(in oklab, ${layerColor[l.layer]} 45%, transparent)`,
               }}
             >
-              <span
+              <div
                 data-testid="layer-lane-label"
-                className="absolute font-mono text-[11px] tracking-[0.14em] uppercase"
-                style={{ left: LANE_SPAN / 2 + visibleLeft + 12 / zoom, top: 6, color: labelColor[l.layer], transform: `scale(${1 / zoom})`, transformOrigin: "0 0" }}
+                className="absolute text-[11px]"
+                style={{ left: LANE_SPAN / 2 + visibleLeft + 12 / zoom, top: 6, transform: `scale(${1 / zoom})`, transformOrigin: "0 0" }}
               >
-                {l.name}
-              </span>
+                {handle(l.layer, l.name, "left-0 top-0 whitespace-nowrap")}
+              </div>
             </div>
           ))}
         {showBoxes &&
+          boxes.map((b) => {
+            const selected = handlers?.selected === b.layer;
+            return (
+              <div
+                key={b.layer}
+                data-testid="layer-box"
+                aria-hidden="true"
+                className={`absolute rounded-md ${selected ? "nopan nodrag pointer-events-auto cursor-move" : ""}`}
+                style={{
+                  transform: `translate(${b.x}px, ${b.y}px)`,
+                  width: b.w,
+                  height: b.h,
+                  background: `color-mix(in oklab, ${layerColor[b.layer]} ${selected ? 14 : 8}%, transparent)`,
+                  border: selected ? "2px solid var(--accent)" : `1px solid color-mix(in oklab, ${layerColor[b.layer]} 40%, transparent)`,
+                }}
+                onPointerDown={selected && handlers ? (e) => handlers.onPointerDown(b.layer, e) : undefined}
+                onContextMenu={selected && handlers ? (e) => handlers.onContextMenu(b.layer, e) : undefined}
+              />
+            );
+          })}
+        {showBoxes &&
+          !showLanes &&
           boxes.map((b) => (
             <div
               key={b.layer}
-              data-testid="layer-box"
-              className="absolute rounded-md"
-              style={{
-                transform: `translate(${b.x}px, ${b.y}px)`,
-                width: b.w,
-                height: b.h,
-                background: `color-mix(in oklab, ${layerColor[b.layer]} 8%, transparent)`,
-                border: `1px solid color-mix(in oklab, ${layerColor[b.layer]} 40%, transparent)`,
-              }}
+              data-testid="layer-box-label"
+              className="absolute text-[10px]"
+              style={{ transform: `translate(${b.x}px, ${b.y}px) scale(${handlers ? 1 / zoom : 1})`, transformOrigin: "0 0" }}
             >
-              {!showLanes && (
-                <span data-testid="layer-box-label" className="absolute top-1.5 left-3 font-mono text-[10px] tracking-[0.14em] uppercase" style={{ color: labelColor[b.layer] }}>
-                  {b.name}
-                </span>
-              )}
+              {/* A handle is kept at a constant on-screen size (24px targets), so it sits on top of the box like a tab. */}
+              {handle(b.layer, b.name, handlers ? "left-1 bottom-0 whitespace-nowrap" : "left-3 top-1.5 whitespace-nowrap")}
             </div>
           ))}
       </div>

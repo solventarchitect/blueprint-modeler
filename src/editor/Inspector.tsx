@@ -12,6 +12,8 @@ type Props = {
   selectedId: string | null;
   dispatch: (a: Action) => void;
   focusName: number;
+  /** Bumped to move focus to "Add a relationship" (context menu). */
+  focusConnect?: number;
   onSelect: (id: string | null) => void;
   newId: () => string;
   lens?: Lens;
@@ -63,7 +65,11 @@ function archimateRelFor(model: Model) {
 }
 
 /** Details of the selected element, its relationships, and a keyboard way to add more. */
-export function Inspector({ model, selectedId, dispatch, focusName, onSelect, newId, lens = "csdm" }: Props) {
+export function Inspector({ model, selectedId, dispatch, focusName, focusConnect = 0, onSelect, newId, lens = "csdm" }: Props) {
+  const connectRef = useRef<HTMLSelectElement>(null);
+  useEffect(() => {
+    if (focusConnect) connectRef.current?.focus();
+  }, [focusConnect]);
   const node = model.nodes.find((n) => n.id === selectedId);
   const connectId = useId();
   const archimateRel = archimateRelFor(model);
@@ -169,7 +175,7 @@ export function Inspector({ model, selectedId, dispatch, focusName, onSelect, ne
           Add a relationship
         </label>
         <div className="flex gap-2">
-          <select id={connectId} className={input} value={target} onChange={(e) => setTarget(e.target.value)}>
+          <select id={connectId} ref={connectRef} className={input} value={target} onChange={(e) => setTarget(e.target.value)}>
             <option value="">{options.length ? "Choose an element…" : "No allowed relationships yet"}</option>
             {options.map((o) => (
               <option key={o.value} value={o.value}>

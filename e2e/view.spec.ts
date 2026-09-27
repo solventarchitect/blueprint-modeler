@@ -41,7 +41,7 @@ test.describe("view options and present mode (desktop)", () => {
     await openCheckout(page);
     const boxes = page.getByTestId("layer-box");
     await expect(boxes).toHaveCount(5);
-    await expect(boxes.first()).toContainText("Business");
+    await expect(page.getByRole("button", { name: /^Business layer/ })).toBeVisible();
 
     const view = page.getByRole("button", { name: "View", exact: true });
     await view.click();
@@ -117,9 +117,9 @@ test.describe("view options and present mode (desktop)", () => {
       await expect(page.getByTestId("layer-lane")).toHaveCount(5);
       // Lane labels replace box labels; both are text, so both must meet 4.5:1 (axe skips aria-hidden text).
       await expect(page.getByTestId("layer-box-label")).toHaveCount(0);
-      for (const label of await page.getByTestId("layer-lane-label").all()) expect(await contrastOf(label)).toBeGreaterThanOrEqual(4.5);
+      for (const label of await page.getByTestId("layer-lane-label").all()) expect(await contrastOf(label.getByTestId("layer-handle"))).toBeGreaterThanOrEqual(4.5);
       await toggle(page, "Lanes");
-      for (const label of await page.getByTestId("layer-box-label").all()) expect(await contrastOf(label)).toBeGreaterThanOrEqual(4.5);
+      for (const label of await page.getByTestId("layer-box-label").all()) expect(await contrastOf(label.getByTestId("layer-handle"))).toBeGreaterThanOrEqual(4.5);
       await toggle(page, "Lanes");
       // axe files text over the drafting grid as "incomplete", so check the canvas attribution directly.
       expect(await contrastOf(page.locator(".react-flow__attribution a"))).toBeGreaterThanOrEqual(4.5);
