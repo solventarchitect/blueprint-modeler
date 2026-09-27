@@ -20,6 +20,7 @@ import { examples } from "@/examples";
 import { archimateElements, lenses, readLens, saveLens, type Lens } from "@/frameworks";
 import { downloadText } from "@/io/download";
 import { exportJson, fileBase, importJson, MAX_FILE_CHARS } from "@/io/file";
+import { modelToArchimateXml } from "@/io/archimate";
 import { modelToSvg } from "@/io/svg";
 import { edgeSides } from "@/layout/geometry";
 import { autoLayout, DEFAULT_SIZE } from "@/layout/layout";
@@ -294,6 +295,10 @@ function EditorInner() {
       const f = exportJson(model);
       downloadText(f.filename, f.text, "application/json");
       setMessage(`Exported ${f.filename}.`);
+    } else if (kind === "archimate") {
+      const filename = `${fileBase(model)}-archimate.xml`;
+      downloadText(filename, modelToArchimateXml(model), "application/xml");
+      setMessage(`Exported ${filename}. In Archi: File › Import › Open Exchange XML Model.`);
     } else {
       const theme = kind === "svg-dark" ? "dark" : "light";
       const filename = `${fileBase(model)}-${theme}.svg`;

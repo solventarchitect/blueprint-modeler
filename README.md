@@ -42,7 +42,7 @@ General diagramming tools will draw any line you ask for. Blueprint Modeler know
 | **Conformance hints** | 8 checks, such as a business application with no capability, a service nobody can request, or a capability hierarchy deeper than six levels. Hints advise rather than block, highlight the elements involved and link to their source. |
 | **Class guide** | [Every class, relationship and hint](https://model.mikereams.com/guide) on one page, with its source and how well the public text supports each relationship type. |
 | **Examples** | Five fictional models to start from: an online store checkout, a storefront on Kubernetes, an enterprise AI assistant, an HR portal and a shared database platform. Three of them trigger hints on purpose. |
-| **Import and export** | A versioned JSON model file that round-trips exactly, plus standalone SVG images in light or dark for docs and slides. |
+| **Import and export** | A versioned JSON model file that round-trips exactly, standalone SVG images in light or dark for docs and slides, and an ArchiMate® Model Exchange File that opens in Archi and other ArchiMate tools. |
 | **Auto-layout** | One click lays the model out top-down by CSDM layer, in a background worker, as a single undo step. |
 | **ArchiMate lens** | Switch to CSDM + ArchiMate 3.2 and every element also shows its mapped ArchiMate element and notation icon; relationships read in ArchiMate terms. View-only: files stay in CSDM terms. |
 | **Keyboard and themes** | Every canvas action has a keyboard path. Auto, light and dark themes. Checked against WCAG 2.2 AA. |

@@ -62,6 +62,27 @@ test.describe("import, export and layout (desktop)", () => {
     });
   }
 
+  test("exports an ArchiMate exchange file that parses and matches the model", async ({ page }) => {
+    await openExample(page, "Online store checkout");
+    const file = await exportFile(page, /ArchiMate model \(XML\)/);
+    expect(file.name).toBe("online-store-checkout-archimate.xml");
+    await expect(page.getByRole("status")).toContainText("Open Exchange XML Model");
+    const counts = await page.evaluate((xml) => {
+      const doc = new DOMParser().parseFromString(xml, "application/xml");
+      const ns = "http://www.opengroup.org/xsd/archimate/3.0/";
+      return {
+        error: doc.getElementsByTagName("parsererror").length,
+        root: doc.documentElement.namespaceURI,
+        elements: doc.getElementsByTagNameNS(ns, "element").length,
+        relationships: doc.getElementsByTagNameNS(ns, "relationship").length,
+        nodes: doc.getElementsByTagNameNS(ns, "node").length,
+      };
+    }, file.text);
+    const nodes = await page.locator(".react-flow__node").count();
+    const edges = await page.locator(".react-flow__edge").count();
+    expect(counts).toEqual({ error: 0, root: "http://www.opengroup.org/xsd/archimate/3.0/", elements: nodes, relationships: edges, nodes });
+  });
+
   test("the export menu works from the keyboard and closes on Escape", async ({ page }) => {
     await openExample(page, "Online store checkout");
     const button = page.getByRole("button", { name: "Export" });

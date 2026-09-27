@@ -2,15 +2,16 @@
 
 import { useEffect, useId, useRef, useState } from "react";
 
-export type ExportKind = "json" | "svg-dark" | "svg-light";
+export type ExportKind = "json" | "svg-dark" | "svg-light" | "archimate";
 
 const items: { kind: ExportKind; label: string; note: string }[] = [
   { kind: "json", label: "Model file (JSON)", note: "Back up, move or version it" },
   { kind: "svg-dark", label: "Image, dark (SVG)", note: "For docs and slides" },
   { kind: "svg-light", label: "Image, light (SVG)", note: "For docs and slides" },
+  { kind: "archimate", label: "ArchiMate model (XML)", note: "Open in Archi or another ArchiMate tool" },
 ];
 
-/** Disclosure menu: a button that shows three export actions. Escape or a click outside closes it. */
+/** Disclosure menu: a button that shows the export actions. Escape or a click outside closes it. */
 export function ExportMenu({ onExport, buttonClass }: { onExport: (k: ExportKind) => void; buttonClass: string }) {
   const [open, setOpen] = useState(false);
   const root = useRef<HTMLDivElement>(null);
