@@ -2,7 +2,8 @@ import ELK from "elkjs/lib/elk.bundled.js";
 import { describe, expect, it } from "vitest";
 import { classById } from "@/metamodel";
 import { examples } from "@/examples";
-import { autoLayout, DEFAULT_SIZE } from "./layout";
+import { layerBoxes } from "./bands";
+import { autoLayout, DEFAULT_SIZE, LAYER_GAP } from "./layout";
 
 const order = ["business", "design", "service", "functional", "infrastructure"];
 
@@ -29,6 +30,16 @@ describe("autoLayout", () => {
       }
     });
   }
+
+  it("leaves room between stacked layer boxes for a layer's name tab", async () => {
+    for (const ex of examples) {
+      const model = ex.create(new Date(0), "m");
+      const boxes = layerBoxes({ ...model, layout: await autoLayout(elk, model) });
+      for (let i = 1; i < boxes.length; i++) {
+        expect(boxes[i]!.y - (boxes[i - 1]!.y + boxes[i - 1]!.h), `${ex.id}: ${boxes[i]!.name}`).toBeGreaterThanOrEqual(LAYER_GAP);
+      }
+    }
+  });
 
   it("returns an empty layout for an empty model", async () => {
     const model = examples[0]!.create(new Date(0), "m");

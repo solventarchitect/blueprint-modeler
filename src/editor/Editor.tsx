@@ -45,6 +45,7 @@ import { ClassNode, SuggestContext, type ClassFlowNode } from "./ClassNode";
 import { ConnectionLine, ConnectionModelContext } from "./ConnectionLine";
 import { ExportMenu, type ExportKind } from "./ExportMenu";
 import { ContextMenu, type MenuItem } from "./ContextMenu";
+import { CanvasEdge, LabelObstacles } from "./CanvasEdge";
 import { CanvasTitle } from "./CanvasTitle";
 import { LayerOverlay, layerHandleId, type LayerHandlers } from "./LayerOverlay";
 import { DEFAULT_VIEW, readView, saveView, ViewMenu, type ViewOptions } from "./ViewMenu";
@@ -56,6 +57,7 @@ import { suggestions, type Suggestion } from "./suggest";
 import { useModelDocument, type SaveStatus } from "./useModelDocument";
 
 const nodeTypes = { csdm: ClassNode };
+const edgeTypes = { csdm: CanvasEdge };
 const newId = () => crypto.randomUUID();
 
 const statusText: Record<SaveStatus, string> = {
@@ -202,6 +204,7 @@ function EditorInner() {
         const [sourceHandle, targetHandle] = edgeSides(a, b);
         return {
           id: e.id,
+          type: "csdm",
           source: e.from,
           target: e.to,
           sourceHandle,
@@ -857,10 +860,12 @@ function EditorInner() {
         <div className="relative min-w-0 flex-1 bg-canvas" aria-label="Model canvas" role="region" onKeyDown={onCanvasKeyDown}>
           <ConnectionModelContext.Provider value={model}>
           <SuggestContext.Provider value={suggestCtx}>
+          <LabelObstacles boxes={boxes} tabsAbove={canMenu} show={(view.boxes || presenting) && !view.lanes}>
             <ReactFlow<ClassFlowNode, FlowEdge>
               nodes={nodes}
               edges={edges}
               nodeTypes={nodeTypes}
+              edgeTypes={edgeTypes}
               onNodesChange={onNodesChange}
               onEdgesChange={onEdgesChange}
               onConnect={onConnect}
@@ -927,6 +932,7 @@ function EditorInner() {
               <LayerOverlay boxes={boxes} lanes={lanes} showBoxes={view.boxes || presenting} showLanes={view.lanes} handlers={canMenu ? layerHandlers : undefined} />
               <CanvasTitle name={model.name} boxes={boxes} tabsAbove={view.boxes && !view.lanes && canMenu} decorative={presenting} />
             </ReactFlow>
+          </LabelObstacles>
           </SuggestContext.Provider>
           </ConnectionModelContext.Provider>
           {model.nodes.length === 0 && doc.status !== "loading" && (

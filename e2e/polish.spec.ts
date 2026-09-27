@@ -62,6 +62,66 @@ test.describe("canvas title (desktop)", () => {
   });
 });
 
+test.describe("edge labels (desktop)", () => {
+  test.skip(({ isMobile }) => !!isMobile, "editing is desktop-only");
+
+  test("never sit on a layer name, in every example, fitted or zoomed in, and while presenting", async ({ page }) => {
+    const overlaps = () =>
+      page.evaluate(() => {
+        const rects = (sel: string) => [...document.querySelectorAll(sel)].map((e) => [e.textContent, e.getBoundingClientRect()] as const);
+        const tabs = rects("[data-testid=layer-handle], [data-testid=layer-box-label] span");
+        return rects(".react-flow__edge-text").flatMap(([label, a]) =>
+          tabs.filter(([, t]) => a.left < t.right && t.left < a.right && a.top < t.bottom && t.top < a.bottom).map(([tab]) => `${label} × ${tab}`),
+        );
+      });
+    await page.goto("/editor");
+    await expect(page.getByTestId("save-status")).toHaveText("Saved in this browser");
+    const examples = page.getByRole("combobox", { name: "Start from an example" });
+    const count = await examples.locator("option").count();
+    for (let i = 1; i < count; i++) {
+      await examples.selectOption({ index: i });
+      await expect(page.locator(".react-flow__edge-text").first()).toBeVisible();
+      await expect.poll(overlaps, { message: `example ${i}` }).toEqual([]);
+      await page.getByRole("button", { name: "Zoom In" }).click();
+      await expect.poll(overlaps, { message: `example ${i}, zoomed in` }).toEqual([]);
+      // Zoomed far out, a tab (constant on-screen size) can cover a whole short edge; labels are
+      // unreadably small there anyway, so the check covers the fitted view and closer.
+      await page.getByRole("button", { name: "Zoom Out" }).click();
+    }
+    await page.getByRole("button", { name: "Present" }).click();
+    await expect(page.getByTestId("present-step")).toBeVisible();
+    await expect.poll(overlaps, { message: "presenting" }).toEqual([]);
+  });
+});
+
+test.describe("stacked layers (desktop)", () => {
+  test.skip(({ isMobile }) => !!isMobile, "editing is desktop-only");
+
+  test("leave room for each layer's name: its tab clears the box above, in every example and after auto-layout", async ({ page }) => {
+    const clashes = () =>
+      page.evaluate(() => {
+        const boxes = [...document.querySelectorAll("[data-testid=layer-box]")].map((e) => e.getBoundingClientRect());
+        return [...document.querySelectorAll("[data-testid=layer-handle]")].flatMap((tab, i) => {
+          const t = tab.getBoundingClientRect();
+          return boxes.filter((b, j) => j !== i && t.left < b.right && b.left < t.right && t.top < b.bottom - 1 && b.top < t.bottom).map(() => tab.textContent);
+        });
+      });
+    await page.goto("/editor");
+    await expect(page.getByTestId("save-status")).toHaveText("Saved in this browser");
+    const examples = page.getByRole("combobox", { name: "Start from an example" });
+    const count = await examples.locator("option").count();
+    for (let i = 1; i < count; i++) {
+      await examples.selectOption({ index: i });
+      await expect(page.getByTestId("layer-handle").first()).toBeVisible();
+      await expect.poll(clashes, { message: `example ${i}` }).toEqual([]);
+    }
+    await page.getByRole("button", { name: "Auto-layout" }).click();
+    await expect(page.getByRole("button", { name: "Auto-layout" })).toBeEnabled();
+    await page.getByRole("button", { name: "Fit View" }).click();
+    await expect.poll(clashes, { message: "after auto-layout" }).toEqual([]);
+  });
+});
+
 test.describe("editor status bar", () => {
   for (const scheme of ["dark", "light"] as const) {
     test(`carries the site footer's links, and the page does not scroll (${scheme})`, async ({ page }) => {

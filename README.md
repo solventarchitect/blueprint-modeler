@@ -29,7 +29,7 @@ General diagramming tools will draw any line you ask for. Blueprint Modeler know
   <picture>
     <source media="(prefers-color-scheme: dark)" srcset="assets/screenshot-dark.png">
     <source media="(prefers-color-scheme: light)" srcset="assets/screenshot-light.png">
-    <img alt="The editor with an online store checkout: translucent layer boxes group the model from Business Capability down to hosts, a newly added Data Service Instance shows a Connect it card listing the relationships it can take, and the Inspector offers the same suggestions." src="assets/screenshot-dark.png" width="100%">
+    <img alt="The editor with an online store checkout: the model name heads the canvas, translucent layer boxes group the model from Business Capability down to hosts with room for each layer name, a newly added Data Service Instance shows a Connect it card listing the relationships it can take, and the Inspector offers the same suggestions." src="assets/screenshot-dark.png" width="100%">
   </picture>
 </p>
 

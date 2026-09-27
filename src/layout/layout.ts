@@ -40,7 +40,18 @@ export function fromElkResult(result: ElkNode): Model["layout"] {
   return layout;
 }
 
+/**
+ * Extra room ELK does not know about, added below each CSDM layer: stacked layer boxes then leave
+ * space for the lower box's name tab (boxes pad 36 above their elements and 24 below).
+ */
+export const LAYER_GAP = 96;
+
 export async function autoLayout(engine: LayoutEngine, model: Model, sizes?: Record<string, Size>): Promise<Model["layout"]> {
   if (model.nodes.length === 0) return {};
-  return fromElkResult(await engine.layout(toElkGraph(model, sizes)));
+  const layout = fromElkResult(await engine.layout(toElkGraph(model, sizes)));
+  for (const n of model.nodes) {
+    const p = layout[n.id];
+    if (p) p.y += partitionOf[classById(n.class)?.layer ?? "design"] * LAYER_GAP;
+  }
+  return layout;
 }

@@ -26,7 +26,8 @@ export type Action =
 const HISTORY_LIMIT = 100;
 
 /** Vertical lanes: the white paper's layers, top to bottom. */
-export const laneY: Record<Layer, number> = { business: 0, design: 160, service: 320, functional: 480, infrastructure: 640 };
+/** Lane rows, spaced so a layer's name tab fits between stacked layer boxes (see layout/bands). */
+export const laneY: Record<Layer, number> = { business: 0, design: 200, service: 400, functional: 600, infrastructure: 800 };
 const SLOT = 288; // node width (224) + room for a side-to-side edge label
 
 export const initialHistory = (model: Model): History => ({ past: [], present: model, future: [] });

@@ -29,6 +29,8 @@ test.describe("editor (desktop)", () => {
     await addNamed(page, "Application Service", "Checkout prod");
     await addNamed(page, "Host", "web-01");
 
+    // Lanes are far enough apart that three layers can outgrow the canvas at 100%: fit first.
+    await page.getByRole("button", { name: "Fit View" }).click();
     // Keyboard path: select the service, then connect it to its host via the inspector.
     await canvasNode(page, "Checkout prod").click();
     const connect = inspector(page).getByLabel("Add a relationship");
