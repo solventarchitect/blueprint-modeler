@@ -30,6 +30,8 @@ import { archimateElements, lenses, readLens, saveLens, type Lens } from "@/fram
 import { downloadText } from "@/io/download";
 import { exportJson, fileBase, importJson, MAX_FILE_CHARS } from "@/io/file";
 import { modelToArchimateXml } from "@/io/archimate";
+import { modelToDrawioFile } from "@/io/drawio";
+import { lucidFit, lucidFitMessage, lucidFitNote } from "@/io/lucid";
 import { modelToSvg } from "@/io/svg";
 import { LAYERS, layerBoxes, layerLanes, settleIntoLane } from "@/layout/bands";
 import { edgeSides } from "@/layout/geometry";
@@ -337,6 +339,12 @@ function EditorInner() {
       const filename = `${fileBase(model)}-archimate.xml`;
       downloadText(filename, modelToArchimateXml(model), "application/xml");
       setMessage(`Exported ${filename}. In Archi: File › Import › Open Exchange XML Model.`);
+    } else if (kind === "drawio") {
+      const filename = `${fileBase(model)}.drawio`;
+      void modelToDrawioFile(model, { lens }).then((text) => {
+        downloadText(filename, text, "application/vnd.jgraph.mxfile");
+        setMessage(`Exported ${filename}. In Lucidchart: Import › draw.io. ${lucidFitMessage(lucidFit(model))}`);
+      });
     } else {
       const theme = kind === "svg-dark" ? "dark" : "light";
       const filename = `${fileBase(model)}-${theme}.svg`;
@@ -750,7 +758,7 @@ function EditorInner() {
             />
           </>
         )}
-        <ExportMenu onExport={exportAs} buttonClass={toolbarButton} />
+        <ExportMenu onExport={exportAs} buttonClass={toolbarButton} notes={{ drawio: lucidFitNote(lucidFit(model)) }} />
         <ViewMenu value={view} onChange={setView} buttonClass={toolbarButton} />
         <button ref={presentButton} type="button" className={toolbarButton} disabled={model.nodes.length === 0} onClick={startPresenting}>
           Present
