@@ -16,6 +16,7 @@ export type Action =
   | { type: "delete-node"; id: string }
   | { type: "add-edge"; id: string; from: string; to: string; edgeType?: string }
   | { type: "delete-edge"; id: string }
+  | { type: "set-layout"; layout: Model["layout"] }
   | { type: "undo" }
   | { type: "redo" };
 
@@ -76,6 +77,19 @@ function apply(model: Model, action: Action): Model | null {
       const pos = model.layout[action.id];
       if (!pos || (pos.x === action.x && pos.y === action.y)) return null;
       return { ...model, layout: { ...model.layout, [action.id]: { x: Math.round(action.x), y: Math.round(action.y) } } };
+    }
+    case "set-layout": {
+      // Auto-layout: every position at once, as one undo step. Ignores ids not in the model.
+      const layout = { ...model.layout };
+      let changed = false;
+      for (const n of model.nodes) {
+        const p = action.layout[n.id];
+        if (!p) continue;
+        const next = { x: Math.round(p.x), y: Math.round(p.y) };
+        if (layout[n.id]?.x !== next.x || layout[n.id]?.y !== next.y) changed = true;
+        layout[n.id] = next;
+      }
+      return changed ? { ...model, layout } : null;
     }
     case "delete-node": {
       if (!model.nodes.some((n) => n.id === action.id)) return null;

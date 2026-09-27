@@ -17,9 +17,16 @@ import {
 } from "@xyflow/react";
 import { useCallback, useEffect, useMemo, useRef, useState, type KeyboardEvent as ReactKeyboardEvent } from "react";
 import { examples } from "@/examples";
+import { downloadText } from "@/io/download";
+import { exportJson, fileBase, importJson, MAX_FILE_CHARS } from "@/io/file";
+import { modelToSvg } from "@/io/svg";
+import { edgeSides } from "@/layout/geometry";
+import { autoLayout, DEFAULT_SIZE } from "@/layout/layout";
+import { createWorkerEngine } from "@/layout/worker-engine";
 import { classById, classes, type ClassId } from "@/metamodel";
 import { evaluateHints, type HintResult } from "@/model";
 import { ClassNode, type ClassFlowNode } from "./ClassNode";
+import { ExportMenu, type ExportKind } from "./ExportMenu";
 import { HintsPanel } from "./HintsPanel";
 import { Inspector } from "./Inspector";
 import { Palette } from "./Palette";
@@ -67,6 +74,12 @@ function EditorInner() {
   const [activeHint, setActiveHint] = useState<HintResult | null>(null);
   const drag = useRef<Record<string, { x: number; y: number }>>({});
   const [dragTick, setDragTick] = useState(0);
+  const [layingOut, setLayingOut] = useState(false);
+  const [ioError, setIoError] = useState<string | null>(null);
+  const engine = useRef<ReturnType<typeof createWorkerEngine> | null>(null);
+  const fileInput = useRef<HTMLInputElement>(null);
+
+  useEffect(() => () => engine.current?.dispose(), []);
 
   const hints = useMemo(() => evaluateHints(model), [model]);
   const hintLevel = useMemo(() => {
@@ -124,9 +137,7 @@ function EditorInner() {
       model.edges.map((e) => {
         const a = model.layout[e.from] ?? { x: 0, y: 0 };
         const b = model.layout[e.to] ?? { x: 0, y: 0 };
-        // Same lane: connect side to side, so the edge does not loop round the nodes.
-        const [sourceHandle, targetHandle] =
-          Math.abs(a.y - b.y) < 60 ? (a.x <= b.x ? ["right", "left"] : ["left", "right"]) : a.y < b.y ? ["bottom", "top"] : ["top", "bottom"];
+        const [sourceHandle, targetHandle] = edgeSides(a, b);
         return {
           id: e.id,
           source: e.from,
@@ -215,6 +226,57 @@ function EditorInner() {
     setTimeout(() => void flow.fitView({ maxZoom: 1, padding: 0.15 }), 50);
   };
 
+  const runLayout = async () => {
+    if (model.nodes.length === 0 || layingOut) return;
+    setLayingOut(true);
+    setMessage("Laying out by CSDM layer…");
+    try {
+      engine.current ??= createWorkerEngine();
+      const sizes = Object.fromEntries(
+        flow.getNodes().map((n) => [n.id, { width: n.measured?.width ?? DEFAULT_SIZE.width, height: n.measured?.height ?? DEFAULT_SIZE.height }]),
+      );
+      dispatch({ type: "set-layout", layout: await autoLayout(engine.current, model, sizes) });
+      setMessage("Laid out by CSDM layer. Undo restores the previous positions.");
+      setTimeout(() => void flow.fitView({ maxZoom: 1, padding: 0.15, duration: 300 }), 50);
+    } catch {
+      setMessage("Auto-layout failed. Your positions are unchanged.");
+    } finally {
+      setLayingOut(false);
+    }
+  };
+
+  const importFile = async (file: File) => {
+    setIoError(null);
+    if (file.size > MAX_FILE_CHARS * 4) {
+      setIoError("The file is too large to be a Blueprint Modeler model (over 5 MB).");
+      return;
+    }
+    const r = importJson(await file.text(), new Set(doc.models.map((m) => m.id)));
+    if (!r.ok) {
+      setIoError(`Could not import “${file.name}”. ${r.error} Nothing was changed.`);
+      return;
+    }
+    setSelectedId(null);
+    setActiveHint(null);
+    await doc.createFrom(r.model);
+    const warn = r.issues.length ? ` ${r.issues.length} relationship${r.issues.length === 1 ? " breaks" : "s break"} the CSDM rules; see Hints.` : "";
+    setMessage(`Imported “${r.model.name || "Untitled model"}”${r.copied ? " as a copy (a model with the same id is already here)" : ""}.${warn}`);
+    setTimeout(() => void flow.fitView({ maxZoom: 1, padding: 0.15 }), 50);
+  };
+
+  const exportAs = (kind: ExportKind) => {
+    if (kind === "json") {
+      const f = exportJson(model);
+      downloadText(f.filename, f.text, "application/json");
+      setMessage(`Exported ${f.filename}.`);
+    } else {
+      const theme = kind === "svg-dark" ? "dark" : "light";
+      const filename = `${fileBase(model)}-${theme}.svg`;
+      downloadText(filename, modelToSvg(model, theme), "image/svg+xml");
+      setMessage(`Exported ${filename}.`);
+    }
+  };
+
   const selected = model.nodes.find((n) => n.id === selectedId);
   const scopedHints = selected ? hints.filter((h) => h.nodeIds.includes(selected.id)) : hints;
   const warnings = hints.filter((h) => h.hint.severity === "warning").length;
@@ -271,6 +333,32 @@ function EditorInner() {
           Redo
         </button>
         {wide && (
+          <button type="button" className={toolbarButton} disabled={layingOut || model.nodes.length === 0} aria-busy={layingOut} onClick={() => void runLayout()}>
+            {layingOut ? "Laying out…" : "Auto-layout"}
+          </button>
+        )}
+        <span className="mx-1 h-5 w-px bg-border" aria-hidden="true" />
+        {wide && (
+          <>
+            <button type="button" className={toolbarButton} onClick={() => fileInput.current?.click()}>
+              Import…
+            </button>
+            <input
+              ref={fileInput}
+              type="file"
+              accept=".json,application/json"
+              className="hidden"
+              data-testid="import-file"
+              onChange={(e) => {
+                const f = e.target.files?.[0];
+                e.target.value = "";
+                if (f) void importFile(f);
+              }}
+            />
+          </>
+        )}
+        <ExportMenu onExport={exportAs} buttonClass={toolbarButton} />
+        {wide && (
           <button
             type="button"
             className={toolbarButton}
@@ -288,6 +376,14 @@ function EditorInner() {
         </p>
       </div>
 
+      {ioError && (
+        <div role="alert" className="flex items-center justify-between gap-2 border-b border-border bg-surface-raised px-4 py-2 text-sm">
+          <span>{ioError}</span>
+          <button type="button" className={toolbarButton} onClick={() => setIoError(null)}>
+            Dismiss
+          </button>
+        </div>
+      )}
       {doc.problem && (
         <div role="alert" className="flex items-center justify-between gap-2 border-b border-border bg-surface-raised px-4 py-2 text-sm">
           <span>{doc.problem}</span>

@@ -4,7 +4,8 @@ A free, browser-only canvas for modeling application architecture with ServiceNo
 (CSDM): capability → business application → application service → technology. No sign-up, no server; your models
 stay in your browser and in files you export.
 
-**Status:** M0 — scaffold. Live at https://model.mikereams.com. Plan and requirements: [`SPEC.md`](SPEC.md);
+**Status:** M0–M4 done — canvas, conformance hints, class guide, examples, JSON import/export, SVG export
+(light/dark) and auto-layout by CSDM layer. Live at https://model.mikereams.com. Plan and requirements: [`SPEC.md`](SPEC.md);
 constraints: [`CLAUDE.md`](CLAUDE.md).
 
 ## Develop
@@ -23,6 +24,8 @@ pnpm verify   # typecheck, lint, unit, static build, Playwright (axe, no third-p
 ## License
 
 [MIT](LICENSE) © 2026 Mike Reams. IBM Plex fonts: SIL Open Font License (see `src/fonts/README.md`).
+Auto-layout uses [elkjs](https://github.com/kieler/elkjs) (unmodified, EPL-2.0), loaded in a Web Worker only
+when you click Auto-layout.
 
 Not affiliated with or endorsed by ServiceNow. ServiceNow and CSDM are trademarks of ServiceNow, Inc., used here
 only to describe what the tool models.

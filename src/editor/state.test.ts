@@ -61,6 +61,17 @@ describe("editor state", () => {
     expect(reduce(s, { type: "move-node", id: "ba", x: 0, y: laneY.design }, now)).toBe(s);
   });
 
+  it("applies an auto-layout as one undo step, ignoring unknown ids", () => {
+    const s = run([...base, { type: "set-layout", layout: { ba: { x: 10.4, y: 20 }, svc: { x: 30, y: 40 }, ghost: { x: 1, y: 1 } } }]);
+    expect(s.present.layout.ba).toEqual({ x: 10, y: 20 });
+    expect(s.present.layout.svc).toEqual({ x: 30, y: 40 });
+    expect(s.present.layout.host).toEqual({ x: 0, y: laneY.infrastructure });
+    expect(s.present.layout).not.toHaveProperty("ghost");
+    const undone = reduce(s, { type: "undo" }, now);
+    expect(undone.present.layout.ba).toEqual({ x: 0, y: laneY.design });
+    expect(reduce(s, { type: "set-layout", layout: s.present.layout }, now)).toBe(s);
+  });
+
   it("stamps updated on change", () => {
     const s = run(base);
     expect(s.present.updated).toBe(T);
