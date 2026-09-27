@@ -444,8 +444,9 @@ function EditorInner() {
       <div className={`flex flex-wrap items-center gap-2 border-b border-border px-4 py-2 ${presenting ? "hidden" : ""}`}>
         <label className="flex items-center gap-2 text-sm">
           <span className="sr-only">Open model</span>
+          {/* Fixed width: a long model name must not re-wrap the toolbar after the canvas has been fitted. */}
           <select
-            className={toolbarSelect}
+            className={`${toolbarSelect} w-44`}
             value={model.id}
             onChange={(e) => {
               setSelectedId(null);
@@ -534,8 +535,14 @@ function EditorInner() {
             <span className={`min-w-5 rounded-full px-1.5 font-mono text-xs ${warnings ? "bg-status text-accent-ink" : "bg-border text-ink"}`}>{hints.length}</span>
           </button>
         )}
-        <p className="ml-auto text-xs text-ink-muted" data-testid="save-status">
-          {statusText[doc.status]}
+        {/* The widest routine status reserves its width, so "Saving…" ↔ "Saved" never re-wraps the toolbar (and moves the canvas). */}
+        <p className="ml-auto grid text-right text-xs text-ink-muted">
+          <span aria-hidden="true" className="invisible col-start-1 row-start-1">
+            {statusText.saved}
+          </span>
+          <span className="col-start-1 row-start-1" data-testid="save-status">
+            {statusText[doc.status]}
+          </span>
         </p>
       </div>
 
