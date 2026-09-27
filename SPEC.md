@@ -71,7 +71,7 @@
 
 | # | Milestone | Deliverable | Verification | Status |
 |---|---|---|---|---|
-| M0 | Scaffold + CI + deploy | repo, Next static export, tokens, CI, Vercel project, `model.mikereams.com` | preview + custom domain open, CI green | |
+| M0 | Scaffold + CI + deploy | repo, Next static export, tokens, CI, Vercel project, `model.mikereams.com` | preview + custom domain open, CI green | **done 2026-09-26** |
 | M1 | Metamodel + model format | typed CSDM subset with sources; model schema v1 + zod; storage wrapper | unit tests: sources present, round-trip, migration stub | |
 | M2 | Canvas | palette, add/rename/delete, allowed-only connections, undo/redo, autosave, keyboard path | F-01, F-02, F-04; Playwright hero flow | |
 | M3 | Hints + guide | conformance hints with sources and highlighting; class guide; 3 examples | F-03, F-08 | |
@@ -90,7 +90,7 @@
 
 ## 10. Status
 
-- **Last deploy:** none
+- **Last deploy:** `1375d84` → https://model.mikereams.com on 2026-09-26 (Vercel `dpl_EsKmcGeCtTwo96toQaHTAHfdfgD9`, TLS valid; CI run 36283442780 green)
 - **Done:** plan approved (2026-09-26); M0 scaffold — Next 15 static export, Blueprint tokens + self-hosted Plex, CI, unit + Playwright (axe dark/light, no third-party requests, 5 breakpoints) green locally
-- **Next:** M0 deploy — GitHub repo, Vercel project, `model.mikereams.com`; then M1
+- **Next:** M1 — metamodel with public sources, model schema v1 + zod, storage wrapper
 - **Blocked on Mike:** —

@@ -65,7 +65,7 @@
 | Item | Value |
 |---|---|
 | Ownership | **personal** — GitHub `solventarchitect`, personal Vercel team |
-| Repo | `github.com/solventarchitect/blueprint-modeler` (public, MIT) — not created yet |
-| Vercel project / root dir | `blueprint-modeler` / repo root — not created yet |
+| Repo | `github.com/solventarchitect/blueprint-modeler` (public, MIT) |
+| Vercel project / root dir | `blueprint-modeler` (`prj_udXN4FUOUfVhHuJqzYTvY5p0B59A`, team `team_dTp6yUNKpQzVW9XBBUzrDD3y`) / repo root |
 | Supabase | none |
-| Production URL | `https://model.mikereams.com` — DNS not configured yet |
+| Production URL | `https://model.mikereams.com` (Netlify DNS CNAME → `cname.vercel-dns.com`, record `6ab86765cd690786c5e9a67c`) |
