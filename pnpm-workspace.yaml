@@ -1,0 +1,5 @@
+# pnpm 11 settings (single-package repo; no workspace packages).
+# Postinstall scripts are blocked by default — allow only the two that need them.
+allowBuilds:
+  esbuild: true
+  unrs-resolver: true

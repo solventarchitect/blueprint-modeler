@@ -1,0 +1,6 @@
+# Line endings (T-10): LF in the repository AND in every working tree, whatever
+# core.autocrlf says. Without this, Windows checkouts were CRLF while tooling wrote LF,
+# so one-line edits showed as whole-file rewrites. Binary files are detected by
+# text=auto and left untouched.
+* text=auto eol=lf
+

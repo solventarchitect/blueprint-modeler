@@ -1,7 +1,6 @@
-# SPEC.md — Service Modeler (model.mikereams.com)
+# SPEC.md — Blueprint Modeler (model.mikereams.com)
 
 > Requirements source of truth. Constraints live in `CLAUDE.md`. Update the Status block at every milestone.
-> Working name — see open question Q1.
 
 ## 1. Problem & users
 
@@ -62,10 +61,10 @@
 
 | Service | Purpose | Tier / cost | Approved by Mike? |
 |---|---|---|---|
-| Vercel | static hosting, previews | Hobby, $0 | pending (new project) |
-| Netlify DNS | `model` CNAME on mikereams.com | existing | pending (DNS change) |
-| GitHub `solventarchitect/service-modeler` | source, CI | free, public | pending (new repo) |
-| `@xyflow/react`, `elkjs`, `zod` | canvas, layout, file validation | MIT | pending |
+| Vercel | static hosting, previews | Hobby, $0 | yes (2026-09-26) |
+| Netlify DNS | `model` CNAME on mikereams.com | existing | yes (2026-09-26) |
+| GitHub `solventarchitect/blueprint-modeler` | source, CI | free, public | yes (2026-09-26) |
+| `@xyflow/react`, `elkjs`, `zod` | canvas, layout, file validation | MIT | yes (2026-09-26) |
 | Cloudflare Web Analytics | visit counts, cookie-less | $0 | optional, pending |
 
 ## 8. Milestones
@@ -83,15 +82,15 @@
 
 | Q | Owner | Needed by | Answer |
 |---|---|---|---|
-| Q1 Product name (working: "Service Modeler") — avoid using "CSDM" in the name | Mike | M0 | |
+| Q1 Product name — avoid using "CSDM" in the name | Mike | M0 | **Blueprint Modeler** (Mike, 2026-09-26) |
 | Q2 Reuse ArchTruth's DSL package? Copying it here open-sources it under MIT | Mike | M1 | default: no — JSON model v1, DSL later |
 | Q3 Cloudflare Web Analytics on the app? | Mike | M5 | |
-| Q4 Approve deps `@xyflow/react`, `elkjs`, `zod`; new Vercel project; GitHub repo; DNS record | Mike | M0 | |
+| Q4 Approve deps `@xyflow/react`, `elkjs`, `zod`; new Vercel project; GitHub repo; DNS record | Mike | M0 | **Approved** (Mike, 2026-09-26); deps added when first used (M1 zod, M2 xyflow, M4 elkjs) |
 | Q5 Link from mikereams.com nav/Work page at launch? | Mike | M5 | |
 
 ## 10. Status
 
 - **Last deploy:** none
-- **Done:** CLAUDE.md + SPEC.md drafted (2026-09-26)
-- **Next:** Mike approves the plan and Q1/Q4 → M0
-- **Blocked on Mike:** Q1, Q4
+- **Done:** plan approved (2026-09-26); M0 scaffold — Next 15 static export, Blueprint tokens + self-hosted Plex, CI, unit + Playwright (axe dark/light, no third-party requests, 5 breakpoints) green locally
+- **Next:** M0 deploy — GitHub repo, Vercel project, `model.mikereams.com`; then M1
+- **Blocked on Mike:** —

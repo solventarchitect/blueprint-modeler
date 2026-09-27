@@ -1,4 +1,4 @@
-# CLAUDE.md — Service Modeler (model.mikereams.com)
+# CLAUDE.md — Blueprint Modeler (model.mikereams.com)
 
 > Read `SPEC.md` first — it is the requirements source of truth. This file is constraints & conventions only.
 > Workspace rules in `../../CLAUDE.md` still apply; this file only narrows them.
@@ -7,7 +7,7 @@
 ## Never break these (hard constraints)
 
 1. **Deployment target:** static export (`output: 'export'`) deployed by Vercel Git integration, project
-   `service-modeler`, personal team "Mike Reams' projects"; push to `main` = production. Public host
+   `blueprint-modeler`, personal team "Mike Reams' projects"; push to `main` = production. Public host
    `https://model.mikereams.com` (CNAME in Netlify DNS → Vercel). Vercel Hobby is non-commercial use only, which
    matches rule 3.
 2. **Data contract: there is no server.** No database, no accounts, no API routes, no server actions. A user's
@@ -22,8 +22,8 @@
    ServiceNow connection, requires Mike's employment-agreement check first — stop and ask.
 4. **Framework lock:** Next.js 15 App Router + TypeScript strict, static export. Canvas = `@xyflow/react` behind a
    `CanvasRenderer` interface; ELK layout in a Web Worker. No second canvas library, no CSS-in-JS.
-5. **No new runtime dependency, paid service, or storage provider without Mike's explicit approval.** Proposed set
-   awaiting approval: `@xyflow/react`, `elkjs`, `zod` (all MIT). Analytics (Cloudflare Web Analytics, cookie-less,
+5. **No new runtime dependency, paid service, or storage provider without Mike's explicit approval.** Approved set
+   (2026-09-26): `@xyflow/react`, `elkjs`, `zod` (all MIT), added when first used. Analytics (Cloudflare Web Analytics, cookie-less,
    $0) only if approved.
 6. **Not affiliated.** "ServiceNow" and "CSDM" are used nominatively; the footer and About page carry a
    not-affiliated notice. No ServiceNow logos.
@@ -65,7 +65,7 @@
 | Item | Value |
 |---|---|
 | Ownership | **personal** — GitHub `solventarchitect`, personal Vercel team |
-| Repo | `github.com/solventarchitect/service-modeler` (public, MIT) — not created yet |
-| Vercel project / root dir | `service-modeler` / repo root — not created yet |
+| Repo | `github.com/solventarchitect/blueprint-modeler` (public, MIT) — not created yet |
+| Vercel project / root dir | `blueprint-modeler` / repo root — not created yet |
 | Supabase | none |
 | Production URL | `https://model.mikereams.com` — DNS not configured yet |

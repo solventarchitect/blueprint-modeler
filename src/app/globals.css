@@ -1,0 +1,93 @@
+@import "tailwindcss";
+@import "./tokens.css";
+
+/* Semantic roles — the ONLY colour names components may use. Same Blueprint roles and
+ * contrast pairs as mikereams.com (ratios measured there against --surface).
+ * Dark is the default; the light "blueprint paper" roles follow the OS setting. */
+:root {
+  --surface: var(--color-neutral-950);
+  --surface-raised: color-mix(in oklab, var(--color-neutral-900) 60%, var(--color-neutral-950));
+  --ink: var(--color-neutral-50);
+  --ink-soft: var(--color-neutral-300);
+  --ink-muted: var(--color-neutral-400);
+  --accent: var(--color-primary-500);
+  --accent-ink: var(--color-neutral-950);
+  --status: var(--color-warning-400);
+  --ai: var(--color-ai-500);
+  --border: var(--color-neutral-800);
+  --border-strong: var(--color-neutral-400);
+  --grid-line: color-mix(in oklab, var(--color-primary-400) 7%, transparent);
+  color-scheme: dark;
+}
+
+@media (prefers-color-scheme: light) {
+  :root {
+    --surface: var(--color-neutral-50);
+    --surface-raised: var(--color-white);
+    --ink: var(--color-neutral-950);
+    --ink-soft: var(--color-neutral-800);
+    --ink-muted: var(--color-neutral-600);
+    --accent: var(--color-primary-800);
+    --accent-ink: var(--color-white);
+    --status: var(--color-warning-800);
+    --ai: var(--color-ai-600);
+    --border: var(--color-neutral-200);
+    --border-strong: var(--color-neutral-500);
+    --grid-line: color-mix(in oklab, var(--color-primary-700) 9%, transparent);
+    color-scheme: light;
+  }
+}
+
+@theme inline {
+  --color-surface: var(--surface);
+  --color-surface-raised: var(--surface-raised);
+  --color-ink: var(--ink);
+  --color-ink-soft: var(--ink-soft);
+  --color-ink-muted: var(--ink-muted);
+  --color-accent: var(--accent);
+  --color-accent-ink: var(--accent-ink);
+  --color-status: var(--status);
+  --color-ai: var(--ai);
+  --color-border: var(--border);
+  --color-border-strong: var(--border-strong);
+  --font-sans: var(--font-plex-sans), "IBM Plex Sans", system-ui, sans-serif;
+  --font-mono: var(--font-plex-mono), "IBM Plex Mono", ui-monospace, monospace;
+}
+
+@layer base {
+  html {
+    background: var(--surface);
+    color: var(--ink);
+    font-family: var(--font-sans);
+    -webkit-font-smoothing: antialiased;
+  }
+
+  /* Drafting-grid ground: decorative only, never carries meaning. */
+  body {
+    background-image:
+      linear-gradient(to right, var(--grid-line) 1px, transparent 1px),
+      linear-gradient(to bottom, var(--grid-line) 1px, transparent 1px);
+    background-size: 2rem 2rem;
+    background-attachment: fixed;
+  }
+
+  :where(*) {
+    outline-color: var(--accent);
+  }
+
+  :focus-visible {
+    outline: 2px solid var(--accent);
+    outline-offset: 2px;
+  }
+
+  @media (prefers-reduced-motion: reduce) {
+    *,
+    *::before,
+    *::after {
+      animation-duration: 0.01ms !important;
+      animation-iteration-count: 1 !important;
+      transition-duration: 0.01ms !important;
+      scroll-behavior: auto !important;
+    }
+  }
+}
