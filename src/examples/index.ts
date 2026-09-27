@@ -147,7 +147,7 @@ const specs: Spec[] = [
   {
     id: "enterprise-ai",
     name: "Enterprise AI assistant",
-    summary: "An AI assistant modeled like any other application: a Business Application with its knowledge source, a production service on an AI platform offering, and the model and index it runs on. A planned refund agent has no deployment yet — watch the hints.",
+    summary: "An AI assistant modeled like any other application: a Business Application with its knowledge source, a production service on an AI platform offering, and the hosted language model as a CSDM 5 Data Service Instance. A planned refund agent has no deployment yet — watch the hints.",
     nodes: [
       ["proc", "business_process", "Resolve a customer case"],
       ["cap", "business_capability", "Customer support"],
@@ -162,9 +162,8 @@ const specs: Spec[] = [
       ["api", "api", "Model gateway API"],
       ["orch", "application", "Assistant orchestrator"],
       ["vec", "application", "Vector index"],
-      ["llm", "application", "Hosted language model"],
+      ["llm", "data_service_instance", "Hosted language model — production"],
       ["h1", "host", "app-node-01"],
-      ["gpu", "host", "gpu-node-01"],
     ],
     edges: [
       ["proc", "ba"],
@@ -176,13 +175,13 @@ const specs: Spec[] = [
       ["bso", "svc"],
       ["tms", "tmso"],
       ["tmso", "svc"],
+      ["tmso", "llm"],
       ["api", "svc"],
       ["svc", "orch"],
       ["svc", "vec"],
       ["svc", "llm"],
       ["orch", "h1"],
       ["vec", "h1"],
-      ["llm", "gpu"],
     ],
   },
 ];

@@ -163,10 +163,12 @@
   --xy-attribution-background-color: transparent;
   --xy-attribution-background-color-default: transparent;
 }
-.react-flow__attribution {
-  background: transparent;
+/* Raised specificity: React Flow's own stylesheet (#999, 2.8:1) otherwise wins. An opaque background keeps it
+   readable when a node sits underneath. */
+.react-flow .react-flow__attribution {
+  background: var(--surface);
 }
-.react-flow__attribution a {
+.react-flow .react-flow__attribution a {
   color: var(--ink-muted);
 }
 .react-flow__edge.hinted .react-flow__edge-path {

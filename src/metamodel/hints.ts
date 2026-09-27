@@ -38,9 +38,18 @@ export const hints = [
   {
     id: "service-not-exposed",
     severity: "info",
-    title: "Application Service is not exposed through an offering",
-    explanation: "Expose Application Services through the related Business Service Offering or Technology Management Service Offering.",
-    source: { id: "whitepaper", page: 39 },
+    title: "Service instance is not exposed through an offering",
+    explanation:
+      "Expose each service instance through the related Business Service Offering or Technology Management Service Offering. The white paper says this of Application Services; its relationship figure relates offerings to every service instance type.",
+    source: { id: "whitepaper", page: 39, quote: "The offering of application services should be exposed via the related business or technical service offering." },
+  },
+  {
+    id: "generic-service-instance",
+    severity: "info",
+    title: "Service Instance has no specific type",
+    explanation:
+      "Choose the type that fits: Application Service, or a Data, Connection, Network, Operational Process or Facility Service Instance. The base class is for reporting across all of them.",
+    source: { id: "whitepaper", page: 37, quote: "New service instances extended from cmdb_ci_service_auto have been introduced to accommodate expanded use of services." },
   },
   {
     id: "capability-too-deep",

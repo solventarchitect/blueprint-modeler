@@ -61,12 +61,12 @@ export default function GuidePage() {
               <h3 className="font-mono text-xs tracking-[0.14em] text-ink-muted uppercase">{layer.name}</h3>
               <ul className="mt-3 grid gap-3 md:grid-cols-2">
                 {inLayer.map((c) => (
-                  <li key={c.id} className={`border border-border border-l-4 bg-surface-raised p-4 ${layerAccent[c.layer]}`}>
+                  <li key={c.id} className={`min-w-0 border border-border border-l-4 bg-surface-raised p-4 ${layerAccent[c.layer]}`}>
                     <p className="flex items-center gap-2 font-medium">
                       {c.label}
                       {!isCsdmCore(c) && <span className="border border-border-strong px-1 font-mono text-[0.6rem] tracking-[0.08em] text-ink-muted">CMDB</span>}
                     </p>
-                    {"table" in c && c.table && <p className="mt-0.5 font-mono text-xs text-ink-muted">{c.table}</p>}
+                    {"table" in c && c.table && <p className="mt-0.5 font-mono text-xs break-all text-ink-muted">{c.table}</p>}
                     <p className="mt-2 text-sm text-ink-soft">{c.description}</p>
                     <p className="mt-2 text-xs text-ink-muted">
                       Source: <Source src={c.source} />

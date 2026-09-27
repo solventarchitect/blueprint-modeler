@@ -121,6 +121,8 @@ test.describe("view options and present mode (desktop)", () => {
       await toggle(page, "Lanes");
       for (const label of await page.getByTestId("layer-box-label").all()) expect(await contrastOf(label)).toBeGreaterThanOrEqual(4.5);
       await toggle(page, "Lanes");
+      // axe files text over the drafting grid as "incomplete", so check the canvas attribution directly.
+      expect(await contrastOf(page.locator(".react-flow__attribution a"))).toBeGreaterThanOrEqual(4.5);
       expect((await new AxeBuilder({ page }).withTags(tags).analyze()).violations).toEqual([]);
       await page.getByRole("button", { name: "Present", exact: true }).click();
       await expect(page.getByRole("region", { name: "Presentation" })).toBeVisible();

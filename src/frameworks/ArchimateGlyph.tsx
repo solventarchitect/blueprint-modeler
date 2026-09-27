@@ -42,6 +42,15 @@ export function ArchimateGlyph({ type, className = "" }: { type: ArchimateElemen
     case "Grouping":
       body = <path {...common} strokeDasharray="2 1.5" d="M1.5 4.5h13v7h-13z M1.5 4.5v-2h6v2" />;
       break;
+    case "Path":
+      body = <path {...common} strokeDasharray="2 1.5" d="M3 7h10 M4.5 4.5L2 7l2.5 2.5 M11.5 4.5L14 7l-2.5 2.5" />;
+      break;
+    case "Equipment":
+      body = <path {...common} d="M6 8.5m-3 0a3 3 0 1 0 6 0a3 3 0 1 0-6 0 M11 4.5m-2 0a2 2 0 1 0 4 0a2 2 0 1 0-4 0" />;
+      break;
+    case "Facility":
+      body = <path {...common} d="M1.5 12.5V5l4 2.5V5l4 2.5V2.5h3v10z" />;
+      break;
     case "CommunicationNetwork":
       body = <path {...common} d="M1.5 9.5h13 M4 9.5V5.5 M12 9.5V5.5 M4 5.5h8" />;
       break;

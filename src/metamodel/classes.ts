@@ -112,6 +112,68 @@ export const classes = [
       "A deployed, running instance of an application, e.g. per environment or region: the application type of Service Instance. Its table follows how it is populated: manual or Service Mapping (cmdb_ci_service_discovered), tags, calculated, or a dynamic CI group (cmdb_ci_query_based_service).",
     source: { id: "whitepaper", page: 38 },
   },
+  // Service Instance family (CSDM 5): the relabeled base table and the new siblings of Application
+  // Service. The siblings are a data model only: no UI, created and maintained manually (p. 38).
+  {
+    id: "service_instance",
+    label: "Service Instance",
+    domain: "service-delivery",
+    layer: "service",
+    table: "cmdb_ci_service_auto",
+    description:
+      "The base class for every deployed instance of a service; CSDM 5 relabeled the old Application Service base table. Pick a specific type where you can: it is for reporting across all of them.",
+    source: { id: "whitepaper", page: 37 },
+  },
+  {
+    id: "data_service_instance",
+    label: "Data Service Instance",
+    domain: "service-delivery",
+    layer: "service",
+    table: "cmdb_ci_data_service_instance",
+    description:
+      "A deployed or provisioned instance of data services: database servers and services, storage, AI and machine-learning services such as pipelines and models, and data products.",
+    source: { id: "whitepaper", page: 39 },
+  },
+  {
+    id: "connection_service_instance",
+    label: "Connection Service Instance",
+    domain: "service-delivery",
+    layer: "service",
+    table: "cmdb_ci_connection_service_instance",
+    description:
+      "A logical or physical network connection, such as a VLAN, LAN or WLAN, kept as a CI so it takes part in dependency and impact analysis.",
+    source: { id: "whitepaper", page: 39 },
+  },
+  {
+    id: "network_service_instance",
+    label: "Network Service Instance",
+    domain: "service-delivery",
+    layer: "service",
+    table: "cmdb_ci_network_service_instance",
+    description:
+      "A deployed or provisioned instance of network services built on network functions. With connections, it forms the service delivery network.",
+    source: { id: "whitepaper", page: 39 },
+  },
+  {
+    id: "operational_process_service_instance",
+    label: "Operational Process Service Instance",
+    domain: "service-delivery",
+    layer: "service",
+    table: "cmdb_ci_operational_process_service_instance",
+    description:
+      "An instance of an operational process, such as manufacturing, utility or warehouse operations, carried out by connected devices and equipment.",
+    source: { id: "whitepaper", page: 40 },
+  },
+  {
+    id: "facility_service_instance",
+    label: "Facility Service Instance",
+    domain: "service-delivery",
+    layer: "service",
+    table: "cmdb_ci_facility_service_instance",
+    description:
+      "A service tied to running a facility, such as heating and cooling, lighting, power, water, building access or elevators.",
+    source: { id: "whitepaper", page: 40 },
+  },
   {
     id: "api",
     label: "API",

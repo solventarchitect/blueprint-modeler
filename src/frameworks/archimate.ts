@@ -1,4 +1,4 @@
-import type { ClassId } from "@/metamodel";
+import { relationships, type ClassId } from "@/metamodel";
 
 /**
  * ArchiMate® 3.2 lens: how each CSDM class and relationship reads in ArchiMate. A view over the
@@ -20,7 +20,7 @@ export const archimateSources = {
 } as const satisfies Record<string, { title: string; url: string }>;
 
 export type ArchimateSourceId = keyof typeof archimateSources;
-export type ArchimateLayer = "Strategy" | "Business" | "Application" | "Technology" | "Other";
+export type ArchimateLayer = "Strategy" | "Business" | "Application" | "Technology" | "Physical" | "Other";
 
 /** Element type names as the exchange format spells them (ElementTypeEnum). */
 export type ArchimateElementType =
@@ -36,6 +36,9 @@ export type ArchimateElementType =
   | "Node"
   | "TechnologyInterface"
   | "CommunicationNetwork"
+  | "Path"
+  | "Equipment"
+  | "Facility"
   | "Grouping";
 
 /** Relationship type names as the exchange format spells them (RelationshipTypeEnum). */
@@ -88,6 +91,42 @@ export const archimateElements = {
     layer: "Application",
     note: "Name trap: a CSDM Application Service is a deployed instance, not an ArchiMate Application Service (exposed behavior). It reads as an Application Component that realizes the logical Business Application.",
     source: "application",
+  },
+  service_instance: {
+    type: "Grouping",
+    label: "Grouping",
+    layer: "Other",
+    note: "The base class spans many kinds of instance, so it reads as a grouping of what delivers the service. Pick a specific type for a precise element.",
+    source: "spec",
+  },
+  data_service_instance: {
+    type: "Node",
+    label: "Node",
+    layer: "Technology",
+    note: "The platform that provides the data services; model the data itself as Data Objects or Artifacts if you need it.",
+    source: "technology",
+  },
+  connection_service_instance: {
+    type: "Path",
+    label: "Path",
+    layer: "Technology",
+    note: "A link between nodes through which they exchange data.",
+    source: "technology",
+  },
+  network_service_instance: { type: "CommunicationNetwork", label: "Communication Network", layer: "Technology", source: "technology" },
+  operational_process_service_instance: {
+    type: "Equipment",
+    label: "Equipment",
+    layer: "Physical",
+    note: "The connected devices and machinery that carry out the process; model the process itself as a Technology Process if you need it.",
+    source: "spec",
+  },
+  facility_service_instance: {
+    type: "Facility",
+    label: "Facility",
+    layer: "Physical",
+    note: "The facility whose services it represents, such as a plant, office or control center.",
+    source: "spec",
   },
   api: { type: "ApplicationInterface", label: "Application Interface", layer: "Application", source: "application" },
   application: {
@@ -182,6 +221,22 @@ export const archimateRelationships: Record<string, RelationshipMapping> = {
   "application_service>kubernetes_cluster": { type: "Serving", reverse: true, reads: "the cluster serves the instance" },
 };
 
-export const archimateRelationshipFor = (from: string, to: string): RelationshipMapping | undefined => archimateRelationships[`${from}>${to}`];
+/** Readings for the Service Instance family, generated per pair from Figure 16's rules. */
+const INSTANCE_RELATIONSHIPS: Record<string, RelationshipMapping> = Object.fromEntries(
+  relationships.flatMap((r): [string, RelationshipMapping][] => {
+    const key = `${r.from}>${r.to}`;
+    if (key in archimateRelationships) return [];
+    const [type] = r.types;
+    if (r.from === "business_service_offering") return [[key, { type: "Serving", reverse: true, reads: "the instance serves the product" }]];
+    if (r.from === "technology_management_service_offering") return [[key, { type: "Serving", reverse: false, reads: "the technology service serves the instance" }]];
+    if (type === "Depends on::Used by") return [[key, { type: "Serving", reverse: true, reads: "the dependency serves the dependent instance" }]];
+    if (type === "Connected by::Connects") return [[key, { type: "Association", reverse: false, reads: "the path connects the instance" }]];
+    if (key === "connection_service_instance>network_service_instance") return [[key, { type: "Realization", reverse: true, reads: "the network realizes the path" }]];
+    return [];
+  }),
+);
+
+export const archimateRelationshipFor = (from: string, to: string): RelationshipMapping | undefined =>
+  archimateRelationships[`${from}>${to}`] ?? INSTANCE_RELATIONSHIPS[`${from}>${to}`];
 
 export const ARCHIMATE_TRADEMARK = "ArchiMate® is a registered trademark of The Open Group.";

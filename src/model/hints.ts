@@ -1,4 +1,4 @@
-import { acceptedTypes, allowedTypes, hints, type HintDef, type HintId } from "@/metamodel";
+import { acceptedTypes, allowedTypes, hints, INSTANCES, type HintDef, type HintId } from "@/metamodel";
 import type { Model } from "./schema";
 
 /** One hint that applies to a model, and the elements it is about. */
@@ -12,6 +12,7 @@ export type HintResult = {
 
 const INFRA = new Set(["application", "host", "network", "api"]);
 const MAX_CAPABILITY_LEVELS = 6;
+const INSTANCE_SET = new Set<string>(INSTANCES);
 const OFFERING_PARENT: Record<string, string> = {
   business_service_offering: "business_service",
   technology_management_service_offering: "technology_management_service",
@@ -60,7 +61,10 @@ export function evaluateHints(model: Model): HintResult[] {
         push("ba-without-service-instance", n.id, `${label(n.id)} has no Application Service.`, [n.id]);
       }
     }
-    if (n.class === "application_service") {
+    if (n.class === "service_instance") {
+      push("generic-service-instance", n.id, `${label(n.id)} is a generic Service Instance.`, [n.id]);
+    }
+    if (INSTANCE_SET.has(n.class)) {
       const exposed = incoming(n.id).some((e) => {
         const c = classOf(e.from);
         return c === "business_service_offering" || c === "technology_management_service_offering";

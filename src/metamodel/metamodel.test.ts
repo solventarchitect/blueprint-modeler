@@ -72,6 +72,36 @@ describe("CSDM 5 relationship figure", () => {
   });
 });
 
+describe("Service Instance family", () => {
+  const types = ["application_service", "data_service_instance", "connection_service_instance", "network_service_instance", "operational_process_service_instance", "facility_service_instance"];
+
+  it("relates a Business Application to Application Services only", () => {
+    for (const t of [...types, "service_instance"]) {
+      expect(allowedTypes("business_application", t).length > 0, t).toBe(t === "application_service");
+    }
+  });
+
+  it("lets both kinds of offering expose every instance type", () => {
+    for (const t of [...types, "service_instance"]) {
+      expect(allowedTypes("business_service_offering", t), t).toEqual(["Depends on::Used by"]);
+      expect(allowedTypes("technology_management_service_offering", t), t).toEqual(["Contains::Contained by"]);
+    }
+  });
+
+  it("connects instances through Connection Service Instances, provided by a Network Service Instance", () => {
+    expect(allowedTypes("data_service_instance", "connection_service_instance")).toEqual(["Connected by::Connects"]);
+    expect(allowedTypes("connection_service_instance", "network_service_instance")).toEqual(["Provided by::Provides"]);
+    expect(allowedTypes("application_service", "data_service_instance")).toEqual(["Depends on::Used by"]);
+  });
+
+  it("names each instance table as the white paper's table summary does", () => {
+    const table = (id: string) => classes.find((c) => c.id === id)!;
+    expect(table("service_instance")).toMatchObject({ table: "cmdb_ci_service_auto" });
+    expect(table("data_service_instance")).toMatchObject({ table: "cmdb_ci_data_service_instance" });
+    expect(table("application_service")).toMatchObject({ table: "cmdb_ci_service_discovered" });
+  });
+});
+
 describe("Kubernetes", () => {
   it("uses the relationship types the Kubernetes discovery documentation reports", () => {
     expect(allowedTypes("kubernetes_cluster", "kubernetes_namespace")).toEqual(["Contains::Contained by"]);

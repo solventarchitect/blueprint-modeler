@@ -35,6 +35,20 @@ export const referenceType = (field: string) => `reference:${field}`;
 /** The white paper's relationship figure (Figure 16). */
 const FIG16 = { id: "whitepaper", page: 48 } as const;
 
+/** Every Service Instance class: the base and its types. */
+export const INSTANCES = [
+  "service_instance",
+  "application_service",
+  "data_service_instance",
+  "connection_service_instance",
+  "network_service_instance",
+  "operational_process_service_instance",
+  "facility_service_instance",
+] as const;
+
+/** Instance types Figure 16 shows depending on other service instances. */
+const DEPENDENT_INSTANCES = ["application_service", "data_service_instance", "network_service_instance", "operational_process_service_instance", "facility_service_instance"] as const;
+
 export const relationships = [
   {
     from: "business_application",
@@ -203,6 +217,37 @@ export const relationships = [
     types: [referenceType("parent")],
     typeEvidence: "conventional",
     source: { id: "whitepaper", page: 32, quote: "The total number of levels cannot exceed more than six in the hierarchy" },
+  },
+  // Service Instance family — Figure 16 relates offerings and dependencies to "Service Instance (*various)".
+  ...INSTANCES.filter((to) => to !== "application_service").flatMap((to) => [
+    { from: "business_service_offering" as const, to, kind: "relationship" as const, types: ["Depends on::Used by"], typeEvidence: "reported" as const, source: FIG16 },
+    { from: "technology_management_service_offering" as const, to, kind: "relationship" as const, types: ["Contains::Contained by"], typeEvidence: "reported" as const, source: FIG16 },
+  ]),
+  ...DEPENDENT_INSTANCES.flatMap((from) =>
+    INSTANCES.filter((to) => to !== "connection_service_instance" && !(from === "application_service" && to === "application_service")).map((to) => ({
+      from,
+      to,
+      kind: "relationship" as const,
+      types: ["Depends on::Used by"],
+      typeEvidence: "reported" as const,
+      source: FIG16,
+    })),
+  ),
+  ...INSTANCES.filter((from) => from !== "connection_service_instance").map((from) => ({
+    from,
+    to: "connection_service_instance" as const,
+    kind: "relationship" as const,
+    types: ["Connected by::Connects"],
+    typeEvidence: "reported" as const,
+    source: FIG16,
+  })),
+  {
+    from: "connection_service_instance",
+    to: "network_service_instance",
+    kind: "relationship",
+    types: ["Provided by::Provides"],
+    typeEvidence: "reported",
+    source: FIG16,
   },
   // Kubernetes — relationship types as the discovery documentation lists them.
   {

@@ -19,6 +19,14 @@ describe("evaluateHints", () => {
     expect(evaluateHints(model)).toEqual([]);
   });
 
+  it("asks for a specific type on a generic Service Instance, and for every instance to be exposed", () => {
+    const hints = ids(m([["si", "service_instance"], ["data", "data_service_instance"]]));
+    expect(hints).toContain("generic-service-instance");
+    expect(hints.filter((h) => h === "service-not-exposed")).toHaveLength(2);
+    const exposed = ids(m([["off", "technology_management_service_offering"], ["data", "data_service_instance"]], [["off", "data", "Contains::Contained by"]]));
+    expect(exposed).not.toContain("service-not-exposed");
+  });
+
   it("flags an offering without its parent service", () => {
     expect(ids(m([["off", "business_service_offering"]]))).toContain("offering-without-service");
     expect(ids(m([["bs", "business_service"], ["off", "business_service_offering"]], [["bs", "off", "reference:parent"]]))).not.toContain("offering-without-service");

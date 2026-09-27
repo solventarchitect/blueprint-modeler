@@ -31,7 +31,9 @@ test.describe("examples and hints (desktop)", () => {
     await expect(page.locator(".react-flow__node .ring-status")).not.toHaveCount(0);
     await expect(panel.getByRole("link", { name: /Source:/ }).first()).toHaveAttribute("href", /servicenow\.com/);
 
-    // Selecting a node scopes the panel to that node's hints.
+    // Selecting a node scopes the panel to that node's hints. The hint zoomed the canvas onto its
+    // elements, so fit the whole model first; the node may otherwise sit outside the visible canvas.
+    await page.getByRole("button", { name: "Fit View" }).click();
     await page.locator(".react-flow__node").filter({ hasText: "Reporting — production" }).click();
     await page.getByRole("tab", { name: /Hints/ }).click();
     await expect(page.getByRole("tab", { name: "Hints (1)" })).toBeVisible();
@@ -90,7 +92,7 @@ test.describe("class guide", () => {
     await page.goto("/guide");
     const section = page.getByTestId("archimate-section");
     await expect(section.getByRole("heading", { name: /ArchiMate® 3.2 mapping/ })).toBeVisible();
-    await expect(section.getByRole("region", { name: "ArchiMate element mapping" }).locator("tbody tr")).toHaveCount(19);
+    await expect(section.getByRole("region", { name: "ArchiMate element mapping" }).locator("tbody tr")).toHaveCount(25);
     for (const href of await section.locator("a[target=_blank]").evaluateAll((as) => as.map((a) => (a as HTMLAnchorElement).href))) {
       expect(new URL(href).hostname).toBe("pubs.opengroup.org");
     }
