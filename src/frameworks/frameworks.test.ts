@@ -3,7 +3,7 @@ import { classes, relationships } from "@/metamodel";
 import { archimateElements, archimateRelationshipFor, archimateSources } from "./archimate";
 
 /** ElementTypeEnum / RelationshipTypeEnum names from the ArchiMate Model Exchange File Format 3.1 XSD. */
-const EXCHANGE_ELEMENTS = new Set(["Capability", "BusinessProcess", "BusinessService", "BusinessObject", "Product", "ApplicationComponent", "ApplicationInterface", "DataObject", "TechnologyService", "TechnologyInterface", "SystemSoftware", "Node", "Device", "CommunicationNetwork", "Path", "Equipment", "Facility", "Artifact", "Grouping"]);
+const EXCHANGE_ELEMENTS = new Set(["ValueStream", "Driver", "Goal", "Outcome", "Requirement", "WorkPackage", "Capability", "BusinessProcess", "BusinessService", "BusinessObject", "Product", "ApplicationComponent", "ApplicationInterface", "DataObject", "TechnologyService", "TechnologyInterface", "SystemSoftware", "Node", "Device", "CommunicationNetwork", "Path", "Equipment", "Facility", "Artifact", "Grouping"]);
 const EXCHANGE_RELATIONSHIPS = new Set(["Composition", "Aggregation", "Assignment", "Realization", "Serving", "Access", "Influence", "Triggering", "Flow", "Specialization", "Association"]);
 
 describe("ArchiMate lens", () => {

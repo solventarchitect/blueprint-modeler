@@ -93,6 +93,7 @@ function EditorInner() {
   const [focusConnect, setFocusConnect] = useState(0);
   const [selectedLayer, setSelectedLayer] = useState<Layer | null>(null);
   const [dismissed, setDismissed] = useState<Set<string>>(() => new Set());
+  const [reveal, setReveal] = useState<string | null>(null);
   const [menu, setMenu] = useState<{ x: number; y: number; label: string; items: MenuItem[] } | null>(null);
   const menuReturn = useRef<HTMLElement | null>(null);
   const layerDrag = useRef<{ layer: Layer; x: number; y: number; zoom: number; origin: Record<string, { x: number; y: number }>; moved: boolean } | null>(null);
@@ -273,6 +274,7 @@ function EditorInner() {
     setSelectedId(id);
     setTab("details");
     setFocusName((n) => n + 1);
+    setReveal(id);
     setMessage(`${label} added. Type its name.`);
   };
 
@@ -370,6 +372,28 @@ function EditorInner() {
     [liveModel, dragTick],
   );
 
+  // A new element can land in its lane outside the visible canvas: pan to it (same zoom) once it
+  // has been measured, so it is never added out of sight.
+  useEffect(() => {
+    if (!reveal) return;
+    const n = flow.getInternalNode(reveal);
+    const w = n?.measured.width;
+    const h = n?.measured.height;
+    if (!n || !w || !h) return; // not measured yet; dragTick re-runs this
+    setReveal(null);
+    const box = document.querySelector(".react-flow")?.getBoundingClientRect();
+    if (!box) return;
+    const { x, y, zoom } = flow.getViewport();
+    const p = n.internals.positionAbsolute;
+    const [left, top] = [p.x * zoom + x, p.y * zoom + y];
+    // Pan only as far as needed, so the elements already in view mostly stay there.
+    const margin = 24;
+    const shift = (start: number, size: number, room: number) => (start < margin ? margin - start : start + size > room - margin ? room - margin - (start + size) : 0);
+    const dx = shift(left, w * zoom, box.width);
+    const dy = shift(top, h * zoom, box.height);
+    if (dx || dy) void flow.setViewport({ x: x + dx, y: y + dy, zoom }, { duration: 300 });
+  }, [reveal, dragTick, flow]);
+
   // Layers: select one by its label, then drag it (or its box) or use the arrow keys to move it
   // with everything in it. A move is one undo step.
   const layerName = (layer: Layer) => LAYERS.find((l) => l.id === layer)!.name;
@@ -464,6 +488,7 @@ function EditorInner() {
     const id = newId();
     dispatch({ type: "add-related", id, class: s.cls, name: `New ${s.classLabel}`, edgeId: newId(), relatedTo: nodeId, outgoing: s.outgoing, edgeType: s.type });
     selectNode(id);
+    setReveal(id);
     setFocusName((k) => k + 1);
     setMessage(`Added ${withIndefinite(s.classLabel)} related to ${anchorName}. Type its name.`);
   };
@@ -504,6 +529,7 @@ function EditorInner() {
           const copy = newId();
           dispatch({ type: "add-node", id: copy, class: n.class as ClassId, name: `${name} (copy)` });
           selectNode(copy);
+          setReveal(copy);
           setMessage(`Duplicated ${name}. Relationships are not copied.`);
         },
       },
@@ -817,7 +843,7 @@ function EditorInner() {
       <div className="flex min-h-0 flex-1">
         {wide && !presenting && (
           <aside className="w-60 shrink-0 overflow-y-auto border-r border-border" aria-label="Palette">
-            <Palette onAdd={addNode} lens={lens} />
+            <Palette onAdd={addNode} lens={lens} extended={view.extended} />
           </aside>
         )}
 

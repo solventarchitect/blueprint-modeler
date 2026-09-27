@@ -1,6 +1,6 @@
 import type { SourceRef } from "./sources";
 
-/** The seven CSDM 5 domains (white paper p. 14). No class in the palette sits in the last two yet. */
+/** The seven CSDM 5 domains (white paper p. 14). No class sits in Manage Portfolios yet. */
 export type Domain =
   | "foundation"
   | "design-planning"
@@ -20,6 +20,8 @@ export type ClassDef = {
   layer: Layer;
   /** ServiceNow table, where the white paper names it (table summary, p. 47). */
   table?: string;
+  /** In the optional "Extended" palette group (off by default): CSDM 5 classes beyond the core chain. */
+  extended?: boolean;
   description: string;
   source: SourceRef;
 };
@@ -207,6 +209,119 @@ export const classes = [
     layer: "infrastructure",
     description: "Network infrastructure a service depends on.",
     source: { id: "whitepaper", page: 42 },
+  },
+  // Extended (optional palette group): CSDM 5 classes outside the core realization chain. Records
+  // in the Ideation & Strategy and Foundation domains are not CMDB CIs; they link by reference.
+  {
+    id: "strategic_priority",
+    label: "Strategic Priority",
+    domain: "ideation-strategy",
+    layer: "business",
+    table: "sn_gf_strategy",
+    extended: true,
+    description: "A key, cross-functional focus area that drives long-term goals, likely spanning several business units.",
+    source: { id: "whitepaper", page: 30 },
+  },
+  {
+    id: "goal",
+    label: "Goal",
+    domain: "ideation-strategy",
+    layer: "business",
+    table: "sn_gf_goal",
+    extended: true,
+    description: "A broad, qualitative outcome the organization wants, often for a business unit and in service of a Strategic Priority.",
+    source: { id: "whitepaper", page: 30 },
+  },
+  {
+    id: "target",
+    label: "Target",
+    domain: "ideation-strategy",
+    layer: "business",
+    table: "sn_gf_goal_target",
+    extended: true,
+    description: "A quantifiable measure of a Goal: a milestone tracked over time.",
+    source: { id: "whitepaper", page: 30 },
+  },
+  {
+    id: "product_idea",
+    label: "Product Idea",
+    domain: "ideation-strategy",
+    layer: "business",
+    table: "sn_align_core_product_idea",
+    extended: true,
+    description: "A product, feature, enhancement or change proposal that can be curated and promoted into demand, a project, an epic or a story.",
+    source: { id: "whitepaper", page: 30 },
+  },
+  {
+    id: "planning_item",
+    label: "Planning Item",
+    domain: "ideation-strategy",
+    layer: "business",
+    table: "sn_align_core_planning_item",
+    extended: true,
+    description: "Work that is aligned to goals, planned and executed: a demand, project, epic or custom work item.",
+    source: { id: "whitepaper", page: 30 },
+  },
+  {
+    id: "value_stream",
+    label: "Value Stream",
+    domain: "foundation",
+    layer: "business",
+    table: "cmn_value_stream",
+    extended: true,
+    description: "How work really happens across the organization to deliver value, a product or service, to a customer.",
+    source: { id: "whitepaper", page: 14 },
+  },
+  {
+    id: "value_stream_stage",
+    label: "Value Stream Stage",
+    domain: "foundation",
+    layer: "business",
+    table: "cmn_value_stream_stage",
+    extended: true,
+    description: "A distinct grouping of activities within a Value Stream.",
+    source: { id: "whitepaper", page: 15 },
+  },
+  {
+    id: "sdlc_component",
+    label: "SDLC Component",
+    domain: "build-integration",
+    layer: "design",
+    table: "cmdb_ci_sdlc_component",
+    extended: true,
+    description:
+      "An individually developed part of a Business Application, such as a microservice or an infrastructure configuration. A deployed application-type component is an Application Service.",
+    source: { id: "whitepaper", page: 34 },
+  },
+  {
+    id: "product_model",
+    label: "Product Model",
+    domain: "foundation",
+    layer: "design",
+    table: "cmdb_model",
+    extended: true,
+    description: "The product record (goods or services) a CI refers to through its model: owner, status, life cycle and end of life. Not a CI.",
+    source: { id: "whitepaper", page: 17 },
+  },
+  {
+    id: "ai_application",
+    label: "AI Application",
+    domain: "service-delivery",
+    layer: "functional",
+    table: "cmdb_ci_appl_ai_application",
+    extended: true,
+    description: "AI software running on a host, container platform or cluster: machine-learning models, analytics or AI-enabled applications. An extension of Application.",
+    source: { id: "whitepaper", page: 41 },
+  },
+  {
+    id: "ai_function",
+    label: "AI Function",
+    domain: "service-delivery",
+    layer: "functional",
+    table: "cmdb_ci_function_ai",
+    extended: true,
+    description: "An AI SaaS function on a public cloud platform, offering on-demand machine learning, data processing or AI tasks.",
+    source: { id: "whitepaper", page: 41 },
   },
   // Kubernetes: the CMDB classes Kubernetes discovery creates, so container platforms can be drawn
   // with their own vocabulary instead of approximating them with applications and hosts.

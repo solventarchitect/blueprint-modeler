@@ -2,9 +2,9 @@
 
 import { useEffect, useId, useRef, useState } from "react";
 
-export type ViewOptions = { boxes: boolean; lanes: boolean; snap: boolean };
+export type ViewOptions = { boxes: boolean; lanes: boolean; snap: boolean; extended: boolean };
 export const VIEW_KEY = "bm-view";
-export const DEFAULT_VIEW: ViewOptions = { boxes: true, lanes: false, snap: false };
+export const DEFAULT_VIEW: ViewOptions = { boxes: true, lanes: false, snap: false, extended: false };
 
 export function readView(): ViewOptions {
   try {
@@ -27,6 +27,7 @@ const items: { key: keyof ViewOptions; label: string; note: string }[] = [
   { key: "boxes", label: "Layer boxes", note: "A box around each CSDM layer" },
   { key: "lanes", label: "Lanes", note: "Full-width bands; drops settle in their layer" },
   { key: "snap", label: "Snap to grid", note: "Positions snap to 16px" },
+  { key: "extended", label: "Extended classes", note: "Strategy, value streams, SDLC, product models and AI in the palette" },
 ];
 
 /** Disclosure menu of view toggles. Escape or a click outside closes it. */

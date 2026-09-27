@@ -95,6 +95,21 @@ test.describe("relationship suggestions (desktop)", () => {
     await expect(page.locator("[data-connect-target]")).toHaveCount(0);
   });
 
+  test("an element added outside the visible canvas is brought into view", async ({ page }) => {
+    await openEditor(page);
+    await add(page, "Business Capability", "Order management");
+    for (let i = 0; i < 4; i++) await page.getByRole("button", { name: "Zoom In" }).click();
+    await add(page, "Host", "web-01");
+    const canvas = (await page.getByRole("region", { name: "Model canvas" }).boundingBox())!;
+    await expect(async () => {
+      const b = (await node(page, "web-01").boundingBox())!;
+      expect(b.y).toBeGreaterThanOrEqual(canvas.y);
+      expect(b.y + b.height).toBeLessThanOrEqual(canvas.y + canvas.height);
+      expect(b.x).toBeGreaterThanOrEqual(canvas.x);
+      expect(b.x + b.width).toBeLessThanOrEqual(canvas.x + canvas.width);
+    }).toPass({ timeout: 3000 });
+  });
+
   for (const scheme of ["dark", "light"] as const) {
     test(`the suggestion card has no WCAG 2.2 AA violations (${scheme})`, async ({ page }) => {
       await page.emulateMedia({ colorScheme: scheme });

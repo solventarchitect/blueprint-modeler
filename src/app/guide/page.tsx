@@ -1,5 +1,5 @@
 import type { Metadata } from "next";
-import { classById, classes, hints, isCsdmCore, relationships, sources, type Layer, type SourceRef } from "@/metamodel";
+import { classById, classes, hints, isCsdmCore, isExtended, relationships, sources, type Layer, type SourceRef } from "@/metamodel";
 import { layerAccent } from "@/editor/layerAccent";
 import { ARCHIMATE_TRADEMARK, archimateElements, archimateRelationshipFor, archimateSources, type ElementMapping } from "@/frameworks";
 import { ArchimateGlyph } from "@/frameworks/ArchimateGlyph";
@@ -51,7 +51,8 @@ export default function GuidePage() {
         <p className="mt-2 max-w-2xl text-sm text-ink-muted">
           Grouped by the lane they sit in on the canvas, top to bottom. Lanes are a drawing aid, not CSDM domains: the white
           paper organizes CSDM 5 into seven domains (p. 14). Classes marked CMDB come from ServiceNow&apos;s product
-          documentation rather than the white paper.
+          documentation rather than the white paper. Classes marked Extended (strategy, value streams, SDLC, product models and AI) appear in the
+          palette when you turn on View › Extended classes.
         </p>
         {layerOrder.map((layer) => {
           const inLayer = classes.filter((c) => c.layer === layer.id);
@@ -65,6 +66,7 @@ export default function GuidePage() {
                     <p className="flex items-center gap-2 font-medium">
                       {c.label}
                       {!isCsdmCore(c) && <span className="border border-border-strong px-1 font-mono text-[0.6rem] tracking-[0.08em] text-ink-muted">CMDB</span>}
+                      {isExtended(c) && <span className="border border-border-strong px-1 font-mono text-[0.6rem] tracking-[0.08em] text-ink-muted">Extended</span>}
                     </p>
                     {"table" in c && c.table && <p className="mt-0.5 font-mono text-xs break-all text-ink-muted">{c.table}</p>}
                     <p className="mt-2 text-sm text-ink-soft">{c.description}</p>

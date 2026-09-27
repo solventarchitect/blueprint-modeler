@@ -1,7 +1,7 @@
 "use client";
 
 import { archimateElements, type Lens } from "@/frameworks";
-import { classes, isCsdmCore, type ClassId, type Layer } from "@/metamodel";
+import { classes, isCsdmCore, isExtended, type ClassId, type Layer } from "@/metamodel";
 import { layerAccent } from "./layerAccent";
 
 const LAYERS: { id: Layer; label: string }[] = [
@@ -13,7 +13,7 @@ const LAYERS: { id: Layer; label: string }[] = [
 ];
 
 /** Element palette, grouped by layer. Each button adds one element and hands focus to its name. */
-export function Palette({ onAdd, lens = "csdm" }: { onAdd: (cls: ClassId) => void; lens?: Lens }) {
+export function Palette({ onAdd, lens = "csdm", extended = false }: { onAdd: (cls: ClassId) => void; lens?: Lens; extended?: boolean }) {
   return (
     <nav aria-label="Element palette" className="flex flex-col gap-4 p-4">
       <p id="palette-cmdb-note" className="sr-only">
@@ -26,7 +26,7 @@ export function Palette({ onAdd, lens = "csdm" }: { onAdd: (cls: ClassId) => voi
           </h2>
           <ul className="mt-2 flex flex-col gap-1">
             {classes
-              .filter((c) => c.layer === layer.id)
+              .filter((c) => c.layer === layer.id && (extended || !isExtended(c)))
               .map((c) => (
                 <li key={c.id}>
                   <button

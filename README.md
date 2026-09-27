@@ -29,7 +29,7 @@ General diagramming tools will draw any line you ask for. Blueprint Modeler know
   <picture>
     <source media="(prefers-color-scheme: dark)" srcset="assets/screenshot-dark.png">
     <source media="(prefers-color-scheme: light)" srcset="assets/screenshot-light.png">
-    <img alt="The editor: a palette of CSDM classes grouped by layer on the left, a shared database platform laid out top to bottom on the canvas, and a Hints panel listing three conformance hints, each with its white paper source." src="assets/screenshot-dark.png" width="100%">
+    <img alt="The editor with an online store checkout: translucent layer boxes group the model from Business Capability down to hosts, a newly added Data Service Instance shows a Connect it card listing the relationships it can take, and the Inspector offers the same suggestions." src="assets/screenshot-dark.png" width="100%">
   </picture>
 </p>
 
@@ -37,8 +37,8 @@ General diagramming tools will draw any line you ask for. Blueprint Modeler know
 
 | Feature | What you get |
 |---|---|
-| **Palette by layer** | 25 classes: 19 from the CSDM 5 white paper, from Business Capability to Host and Network, including the CSDM 5 Service Instance family (Application Service plus Data, Connection, Network, Operational Process and Facility Service Instances), and 6 CMDB Kubernetes classes (Cluster, Node, Namespace, Workload, Service, Pod), marked CMDB. Placed in lanes from business at the top to infrastructure at the bottom. |
-| **Allowed relationships only** | Connect two elements and choose from the types CSDM uses for that pair (77 pairs, typed from the white paper's relationship figure where it names them). While you drag, the line turns green with the relationship type over a valid target, or red with the reason over an invalid one, before you let go. |
+| **Palette by layer** | 25 classes: 19 from the CSDM 5 white paper, from Business Capability to Host and Network, including the CSDM 5 Service Instance family (Application Service plus Data, Connection, Network, Operational Process and Facility Service Instances), and 6 CMDB Kubernetes classes (Cluster, Node, Namespace, Workload, Service, Pod), marked CMDB. Placed in lanes from business at the top to infrastructure at the bottom. Turn on View › Extended classes for 11 more from the white paper: strategy (Strategic Priority, Goal, Target, Product Idea, Planning Item), Value Stream and Stage, SDLC Component, Product Model, AI Application and AI Function. |
+| **Allowed relationships only** | Connect two elements and choose from the types CSDM uses for that pair (101 pairs, typed from the white paper's relationship figure where it names them). While you drag, the line turns green with the relationship type over a valid target, or red with the reason over an invalid one, before you let go. |
 | **Conformance hints** | 10 checks, such as a Business Application with no Business Capability, a service instance nobody can request, an offering with no parent service, or a capability hierarchy deeper than six levels. Hints advise rather than block, highlight the elements involved and link to their source. |
 | **Class guide** | [Every class, relationship and hint](https://model.mikereams.com/guide) on one page, with its source and how well the public text supports each relationship type. |
 | **Examples** | Five fictional models to start from: an online store checkout, a storefront on Kubernetes (in the CMDB's Kubernetes classes), an enterprise AI assistant, an HR portal and a shared database platform. Three of them trigger hints on purpose. |

@@ -52,6 +52,11 @@ function Suggestions({ id, name, visible, onHover }: { id: string; name: string;
   // Zoomed in so far that neither side has room: above or below the element instead.
   const side = fitsRight ? Position.Right : fitsLeft ? Position.Left : low ? Position.Top : Position.Bottom;
   const align = side === Position.Top || side === Position.Bottom ? "start" : low ? "end" : "start";
+  // The list scrolls when the card would run past the canvas edge it opens toward.
+  const nodeTop = pos.y * zoom + vy;
+  const nodeBottom = nodeTop + (node?.measured.height ?? 60) * zoom;
+  const room = side === Position.Top ? nodeTop : side === Position.Bottom ? height - nodeBottom : low ? nodeBottom : height - nodeTop;
+  const listMax = Math.max(120, room - CARD_OFFSET - 64);
   return (
     <NodeToolbar isVisible={visible && items.length > 0} position={side} align={align} offset={CARD_OFFSET}>
       <div
@@ -79,7 +84,7 @@ function Suggestions({ id, name, visible, onHover }: { id: string; name: string;
             <span aria-hidden="true">✕</span>
           </button>
         </div>
-        <ul className="mt-1 flex flex-col">
+        <ul className="mt-1 flex flex-col overflow-y-auto" style={{ maxHeight: listMax }}>
           {items.map((s) => (
             <li key={s.kind === "existing" ? s.nodeId : s.cls}>
               <button

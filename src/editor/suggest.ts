@@ -1,4 +1,4 @@
-import { allowedTypes, classById, classes, isCsdmCore, type ClassId } from "@/metamodel";
+import { allowedTypes, classById, classes, isCsdmCore, isExtended, type ClassId } from "@/metamodel";
 import type { Model } from "@/model";
 
 /** A relationship the editor offers for an element that has none yet. */
@@ -69,10 +69,10 @@ export function suggestions(model: Model, nodeId: string): Suggestion[] {
     .slice(0, MAX_EXISTING)
     .map((x) => x.s);
 
-  // New elements: the generic Service Instance is never suggested (pick a type), and CMDB extension
-  // classes only for elements that are themselves outside the CSDM core.
+  // New elements: the generic Service Instance is never suggested (pick a type); CMDB extension
+  // classes only for elements outside the CSDM core, and extended classes only for extended ones.
   const fresh: Suggestion[] = classes
-    .filter((c) => c.id !== "service_instance" && (isCsdmCore(c) || !isCsdmCore(def)))
+    .filter((c) => c.id !== "service_instance" && (isCsdmCore(c) || !isCsdmCore(def)) && (!isExtended(c) || isExtended(def)))
     .flatMap((c) => {
       const p = pair(c.id);
       return p ? [{ kind: "new" as const, cls: c.id, outgoing: p.outgoing, type: p.type, classLabel: c.label }] : [];

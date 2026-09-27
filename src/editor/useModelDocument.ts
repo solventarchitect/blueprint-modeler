@@ -1,6 +1,6 @@
 "use client";
 
-import { useCallback, useEffect, useReducer, useRef, useState } from "react";
+import { useCallback, useEffect, useLayoutEffect, useReducer, useRef, useState } from "react";
 import { createModel, type Model } from "@/model";
 import { openBrowserStore, type ModelStore, type ModelSummary } from "@/storage";
 import { initialHistory, reduce, type Action, type History } from "./state";
@@ -60,13 +60,20 @@ export function useModelDocument() {
     };
   }, [open]);
 
-  // Autosave the present model once it has settled.
+  // Autosave the present model once it has settled. The status flips to "Saving…" before the
+  // change is painted, so "Saved" never shows while a save is still pending.
   const model = history.present;
+  const pending = useRef<Model | null>(null);
+  useLayoutEffect(() => {
+    if (!store.current || loadedId.current !== model.id) return;
+    setStatus((st) => (st === "memory-only" ? st : "saving"));
+  }, [model]);
   useEffect(() => {
     const s = store.current;
     if (!s || loadedId.current !== model.id) return;
-    setStatus((st) => (st === "memory-only" ? st : "saving"));
+    pending.current = model;
     const t = setTimeout(() => {
+      pending.current = null;
       s.put(model)
         .then(() => {
           setStatus(persistent.current ? "saved" : "memory-only");
@@ -76,6 +83,20 @@ export function useModelDocument() {
     }, 300);
     return () => clearTimeout(t);
   }, [model, refreshList]);
+
+  // Leaving the page (close, reload, navigate away) writes a pending change at once instead of
+  // dropping it with the timer.
+  useEffect(() => {
+    const flush = () => {
+      const m = pending.current;
+      if (m && store.current) {
+        pending.current = null;
+        void store.current.put(m);
+      }
+    };
+    window.addEventListener("pagehide", flush);
+    return () => window.removeEventListener("pagehide", flush);
+  }, []);
 
   const newModel = useCallback(async () => {
     const s = store.current;

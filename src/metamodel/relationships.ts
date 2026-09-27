@@ -5,8 +5,9 @@ import type { SourceRef } from "./sources";
  * How sure we are of the relationship TYPE label (the pairing itself always has a source):
  * - "reported": the label appears in ServiceNow material we cite — the white paper's relationship
  *   figure (Figure 16, p. 48) or ServiceNow product documentation;
- * - "conventional": a standard CMDB relationship type commonly used for this pairing, but no
- *   public ServiceNow text we cite names it for this pair. Shown as a suggestion; needs review.
+ * - "conventional": no public ServiceNow text we cite names the type for this pair: a standard CMDB
+ *   relationship type commonly used for it, or, for records outside the CMDB, a plain description of
+ *   the link. Shown as a suggestion; needs review.
  */
 export type TypeEvidence = "reported" | "conventional";
 
@@ -249,6 +250,115 @@ export const relationships = [
     typeEvidence: "reported",
     source: FIG16,
   },
+  // Extended classes. Foundation and Ideation & Strategy records are referential, not CMDB
+  // relationships (p. 14), so these are references or mapping tables.
+  ...(["business_capability", "business_process"] as const).flatMap((to) =>
+    (["value_stream", "value_stream_stage"] as const).map((from) => ({
+      from,
+      to,
+      kind: "reference" as const,
+      types: ["Many-to-many map"],
+      typeEvidence: "reported" as const,
+      source: { id: "whitepaper" as const, page: 15, quote: "Each value stream stage may be related to one or more Business Processes and Business Capabilities through m2m tables" },
+    })),
+  ),
+  {
+    from: "value_stream_stage",
+    to: "value_stream",
+    kind: "reference",
+    types: [referenceType("value_stream")],
+    typeEvidence: "conventional",
+    source: { id: "whitepaper", page: 15, quote: "a distinct grouping of activities within a value stream" },
+    note: "Each stage belongs to one value stream; the field name is ours.",
+  },
+  {
+    from: "product_idea",
+    to: "planning_item",
+    kind: "reference",
+    types: ["Promoted to"],
+    typeEvidence: "conventional",
+    source: { id: "whitepaper", page: 30, quote: "can be curated and/or promoted into demand, project, epic, or story" },
+  },
+  ...(["goal", "target"] as const).map((to) => ({
+    from: "planning_item" as const,
+    to,
+    kind: "reference" as const,
+    types: ["Aligned to"],
+    typeEvidence: "conventional" as const,
+    source: { id: "whitepaper" as const, page: 30, quote: "Planning Items are aligned to Goals and Targets." },
+  })),
+  {
+    from: "target",
+    to: "goal",
+    kind: "reference",
+    types: ["Measures"],
+    typeEvidence: "conventional",
+    source: { id: "whitepaper", page: 30, quote: "Targets are quantifiable measures for goals." },
+  },
+  {
+    from: "goal",
+    to: "strategic_priority",
+    kind: "reference",
+    types: ["In service of"],
+    typeEvidence: "conventional",
+    source: { id: "whitepaper", page: 30, quote: "are often specific to business units or are in service of strategic priorities" },
+  },
+  ...(["product_idea", "planning_item"] as const).map((from) => ({
+    from,
+    to: "product_model" as const,
+    kind: "reference" as const,
+    types: ["Related to"],
+    typeEvidence: "conventional" as const,
+    source: { id: "whitepaper" as const, page: 30, quote: "ideas and planning items are related to new or existing products" },
+  })),
+  ...(["business_application", "application_service", "business_service_offering", "technology_management_service_offering", "application", "host"] as const).map((from) => ({
+    from,
+    to: "product_model" as const,
+    kind: "reference" as const,
+    types: [referenceType("model_id")],
+    typeEvidence: "reported" as const,
+    source:
+      from === "business_application"
+        ? { id: "whitepaper" as const, page: 33, quote: "Product Models are the core referential object on Business Application through the model_id attribute." }
+        : { id: "whitepaper" as const, page: 46, quote: "Product Models are the core referential object on CIs through the model_id attribute." },
+  })),
+  { from: "business_application", to: "sdlc_component", kind: "relationship", types: ["Contains::Contained by"], typeEvidence: "reported", source: FIG16 },
+  {
+    from: "sdlc_component",
+    to: "application_service",
+    kind: "relationship",
+    types: ["Contains::Contained by"],
+    typeEvidence: "reported",
+    source: FIG16,
+    note: "A deployed instance of an application-type SDLC Component is an Application Service (p. 35).",
+  },
+  {
+    from: "application_service",
+    to: "ai_application",
+    kind: "relationship",
+    types: ["Depends on::Used by"],
+    typeEvidence: "conventional",
+    source: { id: "whitepaper", page: 41, quote: "This is an extension from cmdb_ci_appl." },
+    note: "Pairing inferred: AI Application extends Application, so it takes Application's relationships.",
+  },
+  {
+    from: "ai_application",
+    to: "host",
+    kind: "relationship",
+    types: ["Runs on::Runs"],
+    typeEvidence: "conventional",
+    source: { id: "whitepaper", page: 41, quote: "AI software applications that can run on various platforms" },
+    note: "Pairing inferred: AI Application extends Application, which runs on infrastructure (Figure 16).",
+  },
+  ...(["application_service", "data_service_instance"] as const).map((from) => ({
+    from,
+    to: "ai_function" as const,
+    kind: "relationship" as const,
+    types: ["Depends on::Used by"],
+    typeEvidence: "conventional" as const,
+    source: { id: "whitepaper" as const, page: 41, quote: "AI SaaS applications deployed on public cloud platforms that offer scalable, on-demand services" },
+    note: "Pairing inferred: a service instance that uses a SaaS AI function depends on it. The white paper does not name this pair.",
+  })),
   // Kubernetes — relationship types as the discovery documentation lists them.
   {
     from: "kubernetes_cluster",

@@ -92,7 +92,7 @@ test.describe("class guide", () => {
     await page.goto("/guide");
     const section = page.getByTestId("archimate-section");
     await expect(section.getByRole("heading", { name: /ArchiMate® 3.2 mapping/ })).toBeVisible();
-    await expect(section.getByRole("region", { name: "ArchiMate element mapping" }).locator("tbody tr")).toHaveCount(25);
+    await expect(section.getByRole("region", { name: "ArchiMate element mapping" }).locator("tbody tr")).toHaveCount(36);
     for (const href of await section.locator("a[target=_blank]").evaluateAll((as) => as.map((a) => (a as HTMLAnchorElement).href))) {
       expect(new URL(href).hostname).toBe("pubs.opengroup.org");
     }

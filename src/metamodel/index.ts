@@ -31,3 +31,6 @@ export function acceptedTypes(from: string, to: string): string[] {
 
 /** CSDM core classes cite the white paper; the others are CMDB classes from product documentation. */
 export const isCsdmCore = (c: ClassDef) => c.source.id === "whitepaper";
+
+/** In the optional "Extended" palette group (off by default). */
+export const isExtended = (c: ClassDef) => !!c.extended;

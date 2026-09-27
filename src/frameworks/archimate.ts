@@ -20,11 +20,18 @@ export const archimateSources = {
 } as const satisfies Record<string, { title: string; url: string }>;
 
 export type ArchimateSourceId = keyof typeof archimateSources;
-export type ArchimateLayer = "Strategy" | "Business" | "Application" | "Technology" | "Physical" | "Other";
+export type ArchimateLayer = "Motivation" | "Strategy" | "Business" | "Application" | "Technology" | "Physical" | "Implementation & Migration" | "Other";
 
 /** Element type names as the exchange format spells them (ElementTypeEnum). */
 export type ArchimateElementType =
   | "Capability"
+  | "ValueStream"
+  | "Driver"
+  | "Goal"
+  | "Outcome"
+  | "Requirement"
+  | "WorkPackage"
+  | "Artifact"
   | "BusinessProcess"
   | "BusinessService"
   | "BusinessObject"
@@ -42,7 +49,7 @@ export type ArchimateElementType =
   | "Grouping";
 
 /** Relationship type names as the exchange format spells them (RelationshipTypeEnum). */
-export type ArchimateRelationshipType = "Composition" | "Aggregation" | "Assignment" | "Realization" | "Serving" | "Access" | "Association";
+export type ArchimateRelationshipType = "Composition" | "Aggregation" | "Assignment" | "Realization" | "Serving" | "Access" | "Influence" | "Association";
 
 export type ElementMapping = {
   type: ArchimateElementType;
@@ -138,6 +145,17 @@ export const archimateElements = {
   },
   host: { type: "Node", label: "Node", layer: "Technology", note: "Use Device when you mean physical hardware.", source: "technology" },
   network: { type: "CommunicationNetwork", label: "Communication Network", layer: "Technology", source: "technology" },
+  strategic_priority: { type: "Driver", label: "Driver", layer: "Motivation", note: "A key focus area that motivates the organization's goals.", source: "spec" },
+  goal: { type: "Goal", label: "Goal", layer: "Motivation", source: "spec" },
+  target: { type: "Outcome", label: "Outcome", layer: "Motivation", note: "ArchiMate outcomes are measurable end results, like CSDM targets.", source: "spec" },
+  product_idea: { type: "Requirement", label: "Requirement", layer: "Motivation", note: "A proposed product, feature or change: a statement of need.", source: "spec" },
+  planning_item: { type: "WorkPackage", label: "Work Package", layer: "Implementation & Migration", source: "spec" },
+  value_stream: { type: "ValueStream", label: "Value Stream", layer: "Strategy", source: "strategy" },
+  value_stream_stage: { type: "ValueStream", label: "Value Stream", layer: "Strategy", note: "A stage is itself a value stream that its parent is composed of.", source: "strategy" },
+  sdlc_component: { type: "Artifact", label: "Artifact", layer: "Technology", note: "The developed code that realizes the application.", source: "technology" },
+  product_model: { type: "Product", label: "Product", layer: "Business", note: "The catalog definition of a product; elements are instances of it.", source: "business" },
+  ai_application: { type: "SystemSoftware", label: "System Software", layer: "Technology", source: "technology" },
+  ai_function: { type: "TechnologyService", label: "Technology Service", layer: "Technology", note: "A cloud AI service consumed on demand.", source: "technology" },
   kubernetes_cluster: {
     type: "Node",
     label: "Node",
@@ -209,6 +227,30 @@ export const archimateRelationships: Record<string, RelationshipMapping> = {
   "application_service>application_service": { type: "Serving", reverse: true, reads: "the dependency serves the dependent instance" },
   "application>host": { type: "Aggregation", reverse: true, reads: "the node aggregates the system software" },
   "business_capability>business_capability": { type: "Aggregation", reverse: true, reads: "the parent capability aggregates the child" },
+  "value_stream>business_capability": { type: "Serving", reverse: true, reads: "the capability serves the value stream" },
+  "value_stream_stage>business_capability": { type: "Serving", reverse: true, reads: "the capability serves the stage" },
+  "value_stream>business_process": { type: "Realization", reverse: true, reads: "the process realizes the value stream" },
+  "value_stream_stage>business_process": { type: "Realization", reverse: true, reads: "the process realizes the stage" },
+  "value_stream_stage>value_stream": { type: "Composition", reverse: true, reads: "the value stream is composed of its stages" },
+  "product_idea>planning_item": { type: "Realization", reverse: true, reads: "the work realizes the idea" },
+  "planning_item>goal": { type: "Realization", reverse: false, reads: "the work realizes the goal" },
+  "planning_item>target": { type: "Realization", reverse: false, reads: "the work realizes the outcome" },
+  "target>goal": { type: "Realization", reverse: false, reads: "the outcome realizes the goal" },
+  "goal>strategic_priority": { type: "Influence", reverse: true, reads: "the driver influences the goal" },
+  "product_idea>product_model": { type: "Association", reverse: false, reads: "the idea concerns the product" },
+  "planning_item>product_model": { type: "Association", reverse: false, reads: "the work concerns the product" },
+  "business_application>product_model": { type: "Association", reverse: false, reads: "the application is an instance of the product" },
+  "application_service>product_model": { type: "Association", reverse: false, reads: "the instance is an instance of the product" },
+  "business_service_offering>product_model": { type: "Association", reverse: false, reads: "the offering is an instance of the product" },
+  "technology_management_service_offering>product_model": { type: "Association", reverse: false, reads: "the offering is an instance of the product" },
+  "application>product_model": { type: "Association", reverse: false, reads: "the software is an instance of the product" },
+  "host>product_model": { type: "Association", reverse: false, reads: "the node is an instance of the product" },
+  "business_application>sdlc_component": { type: "Realization", reverse: true, reads: "the component's code realizes the application" },
+  "sdlc_component>application_service": { type: "Realization", reverse: false, reads: "the component's code realizes the deployed instance" },
+  "application_service>ai_application": { type: "Serving", reverse: true, reads: "the AI software serves the instance" },
+  "ai_application>host": { type: "Aggregation", reverse: true, reads: "the node aggregates the AI software" },
+  "application_service>ai_function": { type: "Serving", reverse: true, reads: "the AI service serves the instance" },
+  "data_service_instance>ai_function": { type: "Serving", reverse: true, reads: "the AI service serves the data platform" },
   "kubernetes_cluster>kubernetes_namespace": { type: "Aggregation", reverse: false, reads: "the cluster aggregates the namespace" },
   "kubernetes_cluster>kubernetes_node": { type: "Aggregation", reverse: false, reads: "the cluster aggregates its nodes" },
   "kubernetes_cluster>kubernetes_pod": { type: "Aggregation", reverse: false, reads: "the cluster aggregates the pod" },

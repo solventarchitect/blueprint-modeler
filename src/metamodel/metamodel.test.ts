@@ -19,8 +19,14 @@ describe("classes", () => {
     for (const c of classes) expect(sources[c.source.id], c.id).toBeDefined();
   });
 
-  it("name ServiceNow tables in cmdb_ci_* form (or service_offering) when they name one", () => {
-    for (const c of classes) if ("table" in c) expect(c.table, c.id).toMatch(/^(cmdb_ci_[a-z_]+|service_offering)$/);
+  it("name ServiceNow tables in the forms the white paper uses when they name one", () => {
+    for (const c of classes) if ("table" in c) expect(c.table, c.id).toMatch(/^(cmdb_ci_[a-z_]+|service_offering|cmdb_model|cmn_[a-z_]+|sn_[a-z_]+)$/);
+  });
+
+  it("keeps the extended group to CSDM 5 classes, each citing the white paper", () => {
+    const ext = classes.filter((c) => "extended" in c && c.extended);
+    expect(ext.map((c) => c.id)).toEqual(["strategic_priority", "goal", "target", "product_idea", "planning_item", "value_stream", "value_stream_stage", "sdlc_component", "product_model", "ai_application", "ai_function"]);
+    for (const c of ext) expect(c.source, c.id).toMatchObject({ id: "whitepaper" });
   });
 });
 

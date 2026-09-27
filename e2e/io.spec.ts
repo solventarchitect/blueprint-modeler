@@ -85,6 +85,8 @@ test.describe("import, export and layout (desktop)", () => {
 
   test("exports a draw.io file that parses, matches the model and states the Lucid Free fit", async ({ page }) => {
     await openExample(page, "Online store checkout");
+    // Edges render once the nodes are measured; count only after they are there.
+    await expect(page.locator(".react-flow__edge")).not.toHaveCount(0);
     const nodes = await page.locator(".react-flow__node").count();
     const edges = await page.locator(".react-flow__edge").count();
     await page.getByRole("button", { name: "Export" }).click();
