@@ -2,6 +2,7 @@ import type { Metadata, Viewport } from "next";
 import Link from "next/link";
 import localFont from "next/font/local";
 import { Analytics } from "@/components/Analytics";
+import { SiteFooter } from "@/components/SiteFooter";
 import { ThemeToggle, themeBootScript } from "@/components/ThemeToggle";
 import { site } from "@/lib/site";
 import "./globals.css";
@@ -83,30 +84,7 @@ export default function RootLayout({ children }: Readonly<{ children: React.Reac
         <main id="main-content" className="flex-1">
           {children}
         </main>
-        <footer className="border-t border-border">
-          <div className="mx-auto flex max-w-6xl flex-col gap-3 px-4 py-8 text-sm text-ink-muted sm:px-6">
-            <p>
-              Built by{" "}
-              <a className="text-accent underline underline-offset-4" href={site.author.url}>
-                {site.author.name}
-              </a>
-              . Free and open source (MIT) —{" "}
-              <a className="text-accent underline underline-offset-4" href={site.repo}>
-                source on GitHub
-              </a>
-              .
-            </p>
-            <p>{site.notAffiliated}</p>
-            <p className="flex gap-4">
-              <Link className="text-accent underline underline-offset-4" href="/about">
-                About
-              </Link>
-              <Link className="text-accent underline underline-offset-4" href="/privacy">
-                Privacy
-              </Link>
-            </p>
-          </div>
-        </footer>
+        <SiteFooter />
         <Analytics />
       </body>
     </html>

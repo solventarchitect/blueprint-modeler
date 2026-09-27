@@ -25,6 +25,7 @@ import {
   type MouseEvent as ReactMouseEvent,
   type PointerEvent as ReactPointerEvent,
 } from "react";
+import Link from "next/link";
 import { examples } from "@/examples";
 import { archimateElements, lenses, readLens, saveLens, type Lens } from "@/frameworks";
 import { downloadText } from "@/io/download";
@@ -39,10 +40,12 @@ import { autoLayout, DEFAULT_SIZE } from "@/layout/layout";
 import { createWorkerEngine } from "@/layout/worker-engine";
 import { classById, classes, isClassId, type ClassId, type Layer } from "@/metamodel";
 import { evaluateHints, type HintResult } from "@/model";
+import { site } from "@/lib/site";
 import { ClassNode, SuggestContext, type ClassFlowNode } from "./ClassNode";
 import { ConnectionLine, ConnectionModelContext } from "./ConnectionLine";
 import { ExportMenu, type ExportKind } from "./ExportMenu";
 import { ContextMenu, type MenuItem } from "./ContextMenu";
+import { CanvasTitle } from "./CanvasTitle";
 import { LayerOverlay, layerHandleId, type LayerHandlers } from "./LayerOverlay";
 import { DEFAULT_VIEW, readView, saveView, ViewMenu, type ViewOptions } from "./ViewMenu";
 import { HintsPanel } from "./HintsPanel";
@@ -65,6 +68,10 @@ const statusText: Record<SaveStatus, string> = {
 
 const toolbarButton =
   "inline-flex min-h-8 cursor-pointer items-center gap-1.5 border border-border-strong bg-surface-raised px-2.5 text-sm text-ink hover:border-accent hover:text-accent disabled:cursor-not-allowed disabled:opacity-60";
+/** Whole-model fits leave room above the diagram for the canvas title (see CanvasTitle). */
+const fitPadding = (p: number) => ({ x: p, bottom: p, top: "120px" }) as const;
+/** Status bar links: a 24px-tall target even at the bar's small text size. */
+const footerLink = "inline-flex min-h-6 items-center text-accent underline underline-offset-4 hover:opacity-90";
 const toolbarSelect = "min-h-8 max-w-60 border border-border-strong bg-surface-raised px-2 text-sm text-ink";
 
 function useIsWide() {
@@ -291,7 +298,7 @@ function EditorInner() {
     setActiveHint(null);
     await doc.createFrom(ex.create());
     setMessage(`Opened the example “${ex.name}” as a new model.`);
-    setTimeout(() => void flow.fitView({ maxZoom: 1, padding: 0.15 }), 50);
+    setTimeout(() => void flow.fitView({ maxZoom: 1, padding: fitPadding(0.15) }), 50);
   };
 
   const runLayout = async () => {
@@ -305,7 +312,7 @@ function EditorInner() {
       );
       dispatch({ type: "set-layout", layout: await autoLayout(engine.current, model, sizes) });
       setMessage("Laid out by CSDM layer. Undo restores the previous positions.");
-      setTimeout(() => void flow.fitView({ maxZoom: 1, padding: 0.15, duration: 300 }), 50);
+      setTimeout(() => void flow.fitView({ maxZoom: 1, padding: fitPadding(0.15), duration: 300 }), 50);
     } catch {
       setMessage("Auto-layout failed. Your positions are unchanged.");
     } finally {
@@ -329,7 +336,7 @@ function EditorInner() {
     await doc.createFrom(r.model);
     const warn = r.issues.length ? ` ${r.issues.length} relationship${r.issues.length === 1 ? " breaks" : "s break"} the CSDM rules; see Hints.` : "";
     setMessage(`Imported “${r.model.name || "Untitled model"}”${r.copied ? " as a copy (a model with the same id is already here)" : ""}.${warn}`);
-    setTimeout(() => void flow.fitView({ maxZoom: 1, padding: 0.15 }), 50);
+    setTimeout(() => void flow.fitView({ maxZoom: 1, padding: fitPadding(0.15) }), 50);
   };
 
   const exportAs = (kind: ExportKind) => {
@@ -589,7 +596,7 @@ function EditorInner() {
     { kind: "item", label: "Undo", disabled: !doc.canUndo, onSelect: () => dispatch({ type: "undo" }) },
     { kind: "item", label: "Redo", disabled: !doc.canRedo, onSelect: () => dispatch({ type: "redo" }) },
     { kind: "separator" },
-    { kind: "item", label: "Fit view", onSelect: () => void flow.fitView({ maxZoom: 1, padding: 0.15, duration: 300 }) },
+    { kind: "item", label: "Fit view", onSelect: () => void flow.fitView({ maxZoom: 1, padding: fitPadding(0.15), duration: 300 }) },
     { kind: "item", label: "Auto-layout", disabled: model.nodes.length === 0 || layingOut, onSelect: () => void runLayout() },
     { kind: "separator" },
     { kind: "check", label: "Layer boxes", checked: view.boxes, onSelect: () => setView({ ...view, boxes: !view.boxes }) },
@@ -626,7 +633,7 @@ function EditorInner() {
       const next = Math.max(0, Math.min(i, steps.length - 1));
       setStep(next);
       const target = steps[next]!;
-      void flow.fitView(target.nodeIds.length ? { nodes: target.nodeIds.map((id) => ({ id })), padding: 0.25, maxZoom: 1.25, duration: 400 } : { padding: 0.12, maxZoom: 1, duration: 400 });
+      void flow.fitView(target.nodeIds.length ? { nodes: target.nodeIds.map((id) => ({ id })), padding: 0.25, maxZoom: 1.25, duration: 400 } : { padding: fitPadding(0.12), maxZoom: 1, duration: 400 });
     },
     [steps, flow],
   );
@@ -642,7 +649,7 @@ function EditorInner() {
     }
     setTimeout(() => {
       exitButton.current?.focus();
-      void flow.fitView({ padding: 0.12, maxZoom: 1, duration: 300 });
+      void flow.fitView({ padding: fitPadding(0.12), maxZoom: 1, duration: 300 });
     }, 60);
   };
   const stopPresenting = useCallback(() => {
@@ -650,7 +657,7 @@ function EditorInner() {
     if (document.fullscreenElement) void document.exitFullscreen().catch(() => undefined);
     setTimeout(() => {
       presentButton.current?.focus();
-      void flow.fitView({ maxZoom: 1, padding: 0.15 });
+      void flow.fitView({ maxZoom: 1, padding: fitPadding(0.15) });
     }, 60);
   }, [flow]);
   useEffect(() => {
@@ -911,13 +918,14 @@ function EditorInner() {
               snapToGrid={view.snap}
               snapGrid={[16, 16]}
               fitView
-              fitViewOptions={{ maxZoom: 1, padding: 0.15 }}
+              fitViewOptions={{ maxZoom: 1, padding: fitPadding(0.15) }}
               minZoom={0.2}
             >
               <Background id="minor" variant={BackgroundVariant.Lines} gap={32} color="var(--canvas-grid)" />
               <Background id="major" variant={BackgroundVariant.Lines} gap={160} color="var(--canvas-grid-major)" />
-              {!presenting && <Controls showInteractive={false} />}
+              {!presenting && <Controls showInteractive={false} fitViewOptions={{ maxZoom: 1, padding: fitPadding(0.15) }} />}
               <LayerOverlay boxes={boxes} lanes={lanes} showBoxes={view.boxes || presenting} showLanes={view.lanes} handlers={canMenu ? layerHandlers : undefined} />
+              <CanvasTitle name={model.name} boxes={boxes} tabsAbove={view.boxes && !view.lanes && canMenu} decorative={presenting} />
             </ReactFlow>
           </SuggestContext.Provider>
           </ConnectionModelContext.Provider>
@@ -987,7 +995,35 @@ function EditorInner() {
         <p role="status" aria-live="polite">
           {message}
         </p>
-        <p>{wide ? "Your models are stored only in this browser." : "Editing needs a screen at least 768px wide. You can view and pan here."}</p>
+        {/* The site footer is left off this page (the editor fills the screen); its links live here. */}
+        <div className="flex flex-wrap items-center gap-x-3">
+          <p>{wide ? "Your models are stored only in this browser." : "Editing needs a screen at least 768px wide. You can view and pan here."}</p>
+          <nav aria-label="Site">
+            <ul className="flex flex-wrap items-center gap-x-3">
+              <li>
+                <a className={footerLink} href={site.author.url}>
+                  {site.author.name}
+                </a>
+              </li>
+              <li>
+                <a className={footerLink} href={site.repo}>
+                  MIT · GitHub
+                </a>
+              </li>
+              <li>
+                <Link className={footerLink} href="/about">
+                  About
+                </Link>
+              </li>
+              <li>
+                <Link className={footerLink} href="/privacy">
+                  Privacy
+                </Link>
+              </li>
+            </ul>
+          </nav>
+          <p>Not affiliated with ServiceNow.</p>
+        </div>
       </div>
     </div>
   );
