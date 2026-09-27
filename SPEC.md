@@ -92,6 +92,7 @@
 
 - **Last deploy:** `1375d84` → https://model.mikereams.com on 2026-09-26 (Vercel `dpl_EsKmcGeCtTwo96toQaHTAHfdfgD9`, TLS valid; CI run 36283442780 green)
 - **Done:** plan approved (2026-09-26); M0 scaffold — Next 15 static export, Blueprint tokens + self-hosted Plex, CI, unit + Playwright (axe dark/light, no third-party requests, 5 breakpoints) green locally; M1 metamodel + model format; M2 canvas; M3 hints, guide, examples; M4 import/export, SVG, auto-layout
+- **Post-M5 (2026-09-27):** favicon + app icons (BM mark); examples 4–5: Storefront on Kubernetes (cluster = TMSO, workloads = applications, nodes = hosts) and Enterprise AI assistant (planned agent triggers a hint); README v2
 - **Next:** finish M5 — link from mikereams.com (nav + Work page) and a launch post (draft for Mike's review)
 - **Metamodel evidence:** every class, pairing and hint cites the CSDM 5 white paper or a ServiceNow Community thread. Relationship *type labels* are marked `reported` (Business application → Application service: `Uses::Used by`, CSDM 4 `Consumes::Consumed by` kept as legacy) or `conventional` (standard CMDB types the public text does not name for that pair) — conventional labels approved by Mike (2026-09-27)
 - **Blocked on Mike:** —

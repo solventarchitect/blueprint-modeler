@@ -60,6 +60,13 @@ test("local and preview builds ship no analytics beacon", async ({ page, baseURL
   await expect(page.locator('script[src*="cloudflareinsights"]')).toHaveCount(0);
 });
 
+test("the favicon and app icons are served and linked", async ({ page, request }) => {
+  for (const path of ["/favicon.ico", "/icon.png", "/apple-icon.png"]) expect((await request.get(path)).status(), path).toBe(200);
+  await page.goto("/");
+  await expect(page.locator('link[rel="icon"]').first()).toHaveAttribute("href", /icon|favicon/);
+  await expect(page.locator('link[rel="apple-touch-icon"]')).toHaveCount(1);
+});
+
 test("sitemap and robots list the public pages", async ({ request }) => {
   const sitemap = await (await request.get("/sitemap.xml")).text();
   for (const path of ["/editor", "/guide", "/about", "/privacy"]) expect(sitemap).toContain(`https://model.mikereams.com${path}`);

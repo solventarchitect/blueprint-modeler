@@ -5,7 +5,8 @@ import { nextPosition } from "@/editor/state";
 /**
  * Starter models. Fictional organizations and systems only — nothing here describes a real
  * company's estate. Each one teaches something: a complete chain, a planned application with
- * no deployment yet, and a shared platform service.
+ * no deployment yet, a shared platform service, a Kubernetes deployment drawn with the starter
+ * classes, and an AI assistant modeled like any other application.
  */
 type Spec = { id: string; name: string; summary: string; nodes: [string, ClassId, string][]; edges: [string, string][] };
 
@@ -96,6 +97,83 @@ const specs: Spec[] = [
       ["sa", "net"],
       ["pg", "h1"],
       ["pg", "h2"],
+    ],
+  },
+  {
+    id: "kubernetes",
+    name: "Storefront on Kubernetes",
+    summary: "A containerized app: the platform team's cluster is a technology service offering the storefront depends on, its workloads are applications, and the cluster nodes are hosts. (The CMDB has dedicated Kubernetes classes this starter set does not include yet.)",
+    nodes: [
+      ["cap", "business_capability", "Digital commerce"],
+      ["ba", "business_application", "Storefront"],
+      ["bs", "business_service", "Online store"],
+      ["bso", "business_service_offering", "Online store — web"],
+      ["tms", "technology_management_service", "Container platform"],
+      ["tmso", "technology_management_service_offering", "Kubernetes — production"],
+      ["svc", "application_service", "Storefront — production"],
+      ["api", "api", "Catalog API"],
+      ["web", "application", "storefront-web (deployment)"],
+      ["cat", "application", "catalog-service (deployment)"],
+      ["n1", "host", "k8s-node-a"],
+      ["n2", "host", "k8s-node-b"],
+      ["net", "network", "Cluster network"],
+    ],
+    edges: [
+      ["ba", "cap"],
+      ["ba", "svc"],
+      ["bs", "bso"],
+      ["bso", "svc"],
+      ["tms", "tmso"],
+      ["tmso", "svc"],
+      ["svc", "api"],
+      ["svc", "web"],
+      ["svc", "cat"],
+      ["svc", "net"],
+      ["web", "n1"],
+      ["web", "n2"],
+      ["cat", "n1"],
+      ["cat", "n2"],
+    ],
+  },
+  {
+    id: "enterprise-ai",
+    name: "Enterprise AI assistant",
+    summary: "An AI assistant modeled like any other application: a business application with its knowledge source, a production service on an AI platform offering, and the model and index it runs on. A planned refund agent has no deployment yet — watch the hints.",
+    nodes: [
+      ["proc", "business_process", "Resolve a customer case"],
+      ["cap", "business_capability", "Customer support"],
+      ["ba", "business_application", "Support assistant"],
+      ["agent", "business_application", "Refund agent (planned)"],
+      ["kb", "information_object", "Knowledge articles"],
+      ["bs", "business_service", "Customer support"],
+      ["bso", "business_service_offering", "Customer support — chat"],
+      ["tms", "technology_management_service", "AI platform"],
+      ["tmso", "technology_management_service_offering", "Model gateway — production"],
+      ["svc", "application_service", "Support assistant — production"],
+      ["api", "api", "Model gateway API"],
+      ["orch", "application", "Assistant orchestrator"],
+      ["vec", "application", "Vector index"],
+      ["llm", "application", "Hosted language model"],
+      ["h1", "host", "app-node-01"],
+      ["gpu", "host", "gpu-node-01"],
+    ],
+    edges: [
+      ["proc", "ba"],
+      ["ba", "cap"],
+      ["agent", "cap"],
+      ["ba", "kb"],
+      ["ba", "svc"],
+      ["bs", "bso"],
+      ["bso", "svc"],
+      ["tms", "tmso"],
+      ["tmso", "svc"],
+      ["svc", "api"],
+      ["svc", "orch"],
+      ["svc", "vec"],
+      ["svc", "llm"],
+      ["orch", "h1"],
+      ["vec", "h1"],
+      ["llm", "gpu"],
     ],
   },
 ];

@@ -435,7 +435,7 @@ function EditorInner() {
           </ReactFlow>
           {model.nodes.length === 0 && doc.status !== "loading" && (
             <div className="pointer-events-none absolute inset-0 flex items-center justify-center p-6">
-              <div className="pointer-events-auto max-w-lg border border-border bg-surface-raised p-6">
+              <div className="pointer-events-auto max-h-full max-w-lg overflow-y-auto border border-border bg-surface-raised p-6">
                 <p className="font-mono text-xs tracking-[0.14em] text-accent uppercase">{"// Empty model"}</p>
                 <h2 className="mt-2 text-lg font-semibold">Start from the palette, or open an example</h2>
                 <ul className="mt-4 flex flex-col gap-2">

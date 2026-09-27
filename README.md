@@ -41,7 +41,7 @@ General diagramming tools will draw any line you ask for. Blueprint Modeler know
 | **Allowed relationships only** | Connect two elements and choose from the types CSDM uses for that pair (16 pairs). A pair CSDM does not relate is refused with the reason. |
 | **Conformance hints** | 8 checks, such as a business application with no capability, a service nobody can request, or a capability hierarchy deeper than six levels. Hints advise rather than block, highlight the elements involved and link to their source. |
 | **Class guide** | [Every class, relationship and hint](https://model.mikereams.com/guide) on one page, with its source and how well the public text supports each relationship type. |
-| **Examples** | Three fictional models to start from: a clean checkout, and two that trigger hints on purpose. |
+| **Examples** | Five fictional models to start from: an online store checkout, a storefront on Kubernetes, an enterprise AI assistant, an HR portal and a shared database platform. Three of them trigger hints on purpose. |
 | **Import and export** | A versioned JSON model file that round-trips exactly, plus standalone SVG images in light or dark for docs and slides. |
 | **Auto-layout** | One click lays the model out top-down by CSDM layer, in a background worker, as a single undo step. |
 | **Keyboard and themes** | Every canvas action has a keyboard path. Auto, light and dark themes. Checked against WCAG 2.2 AA. |
@@ -110,7 +110,7 @@ src/
   io/           JSON import/export, SVG export
   layout/       ELK graph, Web Worker engine, shared edge routing
   storage/      IndexedDB store (memory fallback)
-  examples/     the three starter models
+  examples/     the five starter models
   app/          pages: home, editor, guide, about, privacy
 e2e/            Playwright specs (axe, network, keyboard, import/export, layout)
 assets/         README banner, screenshots, social preview

@@ -16,5 +16,7 @@ describe("examples", () => {
     expect(hintIds("checkout")).toEqual([]);
     expect(hintIds("hr-portal")).toEqual(["ba-without-service-instance"]);
     expect(hintIds("db-platform")).toEqual(["ba-without-capability", "ba-without-capability", "service-not-exposed"]);
+    expect(hintIds("kubernetes")).toEqual([]);
+    expect(hintIds("enterprise-ai")).toEqual(["ba-without-service-instance"]);
   });
 });
