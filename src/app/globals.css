@@ -91,3 +91,46 @@
     }
   }
 }
+
+/* Canvas (React Flow) in Blueprint roles. base.css supplies layout only; colour lives here. */
+.react-flow__edge-path,
+.react-flow__connection-path {
+  stroke: var(--border-strong);
+  stroke-width: 1.25;
+}
+.react-flow__edge.selected .react-flow__edge-path {
+  stroke: var(--accent);
+}
+.react-flow__edge-text {
+  fill: var(--ink-muted);
+  font-family: var(--font-mono);
+  font-size: 11px;
+}
+.react-flow__edge-textbg {
+  fill: var(--surface);
+}
+.react-flow__controls {
+  border: 1px solid var(--border);
+}
+.react-flow__controls-button {
+  background: var(--surface-raised);
+  border-bottom: 1px solid var(--border);
+  color: var(--ink);
+  fill: var(--ink);
+  width: 28px;
+  height: 28px;
+}
+.react-flow__controls-button:hover {
+  color: var(--accent);
+  fill: var(--accent);
+}
+.react-flow {
+  --xy-attribution-background-color: transparent;
+  --xy-attribution-background-color-default: transparent;
+}
+.react-flow__attribution {
+  background: transparent;
+}
+.react-flow__attribution a {
+  color: var(--ink-muted);
+}

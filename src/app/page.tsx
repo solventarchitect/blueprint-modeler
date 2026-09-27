@@ -10,11 +10,17 @@ const layers = [
 export default function Home() {
   return (
     <div className="mx-auto max-w-6xl px-4 py-16 sm:px-6 sm:py-24">
-      <p className="font-mono text-sm tracking-[0.14em] text-accent uppercase">{"// Coming soon · M0"}</p>
+      <p className="font-mono text-sm tracking-[0.14em] text-accent uppercase">{"// Free · in your browser · early preview"}</p>
       <h1 className="mt-4 max-w-3xl text-4xl font-semibold tracking-tight sm:text-5xl">
         Model application architecture the CSDM way.
       </h1>
       <p className="mt-6 max-w-2xl text-lg text-ink-soft">{site.description}</p>
+      <a
+        href="/editor"
+        className="mt-8 inline-flex min-h-11 items-center gap-2 bg-accent px-5 font-medium text-accent-ink hover:opacity-90"
+      >
+        Open the modeler <span aria-hidden="true">→</span>
+      </a>
 
       <ol className="mt-12 grid gap-px border border-border bg-border sm:grid-cols-2 lg:grid-cols-4">
         {layers.map((l) => (

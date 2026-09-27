@@ -73,7 +73,7 @@
 |---|---|---|---|---|
 | M0 | Scaffold + CI + deploy | repo, Next static export, tokens, CI, Vercel project, `model.mikereams.com` | preview + custom domain open, CI green | **done 2026-09-26** |
 | M1 | Metamodel + model format | typed CSDM subset with sources; model schema v1 + zod; storage wrapper | unit tests: sources present, round-trip, migration stub | **done 2026-09-27** — 13 classes, 17 relationship pairs, 7 hint definitions; IndexedDB store exercised end-to-end in M2 (autosave) |
-| M2 | Canvas | palette, add/rename/delete, allowed-only connections, undo/redo, autosave, keyboard path | F-01, F-02, F-04; Playwright hero flow | |
+| M2 | Canvas | palette, add/rename/delete, allowed-only connections, undo/redo, autosave, keyboard path | F-01, F-02, F-04; Playwright hero flow | **done 2026-09-27** — `/editor`; inspector gives a full keyboard path (rename, add/remove relationships, delete); drag-connect refuses disallowed pairs with a reason; model switcher + New model |
 | M3 | Hints + guide | conformance hints with sources and highlighting; class guide; 3 examples | F-03, F-08 | |
 | M4 | Import/export + layout | JSON import/export, SVG export light/dark, ELK layout in a worker | F-05, F-06, F-07 | |
 | M5 | Launch | landing, About (not-affiliated notice), privacy, a11y + 5-breakpoint pass, a post on mikereams.com linking to it | preview checks, axe, Lighthouse, live on the domain | |
@@ -92,6 +92,6 @@
 
 - **Last deploy:** `1375d84` → https://model.mikereams.com on 2026-09-26 (Vercel `dpl_EsKmcGeCtTwo96toQaHTAHfdfgD9`, TLS valid; CI run 36283442780 green)
 - **Done:** plan approved (2026-09-26); M0 scaffold — Next 15 static export, Blueprint tokens + self-hosted Plex, CI, unit + Playwright (axe dark/light, no third-party requests, 5 breakpoints) green locally
-- **Next:** M2 — canvas (`@xyflow/react`): palette, allowed-only connections, undo/redo, autosave to IndexedDB, keyboard path
+- **Next:** M3 — conformance hints with sources and highlighting, class guide, 3 example models
 - **Metamodel evidence:** every class, pairing and hint cites the CSDM 5 white paper or a ServiceNow Community thread. Relationship *type labels* are marked `reported` (Business application → Application service: `Uses::Used by`, CSDM 4 `Consumes::Consumed by` kept as legacy) or `conventional` (standard CMDB types the public text does not name for that pair) — Mike to review the conventional ones
 - **Blocked on Mike:** —
