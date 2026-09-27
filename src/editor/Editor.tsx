@@ -22,6 +22,7 @@ import { downloadText } from "@/io/download";
 import { exportJson, fileBase, importJson, MAX_FILE_CHARS } from "@/io/file";
 import { modelToArchimateXml } from "@/io/archimate";
 import { modelToSvg } from "@/io/svg";
+import { layerBoxes, layerLanes, settleIntoLane } from "@/layout/bands";
 import { edgeSides } from "@/layout/geometry";
 import { autoLayout, DEFAULT_SIZE } from "@/layout/layout";
 import { createWorkerEngine } from "@/layout/worker-engine";
@@ -30,6 +31,8 @@ import { evaluateHints, type HintResult } from "@/model";
 import { ClassNode, type ClassFlowNode } from "./ClassNode";
 import { ConnectionLine, ConnectionModelContext } from "./ConnectionLine";
 import { ExportMenu, type ExportKind } from "./ExportMenu";
+import { LayerOverlay } from "./LayerOverlay";
+import { DEFAULT_VIEW, readView, saveView, ViewMenu, type ViewOptions } from "./ViewMenu";
 import { HintsPanel } from "./HintsPanel";
 import { Inspector } from "./Inspector";
 import { Palette } from "./Palette";
@@ -74,6 +77,16 @@ function EditorInner() {
   const [focusName, setFocusName] = useState(0);
   const [message, setMessage] = useState("");
   const [tab, setTab] = useState<Tab>("details");
+  const [view, setViewState] = useState<ViewOptions>(DEFAULT_VIEW);
+  useEffect(() => setViewState(readView()), []);
+  const setView = (v: ViewOptions) => {
+    setViewState(v);
+    saveView(v);
+  };
+  const [presenting, setPresenting] = useState(false);
+  const [step, setStep] = useState(0);
+  const presentButton = useRef<HTMLButtonElement>(null);
+  const exitButton = useRef<HTMLButtonElement>(null);
   const [lens, setLensState] = useState<Lens>("csdm");
   useEffect(() => setLensState(readLens()), []);
   const setLens = (l: Lens) => {
@@ -192,7 +205,11 @@ function EditorInner() {
             const { [c.id]: _done, ...rest } = drag.current;
             void _done;
             drag.current = rest;
-            if (pos) dispatch({ type: "move-node", id: c.id, x: pos.x, y: pos.y });
+            if (pos) {
+              const kept = view.lanes ? settleIntoLane(model, measured.current, c.id, pos) : { ...pos, settled: false, lane: undefined };
+              dispatch({ type: "move-node", id: c.id, x: kept.x, y: kept.y });
+              if (kept.settled) setMessage(`Kept in the ${kept.lane} lane.`);
+            }
           }
         } else if (c.type === "select") {
           if (c.selected) {
@@ -204,7 +221,7 @@ function EditorInner() {
         }
       }
     },
-    [dispatch],
+    [dispatch, view.lanes, model],
   );
 
   const onEdgesChange = useCallback(
@@ -308,6 +325,87 @@ function EditorInner() {
     }
   };
 
+  // Boxes and lanes follow elements live while they are dragged.
+  const liveModel = useMemo(
+    () => (Object.keys(drag.current).length ? { ...model, layout: { ...model.layout, ...drag.current } } : model),
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- drag is a ref; dragTick re-runs this
+    [model, dragTick],
+  );
+  const boxes = useMemo(
+    () => layerBoxes(liveModel, measured.current),
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- measured is a ref; dragTick re-runs this
+    [liveModel, dragTick],
+  );
+  const lanes = useMemo(
+    () => layerLanes(liveModel, measured.current),
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- measured is a ref; dragTick re-runs this
+    [liveModel, dragTick],
+  );
+
+  // Present mode: the canvas alone, full screen, stepping through the model layer by layer.
+  const steps = useMemo(() => [{ name: "Overview", nodeIds: [] as string[] }, ...boxes.map((b) => ({ name: b.name, nodeIds: b.nodeIds }))], [boxes]);
+  const goTo = useCallback(
+    (i: number) => {
+      const next = Math.max(0, Math.min(i, steps.length - 1));
+      setStep(next);
+      const target = steps[next]!;
+      void flow.fitView(target.nodeIds.length ? { nodes: target.nodeIds.map((id) => ({ id })), padding: 0.25, maxZoom: 1.25, duration: 400 } : { padding: 0.12, maxZoom: 1, duration: 400 });
+    },
+    [steps, flow],
+  );
+  const startPresenting = () => {
+    setSelectedId(null);
+    setActiveHint(null);
+    setPresenting(true);
+    setStep(0);
+    try {
+      void document.documentElement.requestFullscreen?.().catch(() => undefined);
+    } catch {
+      // Full screen refused: present mode still fills the window.
+    }
+    setTimeout(() => {
+      exitButton.current?.focus();
+      void flow.fitView({ padding: 0.12, maxZoom: 1, duration: 300 });
+    }, 60);
+  };
+  const stopPresenting = useCallback(() => {
+    setPresenting(false);
+    if (document.fullscreenElement) void document.exitFullscreen().catch(() => undefined);
+    setTimeout(() => {
+      presentButton.current?.focus();
+      void flow.fitView({ maxZoom: 1, padding: 0.15 });
+    }, 60);
+  }, [flow]);
+  useEffect(() => {
+    if (!presenting) return;
+    const onKey = (e: KeyboardEvent) => {
+      if (e.key === "Escape") {
+        e.preventDefault();
+        stopPresenting();
+      } else if (e.key === " " && (e.target as HTMLElement | null)?.closest("button")) {
+        // Space on a focused button presses that button.
+      } else if (e.key === "ArrowRight" || e.key === "PageDown" || e.key === " ") {
+        e.preventDefault();
+        goTo(step + 1);
+      } else if (e.key === "ArrowLeft" || e.key === "PageUp") {
+        e.preventDefault();
+        goTo(step - 1);
+      } else if (e.key === "Home") {
+        e.preventDefault();
+        goTo(0);
+      }
+    };
+    const onFullscreen = () => {
+      if (!document.fullscreenElement) stopPresenting();
+    };
+    window.addEventListener("keydown", onKey);
+    document.addEventListener("fullscreenchange", onFullscreen);
+    return () => {
+      window.removeEventListener("keydown", onKey);
+      document.removeEventListener("fullscreenchange", onFullscreen);
+    };
+  }, [presenting, step, goTo, stopPresenting]);
+
   const selected = model.nodes.find((n) => n.id === selectedId);
   const scopedHints = selected ? hints.filter((h) => h.nodeIds.includes(selected.id)) : hints;
   const warnings = hints.filter((h) => h.hint.severity === "warning").length;
@@ -322,8 +420,28 @@ function EditorInner() {
   };
 
   return (
-    <div className="flex h-[calc(100dvh-3.5rem)] min-h-[34rem] flex-col bg-surface">
-      <div className="flex flex-wrap items-center gap-2 border-b border-border px-4 py-2">
+    <div className={presenting ? "fixed inset-0 z-50 flex flex-col bg-surface" : "flex h-[calc(100dvh-3.5rem)] min-h-[34rem] flex-col bg-surface"}>
+      {presenting && (
+        <div role="region" aria-label="Presentation" className="flex flex-wrap items-center gap-2 border-b border-border px-4 py-2">
+          <p className="font-mono text-xs tracking-[0.14em] text-accent uppercase">Presenting</p>
+          <h1 className="text-sm font-medium">{model.name || "Untitled model"}</h1>
+          <p className="text-sm text-ink-muted" aria-live="polite" data-testid="present-step">
+            {steps[step]?.name} · {step + 1} of {steps.length}
+          </p>
+          <span className="ml-auto flex gap-2">
+            <button type="button" className={toolbarButton} disabled={step === 0} onClick={() => goTo(step - 1)} aria-keyshortcuts="ArrowLeft">
+              <span aria-hidden="true">←</span> Previous
+            </button>
+            <button type="button" className={toolbarButton} disabled={step >= steps.length - 1} onClick={() => goTo(step + 1)} aria-keyshortcuts="ArrowRight">
+              Next <span aria-hidden="true">→</span>
+            </button>
+            <button ref={exitButton} type="button" className={toolbarButton} onClick={stopPresenting} aria-keyshortcuts="Escape">
+              Exit
+            </button>
+          </span>
+        </div>
+      )}
+      <div className={`flex flex-wrap items-center gap-2 border-b border-border px-4 py-2 ${presenting ? "hidden" : ""}`}>
         <label className="flex items-center gap-2 text-sm">
           <span className="sr-only">Open model</span>
           <select
@@ -389,6 +507,10 @@ function EditorInner() {
           </>
         )}
         <ExportMenu onExport={exportAs} buttonClass={toolbarButton} />
+        <ViewMenu value={view} onChange={setView} buttonClass={toolbarButton} />
+        <button ref={presentButton} type="button" className={toolbarButton} disabled={model.nodes.length === 0} onClick={startPresenting}>
+          Present
+        </button>
         <label className="flex items-center text-sm">
           <span className="sr-only">Framework lens</span>
           <select className={toolbarSelect} value={lens} onChange={(e) => setLens(e.target.value as Lens)} data-testid="lens-select">
@@ -417,7 +539,7 @@ function EditorInner() {
         </p>
       </div>
 
-      {ioError && (
+      {ioError && !presenting && (
         <div role="alert" className="flex items-center justify-between gap-2 border-b border-border bg-surface-raised px-4 py-2 text-sm">
           <span>{ioError}</span>
           <button type="button" className={toolbarButton} onClick={() => setIoError(null)}>
@@ -425,7 +547,7 @@ function EditorInner() {
           </button>
         </div>
       )}
-      {doc.problem && (
+      {doc.problem && !presenting && (
         <div role="alert" className="flex items-center justify-between gap-2 border-b border-border bg-surface-raised px-4 py-2 text-sm">
           <span>{doc.problem}</span>
           <button type="button" className={toolbarButton} onClick={doc.dismissProblem}>
@@ -435,7 +557,7 @@ function EditorInner() {
       )}
 
       <div className="flex min-h-0 flex-1">
-        {wide && (
+        {wide && !presenting && (
           <aside className="w-60 shrink-0 overflow-y-auto border-r border-border" aria-label="Palette">
             <Palette onAdd={addNode} lens={lens} />
           </aside>
@@ -458,16 +580,20 @@ function EditorInner() {
               connectionLineComponent={ConnectionLine}
               onPaneClick={() => setActiveHint(null)}
               connectionMode={ConnectionMode.Loose}
-              nodesDraggable={wide}
-              nodesConnectable={wide}
-              deleteKeyCode={wide ? ["Delete", "Backspace"] : null}
+              nodesDraggable={wide && !presenting}
+              nodesConnectable={wide && !presenting}
+              elementsSelectable={!presenting}
+              deleteKeyCode={wide && !presenting ? ["Delete", "Backspace"] : null}
+              snapToGrid={view.snap}
+              snapGrid={[16, 16]}
               fitView
               fitViewOptions={{ maxZoom: 1, padding: 0.15 }}
               minZoom={0.2}
             >
               <Background id="minor" variant={BackgroundVariant.Lines} gap={32} color="var(--canvas-grid)" />
               <Background id="major" variant={BackgroundVariant.Lines} gap={160} color="var(--canvas-grid-major)" />
-              <Controls showInteractive={false} />
+              {!presenting && <Controls showInteractive={false} />}
+              <LayerOverlay boxes={boxes} lanes={lanes} showBoxes={view.boxes || presenting} showLanes={view.lanes} />
             </ReactFlow>
           </ConnectionModelContext.Provider>
           {model.nodes.length === 0 && doc.status !== "loading" && (
@@ -490,7 +616,7 @@ function EditorInner() {
           )}
         </div>
 
-        {wide && (
+        {wide && !presenting && (
           <aside className="flex w-80 shrink-0 flex-col border-l border-border" aria-label="Inspector">
             <div role="tablist" aria-label="Panel" className="flex border-b border-border" onKeyDown={onTabKey}>
               {(["details", "hints"] as const).map((t) => (
@@ -520,7 +646,7 @@ function EditorInner() {
         )}
       </div>
 
-      <div className="flex flex-wrap items-center justify-between gap-2 border-t border-border px-4 py-1.5 text-xs text-ink-muted">
+      <div className={`${presenting ? "hidden" : "flex"} flex-wrap items-center justify-between gap-2 border-t border-border px-4 py-1.5 text-xs text-ink-muted`}>
         <p role="status" aria-live="polite">
           {message}
         </p>

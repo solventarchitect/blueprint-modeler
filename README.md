@@ -45,6 +45,7 @@ General diagramming tools will draw any line you ask for. Blueprint Modeler know
 | **Import and export** | A versioned JSON model file that round-trips exactly, standalone SVG images in light or dark for docs and slides, and an ArchiMate® Model Exchange File that opens in Archi and other ArchiMate tools. |
 | **Auto-layout** | One click lays the model out top-down by CSDM layer, in a background worker, as a single undo step. |
 | **ArchiMate lens** | Switch to CSDM + ArchiMate 3.2 and every element also shows its mapped ArchiMate element and notation icon; relationships read in ArchiMate terms. View-only: files stay in CSDM terms. |
+| **Layer boxes, lanes and present mode** | A translucent box around each CSDM layer, optional full-width lanes that keep a dropped element in its own layer, snap to a 16px grid, and Present: a full-screen walk through the model, layer by layer, with the arrow keys. |
 | **Keyboard and themes** | Every canvas action has a keyboard path. Auto, light and dark themes. Checked against WCAG 2.2 AA. |
 
 ## How it works

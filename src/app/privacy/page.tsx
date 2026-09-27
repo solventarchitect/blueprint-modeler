@@ -18,8 +18,12 @@ export default function PrivacyPage() {
         choose inside the browser; export creates the file on your device. Auto-layout runs in a background worker on
         your device.
       </p>
-      <h2>Your theme choice</h2>
-      <p>If you pick Light or Dark in the header, that choice is saved in this browser (local storage). Auto saves nothing.</p>
+      <h2>Your settings</h2>
+      <p>
+        A few display settings are saved in this browser (local storage) so they stick between visits: Light or Dark if
+        you pick one in the header (Auto saves nothing), the editor&apos;s lens, and its View options (layer boxes, lanes,
+        snap to grid). They never leave your device.
+      </p>
       <h2>Visit statistics</h2>
       <p>
         The live site uses Cloudflare Web Analytics to count visits: which pages are viewed, the referring site, and
