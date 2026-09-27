@@ -83,6 +83,30 @@ test.describe("import, export and layout (desktop)", () => {
     expect(counts).toEqual({ error: 0, root: "http://www.opengroup.org/xsd/archimate/3.0/", elements: nodes, relationships: edges, nodes });
   });
 
+  test("exports a draw.io file that parses, matches the model and states the Lucid Free fit", async ({ page }) => {
+    await openExample(page, "Online store checkout");
+    const nodes = await page.locator(".react-flow__node").count();
+    const edges = await page.locator(".react-flow__edge").count();
+    await page.getByRole("button", { name: "Export" }).click();
+    await expect(page.getByTestId("export-note-drawio")).toHaveText(`${nodes + edges} Lucid objects · within Free's 60`);
+    await page.getByRole("button", { name: "Export" }).click();
+    const file = await exportFile(page, /draw\.io \/ Lucidchart/);
+    expect(file.name).toBe("online-store-checkout.drawio");
+    await expect(page.getByRole("status")).toContainText("Import › draw.io");
+    await expect(page.getByRole("status")).toContainText("needs a paid Lucid plan");
+    const counts = await page.evaluate((xml) => {
+      const doc = new DOMParser().parseFromString(xml, "application/xml");
+      const cells = [...doc.getElementsByTagName("mxCell")];
+      return {
+        error: doc.getElementsByTagName("parsererror").length,
+        root: doc.documentElement.tagName,
+        vertices: cells.filter((c) => c.getAttribute("vertex") === "1").length,
+        edges: cells.filter((c) => c.getAttribute("edge") === "1").length,
+      };
+    }, file.text);
+    expect(counts).toEqual({ error: 0, root: "mxfile", vertices: nodes, edges });
+  });
+
   test("the export menu works from the keyboard and closes on Escape", async ({ page }) => {
     await openExample(page, "Online store checkout");
     const button = page.getByRole("button", { name: "Export" });

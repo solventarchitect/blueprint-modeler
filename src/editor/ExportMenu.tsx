@@ -2,17 +2,27 @@
 
 import { useEffect, useId, useRef, useState } from "react";
 
-export type ExportKind = "json" | "svg-dark" | "svg-light" | "archimate";
+export type ExportKind = "json" | "svg-dark" | "svg-light" | "archimate" | "drawio";
 
 const items: { kind: ExportKind; label: string; note: string }[] = [
   { kind: "json", label: "Model file (JSON)", note: "Back up, move or version it" },
   { kind: "svg-dark", label: "Image, dark (SVG)", note: "For docs and slides" },
   { kind: "svg-light", label: "Image, light (SVG)", note: "For docs and slides" },
   { kind: "archimate", label: "ArchiMate model (XML)", note: "Open in Archi or another ArchiMate tool" },
+  { kind: "drawio", label: "draw.io / Lucidchart (.drawio)", note: "Open in draw.io, or import into Lucidchart" },
 ];
 
 /** Disclosure menu: a button that shows the export actions. Escape or a click outside closes it. */
-export function ExportMenu({ onExport, buttonClass }: { onExport: (k: ExportKind) => void; buttonClass: string }) {
+export function ExportMenu({
+  onExport,
+  buttonClass,
+  notes = {},
+}: {
+  onExport: (k: ExportKind) => void;
+  buttonClass: string;
+  /** Extra line under an item, e.g. the Lucid plan fit for the draw.io export. */
+  notes?: Partial<Record<ExportKind, string>>;
+}) {
   const [open, setOpen] = useState(false);
   const root = useRef<HTMLDivElement>(null);
   const button = useRef<HTMLButtonElement>(null);
@@ -56,6 +66,11 @@ export function ExportMenu({ onExport, buttonClass }: { onExport: (k: ExportKind
             >
               <span className="text-sm text-ink">{it.label}</span>
               <span className="text-xs text-ink-muted">{it.note}</span>
+              {notes[it.kind] && (
+                <span className="text-xs text-ink-muted" data-testid={`export-note-${it.kind}`}>
+                  {notes[it.kind]}
+                </span>
+              )}
             </button>
           </li>
         ))}

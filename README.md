@@ -42,7 +42,7 @@ General diagramming tools will draw any line you ask for. Blueprint Modeler know
 | **Conformance hints** | 10 checks, such as a Business Application with no Business Capability, a service instance nobody can request, an offering with no parent service, or a capability hierarchy deeper than six levels. Hints advise rather than block, highlight the elements involved and link to their source. |
 | **Class guide** | [Every class, relationship and hint](https://model.mikereams.com/guide) on one page, with its source and how well the public text supports each relationship type. |
 | **Examples** | Five fictional models to start from: an online store checkout, a storefront on Kubernetes (in the CMDB's Kubernetes classes), an enterprise AI assistant, an HR portal and a shared database platform. Three of them trigger hints on purpose. |
-| **Import and export** | A versioned JSON model file that round-trips exactly, standalone SVG images in light or dark for docs and slides, and an ArchiMate® Model Exchange File that opens in Archi and other ArchiMate tools. |
+| **Import and export** | A versioned JSON model file that round-trips exactly, standalone SVG images in light or dark for docs and slides, an ArchiMate® Model Exchange File that opens in Archi and other ArchiMate tools, and a draw.io file that opens in draw.io or imports into Lucidchart, with a count of Lucid objects against the Lucid Free plan's per-document limit. |
 | **Auto-layout** | One click lays the model out top-down by CSDM layer, in a background worker, as a single undo step. |
 | **ArchiMate lens** | Switch to CSDM + ArchiMate 3.2 and every element also shows its mapped ArchiMate element and notation icon; relationships read in ArchiMate terms. View-only: files stay in CSDM terms. |
 | **Layer boxes, lanes and present mode** | A translucent box around each CSDM layer, optional full-width lanes that keep a dropped element in its own layer, snap to a 16px grid, and Present: a full-screen walk through the model, layer by layer, with the arrow keys. Drag a layer's label to move the layer with everything in it. |
@@ -60,7 +60,7 @@ flowchart LR
   canvas -->|every change| hints["Hint engine<br/>10 checks"]
   hints -->|advice + source link| canvas
   canvas <-->|autosave| idb[("IndexedDB<br/>this browser only")]
-  canvas -->|export| files["JSON · SVG<br/>files on your device"]
+  canvas -->|export| files["JSON · SVG · ArchiMate · draw.io<br/>files on your device"]
   canvas -->|auto-layout| worker["elkjs<br/>Web Worker"]
 ```
 
@@ -111,7 +111,7 @@ src/
   metamodel/    CSDM classes, relationship pairs and types, hint catalog, sources
   model/        model schema (zod), parse and migrate, hint engine
   editor/       canvas, palette, inspector, hints panel, undo/redo state
-  io/           JSON import/export, SVG export
+  io/           JSON import/export, SVG, ArchiMate and draw.io export, Lucid plan fit
   layout/       ELK graph, Web Worker engine, shared edge routing
   storage/      IndexedDB store (memory fallback)
   examples/     the five starter models
@@ -155,4 +155,4 @@ Issues and pull requests are welcome. For metamodel changes (a class, relationsh
 
 [MIT](LICENSE) © 2026 [Mike Reams](https://mikereams.com). IBM Plex fonts: SIL Open Font License (see `src/fonts/README.md`). Auto-layout uses [elkjs](https://github.com/kieler/elkjs) (unmodified, EPL-2.0), loaded in a Web Worker only when you click Auto-layout.
 
-Not affiliated with or endorsed by ServiceNow or The Open Group. ServiceNow and CSDM are trademarks of ServiceNow, Inc.; ArchiMate® is a registered trademark of The Open Group. They are used here only to describe what the tool models.
+Not affiliated with or endorsed by ServiceNow, The Open Group, Lucid Software or JGraph (draw.io). ServiceNow and CSDM are trademarks of ServiceNow, Inc.; ArchiMate® is a registered trademark of The Open Group. They are used here only to describe what the tool models.
