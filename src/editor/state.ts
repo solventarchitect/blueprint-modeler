@@ -16,6 +16,7 @@ export type Action =
   | { type: "delete-node"; id: string }
   | { type: "delete-nodes"; ids: string[] }
   | { type: "add-edge"; id: string; from: string; to: string; edgeType?: string }
+  | { type: "add-related"; id: string; class: ClassId; name: string; edgeId: string; relatedTo: string; outgoing: boolean; edgeType: string }
   | { type: "delete-edge"; id: string }
   | { type: "update-edge"; id: string; from: string; to: string; edgeType: string }
   | { type: "set-layout"; layout: Model["layout"] }
@@ -79,6 +80,14 @@ export function modernEdge(model: Model, edge: Edge): { from: string; to: string
   return flipped ? { from: edge.to, to: edge.from, type: flipped } : null;
 }
 
+/** Where a new element related to one at `nearX` goes: its lane, in the same column when that spot is free. */
+export function placeNear(model: Model, cls: ClassId, nearX: number): { x: number; y: number } {
+  const layer = classById(cls)!.layer;
+  const y = laneY[layer];
+  const taken = model.nodes.some((n) => classById(n.class)?.layer === layer && Math.abs((model.layout[n.id]?.x ?? 0) - nearX) < SLOT);
+  return taken ? nextPosition(model, cls) : { x: nearX, y };
+}
+
 function apply(model: Model, action: Action): Model | null {
   switch (action.type) {
     case "rename-model":
@@ -121,6 +130,20 @@ function apply(model: Model, action: Action): Model | null {
         edges: model.edges.filter((e) => e.from !== action.id && e.to !== action.id),
         layout,
       };
+    }
+    case "add-related": {
+      // A new element and its relationship to an existing one, as one undo step.
+      const anchor = model.nodes.find((n) => n.id === action.relatedTo);
+      if (!anchor || model.nodes.some((n) => n.id === action.id)) return null;
+      const node: Node = { id: action.id, class: action.class, name: action.name };
+      const withNode = {
+        ...model,
+        nodes: [...model.nodes, node],
+        layout: { ...model.layout, [action.id]: placeNear(model, action.class, model.layout[anchor.id]?.x ?? 0) },
+      };
+      const [from, to] = action.outgoing ? [anchor.id, action.id] : [action.id, anchor.id];
+      if (connectionProblem(withNode, from, to, action.edgeType)) return null;
+      return { ...withNode, edges: [...withNode.edges, { id: action.edgeId, from, to, type: action.edgeType }] };
     }
     case "delete-nodes": {
       // A whole layer at once, as one undo step.

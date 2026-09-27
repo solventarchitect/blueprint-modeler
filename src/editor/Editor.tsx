@@ -37,7 +37,7 @@ import { autoLayout, DEFAULT_SIZE } from "@/layout/layout";
 import { createWorkerEngine } from "@/layout/worker-engine";
 import { classById, classes, isClassId, type ClassId, type Layer } from "@/metamodel";
 import { evaluateHints, type HintResult } from "@/model";
-import { ClassNode, type ClassFlowNode } from "./ClassNode";
+import { ClassNode, SuggestContext, type ClassFlowNode } from "./ClassNode";
 import { ConnectionLine, ConnectionModelContext } from "./ConnectionLine";
 import { ExportMenu, type ExportKind } from "./ExportMenu";
 import { ContextMenu, type MenuItem } from "./ContextMenu";
@@ -47,6 +47,7 @@ import { HintsPanel } from "./HintsPanel";
 import { Inspector } from "./Inspector";
 import { Palette } from "./Palette";
 import { connectionProblem, modernEdge } from "./state";
+import { suggestions, type Suggestion } from "./suggest";
 import { useModelDocument, type SaveStatus } from "./useModelDocument";
 
 const nodeTypes = { csdm: ClassNode };
@@ -78,6 +79,8 @@ function useIsWide() {
 
 type Tab = "details" | "hints";
 
+const withIndefinite = (label: string) => `${/^[AEIOU]/.test(label) ? "an" : "a"} ${label}`;
+
 function EditorInner() {
   const doc = useModelDocument();
   const { model, dispatch } = doc;
@@ -87,6 +90,7 @@ function EditorInner() {
   const [focusName, setFocusName] = useState(0);
   const [focusConnect, setFocusConnect] = useState(0);
   const [selectedLayer, setSelectedLayer] = useState<Layer | null>(null);
+  const [dismissed, setDismissed] = useState<Set<string>>(() => new Set());
   const [menu, setMenu] = useState<{ x: number; y: number; label: string; items: MenuItem[] } | null>(null);
   const menuReturn = useRef<HTMLElement | null>(null);
   const layerDrag = useRef<{ layer: Layer; x: number; y: number; zoom: number; origin: Record<string, { x: number; y: number }>; moved: boolean } | null>(null);
@@ -170,12 +174,13 @@ function EditorInner() {
           hint: hintLevel.get(n.id),
           highlight: highlighted.has(n.id),
           alt: lens === "archimate" && isClassId(n.class) ? { type: archimateElements[n.class].type, label: archimateElements[n.class].label } : undefined,
+          suggest: wide && !presenting && !dismissed.has(n.id) && !model.edges.some((e) => e.from === n.id || e.to === n.id),
         },
         selected: n.id === selectedId,
         ariaLabel: `${classById(n.class)?.label ?? n.class}: ${n.name || "Untitled"}${hintLevel.get(n.id) ? " (has hints)" : ""}`,
       })),
     // eslint-disable-next-line react-hooks/exhaustive-deps -- drag and measured are refs; dragTick re-runs this
-    [model, selectedId, dragTick, hintLevel, highlighted, lens],
+    [model, selectedId, dragTick, hintLevel, highlighted, lens, wide, presenting, dismissed],
   );
 
   const hintedEdges = useMemo(() => new Set(activeHint?.edgeIds ?? []), [activeHint]);
@@ -437,6 +442,28 @@ function EditorInner() {
   useEffect(() => {
     if (selectedLayer && !boxes.some((b) => b.layer === selectedLayer)) setSelectedLayer(null);
   }, [boxes, selectedLayer]);
+
+  // Suggestions for an element with no relationships: on the canvas beside it, and in the Inspector.
+  const pickSuggestion = (nodeId: string, s: Suggestion) => {
+    const anchor = model.nodes.find((n) => n.id === nodeId);
+    if (!anchor) return;
+    const anchorName = anchor.name || "Untitled";
+    if (s.kind === "existing") {
+      dispatch({ type: "add-edge", id: newId(), from: s.from, to: s.to, edgeType: s.type });
+      setMessage(`Related ${anchorName} and ${s.name} (${s.type}).`);
+      return;
+    }
+    const id = newId();
+    dispatch({ type: "add-related", id, class: s.cls, name: `New ${s.classLabel}`, edgeId: newId(), relatedTo: nodeId, outgoing: s.outgoing, edgeType: s.type });
+    selectNode(id);
+    setFocusName((k) => k + 1);
+    setMessage(`Added ${withIndefinite(s.classLabel)} related to ${anchorName}. Type its name.`);
+  };
+  const suggestCtx = {
+    list: (nodeId: string) => suggestions(model, nodeId),
+    pick: pickSuggestion,
+    dismiss: (nodeId: string) => setDismissed((d) => new Set(d).add(nodeId)),
+  };
 
   // Right-click menus, built for what was clicked.
   const openMenu = (x: number, y: number, label: string, items: MenuItem[], returnTo: HTMLElement | null) => {
@@ -788,6 +815,7 @@ function EditorInner() {
 
         <div className="relative min-w-0 flex-1 bg-canvas" aria-label="Model canvas" role="region" onKeyDown={onCanvasKeyDown}>
           <ConnectionModelContext.Provider value={model}>
+          <SuggestContext.Provider value={suggestCtx}>
             <ReactFlow<ClassFlowNode, FlowEdge>
               nodes={nodes}
               edges={edges}
@@ -801,6 +829,16 @@ function EditorInner() {
                 if (state.fromNode && state.toNode && !state.isValid) setMessage(connectionProblem(model, state.fromNode.id, state.toNode.id) ?? "");
               }}
               connectionLineComponent={ConnectionLine}
+              onConnectStart={(_, { nodeId }) => {
+                const from = model.nodes.find((n) => n.id === nodeId);
+                if (!from) return;
+                const count = model.nodes.filter((n) => n.id !== from.id && connectionProblem(model, from.id, n.id) === null).length;
+                setMessage(
+                  count
+                    ? `Drop on an outlined element: ${count} can take a relationship from ${from.name || "this element"}.`
+                    : `Nothing on the canvas can take a relationship drawn from ${from.name || "this element"}. Try drawing it from the other element, or add one from the palette.`,
+                );
+              }}
               onPaneClick={() => {
                 setActiveHint(null);
                 setSelectedLayer(null);
@@ -847,6 +885,7 @@ function EditorInner() {
               {!presenting && <Controls showInteractive={false} />}
               <LayerOverlay boxes={boxes} lanes={lanes} showBoxes={view.boxes || presenting} showLanes={view.lanes} handlers={canMenu ? layerHandlers : undefined} />
             </ReactFlow>
+          </SuggestContext.Provider>
           </ConnectionModelContext.Provider>
           {model.nodes.length === 0 && doc.status !== "loading" && (
             <div className="pointer-events-none absolute inset-0 flex items-center justify-center p-6">
@@ -889,7 +928,18 @@ function EditorInner() {
             </div>
             <div id={`panel-${tab}`} role="tabpanel" aria-labelledby={`tab-${tab}`} className="min-h-0 flex-1 overflow-y-auto">
               {tab === "details" ? (
-                <Inspector model={model} selectedId={selectedId} dispatch={dispatch} focusName={focusName} focusConnect={focusConnect} onSelect={setSelectedId} newId={newId} lens={lens} />
+                <Inspector
+                  model={model}
+                  selectedId={selectedId}
+                  dispatch={dispatch}
+                  focusName={focusName}
+                  focusConnect={focusConnect}
+                  onSelect={setSelectedId}
+                  newId={newId}
+                  lens={lens}
+                  suggestions={selectedId ? suggestions(model, selectedId) : []}
+                  onSuggest={(s) => selectedId && pickSuggestion(selectedId, s)}
+                />
               ) : (
                 <HintsPanel results={scopedHints} activeId={activeHint?.id ?? null} onFocus={focusHint} scopeName={selected?.name} />
               )}

@@ -6,6 +6,7 @@ import { ArchimateGlyph } from "@/frameworks/ArchimateGlyph";
 import { allowedTypes, classById, isClassId, isCsdmCore, sources } from "@/metamodel";
 import type { Model } from "@/model";
 import type { Action } from "./state";
+import { suggestionDetail, suggestionLabel, type Suggestion } from "./suggest";
 
 type Props = {
   model: Model;
@@ -14,6 +15,9 @@ type Props = {
   focusName: number;
   /** Bumped to move focus to "Add a relationship" (context menu). */
   focusConnect?: number;
+  /** Relationships to offer while the element has none. */
+  suggestions?: Suggestion[];
+  onSuggest?: (s: Suggestion) => void;
   onSelect: (id: string | null) => void;
   newId: () => string;
   lens?: Lens;
@@ -65,7 +69,7 @@ function archimateRelFor(model: Model) {
 }
 
 /** Details of the selected element, its relationships, and a keyboard way to add more. */
-export function Inspector({ model, selectedId, dispatch, focusName, focusConnect = 0, onSelect, newId, lens = "csdm" }: Props) {
+export function Inspector({ model, selectedId, dispatch, focusName, focusConnect = 0, suggestions = [], onSuggest, onSelect, newId, lens = "csdm" }: Props) {
   const connectRef = useRef<HTMLSelectElement>(null);
   useEffect(() => {
     if (focusConnect) connectRef.current?.focus();
@@ -157,6 +161,21 @@ export function Inspector({ model, selectedId, dispatch, focusName, focusConnect
           Relationships
         </h2>
         {outgoing.length + incoming.length === 0 && <p className="text-sm text-ink-muted">None yet.</p>}
+        {outgoing.length + incoming.length === 0 && suggestions.length > 0 && onSuggest && (
+          <div data-testid="inspector-suggestions">
+            <p className="text-xs text-ink-muted">Suggested — each adds an allowed relationship:</p>
+            <ul className="mt-1 flex flex-col gap-1">
+              {suggestions.map((s) => (
+                <li key={s.kind === "existing" ? s.nodeId : s.cls}>
+                  <button type="button" className={`${button} flex w-full flex-col items-start text-left`} onClick={() => onSuggest(s)}>
+                    <span>{suggestionLabel(s)}</span>
+                    <span className="font-mono text-[0.65rem] text-ink-muted">{suggestionDetail(s)}</span>
+                  </button>
+                </li>
+              ))}
+            </ul>
+          </div>
+        )}
         <ul className="flex flex-col gap-1">
           {[...outgoing.map((e) => ({ e, text: `→ ${nameOf(e.to)}` })), ...incoming.map((e) => ({ e, text: `← ${nameOf(e.from)}` }))].map(({ e, text }) => (
             <li key={e.id} className="flex items-center justify-between gap-2 text-sm">

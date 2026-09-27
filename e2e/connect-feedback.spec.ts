@@ -24,6 +24,8 @@ test.describe("connection feedback (desktop)", () => {
     await expect(page.getByTestId("save-status")).toHaveText("Saved in this browser");
     await page.getByRole("combobox", { name: "Start from an example" }).selectOption({ label: "HR self-service portal" });
     await expect(page.locator(".react-flow__node")).not.toHaveCount(0);
+    // Opening an example fits the canvas a moment later; fit now so handles stop moving before measuring.
+    await page.getByRole("button", { name: "Fit View" }).click();
 
     // Payroll (Business Application) → HR portal — production (Application Service): valid, "Uses::Used by".
     await hoverConnection(page, "Payroll (planned)", "HR portal — production");

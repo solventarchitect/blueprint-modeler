@@ -81,6 +81,7 @@
   --color-accent: var(--accent);
   --color-accent-ink: var(--accent-ink);
   --color-status: var(--status);
+  --color-valid: var(--valid);
   --color-ai: var(--ai);
   --color-border: var(--border);
   --color-border-strong: var(--border-strong);
