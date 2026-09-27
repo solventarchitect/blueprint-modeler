@@ -1,12 +1,14 @@
 import type { SourceRef } from "./sources";
 
-/** CSDM 5 domains, as named in the white paper. */
+/** The seven CSDM 5 domains (white paper p. 14). No class in the palette sits in the last two yet. */
 export type Domain =
   | "foundation"
   | "design-planning"
   | "build-integration"
   | "service-delivery"
-  | "service-consumption";
+  | "service-consumption"
+  | "ideation-strategy"
+  | "manage-portfolio";
 
 /** Drawing lane on the canvas, top to bottom (the white paper's digital system layers). */
 export type Layer = "business" | "design" | "service" | "functional" | "infrastructure";
@@ -16,7 +18,7 @@ export type ClassDef = {
   label: string;
   domain: Domain;
   layer: Layer;
-  /** ServiceNow table, where the white paper names it. */
+  /** ServiceNow table, where the white paper names it (table summary, p. 47). */
   table?: string;
   description: string;
   source: SourceRef;
@@ -43,7 +45,7 @@ export const classes = [
     layer: "business",
     table: "cmdb_ci_business_process",
     description: "How work is done. Related to the Business Applications that enable it.",
-    source: { id: "whitepaper" },
+    source: { id: "whitepaper", page: 16 },
   },
   {
     id: "business_application",
@@ -70,15 +72,16 @@ export const classes = [
     layer: "service",
     table: "cmdb_ci_service_business",
     description: "The service as the customer sees it, not what IT calls it. Single level, not a hierarchy.",
-    source: { id: "whitepaper" },
+    source: { id: "whitepaper", page: 45 },
   },
   {
     id: "business_service_offering",
     label: "Business Service Offering",
     domain: "service-consumption",
     layer: "service",
+    table: "service_offering",
     description: "A consumable option of a Business Service. Application Services are exposed through offerings.",
-    source: { id: "whitepaper", page: 39 },
+    source: { id: "whitepaper", page: 45 },
   },
   {
     id: "technology_management_service",
@@ -87,13 +90,14 @@ export const classes = [
     layer: "service",
     table: "cmdb_ci_service_technical",
     description: "A provider-focused service that manages technology layered under business and Application Services.",
-    source: { id: "whitepaper" },
+    source: { id: "whitepaper", page: 42 },
   },
   {
     id: "technology_management_service_offering",
     label: "Technology Management Service Offering",
     domain: "service-delivery",
     layer: "service",
+    table: "service_offering",
     description:
       "A stratification of a Technology Management Service by geography, environment, support group, approval group and similar options.",
     source: { id: "whitepaper", page: 42 },
@@ -103,10 +107,10 @@ export const classes = [
     label: "Application Service",
     domain: "service-delivery",
     layer: "service",
-    table: "cmdb_ci_service_auto",
+    table: "cmdb_ci_service_discovered",
     description:
-      "A deployed, running instance of an application (a service instance), e.g. per environment or region. Populated manually, by Service Mapping, tags or a dynamic query.",
-    source: { id: "whitepaper", page: 11 },
+      "A deployed, running instance of an application, e.g. per environment or region: the application type of Service Instance. Its table follows how it is populated: manual or Service Mapping (cmdb_ci_service_discovered), tags, calculated, or a dynamic CI group (cmdb_ci_query_based_service).",
+    source: { id: "whitepaper", page: 38 },
   },
   {
     id: "api",
@@ -115,7 +119,7 @@ export const classes = [
     layer: "functional",
     table: "cmdb_ci_api",
     description: "An interface a service exposes or depends on.",
-    source: { id: "whitepaper" },
+    source: { id: "whitepaper", page: 41 },
   },
   {
     id: "application",
@@ -124,7 +128,7 @@ export const classes = [
     layer: "functional",
     table: "cmdb_ci_appl",
     description: "Installed software running on a host: a web server, application server, database instance, middleware.",
-    source: { id: "whitepaper", page: 38 },
+    source: { id: "whitepaper", page: 41 },
   },
   {
     id: "host",
@@ -132,7 +136,7 @@ export const classes = [
     domain: "service-delivery",
     layer: "infrastructure",
     description: "A physical or virtual computer an application runs on.",
-    source: { id: "whitepaper", page: 38 },
+    source: { id: "whitepaper", page: 42 },
   },
   {
     id: "network",
@@ -140,7 +144,7 @@ export const classes = [
     domain: "service-delivery",
     layer: "infrastructure",
     description: "Network infrastructure a service depends on.",
-    source: { id: "whitepaper", page: 38 },
+    source: { id: "whitepaper", page: 42 },
   },
   // Kubernetes: the CMDB classes Kubernetes discovery creates, so container platforms can be drawn
   // with their own vocabulary instead of approximating them with applications and hosts.

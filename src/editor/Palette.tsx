@@ -1,7 +1,7 @@
 "use client";
 
 import { archimateElements, type Lens } from "@/frameworks";
-import { classes, type ClassId, type Layer } from "@/metamodel";
+import { classes, isCsdmCore, type ClassId, type Layer } from "@/metamodel";
 import { layerAccent } from "./layerAccent";
 
 const LAYERS: { id: Layer; label: string }[] = [
@@ -16,6 +16,9 @@ const LAYERS: { id: Layer; label: string }[] = [
 export function Palette({ onAdd, lens = "csdm" }: { onAdd: (cls: ClassId) => void; lens?: Lens }) {
   return (
     <nav aria-label="Element palette" className="flex flex-col gap-4 p-4">
+      <p id="palette-cmdb-note" className="sr-only">
+        A CMDB class from ServiceNow product documentation, not part of the CSDM white paper.
+      </p>
       {LAYERS.map((layer) => (
         <section key={layer.id} aria-labelledby={`palette-${layer.id}`}>
           <h2 id={`palette-${layer.id}`} className="font-mono text-[0.65rem] tracking-[0.14em] text-ink-muted uppercase">
@@ -29,12 +32,18 @@ export function Palette({ onAdd, lens = "csdm" }: { onAdd: (cls: ClassId) => voi
                   <button
                     type="button"
                     onClick={() => onAdd(c.id)}
+                    aria-describedby={isCsdmCore(c) ? undefined : "palette-cmdb-note"}
                     className={`flex w-full cursor-pointer items-center gap-2 border border-border border-l-4 bg-surface-raised px-2.5 py-1.5 text-left text-sm leading-snug text-ink hover:border-accent hover:text-accent ${layerAccent[c.layer]}`}
                   >
                     <span className="flex min-w-0 flex-1 flex-col">
                       <span>{c.label}</span>
                       {lens === "archimate" && <span aria-hidden="true" className="font-mono text-[0.65rem] text-ai">{archimateElements[c.id].label}</span>}
                     </span>
+                    {!isCsdmCore(c) && (
+                      <span aria-hidden="true" title="CMDB class, not CSDM core" className="border border-border-strong px-1 font-mono text-[0.6rem] tracking-[0.08em] text-ink-muted">
+                        CMDB
+                      </span>
+                    )}
                     <span aria-hidden="true" className="font-mono text-ink-muted">
                       +
                     </span>

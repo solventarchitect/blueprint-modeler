@@ -148,11 +148,12 @@ export type RelationshipMapping = {
 /** Keyed by `${from}>${to}` over CSDM class ids; one entry per relationship pair in the metamodel. */
 export const archimateRelationships: Record<string, RelationshipMapping> = {
   "business_application>application_service": { type: "Realization", reverse: true, reads: "the deployed instance realizes the application" },
-  "business_application>business_capability": { type: "Realization", reverse: false, reads: "the application realizes the capability" },
+  "business_capability>business_application": { type: "Realization", reverse: true, reads: "the application realizes the capability" },
+  "business_process>business_capability": { type: "Realization", reverse: false, reads: "the process realizes the capability" },
   "business_application>information_object": { type: "Access", reverse: false, reads: "the application accesses the object" },
   "business_process>business_application": { type: "Serving", reverse: true, reads: "the application serves the process" },
   "business_service>business_service_offering": { type: "Aggregation", reverse: true, reads: "the product aggregates the service" },
-  "business_service>business_capability": { type: "Realization", reverse: false, reads: "the service realizes the capability" },
+  "business_capability>business_service": { type: "Realization", reverse: true, reads: "the service realizes the capability" },
   "technology_management_service>technology_management_service_offering": {
     type: "Aggregation",
     reverse: false,
@@ -163,7 +164,9 @@ export const archimateRelationships: Record<string, RelationshipMapping> = {
   "application_service>application": { type: "Serving", reverse: true, reads: "the system software serves the instance" },
   "application_service>host": { type: "Serving", reverse: true, reads: "the node serves the instance" },
   "application_service>network": { type: "Serving", reverse: true, reads: "the network serves the instance" },
-  "application_service>api": { type: "Composition", reverse: false, reads: "the instance is composed of its interface" },
+  "api>application_service": { type: "Composition", reverse: true, reads: "the instance is composed of its interface" },
+  "api>application": { type: "Realization", reverse: true, reads: "the system software realizes the interface" },
+  "api>business_service_offering": { type: "Serving", reverse: false, reads: "the interface serves the product" },
   "application_service>application_service": { type: "Serving", reverse: true, reads: "the dependency serves the dependent instance" },
   "application>host": { type: "Aggregation", reverse: true, reads: "the node aggregates the system software" },
   "business_capability>business_capability": { type: "Aggregation", reverse: true, reads: "the parent capability aggregates the child" },

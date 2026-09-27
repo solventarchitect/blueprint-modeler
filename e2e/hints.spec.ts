@@ -47,6 +47,7 @@ test.describe("examples and hints (desktop)", () => {
     const inspector = page.getByRole("complementary", { name: "Inspector" });
     await expect(inspector.getByRole("link", { name: /Kubernetes extension classes/ })).toHaveAttribute("href", /servicenow\.com\/docs/);
     await expect(inspector).toContainText("Hosted on::Hosts");
+    await expect(inspector.getByTestId("cmdb-extension")).toBeVisible();
     await expect(page.getByRole("tab", { name: "Hints (0)" })).toBeVisible();
   });
 

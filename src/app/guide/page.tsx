@@ -1,5 +1,5 @@
 import type { Metadata } from "next";
-import { classById, classes, hints, relationships, sources, type Layer, type SourceRef } from "@/metamodel";
+import { classById, classes, hints, isCsdmCore, relationships, sources, type Layer, type SourceRef } from "@/metamodel";
 import { layerAccent } from "@/editor/layerAccent";
 import { ARCHIMATE_TRADEMARK, archimateElements, archimateRelationshipFor, archimateSources, type ElementMapping } from "@/frameworks";
 import { ArchimateGlyph } from "@/frameworks/ArchimateGlyph";
@@ -48,7 +48,11 @@ export default function GuidePage() {
 
       <section aria-labelledby="classes" className="mt-12">
         <h2 id="classes" className="text-2xl font-semibold tracking-tight">Classes</h2>
-        <p className="mt-2 max-w-2xl text-sm text-ink-muted">Grouped by the lane they sit in on the canvas, top to bottom.</p>
+        <p className="mt-2 max-w-2xl text-sm text-ink-muted">
+          Grouped by the lane they sit in on the canvas, top to bottom. Lanes are a drawing aid, not CSDM domains: the white
+          paper organizes CSDM 5 into seven domains (p. 14). Classes marked CMDB come from ServiceNow&apos;s product
+          documentation rather than the white paper.
+        </p>
         {layerOrder.map((layer) => {
           const inLayer = classes.filter((c) => c.layer === layer.id);
           if (inLayer.length === 0) return null;
@@ -58,7 +62,10 @@ export default function GuidePage() {
               <ul className="mt-3 grid gap-3 md:grid-cols-2">
                 {inLayer.map((c) => (
                   <li key={c.id} className={`border border-border border-l-4 bg-surface-raised p-4 ${layerAccent[c.layer]}`}>
-                    <p className="font-medium">{c.label}</p>
+                    <p className="flex items-center gap-2 font-medium">
+                      {c.label}
+                      {!isCsdmCore(c) && <span className="border border-border-strong px-1 font-mono text-[0.6rem] tracking-[0.08em] text-ink-muted">CMDB</span>}
+                    </p>
                     {"table" in c && c.table && <p className="mt-0.5 font-mono text-xs text-ink-muted">{c.table}</p>}
                     <p className="mt-2 text-sm text-ink-soft">{c.description}</p>
                     <p className="mt-2 text-xs text-ink-muted">
@@ -99,6 +106,9 @@ export default function GuidePage() {
                     <span className="font-mono text-xs">{r.types.join(", ")}</span>
                     {"legacyTypes" in r && r.legacyTypes && (
                       <span className="mt-1 block text-xs text-ink-muted">Legacy: {r.legacyTypes.join(", ")}</span>
+                    )}
+                    {"legacyReverse" in r && r.legacyReverse && (
+                      <span className="mt-1 block text-xs text-ink-muted">Older files, other direction: {r.legacyReverse.join(", ")}</span>
                     )}
                     {"note" in r && r.note && <span className="mt-1 block text-xs text-ink-muted">{r.note}</span>}
                   </td>

@@ -21,7 +21,13 @@ export function allowedTypes(from: string, to: string): string[] {
   return relationshipsBetween(from, to).flatMap((r) => [...r.types]);
 }
 
-/** Types accepted when loading a file (allowed + legacy). */
+/** Types accepted when loading a file: allowed, legacy, and legacy edges drawn the other way. */
 export function acceptedTypes(from: string, to: string): string[] {
-  return relationshipsBetween(from, to).flatMap((r) => [...r.types, ...(r.legacyTypes ?? [])]);
+  return [
+    ...relationshipsBetween(from, to).flatMap((r) => [...r.types, ...(r.legacyTypes ?? [])]),
+    ...relationshipsBetween(to, from).flatMap((r) => [...(r.legacyReverse ?? [])]),
+  ];
 }
+
+/** CSDM core classes cite the white paper; the others are CMDB classes from product documentation. */
+export const isCsdmCore = (c: ClassDef) => c.source.id === "whitepaper";

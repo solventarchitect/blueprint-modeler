@@ -3,7 +3,7 @@
 import { useEffect, useId, useRef, useState } from "react";
 import { ARCHIMATE_TRADEMARK, archimateElements, archimateRelationshipFor, archimateSources, type ElementMapping, type Lens } from "@/frameworks";
 import { ArchimateGlyph } from "@/frameworks/ArchimateGlyph";
-import { allowedTypes, classById, isClassId, sources } from "@/metamodel";
+import { allowedTypes, classById, isClassId, isCsdmCore, sources } from "@/metamodel";
 import type { Model } from "@/model";
 import type { Action } from "./state";
 
@@ -113,6 +113,11 @@ export function Inspector({ model, selectedId, dispatch, focusName, onSelect, ne
       <div>
         <p className="font-mono text-[0.65rem] tracking-[0.14em] text-ink-muted uppercase">{def?.label}</p>
         <p className="mt-1 text-sm text-ink-soft">{def?.description}</p>
+        {def && !isCsdmCore(def) && (
+          <p className="mt-1 text-xs text-ink-muted" data-testid="cmdb-extension">
+            A CMDB class from ServiceNow product documentation, not part of the CSDM white paper.
+          </p>
+        )}
         {def && (
           <a className="mt-1 inline-block text-xs text-accent underline underline-offset-4" href={sources[def.source.id].url} target="_blank" rel="noopener noreferrer">
             Source: {def.source.id === "whitepaper" ? "CSDM 5 white paper" : sources[def.source.id].title}

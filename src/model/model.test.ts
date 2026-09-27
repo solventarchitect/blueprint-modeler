@@ -12,7 +12,7 @@ function sample(): Model {
     { id: "host", class: "host", name: "web-01" },
   ];
   m.edges = [
-    { id: "e1", from: "ba", to: "cap", type: "Provides::Provided by" },
+    { id: "e1", from: "cap", to: "ba", type: "Provided by::Provides" },
     { id: "e2", from: "ba", to: "svc", type: "Uses::Used by" },
     { id: "e3", from: "svc", to: "host", type: "Depends on::Used by" },
   ];
@@ -84,6 +84,16 @@ describe("parseModel", () => {
     const r = roundTrip(m);
     expect(r.ok).toBe(true);
     if (r.ok) expect(r.issues).toEqual([expect.objectContaining({ code: "legacy-type", edgeId: "e2" })]);
+  });
+});
+
+describe("files from earlier Blueprint versions", () => {
+  it("still load pairs drawn the old way, flagged as legacy", () => {
+    const m = sample();
+    m.edges[0] = { id: "e1", from: "ba", to: "cap", type: "Provides::Provided by" };
+    const r = roundTrip(m);
+    expect(r.ok).toBe(true);
+    if (r.ok) expect(r.issues).toEqual([expect.objectContaining({ code: "legacy-type", edgeId: "e1" })]);
   });
 });
 

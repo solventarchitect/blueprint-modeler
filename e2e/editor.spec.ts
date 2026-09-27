@@ -57,6 +57,9 @@ test.describe("editor (desktop)", () => {
     await addNamed(page, "Business Application", "Billing");
     await addNamed(page, "Host", "db-01");
     await page.locator(".react-flow__pane").click({ position: { x: 5, y: 5 } });
+    // New nodes are placed in their layer's lane, which can sit at (or past) the canvas edge; fit
+    // first so both handles are fully on screen before the drag.
+    await page.getByRole("button", { name: "Fit View" }).click();
     await canvasNode(page, "Billing").locator(".react-flow__handle-bottom").dragTo(canvasNode(page, "db-01").locator(".react-flow__handle-top"));
     await expect(page.getByRole("status")).toContainText("not related directly");
     await expect(page.locator(".react-flow__edge")).toHaveCount(0);

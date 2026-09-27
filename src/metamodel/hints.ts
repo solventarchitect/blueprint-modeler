@@ -47,28 +47,36 @@ export const hints = [
     severity: "warning",
     title: "Capability hierarchy deeper than six levels",
     explanation: "Keep Business Capability hierarchies to six levels or fewer.",
-    source: { id: "whitepaper" },
+    source: { id: "whitepaper", page: 32, quote: "The total number of levels cannot exceed more than six in the hierarchy" },
   },
   {
     id: "capability-cycle",
     severity: "warning",
     title: "Circular capability hierarchy",
     explanation: "A capability cannot be its own ancestor. Remove one parent link to break the loop.",
-    source: { id: "whitepaper" },
+    source: { id: "whitepaper", page: 32 },
   },
   {
     id: "disallowed-relationship",
     severity: "warning",
     title: "Relationship not used in CSDM",
     explanation: "These two element types are not related this way in CSDM. Remove the relationship, or route it through the element CSDM puts between them.",
-    source: { id: "whitepaper" },
+    source: { id: "whitepaper", page: 48 },
+  },
+  {
+    id: "offering-without-service",
+    severity: "info",
+    title: "Offering has no parent service",
+    explanation: "An offering is a stratification of one service. Relate each Business Service Offering to its Business Service, and each Technology Management Service Offering to its Technology Management Service.",
+    source: { id: "whitepaper", page: 45, quote: "A Business Service Offering is defined as a stratification of the service" },
   },
   {
     id: "legacy-relationship-type",
     severity: "info",
     title: "Legacy relationship type",
-    explanation: "Consumes::Consumed by between a Business Application and an Application Service is the CSDM 4 type; CSDM 5 shows Uses::Used by.",
-    source: { id: "baToServiceInstanceType" },
+    explanation:
+      "This relationship uses an older type or direction: a CSDM 4 type (such as Consumes::Consumed by), or how an earlier Blueprint file drew it. Delete it and redraw it to get the CSDM 5 type.",
+    source: { id: "whitepaper", page: 48 },
   },
 ] as const satisfies readonly HintDef[];
 

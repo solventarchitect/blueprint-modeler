@@ -1,6 +1,6 @@
 /**
  * Public sources for every metamodel entry (CLAUDE.md rule 3). Only ServiceNow-published or
- * ServiceNow-hosted material. Page numbers refer to the CSDM 5 white paper PDF.
+ * ServiceNow-hosted material. Page numbers are the CSDM 5 white paper's printed page numbers.
  */
 export type SourceId = keyof typeof sources;
 
@@ -8,6 +8,10 @@ export const sources = {
   whitepaper: {
     title: "CSDM 5 white paper (Scott Lemm, Rob Koeten)",
     url: "https://www.servicenow.com/community/s/cgfwn76974/attachments/cgfwn76974/common-service-data-model-kb/744/3/CSDM%205%20w%20links.pdf",
+  },
+  csdmCiRelationships: {
+    title: "CSDM CI relationships (ServiceNow docs)",
+    url: "https://www.servicenow.com/docs/r/servicenow-platform/common-service-data-model-csdm/ci-relationships.html",
   },
   whitepaperAnnouncement: {
     title: "CSDM 5 — get the CSDM 5 white paper (ServiceNow Community)",

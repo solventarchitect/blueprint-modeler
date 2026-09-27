@@ -12,6 +12,10 @@ export type HintResult = {
 
 const INFRA = new Set(["application", "host", "network", "api"]);
 const MAX_CAPABILITY_LEVELS = 6;
+const OFFERING_PARENT: Record<string, string> = {
+  business_service_offering: "business_service",
+  technology_management_service_offering: "technology_management_service",
+};
 const def = (id: HintId) => hints.find((h) => h.id === id)!;
 
 /**
@@ -47,7 +51,9 @@ export function evaluateHints(model: Model): HintResult[] {
 
   for (const n of model.nodes) {
     if (n.class === "business_application") {
-      if (!outgoing(n.id).some((e) => classOf(e.to) === "business_capability")) {
+      // Drawn from the capability; older files drew it from the application.
+      const capable = incoming(n.id).some((e) => classOf(e.from) === "business_capability") || outgoing(n.id).some((e) => classOf(e.to) === "business_capability");
+      if (!capable) {
         push("ba-without-capability", n.id, `${label(n.id)} is not related to a Business Capability.`, [n.id]);
       }
       if (!outgoing(n.id).some((e) => classOf(e.to) === "application_service")) {
@@ -60,6 +66,10 @@ export function evaluateHints(model: Model): HintResult[] {
         return c === "business_service_offering" || c === "technology_management_service_offering";
       });
       if (!exposed) push("service-not-exposed", n.id, `${label(n.id)} is not exposed through a service offering.`, [n.id]);
+    }
+    const parentService = OFFERING_PARENT[n.class];
+    if (parentService && !incoming(n.id).some((e) => classOf(e.from) === parentService)) {
+      push("offering-without-service", n.id, `${label(n.id)} has no parent service.`, [n.id]);
     }
   }
 

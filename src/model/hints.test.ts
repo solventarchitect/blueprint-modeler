@@ -13,10 +13,22 @@ const ids = (model: Model) => evaluateHints(model).map((h) => h.hint.id);
 describe("evaluateHints", () => {
   it("is quiet for a complete chain", () => {
     const model = m(
-      [["cap", "business_capability"], ["ba", "business_application"], ["svc", "application_service"], ["off", "technology_management_service_offering"], ["host", "host"]],
-      [["ba", "cap", "Provides::Provided by"], ["ba", "svc", "Uses::Used by"], ["off", "svc", "Depends on::Used by"], ["svc", "host", "Depends on::Used by"]],
+      [["cap", "business_capability"], ["ba", "business_application"], ["svc", "application_service"], ["tms", "technology_management_service"], ["off", "technology_management_service_offering"], ["host", "host"]],
+      [["cap", "ba", "Provided by::Provides"], ["ba", "svc", "Uses::Used by"], ["tms", "off", "reference:parent"], ["off", "svc", "Contains::Contained by"], ["svc", "host", "Depends on::Used by"]],
     );
     expect(evaluateHints(model)).toEqual([]);
+  });
+
+  it("flags an offering without its parent service", () => {
+    expect(ids(m([["off", "business_service_offering"]]))).toContain("offering-without-service");
+    expect(ids(m([["bs", "business_service"], ["off", "business_service_offering"]], [["bs", "off", "reference:parent"]]))).not.toContain("offering-without-service");
+  });
+
+  it("flags pairs drawn the way older files drew them, and still counts them", () => {
+    const hints = ids(m([["cap", "business_capability"], ["ba", "business_application"]], [["ba", "cap", "Provides::Provided by"]]));
+    expect(hints).toContain("legacy-relationship-type");
+    expect(hints).not.toContain("ba-without-capability");
+    expect(hints).not.toContain("disallowed-relationship");
   });
 
   it("flags a lone business application for capability and service, and names it", () => {

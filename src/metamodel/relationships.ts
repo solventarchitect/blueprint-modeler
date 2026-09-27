@@ -3,7 +3,8 @@ import type { SourceRef } from "./sources";
 
 /**
  * How sure we are of the relationship TYPE label (the pairing itself always has a source):
- * - "reported": the label appears in the white paper graphic, per a ServiceNow Community thread;
+ * - "reported": the label appears in ServiceNow material we cite — the white paper's relationship
+ *   figure (Figure 16, p. 48) or ServiceNow product documentation;
  * - "conventional": a standard CMDB relationship type commonly used for this pairing, but no
  *   public ServiceNow text we cite names it for this pair. Shown as a suggestion; needs review.
  */
@@ -18,6 +19,11 @@ export type RelDef = {
   types: readonly string[];
   /** Types kept only so older models still load; flagged by a hint. */
   legacyTypes?: readonly string[];
+  /**
+   * Types accepted on load when an edge runs the other way (`to` → `from`): the direction older
+   * Blueprint files used before the pair was corrected to match the white paper. Flagged by a hint.
+   */
+  legacyReverse?: readonly string[];
   typeEvidence: TypeEvidence;
   source: SourceRef;
   note?: string;
@@ -25,6 +31,9 @@ export type RelDef = {
 
 /** A reference-field edge is stored with this type. */
 export const referenceType = (field: string) => `reference:${field}`;
+
+/** The white paper's relationship figure (Figure 16). */
+const FIG16 = { id: "whitepaper", page: 48 } as const;
 
 export const relationships = [
   {
@@ -34,28 +43,39 @@ export const relationships = [
     types: ["Uses::Used by"],
     legacyTypes: ["Consumes::Consumed by"],
     typeEvidence: "reported",
-    source: { id: "baToServiceInstanceType" },
-    note: "CSDM 4 used Consumes::Consumed by; the CSDM 5 white paper graphic (p. 48) shows Uses::Used by, while its paragraph still says consumes.",
+    source: {
+      id: "csdmCiRelationships",
+      quote: "A Business Application, ultimately, relates to an Application Service table and not any other type of Service Instance.",
+    },
+    note: "CSDM 4 used Consumes::Consumed by; the CSDM 5 relationship figure (p. 48) shows Uses::Used by. A Business Application relates to Application Services only, not to other Service Instance types.",
   },
   {
-    from: "business_application",
-    to: "business_capability",
+    from: "business_capability",
+    to: "business_application",
     kind: "relationship",
-    types: ["Provides::Provided by"],
-    typeEvidence: "conventional",
-    source: {
-      id: "whitepaper",
-      page: 31,
-      quote: "It is recommended that you establish a CI relationship between the business capability and the business applications",
-    },
+    types: ["Provided by::Provides"],
+    legacyReverse: ["Provides::Provided by"],
+    typeEvidence: "reported",
+    source: FIG16,
+    note: "Drawn from the capability, as the white paper's figure does. Older Blueprint files drew it from the application (Provides::Provided by).",
   },
   {
     from: "business_application",
     to: "information_object",
-    kind: "reference",
-    types: [referenceType("information_object")],
-    typeEvidence: "conventional",
-    source: { id: "whitepaper", page: 33, quote: "referenced by the business application" },
+    kind: "relationship",
+    types: ["Uses::Used by"],
+    legacyTypes: [referenceType("information_object")],
+    typeEvidence: "reported",
+    source: FIG16,
+    note: "A CMDB relationship in the CSDM 5 figure. Older Blueprint files used a reference field.",
+  },
+  {
+    from: "business_process",
+    to: "business_capability",
+    kind: "relationship",
+    types: ["Operationalizes::Operationalized by"],
+    typeEvidence: "reported",
+    source: FIG16,
   },
   {
     from: "business_process",
@@ -63,7 +83,7 @@ export const relationships = [
     kind: "relationship",
     types: ["Depends on::Used by"],
     typeEvidence: "conventional",
-    source: { id: "whitepaper", quote: "Business applications are related to Business Processes and Business Process Activities" },
+    source: { id: "whitepaper", page: 33, quote: "Business Applications are related to Business Processes and Business Process Activities" },
     note: "The single Business Process reference field on a Business Application is legacy in CSDM 5; use a relationship.",
   },
   {
@@ -72,15 +92,18 @@ export const relationships = [
     kind: "reference",
     types: [referenceType("parent")],
     typeEvidence: "conventional",
-    source: { id: "whitepaper", quote: "has one or more Business Service Offerings" },
+    source: FIG16,
+    note: "The figure shows a reference (\"Published as\") from the service to its offerings; the field name is ours.",
   },
   {
-    from: "business_service",
-    to: "business_capability",
+    from: "business_capability",
+    to: "business_service",
     kind: "relationship",
-    types: ["Provides::Provided by"],
-    typeEvidence: "conventional",
-    source: { id: "whitepaper", quote: "typically underpins one or more business capabilities" },
+    types: ["Provided by::Provides"],
+    legacyReverse: ["Provides::Provided by"],
+    typeEvidence: "reported",
+    source: FIG16,
+    note: "Drawn from the capability, as the white paper's figure does. Older Blueprint files drew it from the service (Provides::Provided by).",
   },
   {
     from: "technology_management_service",
@@ -88,25 +111,36 @@ export const relationships = [
     kind: "reference",
     types: [referenceType("parent")],
     typeEvidence: "conventional",
-    source: { id: "whitepaper", page: 42 },
+    source: FIG16,
+    note: "The figure shows a reference (\"Published as\") from the service to its offerings; the field name is ours.",
   },
   {
     from: "business_service_offering",
     to: "application_service",
     kind: "relationship",
     types: ["Depends on::Used by"],
-    typeEvidence: "conventional",
-    source: { id: "whitepaper", page: 39, quote: "The offering of application services should be exposed via the related business or technical service offering." },
+    typeEvidence: "reported",
+    source: FIG16,
   },
   {
     from: "technology_management_service_offering",
     to: "application_service",
     kind: "relationship",
-    types: ["Depends on::Used by"],
-    typeEvidence: "conventional",
-    source: { id: "whitepaper", page: 39, quote: "The offering of application services should be exposed via the related business or technical service offering." },
+    types: ["Contains::Contained by"],
+    legacyTypes: ["Depends on::Used by"],
+    typeEvidence: "reported",
+    source: FIG16,
+    note: "CSDM 5 shows a Technology Management Service Offering containing the service instances it covers. Older Blueprint files used Depends on::Used by.",
   },
-  ...(["application", "host", "network", "api"] as const).map((to) => ({
+  {
+    from: "application_service",
+    to: "application",
+    kind: "relationship",
+    types: ["Depends on::Used by"],
+    typeEvidence: "reported",
+    source: FIG16,
+  },
+  ...(["host", "network"] as const).map((to) => ({
     from: "application_service" as const,
     to,
     kind: "relationship" as const,
@@ -117,23 +151,50 @@ export const relationships = [
       page: 38,
       quote: "These applications and hosts are all configured to offer the service",
     },
+    note: "A drawing shortcut. In the CMDB, an application runs on the infrastructure, and Service Mapping discovers the service's infrastructure through its applications.",
   })),
+  {
+    from: "api",
+    to: "application_service",
+    kind: "relationship",
+    types: ["Receives data from::Sends data to"],
+    legacyReverse: ["Depends on::Used by"],
+    typeEvidence: "reported",
+    source: FIG16,
+    note: "Drawn from the API, as the white paper's figure does. Older Blueprint files drew it from the service (Depends on::Used by).",
+  },
+  {
+    from: "api",
+    to: "application",
+    kind: "relationship",
+    types: ["Provided by::Provides"],
+    typeEvidence: "reported",
+    source: FIG16,
+  },
+  {
+    from: "api",
+    to: "business_service_offering",
+    kind: "relationship",
+    types: ["Receives data from::Sends data to"],
+    typeEvidence: "reported",
+    source: FIG16,
+  },
   {
     from: "application_service",
     to: "application_service",
     kind: "relationship",
     types: ["Depends on::Used by"],
-    typeEvidence: "conventional",
-    source: { id: "whitepaper", page: 11 },
-    note: "Service-to-service dependencies; the white paper does not name the type.",
+    typeEvidence: "reported",
+    source: FIG16,
   },
   {
     from: "application",
     to: "host",
     kind: "relationship",
     types: ["Runs on::Runs"],
-    typeEvidence: "conventional",
-    source: { id: "whitepaper", page: 38 },
+    typeEvidence: "reported",
+    source: FIG16,
+    note: "The figure relates applications to infrastructure CIs in general.",
   },
   {
     from: "business_capability",
@@ -141,7 +202,7 @@ export const relationships = [
     kind: "reference",
     types: [referenceType("parent")],
     typeEvidence: "conventional",
-    source: { id: "whitepaper", quote: "The total number of levels cannot exceed more than six in the hierarchy" },
+    source: { id: "whitepaper", page: 32, quote: "The total number of levels cannot exceed more than six in the hierarchy" },
   },
   // Kubernetes — relationship types as the discovery documentation lists them.
   {

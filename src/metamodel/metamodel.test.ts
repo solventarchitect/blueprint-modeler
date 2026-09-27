@@ -19,8 +19,8 @@ describe("classes", () => {
     for (const c of classes) expect(sources[c.source.id], c.id).toBeDefined();
   });
 
-  it("name ServiceNow tables in cmdb_ci_* form when they name one", () => {
-    for (const c of classes) if ("table" in c) expect(c.table, c.id).toMatch(/^cmdb_ci_[a-z_]+$/);
+  it("name ServiceNow tables in cmdb_ci_* form (or service_offering) when they name one", () => {
+    for (const c of classes) if ("table" in c) expect(c.table, c.id).toMatch(/^(cmdb_ci_[a-z_]+|service_offering)$/);
   });
 });
 
@@ -41,7 +41,8 @@ describe("relationships", () => {
   it("route a business application to infrastructure only through an application service", () => {
     for (const infra of ["application", "host", "network", "api"]) {
       expect(allowedTypes("business_application", infra), infra).toEqual([]);
-      expect(allowedTypes("application_service", infra).length, infra).toBeGreaterThan(0);
+      const linked = allowedTypes("application_service", infra).length + allowedTypes(infra, "application_service").length;
+      expect(linked, infra).toBeGreaterThan(0);
     }
     expect(allowedTypes("business_application", "application_service")).toEqual(["Uses::Used by"]);
   });
@@ -49,6 +50,25 @@ describe("relationships", () => {
   it("still accept the CSDM 4 type on load, but not for new edges", () => {
     expect(acceptedTypes("business_application", "application_service")).toContain("Consumes::Consumed by");
     expect(allowedTypes("business_application", "application_service")).not.toContain("Consumes::Consumed by");
+  });
+});
+
+describe("CSDM 5 relationship figure", () => {
+  it("uses the types the white paper's Figure 16 shows", () => {
+    expect(allowedTypes("business_capability", "business_application")).toEqual(["Provided by::Provides"]);
+    expect(allowedTypes("business_capability", "business_service")).toEqual(["Provided by::Provides"]);
+    expect(allowedTypes("business_process", "business_capability")).toEqual(["Operationalizes::Operationalized by"]);
+    expect(allowedTypes("business_application", "information_object")).toEqual(["Uses::Used by"]);
+    expect(allowedTypes("technology_management_service_offering", "application_service")).toEqual(["Contains::Contained by"]);
+    expect(allowedTypes("api", "application_service")).toEqual(["Receives data from::Sends data to"]);
+    expect(allowedTypes("application", "host")).toEqual(["Runs on::Runs"]);
+  });
+
+  it("accepts the directions and types older Blueprint files used, on load only", () => {
+    expect(acceptedTypes("business_application", "business_capability")).toEqual(["Provides::Provided by"]);
+    expect(allowedTypes("business_application", "business_capability")).toEqual([]);
+    expect(acceptedTypes("application_service", "api")).toEqual(["Depends on::Used by"]);
+    expect(acceptedTypes("technology_management_service_offering", "application_service")).toContain("Depends on::Used by");
   });
 });
 
