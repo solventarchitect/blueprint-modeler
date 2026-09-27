@@ -1,0 +1,27 @@
+/**
+ * Public sources for every metamodel entry (CLAUDE.md rule 3). Only ServiceNow-published or
+ * ServiceNow-hosted material. Page numbers refer to the CSDM 5 white paper PDF.
+ */
+export type SourceId = keyof typeof sources;
+
+export const sources = {
+  whitepaper: {
+    title: "CSDM 5 white paper (Scott Lemm, Rob Koeten)",
+    url: "https://www.servicenow.com/community/s/cgfwn76974/attachments/cgfwn76974/common-service-data-model-kb/744/3/CSDM%205%20w%20links.pdf",
+  },
+  whitepaperAnnouncement: {
+    title: "CSDM 5 — get the CSDM 5 white paper (ServiceNow Community)",
+    url: "https://www.servicenow.com/community/common-service-data-model/csdm-5-finally-get-the-csdm-5-white-paper-here/ta-p/3254967",
+  },
+  baToServiceInstanceType: {
+    title: "CSDM 5.0 — Business App to Service Instance relationship change (ServiceNow Community)",
+    url: "https://www.servicenow.com/community/common-service-data-model-forum/csdm-5-0-business-app-to-service-instance-relationship-change/m-p/3299351",
+  },
+  whatIsCsdm: {
+    title: "What is CSDM? (ServiceNow)",
+    url: "https://www.servicenow.com/products/it-operations-management/what-is-csdm.html",
+  },
+} as const satisfies Record<string, { title: string; url: string }>;
+
+/** A citation: which source, and where in it. */
+export type SourceRef = { id: SourceId; page?: number; quote?: string };

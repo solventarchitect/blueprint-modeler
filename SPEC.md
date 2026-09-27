@@ -72,7 +72,7 @@
 | # | Milestone | Deliverable | Verification | Status |
 |---|---|---|---|---|
 | M0 | Scaffold + CI + deploy | repo, Next static export, tokens, CI, Vercel project, `model.mikereams.com` | preview + custom domain open, CI green | **done 2026-09-26** |
-| M1 | Metamodel + model format | typed CSDM subset with sources; model schema v1 + zod; storage wrapper | unit tests: sources present, round-trip, migration stub | |
+| M1 | Metamodel + model format | typed CSDM subset with sources; model schema v1 + zod; storage wrapper | unit tests: sources present, round-trip, migration stub | **done 2026-09-27** — 13 classes, 17 relationship pairs, 7 hint definitions; IndexedDB store exercised end-to-end in M2 (autosave) |
 | M2 | Canvas | palette, add/rename/delete, allowed-only connections, undo/redo, autosave, keyboard path | F-01, F-02, F-04; Playwright hero flow | |
 | M3 | Hints + guide | conformance hints with sources and highlighting; class guide; 3 examples | F-03, F-08 | |
 | M4 | Import/export + layout | JSON import/export, SVG export light/dark, ELK layout in a worker | F-05, F-06, F-07 | |
@@ -83,7 +83,7 @@
 | Q | Owner | Needed by | Answer |
 |---|---|---|---|
 | Q1 Product name — avoid using "CSDM" in the name | Mike | M0 | **Blueprint Modeler** (Mike, 2026-09-26) |
-| Q2 Reuse ArchTruth's DSL package? Copying it here open-sources it under MIT | Mike | M1 | default: no — JSON model v1, DSL later |
+| Q2 Reuse ArchTruth's DSL package? Copying it here open-sources it under MIT | Mike | M1 | no for v1 — JSON model format (default taken at M1) |
 | Q3 Cloudflare Web Analytics on the app? | Mike | M5 | |
 | Q4 Approve deps `@xyflow/react`, `elkjs`, `zod`; new Vercel project; GitHub repo; DNS record | Mike | M0 | **Approved** (Mike, 2026-09-26); deps added when first used (M1 zod, M2 xyflow, M4 elkjs) |
 | Q5 Link from mikereams.com nav/Work page at launch? | Mike | M5 | |
@@ -92,5 +92,6 @@
 
 - **Last deploy:** `1375d84` → https://model.mikereams.com on 2026-09-26 (Vercel `dpl_EsKmcGeCtTwo96toQaHTAHfdfgD9`, TLS valid; CI run 36283442780 green)
 - **Done:** plan approved (2026-09-26); M0 scaffold — Next 15 static export, Blueprint tokens + self-hosted Plex, CI, unit + Playwright (axe dark/light, no third-party requests, 5 breakpoints) green locally
-- **Next:** M1 — metamodel with public sources, model schema v1 + zod, storage wrapper
+- **Next:** M2 — canvas (`@xyflow/react`): palette, allowed-only connections, undo/redo, autosave to IndexedDB, keyboard path
+- **Metamodel evidence:** every class, pairing and hint cites the CSDM 5 white paper or a ServiceNow Community thread. Relationship *type labels* are marked `reported` (Business application → Application service: `Uses::Used by`, CSDM 4 `Consumes::Consumed by` kept as legacy) or `conventional` (standard CMDB types the public text does not name for that pair) — Mike to review the conventional ones
 - **Blocked on Mike:** —
