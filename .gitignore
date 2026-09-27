@@ -1,0 +1,47 @@
+# Per-app .gitignore template — copy into apps/<app>/.gitignore.
+
+# Secrets
+.env
+.env.*
+!.env.example
+*.pem
+.vercel/
+.expo/
+supabase/.temp/
+
+# Build / deps
+node_modules/
+.next/
+out/
+dist/
+build/
+.turbo/
+*.tsbuildinfo
+coverage/
+playwright-report/
+test-results/
+
+# Python
+__pycache__/
+*.py[cod]
+.venv/
+venv/
+
+# Claude local state
+.claude/settings.local.json
+.claude/projects/
+.claude/*.local.json
+.claude/.credentials*
+
+# OS / editor
+.DS_Store
+Thumbs.db
+desktop.ini
+*.swp
+*.tmp
+~$*
+
+# Logs
+*.log
+npm-debug.log*
+pnpm-debug.log*

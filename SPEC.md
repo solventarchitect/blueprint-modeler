@@ -1,0 +1,97 @@
+# SPEC.md — Service Modeler (model.mikereams.com)
+
+> Requirements source of truth. Constraints live in `CLAUDE.md`. Update the Status block at every milestone.
+> Working name — see open question Q1.
+
+## 1. Problem & users
+
+- **Problem:** People learning or applying ServiceNow's Common Service Data Model sketch application
+  architectures in general-purpose tools (Visio, Lucid, draw.io, whiteboards) that know nothing about CSDM. They
+  draw a business application wired straight to servers, skip the application service, or invent relationship
+  types, and only find out when the CMDB import or a governance review pushes back. The free options that
+  understand CSDM live inside a licensed ServiceNow instance.
+- **Primary users:** enterprise and solution architects, CMDB/platform owners, consultants and students preparing
+  for CSDM work. Desktop web for editing; any device for viewing. WCAG 2.2 AA; keyboard-first canvas.
+- **Out of scope (v1):** accounts, cloud save, sharing links, collaboration, ServiceNow connectivity or import from
+  an instance, AI generation, payments, mobile editing, PNG export (SVG only), any employer content.
+
+## 2. Platforms & surfaces
+
+| Surface | In v1? | Notes |
+|---|---|---|
+| Web (Next.js static export) | yes | model.mikereams.com |
+| Mobile (Expo) | no | responsive web, read-only canvas below md |
+| Public API | no | the model file format is the interface |
+
+## 3. Core flows (user stories with acceptance criteria)
+
+| ID | As a… | I want… | So that… | Acceptance (testable) |
+|---|---|---|---|---|
+| F-01 | Architect | to add CSDM elements from a palette grouped by domain (business, application, service, technology) | I model with the right building blocks | Given the palette, when I add a Business Application, then a node of class `business_application` appears, focused, named inline; keyboard-only path works |
+| F-02 | Architect | to connect elements using only relationship types the metamodel allows between those classes | the model stays valid | When I connect two nodes, then I choose from the allowed types for that pair; a disallowed pair shows why and creates nothing |
+| F-03 | Architect | conformance hints as I work | I see gaps before a reviewer does | Given a Business Application linked directly to a server, then a hint appears citing its public source and highlighting both nodes; fixing the model clears it |
+| F-04 | Anyone | my work saved automatically in this browser | I don't lose it | When I reload, then every model, name and position is restored; a "stored only in this browser" notice is always visible |
+| F-05 | Architect | to export and import a model file | I can back up, move and version it in Git | Export JSON → clear → import → deep-equal model + layout; files from older schema versions migrate; invalid files are rejected with a readable error and change nothing |
+| F-06 | Architect | to export SVG in light or dark | I can put it in a doc or slide | SVG export matches the canvas, embeds fonts or uses system fonts, and loads nothing remote |
+| F-07 | Architect | auto-layout by CSDM layer | a messy sketch becomes readable | One action lays out top-down by domain in a worker; the UI stays responsive; undo restores positions |
+| F-08 | Learner | starter examples and a short guide to each class | I learn CSDM while modelling | Each palette class has a description and source link; three example models load from the start screen |
+
+## 4. Data model
+
+- `Model { schema: 1, id, name, created, updated, nodes: Node[], edges: Edge[], layout: Record<id,{x,y}> }`;
+  `Node { id, class, name, attrs? }`; `Edge { id, from, to, type }`. Edge identity = `from|type|to`.
+- Metamodel (static, in-repo): classes, allowed `(fromClass, type, toClass)` triples, hints — each with `source`.
+- Tenancy: single user, single browser. Nothing leaves the device unless the user exports a file.
+- Retention: until the user deletes it or clears browser storage. Delete = confirm, then gone.
+
+## 5. Auth & access
+
+- None. No sign-in, no roles, no sessions, no cookies.
+
+## 6. Non-functional requirements
+
+| Area | Target |
+|---|---|
+| Performance | LCP < 2.5 s mid-tier mobile; 60 fps canvas to 300 nodes; layout of 300 nodes < 1 s off the main thread |
+| Accessibility | WCAG 2.2 AA; every canvas action by keyboard; screen-reader outline of the model |
+| Availability / backup | static hosting; users back up via export |
+| Privacy / compliance | no personal data collected; no cookies; no third-party requests; privacy page says so |
+| Cost ceiling | $0/month (Vercel Hobby, existing domain). Anything else needs approval |
+
+## 7. Integrations & dependencies
+
+| Service | Purpose | Tier / cost | Approved by Mike? |
+|---|---|---|---|
+| Vercel | static hosting, previews | Hobby, $0 | pending (new project) |
+| Netlify DNS | `model` CNAME on mikereams.com | existing | pending (DNS change) |
+| GitHub `solventarchitect/service-modeler` | source, CI | free, public | pending (new repo) |
+| `@xyflow/react`, `elkjs`, `zod` | canvas, layout, file validation | MIT | pending |
+| Cloudflare Web Analytics | visit counts, cookie-less | $0 | optional, pending |
+
+## 8. Milestones
+
+| # | Milestone | Deliverable | Verification | Status |
+|---|---|---|---|---|
+| M0 | Scaffold + CI + deploy | repo, Next static export, tokens, CI, Vercel project, `model.mikereams.com` | preview + custom domain open, CI green | |
+| M1 | Metamodel + model format | typed CSDM subset with sources; model schema v1 + zod; storage wrapper | unit tests: sources present, round-trip, migration stub | |
+| M2 | Canvas | palette, add/rename/delete, allowed-only connections, undo/redo, autosave, keyboard path | F-01, F-02, F-04; Playwright hero flow | |
+| M3 | Hints + guide | conformance hints with sources and highlighting; class guide; 3 examples | F-03, F-08 | |
+| M4 | Import/export + layout | JSON import/export, SVG export light/dark, ELK layout in a worker | F-05, F-06, F-07 | |
+| M5 | Launch | landing, About (not-affiliated notice), privacy, a11y + 5-breakpoint pass, a post on mikereams.com linking to it | preview checks, axe, Lighthouse, live on the domain | |
+
+## 9. Open questions
+
+| Q | Owner | Needed by | Answer |
+|---|---|---|---|
+| Q1 Product name (working: "Service Modeler") — avoid using "CSDM" in the name | Mike | M0 | |
+| Q2 Reuse ArchTruth's DSL package? Copying it here open-sources it under MIT | Mike | M1 | default: no — JSON model v1, DSL later |
+| Q3 Cloudflare Web Analytics on the app? | Mike | M5 | |
+| Q4 Approve deps `@xyflow/react`, `elkjs`, `zod`; new Vercel project; GitHub repo; DNS record | Mike | M0 | |
+| Q5 Link from mikereams.com nav/Work page at launch? | Mike | M5 | |
+
+## 10. Status
+
+- **Last deploy:** none
+- **Done:** CLAUDE.md + SPEC.md drafted (2026-09-26)
+- **Next:** Mike approves the plan and Q1/Q4 → M0
+- **Blocked on Mike:** Q1, Q4
