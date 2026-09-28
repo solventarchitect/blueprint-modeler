@@ -106,6 +106,36 @@ export function useModelDocument() {
     await open(m.id);
   }, [open]);
 
+  /** A stored model, read back for download (the open one comes from memory, so it is never stale). */
+  const read = useCallback(
+    async (id: string): Promise<Model | undefined> => {
+      if (id === model.id) return model;
+      const got = await store.current?.get(id);
+      return got?.ok ? got.model : undefined;
+    },
+    [model],
+  );
+
+  /**
+   * Delete models from this browser. Deleting the open model first detaches autosave, so a
+   * pending save cannot write it back; then the most recent remaining model opens (or a new one).
+   */
+  const remove = useCallback(
+    async (ids: string[]) => {
+      const s = store.current;
+      if (!s || ids.length === 0) return;
+      const openOne = ids.includes(loadedId.current ?? "");
+      if (openOne) {
+        loadedId.current = null;
+        pending.current = null;
+      }
+      for (const id of ids) await s.remove(id);
+      if (openOne) await open();
+      else await refreshList();
+    },
+    [open, refreshList],
+  );
+
   /** Save a ready-made model (an example) as a new model and open it. */
   const createFrom = useCallback(
     async (m: Model) => {
@@ -127,6 +157,8 @@ export function useModelDocument() {
     models,
     open,
     newModel,
+    read,
+    remove,
     problem,
     dismissProblem: () => setProblem(null),
   };

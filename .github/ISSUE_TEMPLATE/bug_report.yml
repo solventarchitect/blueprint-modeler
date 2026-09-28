@@ -1,0 +1,28 @@
+name: Bug report
+description: Something in the app doesn't work as it should.
+labels: [bug]
+body:
+  - type: textarea
+    id: what
+    attributes:
+      label: What happened
+      description: What you did, what you expected, and what happened instead.
+    validations:
+      required: true
+  - type: textarea
+    id: steps
+    attributes:
+      label: Steps to reproduce
+      placeholder: "1. Open an example…\n2. …"
+    validations:
+      required: true
+  - type: input
+    id: browser
+    attributes:
+      label: Browser and version
+      placeholder: Chrome 140, Firefox 143, Safari 19…
+  - type: textarea
+    id: model
+    attributes:
+      label: Model file (optional)
+      description: If it involves a particular model, attach an exported JSON file. Don't include anything confidential.

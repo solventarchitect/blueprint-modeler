@@ -48,6 +48,7 @@ General diagramming tools will draw any line you ask for. Blueprint Modeler know
 | **Layer boxes, lanes and present mode** | A translucent box around each CSDM layer, optional full-width lanes that keep a dropped element in its own layer, snap to a 16px grid, and Present: a full-screen walk through the model, layer by layer, with the arrow keys. Drag a layer's label to move the layer with everything in it. |
 | **Suggestions** | A new element with no relationships offers what it can connect to (elements already on the canvas first, then the next CSDM classes) and adds the element and relationship in one click. While you draw a line, every element it can be dropped on is outlined. |
 | **Right-click menus** | Menus for whatever you click: an element (rename, relate, duplicate, delete), a relationship (update an older one to its CSDM 5 type), a layer (zoom, select, distribute evenly, delete), or the canvas. Shift+F10 opens them from the keyboard. |
+| **Your models** | Every model is saved as you work, in this browser only. Manage… lists them: open, download a JSON copy, or delete one or all (it asks first). |
 | **Focus and descriptions** | Select an element and everything it connects to, with those relationships, is shaded. Hover an element to highlight it and show its description underneath. Each element has a description field. |
 | **Keyboard and themes** | Every canvas action has a keyboard path. Auto, light and dark themes. Checked against WCAG 2.2 AA. |
 
@@ -115,7 +116,7 @@ src/
   io/           JSON import/export, SVG, ArchiMate and draw.io export, Lucid plan fit
   layout/       ELK graph, Web Worker engine, shared edge routing
   storage/      IndexedDB store (memory fallback)
-  examples/     the five starter models
+  examples/     the seven starter models
   app/          pages: home, editor, guide, about, privacy
 e2e/            Playwright specs (axe, network, keyboard, import/export, layout)
 assets/         README banner, screenshots, social preview
@@ -150,7 +151,7 @@ A model is plain JSON. Positions live in a `layout` sidecar keyed by element id,
 
 ## Contributing
 
-Issues and pull requests are welcome. For metamodel changes (a class, relationship or hint), include the public ServiceNow source and page, and describe the rule in your own words. Run `pnpm verify` before opening a pull request.
+Issues and pull requests are welcome; see [CONTRIBUTING.md](CONTRIBUTING.md). For metamodel changes (a class, relationship or hint), use the [rule correction](https://github.com/solventarchitect/blueprint-modeler/issues/new?template=rule_correction.yml) form: include the public ServiceNow source and page, and describe the rule in your own words. Run `pnpm verify` before opening a pull request. Everyone taking part agrees to the [Code of Conduct](CODE_OF_CONDUCT.md); report security problems privately as described in [SECURITY.md](SECURITY.md).
 
 ## License
 

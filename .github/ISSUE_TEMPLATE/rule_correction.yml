@@ -1,0 +1,45 @@
+name: Rule correction
+description: A class, relationship or hint is wrong or missing, according to a public source.
+labels: [metamodel]
+body:
+  - type: markdown
+    attributes:
+      value: Every rule must come from public ServiceNow material, described in your own words (see CONTRIBUTING.md). Please don't include anything from an employer, a customer or an instance.
+  - type: dropdown
+    id: kind
+    attributes:
+      label: What kind of rule
+      options: [Class, Relationship pair or type, Hint, Other]
+    validations:
+      required: true
+  - type: textarea
+    id: current
+    attributes:
+      label: What the app does now
+    validations:
+      required: true
+  - type: textarea
+    id: proposed
+    attributes:
+      label: What it should do, in your own words
+    validations:
+      required: true
+  - type: input
+    id: source
+    attributes:
+      label: Public source (link)
+      placeholder: https://…
+    validations:
+      required: true
+  - type: input
+    id: where
+    attributes:
+      label: Page or section in the source
+      placeholder: "CSDM 5 white paper, p. 48 (Figure 16)"
+    validations:
+      required: true
+  - type: dropdown
+    id: evidence
+    attributes:
+      label: Does the source name the relationship type?
+      options: ["Yes — reported", "No — a conventional CMDB type", "Not a relationship"]

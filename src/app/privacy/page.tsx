@@ -14,7 +14,8 @@ export default function PrivacyPage() {
       <h2>Your models</h2>
       <p>
         Models are stored in your browser&apos;s own storage (IndexedDB) on this device. They are not sent anywhere.
-        Clearing your browser&apos;s site data deletes them, so export a file to keep a copy. Import reads the file you
+        Delete them in the editor under Manage…, or by clearing your browser&apos;s site data; either way, export a file first
+        if you want a copy. Import reads the file you
         choose inside the browser; export creates the file on your device. Auto-layout runs in a background worker on
         your device.
       </p>

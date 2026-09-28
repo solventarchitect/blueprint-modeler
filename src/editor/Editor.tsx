@@ -48,6 +48,7 @@ import { ConnectionLine, ConnectionModelContext } from "./ConnectionLine";
 import { ExportMenu, type ExportKind } from "./ExportMenu";
 import { ContextMenu, type MenuItem } from "./ContextMenu";
 import { CanvasEdge, LabelObstacles } from "./CanvasEdge";
+import { ModelManager } from "./ModelManager";
 import { CanvasTitle } from "./CanvasTitle";
 import { LayerOverlay, layerHandleId, type LayerHandlers } from "./LayerOverlay";
 import { DEFAULT_VIEW, readView, saveView, ViewMenu, type ViewOptions } from "./ViewMenu";
@@ -116,6 +117,7 @@ function EditorInner() {
     setViewState(v);
     saveView(v);
   };
+  const [managing, setManaging] = useState(false);
   const [presenting, setPresenting] = useState(false);
   const [step, setStep] = useState(0);
   const presentButton = useRef<HTMLButtonElement>(null);
@@ -787,6 +789,9 @@ function EditorInner() {
             ))}
           </select>
         </label>
+        <button type="button" className={toolbarButton} onClick={() => setManaging(true)}>
+          Manage…
+        </button>
         <button type="button" className={toolbarButton} onClick={() => void doc.newModel()}>
           New model
         </button>
@@ -1036,6 +1041,31 @@ function EditorInner() {
         )}
       </div>
 
+      <ModelManager
+        open={managing}
+        onClose={() => setManaging(false)}
+        models={doc.models}
+        currentId={model.id}
+        onOpen={(id) => {
+          setSelectedId(null);
+          setActiveHint(null);
+          void doc.open(id);
+        }}
+        onDownload={async (id) => {
+          const m = await doc.read(id);
+          if (!m) return;
+          const f = exportJson(m);
+          downloadText(f.filename, f.text, "application/json");
+        }}
+        onDelete={async (ids) => {
+          if (ids.includes(model.id)) {
+            setSelectedId(null);
+            setActiveHint(null);
+          }
+          await doc.remove(ids);
+          setMessage(`Deleted ${ids.length} model${ids.length === 1 ? "" : "s"} from this browser.`);
+        }}
+      />
       {menu && <ContextMenu x={menu.x} y={menu.y} label={menu.label} items={menu.items} onClose={closeMenu} />}
       <div className={`${presenting ? "hidden" : "flex"} flex-wrap items-center justify-between gap-2 border-t border-border px-4 py-1.5 text-xs text-ink-muted`}>
         <p role="status" aria-live="polite">
