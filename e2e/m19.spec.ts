@@ -36,7 +36,7 @@ test.describe("selection, hover and layers (desktop)", () => {
     });
   }
 
-  test("hovering an element enlarges it until its text is readable, and shows its description", async ({ page }) => {
+  test("hovering an element highlights it and shows its description, without resizing it", async ({ page }) => {
     await openExample(page);
     const target = node(page, "Checkout — production");
     await target.click();
@@ -44,16 +44,18 @@ test.describe("selection, hover and layers (desktop)", () => {
     await page.getByLabel("Name").focus();
     await page.locator(".react-flow__pane").click({ position: { x: 10, y: 10 } });
     await page.mouse.move(5, 5);
-    await expect(target.locator("[data-enlarged]")).toHaveCount(0);
+    const size = (await target.boundingBox())!;
 
     await target.hover();
-    await expect(target.locator("[data-enlarged]")).toHaveCount(1);
-    const name = target.getByText("Checkout — production", { exact: true });
-    await expect.poll(() => name.evaluate((e) => e.getBoundingClientRect().height)).toBeGreaterThanOrEqual(14 * 1.2);
+    await expect(target.locator("[data-hovered]")).toHaveCount(1);
     await expect(target.getByTestId("node-description")).toHaveText("Customer-facing checkout, production.");
+    const hovered = (await target.boundingBox())!;
+    expect(Math.abs(hovered.width - size.width)).toBeLessThanOrEqual(1);
+    expect(Math.abs(hovered.height - size.height)).toBeLessThanOrEqual(1);
 
     await page.mouse.move(5, 5);
-    await expect(target.locator("[data-enlarged]")).toHaveCount(0);
+    await expect(target.locator("[data-hovered]")).toHaveCount(0);
+    await expect(target.getByTestId("node-description")).toHaveCount(0);
 
     await page.reload();
     await node(page, "Checkout — production").click();

@@ -28,11 +28,6 @@ export type ClassNodeData = {
 
 const CARD_WIDTH = 256; // w-64
 const CARD_OFFSET = 12;
-/** Hovering enlarges an element in place until its name reads at this size on screen (text-sm is 12.8px). */
-const READABLE_PX = 14;
-const NAME_PX = 12.8;
-/** On screen, an enlarged element is always about its natural size (224px wide), so the cap only guards the minimum zoom. */
-const MAX_ENLARGE = 6;
 
 /** Suggestions for an element with no relationships, and what choosing one does. */
 export const SuggestContext = createContext<{
@@ -45,7 +40,7 @@ export const SuggestContext = createContext<{
  * The suggestion card beside an unconnected element: shown while it is selected or hovered, stays
  * while the pointer is over it, and closes with Escape or its close button (WCAG 1.4.13).
  */
-function Suggestions({ id, name, visible, onHover, scale = 1 }: { id: string; name: string; visible: boolean; onHover: (over: boolean) => void; scale?: number }) {
+function Suggestions({ id, name, visible, onHover }: { id: string; name: string; visible: boolean; onHover: (over: boolean) => void }) {
   const ctx = useContext(SuggestContext);
   const items = visible && ctx ? ctx.list(id) : [];
   // Keep the card inside the canvas: open downward from the top half and upward from the bottom
@@ -67,11 +62,8 @@ function Suggestions({ id, name, visible, onHover, scale = 1 }: { id: string; na
   const nodeBottom = nodeTop + (node?.measured.height ?? 60) * zoom;
   const room = side === Position.Top ? nodeTop : side === Position.Bottom ? height - nodeBottom : low ? nodeBottom : height - nodeTop;
   const listMax = Math.max(120, room - CARD_OFFSET - 64);
-  // An enlarged element grows past its box: open the card clear of it.
-  const grow = side === Position.Left || side === Position.Right ? (node?.measured.width ?? 224) : (node?.measured.height ?? 60);
-  const offset = CARD_OFFSET + ((scale - 1) * grow * zoom) / 2;
   return (
-    <NodeToolbar isVisible={visible && items.length > 0} position={side} align={align} offset={offset}>
+    <NodeToolbar isVisible={visible && items.length > 0} position={side} align={align} offset={CARD_OFFSET}>
       <div
         role="group"
         aria-label={`Suggested relationships for ${name}`}
@@ -137,11 +129,8 @@ function ClassNodeView({ id, data, selected, dragging }: NodeProps<ClassFlowNode
   };
   useEffect(() => () => clearTimeout(timer.current), []);
 
-  // Hovered (not while dragging or drawing): highlight, and enlarge in place so the text reads at
-  // READABLE_PX however far the canvas is zoomed out. The enlarged element is lifted above its neighbors.
-  const zoom = useStore((st) => st.transform[2]);
+  // Hovered (not while dragging or drawing): highlight, lifted above its neighbors so its description shows.
   const focus = hovered && !dragging && !fromId;
-  const scale = focus ? Math.min(MAX_ENLARGE, Math.max(1, READABLE_PX / (NAME_PX * zoom))) : 1;
   const box = useRef<HTMLDivElement>(null);
   useEffect(() => {
     const wrapper = box.current?.closest<HTMLElement>(".react-flow__node");
@@ -163,15 +152,14 @@ function ClassNodeView({ id, data, selected, dragging }: NodeProps<ClassFlowNode
   return (
     <div
       ref={box}
-      className={`node-card relative w-56 border border-border-strong border-l-4 px-3 py-2.5 text-left ${data.neighbor && !selected ? "bg-neighbor-tint" : "bg-surface-raised"} ${layerAccent[def?.layer ?? "design"]} ${ring} ${focus ? "shadow-lg" : ""}`}
-      style={scale > 1 ? { transform: `scale(${scale})` } : undefined}
+      className={`relative w-56 border border-border-strong border-l-4 px-3 py-2.5 text-left ${data.neighbor && !selected ? "bg-neighbor-tint" : "bg-surface-raised"} ${layerAccent[def?.layer ?? "design"]} ${ring} ${focus ? "shadow-lg" : ""}`}
       data-connect-target={target || undefined}
       data-neighbor={data.neighbor || undefined}
-      data-enlarged={scale > 1 || undefined}
+      data-hovered={focus || undefined}
       onMouseEnter={() => hover(true)}
       onMouseLeave={() => hover(false)}
     >
-      {data.suggest && <Suggestions id={id} name={data.name || "Untitled"} visible={(selected || hovered) && !fromId && !dragging} onHover={hover} scale={scale} />}
+      {data.suggest && <Suggestions id={id} name={data.name || "Untitled"} visible={(selected || hovered) && !fromId && !dragging} onHover={hover} />}
       <Handle id="top" type="source" position={Position.Top} className="!size-2.5 !border-accent !bg-surface" />
       {data.archimateOnly && data.alt ? (
         <p className="flex items-center gap-1.5 font-mono text-[0.65rem] tracking-[0.12em] text-ai uppercase" data-testid="archimate-type">

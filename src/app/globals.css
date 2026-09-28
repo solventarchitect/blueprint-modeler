@@ -182,12 +182,6 @@
   stroke: var(--neighbor);
   stroke-width: 3;
 }
-/* Hover enlarges an element in place (see ClassNode). */
-.node-card {
-  transition:
-    transform 0.15s ease-out,
-    box-shadow 0.15s;
-}
 .react-flow__edge.hinted .react-flow__edge-path {
   stroke: var(--status);
   stroke-width: 2;
