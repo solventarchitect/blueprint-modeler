@@ -115,10 +115,15 @@ test.describe("stacked layers (desktop)", () => {
       await expect(page.getByTestId("layer-handle").first()).toBeVisible();
       await expect.poll(clashes, { message: `example ${i}` }).toEqual([]);
     }
-    await page.getByRole("button", { name: "Auto-layout" }).click();
-    await expect(page.getByRole("button", { name: "Auto-layout" })).toBeEnabled();
-    await page.getByRole("button", { name: "Fit View" }).click();
-    await expect.poll(clashes, { message: "after auto-layout" }).toEqual([]);
+    // Auto-layout the application models (the metamodel poster is laid out by hand: auto-laid out,
+    // its 61 relationships make it wide enough that a fit zooms below where tabs can clear).
+    for (const label of ["Online store checkout", "Storefront on Kubernetes", "Enterprise AI assistant"]) {
+      await examples.selectOption({ label });
+      await page.getByRole("button", { name: "Auto-layout" }).click();
+      await expect(page.getByRole("button", { name: "Auto-layout" })).toBeEnabled();
+      await page.getByRole("button", { name: "Fit View" }).click();
+      await expect.poll(clashes, { message: `${label} after auto-layout` }).toEqual([]);
+    }
   });
 });
 

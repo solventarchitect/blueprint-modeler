@@ -2,7 +2,7 @@
 
 import { useEffect, useId, useRef, useState } from "react";
 
-export type ExportKind = "json" | "svg-dark" | "svg-light" | "archimate" | "drawio";
+export type ExportKind = "json" | "svg-dark" | "svg-light" | "archimate" | "drawio" | "servicenow";
 
 const items: { kind: ExportKind; label: string; note: string }[] = [
   { kind: "json", label: "Model file (JSON)", note: "Back up, move or version it" },
@@ -10,6 +10,7 @@ const items: { kind: ExportKind; label: string; note: string }[] = [
   { kind: "svg-light", label: "Image, light (SVG)", note: "For docs and slides" },
   { kind: "archimate", label: "ArchiMate model (XML)", note: "Open in Archi or another ArchiMate tool" },
   { kind: "drawio", label: "draw.io / Lucidchart (.drawio)", note: "Open in draw.io, or import into Lucidchart" },
+  { kind: "servicenow", label: "ServiceNow import (Excel)", note: "One sheet per CMDB table, plus relationships" },
 ];
 
 /** Disclosure menu: a button that shows the export actions. Escape or a click outside closes it. */

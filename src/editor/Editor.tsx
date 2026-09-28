@@ -27,15 +27,17 @@ import {
 } from "react";
 import Link from "next/link";
 import { examples } from "@/examples";
-import { archimateElements, lenses, readLens, saveLens, type Lens } from "@/frameworks";
+import { archimateElements, archimateRelationshipFor, lenses, readLens, saveLens, showsArchimate, type Lens } from "@/frameworks";
 import { downloadText } from "@/io/download";
 import { exportJson, fileBase, importJson, MAX_FILE_CHARS } from "@/io/file";
 import { modelToArchimateXml } from "@/io/archimate";
 import { modelToDrawioFile } from "@/io/drawio";
 import { lucidFit, lucidFitMessage, lucidFitNote } from "@/io/lucid";
+import { modelToServiceNowXlsx } from "@/io/servicenow";
 import { modelToSvg } from "@/io/svg";
 import { LAYERS, layerBoxes, layerLanes, settleIntoLane } from "@/layout/bands";
 import { edgeSides } from "@/layout/geometry";
+import { distributeEvenly } from "@/layout/distribute";
 import { autoLayout, DEFAULT_SIZE } from "@/layout/layout";
 import { createWorkerEngine } from "@/layout/worker-engine";
 import { classById, classes, isClassId, type ClassId, type Layer } from "@/metamodel";
@@ -52,7 +54,7 @@ import { DEFAULT_VIEW, readView, saveView, ViewMenu, type ViewOptions } from "./
 import { HintsPanel } from "./HintsPanel";
 import { Inspector } from "./Inspector";
 import { Palette } from "./Palette";
-import { connectionProblem, modernEdge } from "./state";
+import { connectionProblem, modernEdge, SLOT } from "./state";
 import { suggestions, type Suggestion } from "./suggest";
 import { useModelDocument, type SaveStatus } from "./useModelDocument";
 
@@ -173,6 +175,18 @@ function EditorInner() {
     if (selectedId && !model.nodes.some((n) => n.id === selectedId)) setSelectedId(null);
   }, [model.nodes, selectedId]);
 
+  // Elements directly connected to the selected one, highlighted with their relationships.
+  const neighbors = useMemo(() => {
+    const set = new Set<string>();
+    if (!selectedId) return set;
+    for (const e of model.edges) {
+      if (e.from === selectedId) set.add(e.to);
+      if (e.to === selectedId) set.add(e.from);
+    }
+    set.delete(selectedId);
+    return set;
+  }, [model.edges, selectedId]);
+
   const nodes: ClassFlowNode[] = useMemo(
     () =>
       model.nodes.map((n) => ({
@@ -185,20 +199,27 @@ function EditorInner() {
           cls: n.class,
           hint: hintLevel.get(n.id),
           highlight: highlighted.has(n.id),
-          alt: lens === "archimate" && isClassId(n.class) ? { type: archimateElements[n.class].type, label: archimateElements[n.class].label } : undefined,
+          neighbor: neighbors.has(n.id),
+          description: n.attrs?.description,
+          alt: showsArchimate(lens) && isClassId(n.class) ? { type: archimateElements[n.class].type, label: archimateElements[n.class].label } : undefined,
+          archimateOnly: lens === "archimate-only",
           suggest: wide && !presenting && !dismissed.has(n.id) && !model.edges.some((e) => e.from === n.id || e.to === n.id),
         },
         selected: n.id === selectedId,
-        ariaLabel: `${classById(n.class)?.label ?? n.class}: ${n.name || "Untitled"}${hintLevel.get(n.id) ? " (has hints)" : ""}`,
+        ariaLabel: `${classById(n.class)?.label ?? n.class}: ${n.name || "Untitled"}${hintLevel.get(n.id) ? " (has hints)" : ""}${neighbors.has(n.id) ? " (connected to the selected element)" : ""}`,
       })),
     // eslint-disable-next-line react-hooks/exhaustive-deps -- drag and measured are refs; dragTick re-runs this
-    [model, selectedId, dragTick, hintLevel, highlighted, lens, wide, presenting, dismissed],
+    [model, selectedId, dragTick, hintLevel, highlighted, lens, wide, presenting, dismissed, neighbors],
   );
 
   const hintedEdges = useMemo(() => new Set(activeHint?.edgeIds ?? []), [activeHint]);
   const edges: FlowEdge[] = useMemo(
     () =>
       model.edges.map((e) => {
+        const connected = !!selectedId && (e.from === selectedId || e.to === selectedId);
+        // ArchiMate-only lens: the ArchiMate relationship's name, with the arrow on the end ArchiMate points to.
+        const classOf = (id: string) => model.nodes.find((n) => n.id === id)?.class ?? "";
+        const am = lens === "archimate-only" ? archimateRelationshipFor(classOf(e.from), classOf(e.to)) : undefined;
         const a = model.layout[e.from] ?? { x: 0, y: 0 };
         const b = model.layout[e.to] ?? { x: 0, y: 0 };
         const [sourceHandle, targetHandle] = edgeSides(a, b);
@@ -209,13 +230,16 @@ function EditorInner() {
           target: e.to,
           sourceHandle,
           targetHandle,
-          label: e.type.startsWith("reference:") ? "reference" : e.type.split("::")[0],
-          className: hintedEdges.has(e.id) ? "hinted" : undefined,
-          markerEnd: { type: MarkerType.ArrowClosed, color: hintedEdges.has(e.id) ? "var(--status)" : "var(--border-strong)" },
+          label: am ? am.type : e.type.startsWith("reference:") ? "reference" : e.type.split("::")[0],
+          className: hintedEdges.has(e.id) ? "hinted" : connected ? "connected" : undefined,
+          [am?.reverse ? "markerStart" : "markerEnd"]: {
+            type: MarkerType.ArrowClosed,
+            color: hintedEdges.has(e.id) ? "var(--status)" : connected ? "var(--neighbor)" : "var(--border-strong)",
+          },
           ariaLabel: `${e.type} from ${model.nodes.find((n) => n.id === e.from)?.name} to ${model.nodes.find((n) => n.id === e.to)?.name}`,
         };
       }),
-    [model, hintedEdges],
+    [model, hintedEdges, selectedId, lens],
   );
 
   const onNodesChange = useCallback(
@@ -300,7 +324,8 @@ function EditorInner() {
     setSelectedId(null);
     setActiveHint(null);
     await doc.createFrom(ex.create());
-    setMessage(`Opened the example “${ex.name}” as a new model.`);
+    if (ex.lens) setLens(ex.lens);
+    setMessage(`Opened the example “${ex.name}” as a new model.${ex.lens ? ` Lens: ${lenses.find((l) => l.id === ex.lens)?.label}.` : ""}`);
     setTimeout(() => void flow.fitView({ maxZoom: 1, padding: fitPadding(0.15) }), 50);
   };
 
@@ -351,6 +376,10 @@ function EditorInner() {
       const filename = `${fileBase(model)}-archimate.xml`;
       downloadText(filename, modelToArchimateXml(model), "application/xml");
       setMessage(`Exported ${filename}. In Archi: File › Import › Open Exchange XML Model.`);
+    } else if (kind === "servicenow") {
+      const filename = `${fileBase(model)}-servicenow.xlsx`;
+      downloadText(filename, modelToServiceNowXlsx(model) as Uint8Array<ArrayBuffer>, "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet");
+      setMessage(`Exported ${filename}. Its README sheet explains the import into ServiceNow.`);
     } else if (kind === "drawio") {
       const filename = `${fileBase(model)}.drawio`;
       void modelToDrawioFile(model, { lens }).then((text) => {
@@ -581,6 +610,16 @@ function EditorInner() {
     return [
       { kind: "item", label: "Zoom to layer", disabled: ids.length === 0, onSelect: () => void flow.fitView({ nodes: ids.map((id) => ({ id })), padding: 0.3, maxZoom: 1.25, duration: 300 }) },
       { kind: "item", label: selectedLayer === layer ? "Deselect layer" : "Select layer", onSelect: () => setSelectedLayer(selectedLayer === layer ? null : layer) },
+      {
+        kind: "item",
+        label: "Distribute evenly",
+        disabled: ids.length < 2,
+        onSelect: () => {
+          const layout = distributeEvenly(model, ids, SLOT);
+          if (layout) dispatch({ type: "set-layout", layout });
+          setMessage(layout ? `Spread the ${layerName(layer)} layer evenly.` : `The ${layerName(layer)} layer is already evenly spread.`);
+        },
+      },
       { kind: "separator" },
       {
         kind: "item",
@@ -753,7 +792,8 @@ function EditorInner() {
         </button>
         <label className="flex items-center text-sm">
           <span className="sr-only">Start from an example</span>
-          <select className={toolbarSelect} value="" onChange={(e) => void loadExample(e.target.value)}>
+          {/* Fixed width, like the model picker: a long example name must not re-wrap the toolbar. */}
+          <select className={`${toolbarSelect} w-52`} value="" onChange={(e) => void loadExample(e.target.value)}>
             <option value="">Start from an example…</option>
             {examples.map((ex) => (
               <option key={ex.id} value={ex.id}>

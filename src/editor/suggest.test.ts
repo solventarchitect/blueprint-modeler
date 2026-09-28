@@ -1,7 +1,7 @@
 import { describe, expect, it } from "vitest";
 import { classById } from "@/metamodel";
 import { createModel, type Model } from "@/model";
-import { initialHistory, reduce } from "./state";
+import { initialHistory, reduce, SLOT } from "./state";
 import { suggestions } from "./suggest";
 
 function m(nodes: [string, string][], edges: [string, string, string][] = []): Model {
@@ -43,7 +43,7 @@ describe("suggestions", () => {
       expect(h.present.edges, s.cls).toHaveLength(1);
       expect(h.past, s.cls).toHaveLength(1);
       // Same column as the element when its lane has room there; beside it when they share a lane.
-      expect(h.present.layout.n!.x, s.cls).toBe(classById(s.cls)!.layer === "design" ? 288 : 0);
+      expect(h.present.layout.n!.x, s.cls).toBe(classById(s.cls)!.layer === "design" ? SLOT : 0);
     }
   });
 });

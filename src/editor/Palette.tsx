@@ -1,6 +1,6 @@
 "use client";
 
-import { archimateElements, type Lens } from "@/frameworks";
+import { archimateElements, type Lens, showsArchimate } from "@/frameworks";
 import { classes, isCsdmCore, isExtended, type ClassId, type Layer } from "@/metamodel";
 import { layerAccent } from "./layerAccent";
 
@@ -37,7 +37,7 @@ export function Palette({ onAdd, lens = "csdm", extended = false }: { onAdd: (cl
                   >
                     <span className="flex min-w-0 flex-1 flex-col">
                       <span>{c.label}</span>
-                      {lens === "archimate" && <span aria-hidden="true" className="font-mono text-[0.65rem] text-ai">{archimateElements[c.id].label}</span>}
+                      {showsArchimate(lens) && <span aria-hidden="true" className="font-mono text-[0.65rem] text-ai">{archimateElements[c.id].label}</span>}
                     </span>
                     {!isCsdmCore(c) && (
                       <span aria-hidden="true" title="CMDB class, not CSDM core" className="border border-border-strong px-1 font-mono text-[0.6rem] tracking-[0.08em] text-ink-muted">

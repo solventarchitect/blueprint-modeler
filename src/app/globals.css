@@ -24,6 +24,8 @@
   /* Connection feedback while dragging: always paired with a ✓/✕ label, never color alone. */
   --valid: var(--color-success-400);
   --invalid: var(--color-error-300);
+  /* Elements and relationships connected to the selection: a lighter shade of the accent. */
+  --neighbor: var(--color-primary-300);
   color-scheme: dark;
 }
 
@@ -47,6 +49,7 @@
     --canvas-grid-major: color-mix(in oklab, var(--color-primary-700) 12%, transparent);
     --valid: var(--color-success-800);
     --invalid: var(--color-error-600);
+    --neighbor: var(--color-primary-600);
     color-scheme: light;
   }
 }
@@ -69,6 +72,7 @@
   --canvas-grid-major: color-mix(in oklab, var(--color-primary-700) 12%, transparent);
   --valid: var(--color-success-800);
   --invalid: var(--color-error-600);
+  --neighbor: var(--color-primary-600);
   color-scheme: light;
 }
 
@@ -86,6 +90,8 @@
   --color-border: var(--border);
   --color-border-strong: var(--border-strong);
   --color-canvas: var(--canvas);
+  --color-neighbor: var(--neighbor);
+  --color-neighbor-tint: color-mix(in oklab, var(--neighbor) 18%, var(--surface-raised));
   --font-sans: var(--font-plex-sans), "IBM Plex Sans", system-ui, sans-serif;
   --font-mono: var(--font-plex-mono), "IBM Plex Mono", ui-monospace, monospace;
 }
@@ -171,6 +177,16 @@
 }
 .react-flow .react-flow__attribution a {
   color: var(--ink-muted);
+}
+.react-flow__edge.connected .react-flow__edge-path {
+  stroke: var(--neighbor);
+  stroke-width: 3;
+}
+/* Hover enlarges an element in place (see ClassNode). */
+.node-card {
+  transition:
+    transform 0.15s ease-out,
+    box-shadow 0.15s;
 }
 .react-flow__edge.hinted .react-flow__edge-path {
   stroke: var(--status);

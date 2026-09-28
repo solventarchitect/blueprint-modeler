@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 import { createModel } from "@/model";
-import { connectionProblem, initialHistory, laneY, modernEdge, reduce, type Action, type History } from "./state";
+import { connectionProblem, initialHistory, laneY, modernEdge, reduce, SLOT, type Action, type History } from "./state";
 
 const T = "2026-09-27T12:00:00.000Z";
 const now = () => T;
@@ -17,7 +17,7 @@ describe("editor state", () => {
   it("places new elements in their layer lane, left to right", () => {
     const s = run([...base, { type: "add-node", id: "ba2", class: "business_application", name: "Billing" }]);
     expect(s.present.layout.ba).toEqual({ x: 0, y: laneY.design });
-    expect(s.present.layout.ba2).toEqual({ x: 288, y: laneY.design });
+    expect(s.present.layout.ba2).toEqual({ x: SLOT, y: laneY.design });
     expect(s.present.layout.host).toEqual({ x: 0, y: laneY.infrastructure });
   });
 

@@ -1,14 +1,16 @@
-import { allowedTypes, type ClassId } from "@/metamodel";
+import type { Lens } from "@/frameworks";
+import { allowedTypes, classes, isCsdmCore, isExtended, relationships, type ClassId, type Layer } from "@/metamodel";
 import { createModel, type Model } from "@/model";
-import { nextPosition } from "@/editor/state";
+import { nextPosition, SLOT } from "@/editor/state";
 
 /**
  * Starter models. Fictional organizations and systems only — nothing here describes a real
  * company's estate. Each one teaches something: a complete chain, a planned application with
  * no deployment yet, a shared platform service, a Kubernetes deployment in the CMDB's Kubernetes
- * classes, and an AI assistant modeled like any other application.
+ * classes, an AI assistant modeled like any other application, a claims system read purely in
+ * ArchiMate, and the CSDM 5 core metamodel itself.
  */
-type Spec = { id: string; name: string; summary: string; nodes: [string, ClassId, string][]; edges: [string, string][] };
+type Spec = { id: string; name: string; summary: string; nodes: [string, ClassId, string][]; edges: [string, string][]; lens?: Lens };
 
 const specs: Spec[] = [
   {
@@ -184,6 +186,45 @@ const specs: Spec[] = [
       ["vec", "h1"],
     ],
   },
+  {
+    id: "archimate-claims",
+    name: "Claims handling (ArchiMate view)",
+    summary: "A claims system read purely in ArchiMate 3.2: opens in the ArchiMate-only lens, so elements show their ArchiMate type and relationships their ArchiMate name — capability, process, product, application components, interface, system software and nodes.",
+    lens: "archimate-only",
+    nodes: [
+      ["cap", "business_capability", "Claims management"],
+      ["proc", "business_process", "Handle a claim"],
+      ["bs", "business_service", "Claims service"],
+      ["bso", "business_service_offering", "Claims service — standard cover"],
+      ["ba", "business_application", "Claims system"],
+      ["data", "information_object", "Claim record"],
+      ["prod", "application_service", "Claims system — production"],
+      ["api", "api", "Claims API"],
+      ["tms", "technology_management_service", "Hosting"],
+      ["tmso", "technology_management_service_offering", "Hosting — production"],
+      ["web", "application", "Claims web server"],
+      ["db", "application", "Claims database"],
+      ["h1", "host", "claims-prod-01"],
+      ["h2", "host", "claims-db-01"],
+    ],
+    edges: [
+      ["proc", "cap"],
+      ["cap", "ba"],
+      ["cap", "bs"],
+      ["proc", "ba"],
+      ["bs", "bso"],
+      ["ba", "data"],
+      ["ba", "prod"],
+      ["bso", "prod"],
+      ["api", "prod"],
+      ["tms", "tmso"],
+      ["tmso", "prod"],
+      ["prod", "web"],
+      ["prod", "db"],
+      ["web", "h1"],
+      ["db", "h2"],
+    ],
+  },
 ];
 
 function build(spec: Spec, now: Date, id: string): Model {
@@ -200,11 +241,57 @@ function build(spec: Spec, now: Date, id: string): Model {
   return model;
 }
 
-export type Example = { id: string; name: string; summary: string; create: (now?: Date, id?: string) => Model };
+export type Example = { id: string; name: string; summary: string; lens?: Lens; create: (now?: Date, id?: string) => Model };
 
-export const examples: Example[] = specs.map((s) => ({
-  id: s.id,
-  name: s.name,
-  summary: s.summary,
-  create: (now = new Date(), id = crypto.randomUUID()) => build(s, now, id),
-}));
+const LAYER_ORDER: Layer[] = ["business", "design", "service", "functional", "infrastructure"];
+const PER_ROW = 4;
+const ROW = 190; // element height (up to ~80) + room for a vertical relationship label
+const LAYER_GAP = 170; // below a layer's last row: its box padding, the next box's name tab and padding
+
+/**
+ * The CSDM 5 core metamodel as a model: one element per class in the white paper (no extended or
+ * CMDB-only classes), named after the class, and one relationship per allowed pair between them.
+ * Each layer wraps into rows so the poster stays readable.
+ */
+function metamodel(now: Date, id: string): Model {
+  const core = classes.filter((c) => isCsdmCore(c) && !isExtended(c));
+  const model = createModel("CSDM 5 core metamodel", now, id);
+  let y = 0;
+  for (const layer of LAYER_ORDER) {
+    const inLayer = core.filter((c) => c.layer === layer);
+    inLayer.forEach((c, i) => {
+      model.nodes.push({ id: c.id, class: c.id, name: c.label });
+      model.layout[c.id] = { x: (i % PER_ROW) * SLOT, y: y + Math.floor(i / PER_ROW) * ROW };
+    });
+    if (inLayer.length) y += Math.ceil(inLayer.length / PER_ROW - 1) * ROW + LAYER_GAP + 60;
+  }
+  const ids = new Set(core.map((c) => c.id as string));
+  const seen = new Set<string>();
+  for (const r of relationships) {
+    const key = `${r.from}>${r.to}`;
+    if (r.from === r.to || !ids.has(r.from) || !ids.has(r.to) || seen.has(key)) continue;
+    const type = allowedTypes(r.from, r.to)[0];
+    if (!type) continue;
+    seen.add(key);
+    model.edges.push({ id: `e${model.edges.length + 1}`, from: r.from, to: r.to, type });
+  }
+  return model;
+}
+
+export const examples: Example[] = [
+  ...specs.map((s) => ({
+    id: s.id,
+    name: s.name,
+    summary: s.summary,
+    lens: s.lens,
+    create: (now = new Date(), id = crypto.randomUUID()) => build(s, now, id),
+  })),
+  {
+    id: "csdm5-metamodel",
+    name: "CSDM 5 core metamodel",
+    lens: "csdm",
+    summary:
+      "Every class in the CSDM 5 white paper (no extended or CMDB-only classes) and each relationship the metamodel allows between them — a map to read before modeling. CSDM 6 has not been published yet (September 2026), so this is CSDM 5.",
+    create: (now = new Date(), id = crypto.randomUUID()) => metamodel(now, id),
+  },
+];

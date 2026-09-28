@@ -73,9 +73,11 @@ describe("draw.io file (compressed, what Lucid imports)", () => {
 
   it("compresses every example (non-ASCII names included)", async () => {
     for (const ex of examples) {
-      const file = await modelToDrawioFile(ex.create(at, ex.id), { now: at });
+      const model = ex.create(at, ex.id);
+      const file = await modelToDrawioFile(model, { now: at });
       const packed = /<diagram [^>]*>([^<]+)<\/diagram>/.exec(file)![1]!;
-      expect(await decompressDiagram(packed)).toContain("—");
+      const graph = await decompressDiagram(packed);
+      for (const n of model.nodes) expect(graph, ex.id).toContain(n.name);
     }
   });
 });

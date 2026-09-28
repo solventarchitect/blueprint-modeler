@@ -20,7 +20,8 @@ export function toElkGraph(model: Model, sizes: Record<string, Size> = {}): ElkN
       "elk.direction": "DOWN",
       "elk.partitioning.activate": "true",
       "elk.layered.spacing.nodeNodeBetweenLayers": "72",
-      "elk.spacing.nodeNode": "64",
+      // Room for a side-to-side edge's label and arrow between neighbors in a layer.
+      "elk.spacing.nodeNode": "112",
       "elk.layered.nodePlacement.strategy": "BRANDES_KOEPF",
       "elk.layered.considerModelOrder.strategy": "NODES_AND_EDGES",
     },
@@ -44,7 +45,7 @@ export function fromElkResult(result: ElkNode): Model["layout"] {
  * Extra room ELK does not know about, added below each CSDM layer: stacked layer boxes then leave
  * space for the lower box's name tab (boxes pad 36 above their elements and 24 below).
  */
-export const LAYER_GAP = 96;
+export const LAYER_GAP = 144;
 
 export async function autoLayout(engine: LayoutEngine, model: Model, sizes?: Record<string, Size>): Promise<Model["layout"]> {
   if (model.nodes.length === 0) return {};

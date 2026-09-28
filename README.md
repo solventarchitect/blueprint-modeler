@@ -41,13 +41,14 @@ General diagramming tools will draw any line you ask for. Blueprint Modeler know
 | **Allowed relationships only** | Connect two elements and choose from the types CSDM uses for that pair (101 pairs, typed from the white paper's relationship figure where it names them). While you drag, the line turns green with the relationship type over a valid target, or red with the reason over an invalid one, before you let go. |
 | **Conformance hints** | 10 checks, such as a Business Application with no Business Capability, a service instance nobody can request, an offering with no parent service, or a capability hierarchy deeper than six levels. Hints advise rather than block, highlight the elements involved and link to their source. |
 | **Class guide** | [Every class, relationship and hint](https://model.mikereams.com/guide) on one page, with its source and how well the public text supports each relationship type. |
-| **Examples** | Five fictional models to start from: an online store checkout, a storefront on Kubernetes (in the CMDB's Kubernetes classes), an enterprise AI assistant, an HR portal and a shared database platform. Three of them trigger hints on purpose. |
-| **Import and export** | A versioned JSON model file that round-trips exactly, standalone SVG images in light or dark for docs and slides, an ArchiMate® Model Exchange File that opens in Archi and other ArchiMate tools, and a draw.io file that opens in draw.io or imports into Lucidchart (shapes, colors, labels and connected lines; Lucid does not keep the CSDM properties as shape data), with a count of Lucid objects against the Lucid Free plan's per-document limit. |
+| **Examples** | Seven models to start from: five fictional ones (an online store checkout, a storefront on Kubernetes in the CMDB's Kubernetes classes, an enterprise AI assistant, an HR portal and a shared database platform; three trigger hints on purpose), a claims system read purely in ArchiMate, and the CSDM 5 core metamodel itself: every white-paper class and each relationship allowed between them. |
+| **Import and export** | A versioned JSON model file that round-trips exactly, standalone SVG images in light or dark for docs and slides, an ArchiMate® Model Exchange File that opens in Archi and other ArchiMate tools, and a draw.io file that opens in draw.io or imports into Lucidchart (shapes, colors, labels and connected lines; Lucid does not keep the CSDM properties as shape data), with a count of Lucid objects against the Lucid Free plan's per-document limit. A ServiceNow import workbook (.xlsx): one sheet per CMDB table with each element's name and description, a cmdb_rel_ci sheet for relationships, a references sheet, and a README sheet with the import steps. |
 | **Auto-layout** | One click lays the model out top-down by CSDM layer, in a background worker, as a single undo step. |
-| **ArchiMate lens** | Switch to CSDM + ArchiMate 3.2 and every element also shows its mapped ArchiMate element and notation icon; relationships read in ArchiMate terms. View-only: files stay in CSDM terms. |
+| **ArchiMate lens** | Switch to CSDM + ArchiMate 3.2 and every element also shows its mapped ArchiMate element and notation icon; relationships read in ArchiMate terms. ArchiMate 3.2 only hides the CSDM names on the canvas: elements are headed by their ArchiMate type, relationships carry their ArchiMate name, and arrows point the way ArchiMate draws them. View-only: files stay in CSDM terms. |
 | **Layer boxes, lanes and present mode** | A translucent box around each CSDM layer, optional full-width lanes that keep a dropped element in its own layer, snap to a 16px grid, and Present: a full-screen walk through the model, layer by layer, with the arrow keys. Drag a layer's label to move the layer with everything in it. |
 | **Suggestions** | A new element with no relationships offers what it can connect to (elements already on the canvas first, then the next CSDM classes) and adds the element and relationship in one click. While you draw a line, every element it can be dropped on is outlined. |
-| **Right-click menus** | Menus for whatever you click: an element (rename, relate, duplicate, delete), a relationship (update an older one to its CSDM 5 type), a layer, or the canvas. Shift+F10 opens them from the keyboard. |
+| **Right-click menus** | Menus for whatever you click: an element (rename, relate, duplicate, delete), a relationship (update an older one to its CSDM 5 type), a layer (zoom, select, distribute evenly, delete), or the canvas. Shift+F10 opens them from the keyboard. |
+| **Focus and descriptions** | Select an element and everything it connects to, with those relationships, is shaded. Hover an element and it enlarges in place until its text is readable, however far you have zoomed out, with its description underneath. Each element has a description field. |
 | **Keyboard and themes** | Every canvas action has a keyboard path. Auto, light and dark themes. Checked against WCAG 2.2 AA. |
 
 ## How it works
@@ -60,7 +61,7 @@ flowchart LR
   canvas -->|every change| hints["Hint engine<br/>10 checks"]
   hints -->|advice + source link| canvas
   canvas <-->|autosave| idb[("IndexedDB<br/>this browser only")]
-  canvas -->|export| files["JSON · SVG · ArchiMate · draw.io<br/>files on your device"]
+  canvas -->|export| files["JSON · SVG · ArchiMate · draw.io · ServiceNow .xlsx<br/>files on your device"]
   canvas -->|auto-layout| worker["elkjs<br/>Web Worker"]
 ```
 

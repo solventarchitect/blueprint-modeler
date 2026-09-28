@@ -12,6 +12,7 @@ export type Action =
   | { type: "rename-model"; name: string }
   | { type: "add-node"; id: string; class: ClassId; name: string }
   | { type: "rename-node"; id: string; name: string }
+  | { type: "describe-node"; id: string; description: string }
   | { type: "move-node"; id: string; x: number; y: number }
   | { type: "delete-node"; id: string }
   | { type: "delete-nodes"; ids: string[] }
@@ -27,8 +28,9 @@ const HISTORY_LIMIT = 100;
 
 /** Vertical lanes: the white paper's layers, top to bottom. */
 /** Lane rows, spaced so a layer's name tab fits between stacked layer boxes (see layout/bands). */
-export const laneY: Record<Layer, number> = { business: 0, design: 200, service: 400, functional: 600, infrastructure: 800 };
-const SLOT = 288; // node width (224) + room for a side-to-side edge label
+export const laneY: Record<Layer, number> = { business: 0, design: 240, service: 480, functional: 720, infrastructure: 960 };
+/** Column pitch: node width (224) + room for a side-to-side edge's label and arrow. */
+export const SLOT = 336;
 
 export const initialHistory = (model: Model): History => ({ past: [], present: model, future: [] });
 
@@ -102,6 +104,14 @@ function apply(model: Model, action: Action): Model | null {
       const node = model.nodes.find((n) => n.id === action.id);
       if (!node || node.name === action.name) return null;
       return { ...model, nodes: model.nodes.map((n) => (n.id === action.id ? { ...n, name: action.name } : n)) };
+    }
+    case "describe-node": {
+      const node = model.nodes.find((n) => n.id === action.id);
+      const description = action.description.trim();
+      if (!node || (node.attrs?.description ?? "") === description) return null;
+      const attrs = Object.fromEntries(Object.entries(node.attrs ?? {}).filter(([k]) => k !== "description"));
+      if (description) attrs.description = description;
+      return { ...model, nodes: model.nodes.map((n) => (n.id === action.id ? { ...n, attrs: Object.keys(attrs).length ? attrs : undefined } : n)) };
     }
     case "move-node": {
       const pos = model.layout[action.id];

@@ -1,4 +1,4 @@
-import { archimateElements, type Lens } from "@/frameworks";
+import { archimateElements, type Lens, showsArchimate } from "@/frameworks";
 import { classById, isClassId, type Layer } from "@/metamodel";
 import type { Model } from "@/model";
 import { edgeSides } from "@/layout/geometry";
@@ -65,7 +65,7 @@ export function modelToDrawio(model: Model, opts: { lens?: Lens; now?: Date } = 
     const def = classById(n.class);
     const layer: Layer = def?.layer ?? "design";
     const classLabel = def?.label ?? n.class;
-    const alt = lens === "archimate" && isClassId(n.class) ? archimateElements[n.class].label : undefined;
+    const alt = showsArchimate(lens) && isClassId(n.class) ? archimateElements[n.class].label : undefined;
     const label = `${n.name || "Untitled"}\n${classLabel}${alt ? `\nArchiMate · ${alt}` : ""}`;
     const b = box.get(n.id)!;
     const style = [

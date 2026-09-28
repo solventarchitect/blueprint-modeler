@@ -1,4 +1,4 @@
-import { archimateElements, type Lens } from "@/frameworks";
+import { archimateElements, type Lens, showsArchimate } from "@/frameworks";
 import { classById, isClassId, type Layer } from "@/metamodel";
 import type { Model } from "@/model";
 import { edgeSides, type Side } from "@/layout/geometry";
@@ -59,7 +59,7 @@ function anchor(b: Box, side: Side) {
  */
 export function modelToSvg(model: Model, theme: SvgTheme, opts: { lens?: Lens } = {}): string {
   const lens = opts.lens ?? "csdm";
-  const altOf = (cls: string) => (lens === "archimate" && isClassId(cls) ? archimateElements[cls].label : undefined);
+  const altOf = (cls: string) => (showsArchimate(lens) && isClassId(cls) ? archimateElements[cls].label : undefined);
   const p = palettes[theme];
   const boxes = new Map<string, Box & { lines: string[] }>();
   for (const n of model.nodes) {
@@ -120,7 +120,7 @@ export function modelToSvg(model: Model, theme: SvgTheme, opts: { lens?: Lens } 
 
   const title = esc(model.name || "Untitled model");
   const desc = esc(
-    `CSDM model with ${model.nodes.length} elements and ${model.edges.length} relationships${lens === "archimate" ? ", with ArchiMate 3.2 element names" : ""}, exported from Blueprint Modeler.`,
+    `CSDM model with ${model.nodes.length} elements and ${model.edges.length} relationships${showsArchimate(lens) ? ", with ArchiMate 3.2 element names" : ""}, exported from Blueprint Modeler.`,
   );
   return [
     `<?xml version="1.0" encoding="UTF-8"?>`,

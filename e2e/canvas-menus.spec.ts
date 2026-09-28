@@ -114,7 +114,7 @@ test.describe("context menus (desktop)", () => {
     const handle = page.getByRole("button", { name: /^Business layer/ });
     await handle.focus();
     await page.keyboard.press("Shift+F10");
-    await expect(page.getByRole("menu", { name: "Business layer menu" }).getByRole("menuitem")).toHaveText(["Zoom to layer", "Select layer", "Delete 1 element in this layer"]);
+    await expect(page.getByRole("menu", { name: "Business layer menu" }).getByRole("menuitem")).toHaveText(["Zoom to layer", "Select layer", "Distribute evenly", "Delete 1 element in this layer"]);
     await page.keyboard.press("Escape");
     await expect(handle).toBeFocused();
   });

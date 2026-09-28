@@ -15,14 +15,24 @@ export type ClassNodeData = {
   cls: string;
   hint?: "warning" | "info";
   highlight?: boolean;
+  /** Directly connected to the selected element. */
+  neighbor?: boolean;
+  description?: string;
   /** The element this class maps to under the active framework lens. */
   alt?: { type: ArchimateElementType; label: string };
+  /** ArchiMate-only lens: the ArchiMate element type heads the element, and CSDM names are hidden. */
+  archimateOnly?: boolean;
   /** Offer relationship suggestions (editing, and the element has no relationships yet). */
   suggest?: boolean;
 };
 
 const CARD_WIDTH = 256; // w-64
 const CARD_OFFSET = 12;
+/** Hovering enlarges an element in place until its name reads at this size on screen (text-sm is 12.8px). */
+const READABLE_PX = 14;
+const NAME_PX = 12.8;
+/** On screen, an enlarged element is always about its natural size (224px wide), so the cap only guards the minimum zoom. */
+const MAX_ENLARGE = 6;
 
 /** Suggestions for an element with no relationships, and what choosing one does. */
 export const SuggestContext = createContext<{
@@ -35,7 +45,7 @@ export const SuggestContext = createContext<{
  * The suggestion card beside an unconnected element: shown while it is selected or hovered, stays
  * while the pointer is over it, and closes with Escape or its close button (WCAG 1.4.13).
  */
-function Suggestions({ id, name, visible, onHover }: { id: string; name: string; visible: boolean; onHover: (over: boolean) => void }) {
+function Suggestions({ id, name, visible, onHover, scale = 1 }: { id: string; name: string; visible: boolean; onHover: (over: boolean) => void; scale?: number }) {
   const ctx = useContext(SuggestContext);
   const items = visible && ctx ? ctx.list(id) : [];
   // Keep the card inside the canvas: open downward from the top half and upward from the bottom
@@ -57,8 +67,11 @@ function Suggestions({ id, name, visible, onHover }: { id: string; name: string;
   const nodeBottom = nodeTop + (node?.measured.height ?? 60) * zoom;
   const room = side === Position.Top ? nodeTop : side === Position.Bottom ? height - nodeBottom : low ? nodeBottom : height - nodeTop;
   const listMax = Math.max(120, room - CARD_OFFSET - 64);
+  // An enlarged element grows past its box: open the card clear of it.
+  const grow = side === Position.Left || side === Position.Right ? (node?.measured.width ?? 224) : (node?.measured.height ?? 60);
+  const offset = CARD_OFFSET + ((scale - 1) * grow * zoom) / 2;
   return (
-    <NodeToolbar isVisible={visible && items.length > 0} position={side} align={align} offset={CARD_OFFSET}>
+    <NodeToolbar isVisible={visible && items.length > 0} position={side} align={align} offset={offset}>
       <div
         role="group"
         aria-label={`Suggested relationships for ${name}`}
@@ -124,25 +137,59 @@ function ClassNodeView({ id, data, selected, dragging }: NodeProps<ClassFlowNode
   };
   useEffect(() => () => clearTimeout(timer.current), []);
 
+  // Hovered (not while dragging or drawing): highlight, and enlarge in place so the text reads at
+  // READABLE_PX however far the canvas is zoomed out. The enlarged element is lifted above its neighbors.
+  const zoom = useStore((st) => st.transform[2]);
+  const focus = hovered && !dragging && !fromId;
+  const scale = focus ? Math.min(MAX_ENLARGE, Math.max(1, READABLE_PX / (NAME_PX * zoom))) : 1;
+  const box = useRef<HTMLDivElement>(null);
+  useEffect(() => {
+    const wrapper = box.current?.closest<HTMLElement>(".react-flow__node");
+    if (!wrapper) return;
+    wrapper.style.zIndex = focus ? "1000" : "";
+  }, [focus]);
+
   const ring = target
     ? "outline-2 outline-dashed outline-offset-4 outline-valid"
     : data.highlight
       ? "ring-2 ring-status ring-offset-2 ring-offset-surface"
       : selected
         ? "outline-2 outline-offset-2 outline-accent"
-        : "";
+        : data.neighbor
+          ? "outline-4 outline-offset-2 outline-neighbor"
+          : focus
+            ? "outline-2 outline-offset-2 outline-accent/70"
+            : "";
   return (
     <div
-      className={`relative w-56 border border-border-strong border-l-4 bg-surface-raised px-3 py-2.5 text-left ${layerAccent[def?.layer ?? "design"]} ${ring}`}
+      ref={box}
+      className={`node-card relative w-56 border border-border-strong border-l-4 px-3 py-2.5 text-left ${data.neighbor && !selected ? "bg-neighbor-tint" : "bg-surface-raised"} ${layerAccent[def?.layer ?? "design"]} ${ring} ${focus ? "shadow-lg" : ""}`}
+      style={scale > 1 ? { transform: `scale(${scale})` } : undefined}
       data-connect-target={target || undefined}
+      data-neighbor={data.neighbor || undefined}
+      data-enlarged={scale > 1 || undefined}
       onMouseEnter={() => hover(true)}
       onMouseLeave={() => hover(false)}
     >
-      {data.suggest && <Suggestions id={id} name={data.name || "Untitled"} visible={(selected || hovered) && !fromId && !dragging} onHover={hover} />}
+      {data.suggest && <Suggestions id={id} name={data.name || "Untitled"} visible={(selected || hovered) && !fromId && !dragging} onHover={hover} scale={scale} />}
       <Handle id="top" type="source" position={Position.Top} className="!size-2.5 !border-accent !bg-surface" />
-      <p className="font-mono text-[0.65rem] tracking-[0.12em] text-ink-muted uppercase">{def?.label ?? data.cls}</p>
+      {data.archimateOnly && data.alt ? (
+        <p className="flex items-center gap-1.5 font-mono text-[0.65rem] tracking-[0.12em] text-ai uppercase" data-testid="archimate-type">
+          <ArchimateGlyph type={data.alt.type} />
+          <span className="truncate">{data.alt.label}</span>
+        </p>
+      ) : (
+        // Over the neighbor tint, the muted gray falls below 4.5:1; the softer ink keeps it readable.
+        <p className={`font-mono text-[0.65rem] tracking-[0.12em] uppercase ${data.neighbor && !selected ? "text-ink-soft" : "text-ink-muted"}`}>{def?.label ?? data.cls}</p>
+      )}
       <p className="mt-0.5 truncate text-sm font-medium text-ink">{data.name || "Untitled"}</p>
-      {data.alt && (
+      {focus && data.description && (
+        // Out of flow, so showing it never changes the element's measured size (edges and boxes stay put).
+        <p data-testid="node-description" className="absolute top-full right-0 left-0 -mt-px border border-t-0 border-border-strong bg-surface-raised px-3 py-2 text-xs text-ink-soft">
+          {data.description}
+        </p>
+      )}
+      {data.alt && !data.archimateOnly && (
         <p className="mt-1.5 flex items-center gap-1.5 border-t border-border pt-1.5 font-mono text-[0.65rem] tracking-[0.04em] text-ai" data-testid="lens-label">
           <ArchimateGlyph type={data.alt.type} />
           <span className="truncate">{data.alt.label}</span>

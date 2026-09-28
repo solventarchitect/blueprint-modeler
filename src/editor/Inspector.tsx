@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useId, useRef, useState } from "react";
-import { ARCHIMATE_TRADEMARK, archimateElements, archimateRelationshipFor, archimateSources, type ElementMapping, type Lens } from "@/frameworks";
+import { ARCHIMATE_TRADEMARK, archimateElements, archimateRelationshipFor, archimateSources, type ElementMapping, type Lens, showsArchimate } from "@/frameworks";
 import { ArchimateGlyph } from "@/frameworks/ArchimateGlyph";
 import { allowedTypes, classById, isClassId, isCsdmCore, sources } from "@/metamodel";
 import type { Model } from "@/model";
@@ -59,6 +59,31 @@ function NameField({ id, value, label, onCommit, focusToken }: { id: string; val
   );
 }
 
+/** A CI's description: saved when the field loses focus (Ctrl+Enter also saves; Escape reverts). */
+function DescriptionField({ id, value, onCommit }: { id: string; value: string; onCommit: (v: string) => void }) {
+  const [draft, setDraft] = useState(value);
+  useEffect(() => setDraft(value), [value, id]);
+  const commit = () => draft.trim() !== value && onCommit(draft);
+  return (
+    <label className="flex flex-col gap-1 text-sm">
+      <span className="text-ink-muted">Description</span>
+      <textarea
+        className={`${input} min-h-20 resize-y py-1.5`}
+        value={draft}
+        maxLength={1000}
+        rows={3}
+        onChange={(e) => setDraft(e.target.value)}
+        onBlur={commit}
+        onKeyDown={(e) => {
+          if (e.key === "Enter" && (e.ctrlKey || e.metaKey)) commit();
+          if (e.key === "Escape") setDraft(value);
+        }}
+      />
+      <span className="text-xs text-ink-muted">Shown when you hover the element, and exported to ServiceNow as its description.</span>
+    </label>
+  );
+}
+
 /** Reads a CSDM edge in ArchiMate terms, e.g. "Serving — the node serves the instance". */
 function archimateRelFor(model: Model) {
   const classOf = new Map(model.nodes.map((n) => [n.id, n.class]));
@@ -108,7 +133,7 @@ export function Inspector({ model, selectedId, dispatch, focusName, focusConnect
       return !model.edges.some((e) => e.from === from && e.to === to && e.type === t);
     });
 
-  const am: ElementMapping | undefined = lens === "archimate" && isClassId(node.class) ? archimateElements[node.class] : undefined;
+  const am: ElementMapping | undefined = showsArchimate(lens) && isClassId(node.class) ? archimateElements[node.class] : undefined;
 
   const addRelationship = () => {
     const [dir, other, t] = target.split("|");
@@ -155,6 +180,7 @@ export function Inspector({ model, selectedId, dispatch, focusName, focusConnect
         </section>
       )}
       <NameField id={node.id} value={node.name} label="Name" focusToken={focusName} onCommit={(name) => dispatch({ type: "rename-node", id: node.id, name })} />
+      <DescriptionField id={node.id} value={node.attrs?.description ?? ""} onCommit={(description) => dispatch({ type: "describe-node", id: node.id, description })} />
 
       <section aria-labelledby="rel-heading" className="flex flex-col gap-2">
         <h2 id="rel-heading" className="text-sm font-medium">
@@ -182,7 +208,7 @@ export function Inspector({ model, selectedId, dispatch, focusName, focusConnect
               <span className="flex flex-col">
                 <span>{text}</span>
                 <span className="font-mono text-xs text-ink-muted">{e.type}</span>
-                {lens === "archimate" && archimateRel(e.from, e.to) && <span className="text-xs text-ai">ArchiMate: {archimateRel(e.from, e.to)}</span>}
+                {showsArchimate(lens) && archimateRel(e.from, e.to) && <span className="text-xs text-ai">ArchiMate: {archimateRel(e.from, e.to)}</span>}
               </span>
               <button type="button" className={button} onClick={() => dispatch({ type: "delete-edge", id: e.id })} aria-label={`Remove relationship ${text} ${e.type}`}>
                 Remove
