@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useId, useRef, useState } from "react";
+import { ToolbarIcon } from "./ToolbarIcon";
 
 export type ViewOptions = { boxes: boolean; lanes: boolean; snap: boolean; extended: boolean };
 export const VIEW_KEY = "bm-view";
@@ -59,6 +60,7 @@ export function ViewMenu({ value, onChange, buttonClass }: { value: ViewOptions;
       }}
     >
       <button ref={button} type="button" className={buttonClass} aria-expanded={open} aria-controls={listId} onClick={() => setOpen((o) => !o)}>
+        <ToolbarIcon name="view" />
         View <span aria-hidden="true">▾</span>
       </button>
       <ul id={listId} hidden={!open} className="absolute left-0 z-20 mt-1 w-64 border border-border-strong bg-surface-raised py-1">

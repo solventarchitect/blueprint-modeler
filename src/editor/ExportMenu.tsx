@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useId, useRef, useState } from "react";
+import { ToolbarIcon } from "./ToolbarIcon";
 
 export type ExportKind = "json" | "svg-dark" | "svg-light" | "archimate" | "drawio" | "servicenow";
 
@@ -51,6 +52,7 @@ export function ExportMenu({
       }}
     >
       <button ref={button} type="button" className={buttonClass} aria-expanded={open} aria-controls={listId} onClick={() => setOpen((o) => !o)}>
+        <ToolbarIcon name="export" />
         Export <span aria-hidden="true">▾</span>
       </button>
       <ul id={listId} hidden={!open} className="absolute left-0 z-20 mt-1 w-60 border border-border-strong bg-surface-raised py-1">

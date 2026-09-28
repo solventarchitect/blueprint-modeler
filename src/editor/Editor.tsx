@@ -49,6 +49,7 @@ import { ExportMenu, type ExportKind } from "./ExportMenu";
 import { ContextMenu, type MenuItem } from "./ContextMenu";
 import { CanvasEdge, LabelObstacles } from "./CanvasEdge";
 import { ModelManager } from "./ModelManager";
+import { ToolbarIcon } from "./ToolbarIcon";
 import { CanvasTitle } from "./CanvasTitle";
 import { LayerOverlay, layerHandleId, type LayerHandlers } from "./LayerOverlay";
 import { DEFAULT_VIEW, readView, saveView, ViewMenu, type ViewOptions } from "./ViewMenu";
@@ -77,6 +78,13 @@ const toolbarButton =
 const fitPadding = (p: number) => ({ x: p, bottom: p, top: "120px" }) as const;
 /** Status bar links: a 24px-tall target even at the bar's small text size. */
 const footerLink = "inline-flex min-h-6 items-center text-accent underline underline-offset-4 hover:opacity-90";
+/** The one filled button: Present. */
+const primaryButton =
+  "inline-flex min-h-8 cursor-pointer items-center gap-1.5 border border-accent bg-accent px-3 text-sm font-medium text-accent-ink hover:opacity-90 disabled:cursor-not-allowed disabled:opacity-60";
+/** Toolbar groups (Model, Edit, Arrange, Lens): a caption on wide screens, a divider between groups. */
+const toolbarGroup = "flex flex-wrap items-center gap-1.5";
+const groupCaption = "mr-0.5 hidden font-mono text-[0.65rem] tracking-[0.14em] text-ink-muted uppercase min-[1840px]:inline";
+const toolbarDivider = "h-6 w-px bg-border-strong/50";
 const toolbarSelect = "min-h-8 max-w-60 border border-border-strong bg-surface-raised px-2 text-sm text-ink";
 
 function useIsWide() {
@@ -736,7 +744,7 @@ function EditorInner() {
 
   const selected = model.nodes.find((n) => n.id === selectedId);
   const scopedHints = selected ? hints.filter((h) => h.nodeIds.includes(selected.id)) : hints;
-  const warnings = hints.filter((h) => h.hint.severity === "warning").length;
+  const scopedWarnings = scopedHints.filter((h) => h.hint.severity === "warning").length;
 
   const onTabKey = (e: ReactKeyboardEvent) => {
     if (e.key === "ArrowRight" || e.key === "ArrowLeft") {
@@ -770,6 +778,10 @@ function EditorInner() {
         </div>
       )}
       <div className={`flex flex-wrap items-center gap-2 border-b border-border px-4 py-2 ${presenting ? "hidden" : ""}`}>
+        <div role="group" aria-label="Model" className={toolbarGroup}>
+        <span className={groupCaption} aria-hidden="true">
+          Model
+        </span>
         <label className="flex items-center gap-2 text-sm">
           <span className="sr-only">Open model</span>
           {/* Fixed width: a long model name must not re-wrap the toolbar after the canvas has been fitted. */}
@@ -790,16 +802,18 @@ function EditorInner() {
           </select>
         </label>
         <button type="button" className={toolbarButton} onClick={() => setManaging(true)}>
+          <ToolbarIcon name="manage" />
           Manage…
         </button>
-        <button type="button" className={toolbarButton} onClick={() => void doc.newModel()}>
-          New model
+        <button type="button" className={toolbarButton} onClick={() => void doc.newModel()} aria-label="New model">
+          <ToolbarIcon name="new" />
+          New
         </button>
         <label className="flex items-center text-sm">
           <span className="sr-only">Start from an example</span>
           {/* Fixed width, like the model picker: a long example name must not re-wrap the toolbar. */}
-          <select className={`${toolbarSelect} w-52`} value="" onChange={(e) => void loadExample(e.target.value)}>
-            <option value="">Start from an example…</option>
+          <select className={`${toolbarSelect} w-36`} value="" onChange={(e) => void loadExample(e.target.value)}>
+            <option value="">Examples…</option>
             {examples.map((ex) => (
               <option key={ex.id} value={ex.id}>
                 {ex.name}
@@ -807,22 +821,10 @@ function EditorInner() {
             ))}
           </select>
         </label>
-        <span className="mx-1 h-5 w-px bg-border" aria-hidden="true" />
-        <button type="button" className={toolbarButton} disabled={!doc.canUndo} onClick={() => dispatch({ type: "undo" })} aria-keyshortcuts="Control+Z">
-          Undo
-        </button>
-        <button type="button" className={toolbarButton} disabled={!doc.canRedo} onClick={() => dispatch({ type: "redo" })} aria-keyshortcuts="Control+Shift+Z">
-          Redo
-        </button>
-        {wide && (
-          <button type="button" className={toolbarButton} disabled={layingOut || model.nodes.length === 0} aria-busy={layingOut} onClick={() => void runLayout()}>
-            {layingOut ? "Laying out…" : "Auto-layout"}
-          </button>
-        )}
-        <span className="mx-1 h-5 w-px bg-border" aria-hidden="true" />
         {wide && (
           <>
             <button type="button" className={toolbarButton} onClick={() => fileInput.current?.click()}>
+              <ToolbarIcon name="import" />
               Import…
             </button>
             <input
@@ -840,42 +842,57 @@ function EditorInner() {
           </>
         )}
         <ExportMenu onExport={exportAs} buttonClass={toolbarButton} notes={{ drawio: lucidFitNote(lucidFit(model)) }} />
-        <ViewMenu value={view} onChange={setView} buttonClass={toolbarButton} />
-        <button ref={presentButton} type="button" className={toolbarButton} disabled={model.nodes.length === 0} onClick={startPresenting}>
+        </div>
+        <span className={toolbarDivider} aria-hidden="true" />
+        <div role="group" aria-label="Edit" className={toolbarGroup}>
+          <span className={groupCaption} aria-hidden="true">
+            Edit
+          </span>
+          {/* Undo and Redo as one joined pair. */}
+          <span className="inline-flex">
+            <button type="button" className={toolbarButton} disabled={!doc.canUndo} onClick={() => dispatch({ type: "undo" })} aria-keyshortcuts="Control+Z">
+              <ToolbarIcon name="undo" />
+              Undo
+            </button>
+            <button type="button" className={`${toolbarButton} -ml-px`} disabled={!doc.canRedo} onClick={() => dispatch({ type: "redo" })} aria-keyshortcuts="Control+Shift+Z">
+              <ToolbarIcon name="redo" />
+              Redo
+            </button>
+          </span>
+        </div>
+        <span className={toolbarDivider} aria-hidden="true" />
+        <div role="group" aria-label="Arrange" className={toolbarGroup}>
+          <span className={groupCaption} aria-hidden="true">
+            Arrange
+          </span>
+          {wide && (
+            <button type="button" className={toolbarButton} disabled={layingOut || model.nodes.length === 0} aria-busy={layingOut} onClick={() => void runLayout()}>
+              <ToolbarIcon name="layout" />
+              {layingOut ? "Laying out…" : "Auto-layout"}
+            </button>
+          )}
+          <ViewMenu value={view} onChange={setView} buttonClass={toolbarButton} />
+        </div>
+        <span className={toolbarDivider} aria-hidden="true" />
+        <div role="group" aria-label="Lens" className={toolbarGroup}>
+          <span className={groupCaption} aria-hidden="true">
+            Lens
+          </span>
+          <label className="flex items-center text-sm">
+            <span className="sr-only">Framework lens</span>
+            <select className={`${toolbarSelect} w-44`} value={lens} onChange={(e) => setLens(e.target.value as Lens)} data-testid="lens-select">
+              {lenses.map((l) => (
+                <option key={l.id} value={l.id}>
+                  {l.label}
+                </option>
+              ))}
+            </select>
+          </label>
+        </div>
+        <button ref={presentButton} type="button" className={primaryButton} disabled={model.nodes.length === 0} onClick={startPresenting}>
+          <ToolbarIcon name="present" />
           Present
         </button>
-        <label className="flex items-center text-sm">
-          <span className="sr-only">Framework lens</span>
-          <select className={toolbarSelect} value={lens} onChange={(e) => setLens(e.target.value as Lens)} data-testid="lens-select">
-            {lenses.map((l) => (
-              <option key={l.id} value={l.id}>
-                {l.label}
-              </option>
-            ))}
-          </select>
-        </label>
-        {wide && (
-          <button
-            type="button"
-            className={toolbarButton}
-            onClick={() => {
-              setSelectedId(null);
-              setTab("hints");
-            }}
-          >
-            Hints
-            <span className={`min-w-5 rounded-full px-1.5 font-mono text-xs ${warnings ? "bg-status text-accent-ink" : "bg-border text-ink"}`}>{hints.length}</span>
-          </button>
-        )}
-        {/* The widest routine status reserves its width, so "Saving…" ↔ "Saved" never re-wraps the toolbar (and moves the canvas). */}
-        <p className="ml-auto grid text-right text-xs text-ink-muted">
-          <span aria-hidden="true" className="invisible col-start-1 row-start-1">
-            {statusText.saved}
-          </span>
-          <span className="col-start-1 row-start-1" data-testid="save-status">
-            {statusText[doc.status]}
-          </span>
-        </p>
       </div>
 
       {ioError && !presenting && (
@@ -1011,11 +1028,21 @@ function EditorInner() {
                   type="button"
                   aria-selected={tab === t}
                   aria-controls={`panel-${t}`}
+                  aria-label={t === "hints" ? `Hints (${scopedHints.length})` : undefined}
                   tabIndex={tab === t ? 0 : -1}
                   onClick={() => setTab(t)}
                   className={`flex-1 cursor-pointer px-3 py-2 text-sm ${tab === t ? "border-b-2 border-accent font-medium text-ink" : "text-ink-muted hover:text-ink"}`}
                 >
-                  {t === "details" ? "Details" : `Hints (${scopedHints.length})`}
+                  {t === "details" ? (
+                    "Details"
+                  ) : (
+                    <>
+                      Hints
+                      <span aria-hidden="true" className={`ml-1.5 inline-block min-w-5 rounded-full px-1.5 font-mono text-xs ${scopedWarnings ? "bg-status text-accent-ink" : "bg-border text-ink"}`}>
+                        {scopedHints.length}
+                      </span>
+                    </>
+                  )}
                 </button>
               ))}
             </div>
@@ -1073,7 +1100,17 @@ function EditorInner() {
         </p>
         {/* The site footer is left off this page (the editor fills the screen); its links live here. */}
         <div className="flex flex-wrap items-center gap-x-3">
-          <p>{wide ? "Your models are stored only in this browser." : "Editing needs a screen at least 768px wide. You can view and pan here."}</p>
+          {/* The widest routine status reserves its width, so "Saving…" ↔ "Saved" never shifts the bar. */}
+          <p className="grid">
+            <span aria-hidden="true" className="invisible col-start-1 row-start-1">
+              {statusText.saved}
+            </span>
+            <span className="col-start-1 row-start-1" data-testid="save-status">
+              {statusText[doc.status]}
+            </span>
+          </p>
+          {/* "Saved in this browser" already says where models live; small screens get the editing note. */}
+          {!wide && <p>Editing needs a screen at least 768px wide. You can view and pan here.</p>}
           <nav aria-label="Site">
             <ul className="flex flex-wrap items-center gap-x-3">
               <li>

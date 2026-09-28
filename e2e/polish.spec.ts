@@ -179,3 +179,25 @@ test.describe("landing page", () => {
     await expect.poll(() => table.evaluate((e) => e.scrollWidth - e.getBoundingClientRect().width), { timeout: 500 }).toBeLessThanOrEqual(1);
   });
 });
+
+test.describe("editor toolbar (desktop)", () => {
+  test.skip(({ isMobile }) => !!isMobile, "the full toolbar is desktop-only");
+
+  for (const scheme of ["dark", "light"] as const) {
+    test(`groups its buttons, makes Present the one filled button, and has no separate Hints button (${scheme})`, async ({ page }) => {
+      await page.emulateMedia({ colorScheme: scheme });
+      await page.goto("/editor");
+      await expect(page.getByTestId("save-status")).toHaveText("Saved in this browser");
+      for (const name of ["Model", "Edit", "Arrange", "Lens"]) await expect(page.getByRole("group", { name, exact: true })).toBeVisible();
+      await expect(page.getByRole("group", { name: "Edit" }).getByRole("button")).toHaveText(["Undo", "Redo"]);
+      await expect(page.locator("main").getByRole("button", { name: /^Hints/ })).toHaveCount(0);
+      await expect(page.getByRole("tab", { name: "Hints (0)" })).toBeVisible();
+      await page.getByRole("combobox", { name: "Start from an example" }).selectOption({ label: "Online store checkout" });
+      const present = page.getByRole("button", { name: "Present" });
+      await expect(present).toBeEnabled();
+      expect(await contrastOf(present), scheme).toBeGreaterThanOrEqual(4.5);
+      // Toolbar icons are decorative: every button keeps its text label.
+      expect(await page.locator("[role=group] button svg:not([aria-hidden=true])").count()).toBe(0);
+    });
+  }
+});
