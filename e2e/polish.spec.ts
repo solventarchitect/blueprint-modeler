@@ -79,6 +79,7 @@ test.describe("edge labels (desktop)", () => {
     const examples = page.getByRole("combobox", { name: "Start from an example" });
     const count = await examples.locator("option").count();
     for (let i = 1; i < count; i++) {
+      if ((await examples.locator("option").nth(i).getAttribute("value")) === "__blank") continue;
       await examples.selectOption({ index: i });
       await expect(page.locator(".react-flow__edge-text").first()).toBeVisible();
       await expect.poll(overlaps, { message: `example ${i}` }).toEqual([]);
@@ -111,6 +112,7 @@ test.describe("stacked layers (desktop)", () => {
     const examples = page.getByRole("combobox", { name: "Start from an example" });
     const count = await examples.locator("option").count();
     for (let i = 1; i < count; i++) {
+      if ((await examples.locator("option").nth(i).getAttribute("value")) === "__blank") continue;
       await examples.selectOption({ index: i });
       await expect(page.getByTestId("layer-handle").first()).toBeVisible();
       await expect.poll(clashes, { message: `example ${i}` }).toEqual([]);

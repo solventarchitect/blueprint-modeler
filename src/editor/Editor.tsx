@@ -339,6 +339,14 @@ function EditorInner() {
     setTimeout(() => void flow.fitView({ maxZoom: 1, padding: fitPadding(0.15) }), 50);
   };
 
+  // "Blank model" closes the empty-state card for this model and moves focus to the palette.
+  const [blankFor, setBlankFor] = useState<string | null>(null);
+  const startBlank = () => {
+    setBlankFor(model.id);
+    setMessage("Blank model ready. Add an element from the palette.");
+    requestAnimationFrame(() => document.querySelector<HTMLButtonElement>('nav[aria-label="Element palette"] button')?.focus());
+  };
+
   const runLayout = async () => {
     if (model.nodes.length === 0 || layingOut) return;
     setLayingOut(true);
@@ -812,8 +820,16 @@ function EditorInner() {
         <label className="flex items-center text-sm">
           <span className="sr-only">Start from an example</span>
           {/* Fixed width, like the model picker: a long example name must not re-wrap the toolbar. */}
-          <select className={`${toolbarSelect} w-36`} value="" onChange={(e) => void loadExample(e.target.value)}>
+          <select className={`${toolbarSelect} w-36`} value="" onChange={(e) => {
+              const v = e.target.value;
+              if (v === "__blank") {
+                setSelectedId(null);
+                setActiveHint(null);
+                void doc.newModel().then(() => setMessage("Opened a new blank model."));
+              } else void loadExample(v);
+            }}>
             <option value="">Examples…</option>
+            <option value="__blank">Blank model</option>
             {examples.map((ex) => (
               <option key={ex.id} value={ex.id}>
                 {ex.name}
@@ -997,12 +1013,18 @@ function EditorInner() {
           </LabelObstacles>
           </SuggestContext.Provider>
           </ConnectionModelContext.Provider>
-          {model.nodes.length === 0 && doc.status !== "loading" && (
+          {model.nodes.length === 0 && doc.status !== "loading" && blankFor !== model.id && (
             <div className="pointer-events-none absolute inset-0 flex items-center justify-center p-6">
               <div className="pointer-events-auto max-h-full max-w-lg overflow-y-auto border border-border bg-surface-raised p-6">
                 <p className="font-mono text-xs tracking-[0.14em] text-accent uppercase">{"// Empty model"}</p>
-                <h2 className="mt-2 text-lg font-semibold">Start from the palette, or open an example</h2>
+                <h2 className="mt-2 text-lg font-semibold">Start blank, or open an example</h2>
                 <ul className="mt-4 flex flex-col gap-2">
+                  <li>
+                    <button type="button" onClick={startBlank} className="w-full cursor-pointer border border-accent p-3 text-left hover:bg-surface">
+                      <span className="block text-sm font-medium text-ink">Blank model</span>
+                      <span className="mt-1 block text-xs text-ink-muted">An empty canvas: add elements from the palette.</span>
+                    </button>
+                  </li>
                   {examples.map((ex) => (
                     <li key={ex.id}>
                       <button type="button" onClick={() => void loadExample(ex.id)} className="w-full cursor-pointer border border-border p-3 text-left hover:border-accent">

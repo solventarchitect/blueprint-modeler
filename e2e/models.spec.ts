@@ -54,3 +54,25 @@ test.describe("managing saved models (desktop)", () => {
     await expect(picker(page).locator("option")).toHaveText("Untitled model");
   });
 });
+
+test.describe("starting blank (desktop)", () => {
+  test.skip(({ isMobile }) => !!isMobile, "editing is desktop-only");
+
+  test("the empty state starts a blank model and hands focus to the palette; Examples offers a blank model too", async ({ page }) => {
+    await page.goto("/editor");
+    await expect(page.getByTestId("save-status")).toHaveText("Saved in this browser");
+    await page.getByRole("button", { name: /^Blank model/ }).click();
+    await expect(page.getByRole("heading", { name: "Start blank, or open an example" })).toHaveCount(0);
+    await expect(page.getByRole("navigation", { name: "Element palette" }).getByRole("button").first()).toBeFocused();
+    await expect(page.getByRole("status")).toContainText("Blank model ready");
+
+    await page.getByRole("combobox", { name: "Start from an example" }).selectOption({ label: "Online store checkout" });
+    await expect(page.locator(".react-flow__node")).not.toHaveCount(0);
+    const before = await page.getByRole("combobox", { name: "Open model" }).locator("option").count();
+    await page.getByRole("combobox", { name: "Start from an example" }).selectOption({ label: "Blank model" });
+    await expect(page.getByRole("combobox", { name: "Open model" }).locator("option")).toHaveCount(before + 1);
+    await expect(page.locator(".react-flow__node")).toHaveCount(0);
+    await expect(page.getByRole("combobox", { name: "Open model" })).toHaveValue(/.+/);
+    await expect(page.getByRole("combobox", { name: "Start from an example" })).toHaveValue("");
+  });
+});
