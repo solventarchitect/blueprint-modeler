@@ -3,3 +3,9 @@
 allowBuilds:
   esbuild: true
   unrs-resolver: true
+
+# Security (Dependabot, 2026-10-01): Next 15 pins postcss 8.4.31 (GHSA-qx2v-qp2m-jg93, GHSA-6g55-p6wh-862q,
+# GHSA-r28c-9q8g-f849, GHSA-fxqj-rqcc-2cmp). Use the patched 8.5 line the rest of the tree already uses.
+# Next 16 ships postcss >= 8.5.23; drop this override when the framework moves past 15.
+overrides:
+  next>postcss: 8.5.28
