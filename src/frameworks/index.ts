@@ -1,4 +1,5 @@
 export * from "./archimate";
+export * from "./notation";
 
 /** Which framework's names to show alongside CSDM. A viewing preference, never part of the model. */
 export type Lens = "csdm" | "archimate" | "archimate-only";
