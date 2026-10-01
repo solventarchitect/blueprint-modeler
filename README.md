@@ -11,6 +11,7 @@
 <p align="center">
   <a href="https://model.mikereams.com"><img alt="Open the app" src="https://img.shields.io/badge/open_the-app-5ec8ff?style=flat-square&labelColor=121e2b"></a>
   <a href="https://github.com/solventarchitect/blueprint-modeler/actions/workflows/ci.yml"><img alt="CI" src="https://img.shields.io/github/actions/workflow/status/solventarchitect/blueprint-modeler/ci.yml?branch=main&label=CI&style=flat-square&labelColor=121e2b&color=5ec8ff"></a>
+  <a href="https://github.com/solventarchitect/blueprint-modeler/releases/latest"><img alt="Latest release" src="https://img.shields.io/github/v/release/solventarchitect/blueprint-modeler?style=flat-square&labelColor=121e2b&color=5ec8ff&label=release"></a>
   <a href="LICENSE"><img alt="License: MIT" src="https://img.shields.io/badge/license-MIT-5ec8ff?style=flat-square&labelColor=121e2b"></a>
   <a href="https://model.mikereams.com/guide"><img alt="Class guide" src="https://img.shields.io/badge/read_the-class_guide-b4a7ff?style=flat-square&labelColor=121e2b"></a>
 </p>
@@ -52,6 +53,14 @@ General diagramming tools will draw any line you ask for. Blueprint Modeler know
 | **Read this model** | The Read tab beside Hints says every relationship as a sentence, worded for the lens and scoped to the selected element. Choose a sentence to highlight that relationship on the canvas. |
 | **Focus and descriptions** | Select an element and everything it connects to, with those relationships, is shaded. Hover an element to highlight it and show its description underneath. Each element has a description field. |
 | **Keyboard and themes** | Every canvas action has a keyboard path. Auto, light and dark themes. Checked against WCAG 2.2 AA. |
+
+<p align="center">
+  <picture>
+    <source media="(prefers-color-scheme: dark)" srcset="assets/screenshot-archimate-dark.png">
+    <source media="(prefers-color-scheme: light)" srcset="assets/screenshot-archimate-light.png">
+    <img alt="The claims handling example in the ArchiMate 3.2 only lens: elements filled with their ArchiMate layer colors (capability, business process, application component, business object, business service, product), relationships drawn in ArchiMate notation with labels (dashed realization lines ending in hollow triangles, an open serving arrow, a dotted access line, a hollow aggregation diamond), a legend of the relationship types in the top right, and the Read tab listing each relationship as a sentence, with one highlighted on the canvas." src="assets/screenshot-archimate-dark.png" width="100%">
+  </picture>
+</p>
 
 ## How it works
 
@@ -107,14 +116,19 @@ pnpm verify
 
 Runs the same gates as CI: typecheck, lint, unit tests (model, metamodel sources, hints, import/export, layout), the static build, then Playwright against the built site. The browser tests cover the hero flow, keyboard paths, an accessibility scan of every page in both themes, a check that nothing loads from another origin, and no horizontal scroll at five screen widths.
 
+## Releases
+
+The live site deploys from `main` on every merge. [GitHub releases](https://github.com/solventarchitect/blueprint-modeler/releases) group finished milestones into versions (semantic versioning, matching `package.json`), and the milestone table in [SPEC.md](SPEC.md) records what each one changed and how it was verified.
+
 ## What's inside
 
 ```text
 src/
   metamodel/    CSDM classes, relationship pairs and types, hint catalog, sources
   model/        model schema (zod), parse and migrate, hint engine
-  editor/       canvas, palette, inspector, hints panel, undo/redo state
-  io/           JSON import/export, SVG, ArchiMate and draw.io export, Lucid plan fit
+  editor/       canvas, palette, inspector, hints and read panels, notation legend, undo/redo state
+  frameworks/   ArchiMate 3.2 lens: element and relationship mapping, notation, layer colors
+  io/           JSON import/export, SVG, ArchiMate, draw.io and ServiceNow export, Lucid plan fit
   layout/       ELK graph, Web Worker engine, shared edge routing
   storage/      IndexedDB store (memory fallback)
   examples/     the seven starter models
