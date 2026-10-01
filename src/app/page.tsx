@@ -1,5 +1,6 @@
 import type { CSSProperties } from "react";
 import { HeroDiagram } from "@/components/HeroDiagram";
+import { HeroFigures } from "@/components/HeroFigures";
 import { site } from "@/lib/site";
 import { classById, type ClassId } from "@/metamodel";
 
@@ -37,7 +38,9 @@ export default function Home() {
           </div>
         </div>
         <figure className="mx-auto w-full max-w-md lg:max-w-none">
-          <HeroDiagram />
+          <HeroFigures>
+            <HeroDiagram />
+          </HeroFigures>
         </figure>
       </div>
 
