@@ -1,4 +1,4 @@
-import { archimateElements, type Lens, showsArchimate } from "@/frameworks";
+import { archimateElements, archimateFill, archimateRelationshipFor, archimateTypeInk, edgeNotation, markerSvg, type Lens, type MarkerShape, showsArchimate } from "@/frameworks";
 import { classById, isClassId, type Layer } from "@/metamodel";
 import type { Model } from "@/model";
 import { edgeSides, type Side } from "@/layout/geometry";
@@ -59,12 +59,17 @@ function anchor(b: Box, side: Side) {
  */
 export function modelToSvg(model: Model, theme: SvgTheme, opts: { lens?: Lens } = {}): string {
   const lens = opts.lens ?? "csdm";
-  const altOf = (cls: string) => (showsArchimate(lens) && isClassId(cls) ? archimateElements[cls].label : undefined);
+  // ArchiMate-only: the ArchiMate type heads each element (no CSDM line), fills follow the ArchiMate
+  // layer, and relationships carry ArchiMate notation — as on the canvas.
+  const amOnly = lens === "archimate-only";
+  const altOf = (cls: string) => (showsArchimate(lens) && !amOnly && isClassId(cls) ? archimateElements[cls].label : undefined);
+  const headOf = (cls: string) => (amOnly && isClassId(cls) ? archimateElements[cls].label : (classById(cls)?.label ?? cls));
+  const fillOf = (cls: string) => (amOnly && isClassId(cls) ? archimateFill[theme][archimateElements[cls].layer] : undefined);
   const p = palettes[theme];
   const boxes = new Map<string, Box & { lines: string[] }>();
   for (const n of model.nodes) {
     const pos = model.layout[n.id] ?? { x: 0, y: 0 };
-    const lines = wrap((classById(n.class)?.label ?? n.class).toUpperCase(), CLASS_CHARS);
+    const lines = wrap(headOf(n.class).toUpperCase(), CLASS_CHARS);
     boxes.set(n.id, { x: pos.x, y: pos.y, w: W, h: 20 + lines.length * 14 + 22 + (altOf(n.class) ? 20 : 0), lines });
   }
 
@@ -76,6 +81,8 @@ export function modelToSvg(model: Model, theme: SvgTheme, opts: { lens?: Lens } 
   const width = maxX - minX;
   const height = maxY - minY;
 
+  const classOf = (id: string) => model.nodes.find((n) => n.id === id)?.class ?? "";
+  const shapes = new Set<MarkerShape>();
   const edges: string[] = [];
   for (const e of model.edges) {
     const a = boxes.get(e.from);
@@ -88,10 +95,17 @@ export function modelToSvg(model: Model, theme: SvgTheme, opts: { lens?: Lens } 
     const c1 = { x: s.x + s.dx * d, y: s.y + s.dy * d };
     const c2 = { x: t.x + t.dx * d, y: t.y + t.dy * d };
     const mid = { x: (s.x + 3 * c1.x + 3 * c2.x + t.x) / 8, y: (s.y + 3 * c1.y + 3 * c2.y + t.y) / 8 };
-    const label = e.type.startsWith("reference:") ? "reference" : (e.type.split("::")[0] ?? e.type);
+    const am = amOnly ? edgeNotation(archimateRelationshipFor(classOf(e.from), classOf(e.to))) : undefined;
+    const label = am ? am.type : e.type.startsWith("reference:") ? "reference" : (e.type.split("::")[0] ?? e.type);
     const lw = label.length * 6.6 + 8;
+    let ends = ` marker-end="url(#arrow)"`;
+    if (am) {
+      ends = (am.dash ? ` stroke-dasharray="${am.dash}"` : "") + (am.atFrom ? ` marker-start="url(#am-${am.atFrom})"` : "") + (am.atTo ? ` marker-end="url(#am-${am.atTo})"` : "");
+      if (am.atFrom) shapes.add(am.atFrom);
+      if (am.atTo) shapes.add(am.atTo);
+    }
     edges.push(
-      `<path d="M${r1(s.x)} ${r1(s.y)} C${r1(c1.x)} ${r1(c1.y)} ${r1(c2.x)} ${r1(c2.y)} ${r1(t.x)} ${r1(t.y)}" fill="none" stroke="${p.line}" stroke-width="1.25" marker-end="url(#arrow)"/>`,
+      `<path d="M${r1(s.x)} ${r1(s.y)} C${r1(c1.x)} ${r1(c1.y)} ${r1(c2.x)} ${r1(c2.y)} ${r1(t.x)} ${r1(t.y)}" fill="none" stroke="${p.line}" stroke-width="1.25"${ends}/>`,
       `<rect x="${r1(mid.x - lw / 2)}" y="${r1(mid.y - 8)}" width="${r1(lw)}" height="16" fill="${p.bg}"/>`,
       `<text x="${r1(mid.x)}" y="${r1(mid.y + 4)}" text-anchor="middle" font-family="${MONO}" font-size="11" fill="${p.muted}">${esc(label)}</text>`,
     );
@@ -103,10 +117,10 @@ export function modelToSvg(model: Model, theme: SvgTheme, opts: { lens?: Lens } 
     const layer = classById(n.class)?.layer ?? "design";
     const alt = altOf(n.class);
     const cls = b.lines
-      .map((l, i) => `<text x="${b.x + 14}" y="${b.y + 22 + i * 14}" font-family="${MONO}" font-size="10" letter-spacing="1.2" fill="${p.muted}">${esc(l)}</text>`)
+      .map((l, i) => `<text x="${b.x + 14}" y="${b.y + 22 + i * 14}" font-family="${MONO}" font-size="10" letter-spacing="1.2" fill="${amOnly ? (fillOf(n.class) ? archimateTypeInk[theme] : p.ai) : p.muted}">${esc(l)}</text>`)
       .join("");
     nodes.push(
-      `<g><rect x="${b.x}" y="${b.y}" width="${b.w}" height="${b.h}" fill="${p.node}" stroke="${p.line}"/>` +
+      `<g><rect x="${b.x}" y="${b.y}" width="${b.w}" height="${b.h}" fill="${fillOf(n.class) ?? p.node}" stroke="${p.line}"/>` +
         `<rect x="${b.x}" y="${b.y}" width="4" height="${b.h}" fill="${layerColor(p, layer)}"/>` +
         cls +
         `<text x="${b.x + 14}" y="${b.y + b.h - 14 - (alt ? 20 : 0)}" font-family="${SANS}" font-size="14" font-weight="500" fill="${p.ink}">${esc(clip(n.name || "Untitled", NAME_CHARS))}</text>` +
@@ -120,13 +134,18 @@ export function modelToSvg(model: Model, theme: SvgTheme, opts: { lens?: Lens } 
 
   const title = esc(model.name || "Untitled model");
   const desc = esc(
-    `CSDM model with ${model.nodes.length} elements and ${model.edges.length} relationships${showsArchimate(lens) ? ", with ArchiMate 3.2 element names" : ""}, exported from Blueprint Modeler.`,
+    amOnly
+      ? `CSDM model with ${model.nodes.length} elements and ${model.edges.length} relationships, shown as an ArchiMate 3.2 view (ArchiMate element types, relationship notation and layer colors), exported from Blueprint Modeler.`
+      : `CSDM model with ${model.nodes.length} elements and ${model.edges.length} relationships${showsArchimate(lens) ? ", with ArchiMate 3.2 element names" : ""}, exported from Blueprint Modeler.`,
   );
   return [
     `<?xml version="1.0" encoding="UTF-8"?>`,
     `<svg xmlns="http://www.w3.org/2000/svg" viewBox="${minX} ${minY} ${width} ${height}" width="${width}" height="${height}" role="img" aria-labelledby="t d">`,
     `<title id="t">${title}</title><desc id="d">${desc}</desc>`,
-    `<defs><marker id="arrow" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="8" markerHeight="8" orient="auto-start-reverse"><path d="M0 0L10 5L0 10z" fill="${p.line}"/></marker></defs>`,
+    `<defs><marker id="arrow" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="8" markerHeight="8" orient="auto-start-reverse"><path d="M0 0L10 5L0 10z" fill="${p.line}"/></marker>${[...shapes]
+      .sort()
+      .map((shape) => markerSvg(`am-${shape}`, shape, p.line, p.bg))
+      .join("")}</defs>`,
     `<rect x="${minX}" y="${minY}" width="${width}" height="${height}" fill="${p.bg}"/>`,
     ...edges,
     ...nodes,

@@ -27,7 +27,7 @@ import {
 } from "react";
 import Link from "next/link";
 import { examples } from "@/examples";
-import { archimateElements, archimateRelationshipFor, lenses, readLens, saveLens, showsArchimate, type Lens } from "@/frameworks";
+import { archimateElements, archimateRelationshipFor, edgeNotation, lenses, readLens, saveLens, showsArchimate, type ArchimateRelationshipType, type Lens } from "@/frameworks";
 import { downloadText } from "@/io/download";
 import { exportJson, fileBase, importJson, MAX_FILE_CHARS } from "@/io/file";
 import { modelToArchimateXml } from "@/io/archimate";
@@ -54,6 +54,9 @@ import { CanvasTitle } from "./CanvasTitle";
 import { LayerOverlay, layerHandleId, type LayerHandlers } from "./LayerOverlay";
 import { DEFAULT_VIEW, readView, saveView, ViewMenu, type ViewOptions } from "./ViewMenu";
 import { HintsPanel } from "./HintsPanel";
+import { markerId, NotationLegend, NotationMarkers, type EdgeTone } from "./Notation";
+import { ReadPanel } from "./ReadPanel";
+import { readModel, type Sentence } from "./reading";
 import { Inspector } from "./Inspector";
 import { Palette } from "./Palette";
 import { connectionProblem, modernEdge, SLOT } from "./state";
@@ -99,7 +102,8 @@ function useIsWide() {
   return wide;
 }
 
-type Tab = "details" | "hints";
+type Tab = "details" | "hints" | "read";
+const TABS: readonly Tab[] = ["details", "hints", "read"];
 
 const withIndefinite = (label: string) => `${/^[AEIOU]/.test(label) ? "an" : "a"} ${label}`;
 
@@ -155,7 +159,13 @@ function EditorInner() {
     for (const h of hints) for (const id of h.nodeIds) if (level.get(id) !== "warning") level.set(id, h.hint.severity);
     return level;
   }, [hints]);
-  const highlighted = useMemo(() => new Set(activeHint?.nodeIds ?? []), [activeHint]);
+  // The relationship chosen in the Read tab: highlighted like a hint's elements and relationships.
+  const [readEdgeId, setReadEdgeId] = useState<string | null>(null);
+  const readEdge = model.edges.find((e) => e.id === readEdgeId);
+  const highlighted = useMemo(
+    () => new Set([...(activeHint?.nodeIds ?? []), ...(readEdge ? [readEdge.from, readEdge.to] : [])]),
+    [activeHint, readEdge],
+  );
 
   // A focused hint that no longer applies (fixed, undone, model switched) stops highlighting.
   useEffect(() => {
@@ -211,7 +221,7 @@ function EditorInner() {
           highlight: highlighted.has(n.id),
           neighbor: neighbors.has(n.id),
           description: n.attrs?.description,
-          alt: showsArchimate(lens) && isClassId(n.class) ? { type: archimateElements[n.class].type, label: archimateElements[n.class].label } : undefined,
+          alt: showsArchimate(lens) && isClassId(n.class) ? { type: archimateElements[n.class].type, label: archimateElements[n.class].label, layer: archimateElements[n.class].layer } : undefined,
           archimateOnly: lens === "archimate-only",
           suggest: wide && !presenting && !dismissed.has(n.id) && !model.edges.some((e) => e.from === n.id || e.to === n.id),
         },
@@ -222,17 +232,19 @@ function EditorInner() {
     [model, selectedId, dragTick, hintLevel, highlighted, lens, wide, presenting, dismissed, neighbors],
   );
 
-  const hintedEdges = useMemo(() => new Set(activeHint?.edgeIds ?? []), [activeHint]);
+  const hintedEdges = useMemo(() => new Set([...(activeHint?.edgeIds ?? []), ...(readEdge ? [readEdge.id] : [])]), [activeHint, readEdge]);
   const edges: FlowEdge[] = useMemo(
     () =>
       model.edges.map((e) => {
         const connected = !!selectedId && (e.from === selectedId || e.to === selectedId);
-        // ArchiMate-only lens: the ArchiMate relationship's name, with the arrow on the end ArchiMate points to.
+        // ArchiMate-only lens: the ArchiMate relationship's name and notation (line style, and the
+        // decoration on each end ArchiMate puts it). Other lenses: the CSDM type with a plain arrow.
         const classOf = (id: string) => model.nodes.find((n) => n.id === id)?.class ?? "";
-        const am = lens === "archimate-only" ? archimateRelationshipFor(classOf(e.from), classOf(e.to)) : undefined;
+        const am = lens === "archimate-only" ? edgeNotation(archimateRelationshipFor(classOf(e.from), classOf(e.to))) : undefined;
         const a = model.layout[e.from] ?? { x: 0, y: 0 };
         const b = model.layout[e.to] ?? { x: 0, y: 0 };
         const [sourceHandle, targetHandle] = edgeSides(a, b);
+        const tone: EdgeTone = hintedEdges.has(e.id) ? "status" : connected ? "neighbor" : "line";
         return {
           id: e.id,
           type: "csdm",
@@ -242,10 +254,18 @@ function EditorInner() {
           targetHandle,
           label: am ? am.type : e.type.startsWith("reference:") ? "reference" : e.type.split("::")[0],
           className: hintedEdges.has(e.id) ? "hinted" : connected ? "connected" : undefined,
-          [am?.reverse ? "markerStart" : "markerEnd"]: {
-            type: MarkerType.ArrowClosed,
-            color: hintedEdges.has(e.id) ? "var(--status)" : connected ? "var(--neighbor)" : "var(--border-strong)",
-          },
+          ...(am
+            ? {
+                style: am.dash ? { strokeDasharray: am.dash } : undefined,
+                markerStart: am.atFrom ? markerId(am.atFrom, tone) : undefined,
+                markerEnd: am.atTo ? markerId(am.atTo, tone) : undefined,
+              }
+            : {
+                markerEnd: {
+                  type: MarkerType.ArrowClosed,
+                  color: tone === "status" ? "var(--status)" : tone === "neighbor" ? "var(--neighbor)" : "var(--border-strong)",
+                },
+              }),
           ariaLabel: `${e.type} from ${model.nodes.find((n) => n.id === e.from)?.name} to ${model.nodes.find((n) => n.id === e.to)?.name}`,
         };
       }),
@@ -323,9 +343,19 @@ function EditorInner() {
   };
 
   const focusHint = (r: HintResult) => {
+    setReadEdgeId(null);
     setActiveHint((cur) => (cur?.id === r.id ? null : r));
     if (r.nodeIds.length) void flow.fitView({ nodes: r.nodeIds.map((id) => ({ id })), maxZoom: 1, duration: 300, padding: 0.4 });
     setMessage(`${r.hint.title}: ${r.message}`);
+  };
+
+  // Read tab: choosing a sentence highlights its relationship (again clears it) and brings both ends into view.
+  const focusRead = (sentence: Sentence) => {
+    setActiveHint(null);
+    const off = readEdgeId === sentence.edgeId;
+    setReadEdgeId(off ? null : sentence.edgeId);
+    if (!off) void flow.fitView({ nodes: [{ id: sentence.subjectId }, { id: sentence.objectId }], maxZoom: 1, duration: 300, padding: 0.4 });
+    setMessage(off ? "Relationship no longer highlighted." : sentence.text);
   };
 
   const loadExample = async (exampleId: string) => {
@@ -753,11 +783,21 @@ function EditorInner() {
   const selected = model.nodes.find((n) => n.id === selectedId);
   const scopedHints = selected ? hints.filter((h) => h.nodeIds.includes(selected.id)) : hints;
   const scopedWarnings = scopedHints.filter((h) => h.hint.severity === "warning").length;
+  const reading = useMemo(() => readModel(model, lens, selectedId), [model, lens, selectedId]);
+  // ArchiMate-only lens: the relationship types on the canvas, for the notation legend.
+  const legendTypes = useMemo(() => {
+    const types = new Set<ArchimateRelationshipType>();
+    if (lens !== "archimate-only") return types;
+    const classOf = (id: string) => model.nodes.find((n) => n.id === id)?.class ?? "";
+    for (const e of model.edges) types.add(edgeNotation(archimateRelationshipFor(classOf(e.from), classOf(e.to))).type);
+    return types;
+  }, [model, lens]);
 
   const onTabKey = (e: ReactKeyboardEvent) => {
     if (e.key === "ArrowRight" || e.key === "ArrowLeft") {
       e.preventDefault();
-      const next: Tab = tab === "details" ? "hints" : "details";
+      const i = TABS.indexOf(tab);
+      const next = TABS[(i + (e.key === "ArrowRight" ? 1 : TABS.length - 1)) % TABS.length]!;
       setTab(next);
       document.getElementById(`tab-${next}`)?.focus();
     }
@@ -1004,6 +1044,8 @@ function EditorInner() {
               fitViewOptions={{ maxZoom: 1, padding: fitPadding(0.15) }}
               minZoom={0.2}
             >
+              <NotationMarkers />
+              <NotationLegend types={legendTypes} />
               <Background id="minor" variant={BackgroundVariant.Lines} gap={32} color="var(--canvas-grid)" />
               <Background id="major" variant={BackgroundVariant.Lines} gap={160} color="var(--canvas-grid-major)" />
               {!presenting && <Controls showInteractive={false} fitViewOptions={{ maxZoom: 1, padding: fitPadding(0.15) }} />}
@@ -1042,7 +1084,7 @@ function EditorInner() {
         {wide && !presenting && (
           <aside className="flex w-80 shrink-0 flex-col border-l border-border" aria-label="Inspector">
             <div role="tablist" aria-label="Panel" className="flex border-b border-border" onKeyDown={onTabKey}>
-              {(["details", "hints"] as const).map((t) => (
+              {TABS.map((t) => (
                 <button
                   key={t}
                   id={`tab-${t}`}
@@ -1057,6 +1099,8 @@ function EditorInner() {
                 >
                   {t === "details" ? (
                     "Details"
+                  ) : t === "read" ? (
+                    "Read"
                   ) : (
                     <>
                       Hints
@@ -1082,6 +1126,8 @@ function EditorInner() {
                   suggestions={selectedId ? suggestions(model, selectedId) : []}
                   onSuggest={(s) => selectedId && pickSuggestion(selectedId, s)}
                 />
+              ) : tab === "read" ? (
+                <ReadPanel reading={reading} activeEdgeId={readEdge?.id ?? null} onFocus={focusRead} scopeName={selected?.name} />
               ) : (
                 <HintsPanel results={scopedHints} activeId={activeHint?.id ?? null} onFocus={focusHint} scopeName={selected?.name} />
               )}

@@ -3,7 +3,7 @@
 import { Handle, NodeToolbar, Position, useConnection, useInternalNode, useStore, useViewport, type Node, type NodeProps } from "@xyflow/react";
 import { createContext, memo, useContext, useEffect, useRef, useState } from "react";
 import { ArchimateGlyph } from "@/frameworks/ArchimateGlyph";
-import type { ArchimateElementType } from "@/frameworks";
+import type { ArchimateElementType, ArchimateLayer } from "@/frameworks";
 import { classById } from "@/metamodel";
 import { ConnectionModelContext } from "./ConnectionLine";
 import { layerAccent } from "./layerAccent";
@@ -19,11 +19,23 @@ export type ClassNodeData = {
   neighbor?: boolean;
   description?: string;
   /** The element this class maps to under the active framework lens. */
-  alt?: { type: ArchimateElementType; label: string };
+  alt?: { type: ArchimateElementType; label: string; layer: ArchimateLayer };
   /** ArchiMate-only lens: the ArchiMate element type heads the element, and CSDM names are hidden. */
   archimateOnly?: boolean;
   /** Offer relationship suggestions (editing, and the element has no relationships yet). */
   suggest?: boolean;
+};
+
+/** ArchiMate-only lens: the element's fill follows its ArchiMate layer (tokens in globals.css). */
+const archimateBg: Record<ArchimateLayer, string> = {
+  Motivation: "bg-am-motivation",
+  Strategy: "bg-am-strategy",
+  Business: "bg-am-business",
+  Application: "bg-am-application",
+  Technology: "bg-am-technology",
+  Physical: "bg-am-technology",
+  "Implementation & Migration": "bg-am-implementation",
+  Other: "bg-surface-raised",
 };
 
 const CARD_WIDTH = 256; // w-64
@@ -152,9 +164,10 @@ function ClassNodeView({ id, data, selected, dragging }: NodeProps<ClassFlowNode
   return (
     <div
       ref={box}
-      className={`relative w-56 border border-border-strong border-l-4 px-3 py-2.5 text-left ${data.neighbor && !selected ? "bg-neighbor-tint" : "bg-surface-raised"} ${layerAccent[def?.layer ?? "design"]} ${ring} ${focus ? "shadow-lg" : ""}`}
+      className={`relative w-56 border border-border-strong border-l-4 px-3 py-2.5 text-left ${data.neighbor && !selected ? "bg-neighbor-tint" : data.archimateOnly && data.alt ? archimateBg[data.alt.layer] : "bg-surface-raised"} ${layerAccent[def?.layer ?? "design"]} ${ring} ${focus ? "shadow-lg" : ""}`}
       data-connect-target={target || undefined}
       data-neighbor={data.neighbor || undefined}
+      data-archimate-layer={data.archimateOnly ? data.alt?.layer : undefined}
       data-hovered={focus || undefined}
       onMouseEnter={() => hover(true)}
       onMouseLeave={() => hover(false)}
@@ -162,7 +175,11 @@ function ClassNodeView({ id, data, selected, dragging }: NodeProps<ClassFlowNode
       {data.suggest && <Suggestions id={id} name={data.name || "Untitled"} visible={(selected || hovered) && !fromId && !dragging} onHover={hover} />}
       <Handle id="top" type="source" position={Position.Top} className="!size-2.5 !border-accent !bg-surface" />
       {data.archimateOnly && data.alt ? (
-        <p className="flex items-center gap-1.5 font-mono text-[0.65rem] tracking-[0.12em] text-ai uppercase" data-testid="archimate-type">
+        // On a layer fill the type takes --am-ink (the purple AI ink falls below 4.5:1 on dark fills).
+        <p
+          className={`flex items-center gap-1.5 font-mono text-[0.65rem] tracking-[0.12em] uppercase ${!data.neighbor || selected ? (data.alt.layer === "Other" ? "text-ai" : "text-am-ink") : "text-ai"}`}
+          data-testid="archimate-type"
+        >
           <ArchimateGlyph type={data.alt.type} />
           <span className="truncate">{data.alt.label}</span>
         </p>

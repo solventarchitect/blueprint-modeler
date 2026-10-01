@@ -26,6 +26,16 @@
   --invalid: var(--color-error-300);
   /* Elements and relationships connected to the selection: a lighter shade of the accent. */
   --neighbor: var(--color-primary-300);
+  /* ArchiMate-only lens: element fill per ArchiMate layer (same values as archimateFill in
+   * src/frameworks/notation.ts; a test keeps them equal). Dark: the conventional hues at 22% over
+   * the raised surface, with the type label in --am-ink (>= 5.2:1). Light: the ArchiMate tool colors. */
+  --am-motivation: #3f4b64;
+  --am-strategy: #484f51;
+  --am-business: #4a5754;
+  --am-application: #3a5764;
+  --am-technology: #3e5154;
+  --am-implementation: #4a505d;
+  --am-ink: var(--color-neutral-200);
   color-scheme: dark;
 }
 
@@ -50,6 +60,13 @@
     --valid: var(--color-success-800);
     --invalid: var(--color-error-600);
     --neighbor: var(--color-primary-600);
+    --am-motivation: #ccccff;
+    --am-strategy: #f5deaa;
+    --am-business: #ffffb5;
+    --am-application: #b5ffff;
+    --am-technology: #c9e7b7;
+    --am-implementation: #ffe0e0;
+    --am-ink: var(--ai);
     color-scheme: light;
   }
 }
@@ -73,6 +90,13 @@
   --valid: var(--color-success-800);
   --invalid: var(--color-error-600);
   --neighbor: var(--color-primary-600);
+  --am-motivation: #ccccff;
+  --am-strategy: #f5deaa;
+  --am-business: #ffffb5;
+  --am-application: #b5ffff;
+  --am-technology: #c9e7b7;
+  --am-implementation: #ffe0e0;
+  --am-ink: var(--ai);
   color-scheme: light;
 }
 
@@ -92,6 +116,13 @@
   --color-canvas: var(--canvas);
   --color-neighbor: var(--neighbor);
   --color-neighbor-tint: color-mix(in oklab, var(--neighbor) 18%, var(--surface-raised));
+  --color-am-motivation: var(--am-motivation);
+  --color-am-strategy: var(--am-strategy);
+  --color-am-business: var(--am-business);
+  --color-am-application: var(--am-application);
+  --color-am-technology: var(--am-technology);
+  --color-am-implementation: var(--am-implementation);
+  --color-am-ink: var(--am-ink);
   --font-sans: var(--font-plex-sans), "IBM Plex Sans", system-ui, sans-serif;
   --font-mono: var(--font-plex-mono), "IBM Plex Mono", ui-monospace, monospace;
 }

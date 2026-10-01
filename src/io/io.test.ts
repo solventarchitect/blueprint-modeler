@@ -68,3 +68,24 @@ describe("SVG export", () => {
     expect(modelToSvg(model(), "light")).toContain("#f6f7f9");
   });
 });
+
+describe("SVG export in the ArchiMate-only lens", () => {
+  it("draws ArchiMate notation, ArchiMate types and layer fills; other lenses keep the plain arrow", () => {
+    const m = examples.find((e) => e.id === "checkout")!.create(new Date("2026-09-27T00:00:00Z"), "m1");
+    const svg = modelToSvg(m, "light", { lens: "archimate-only" });
+    expect(svg).toContain('<marker id="am-triangle-hollow"');
+    expect(svg).toMatch(/stroke-dasharray="6 4" marker-start="url\(#am-triangle-hollow\)"/); // Business Application ← Application Service
+    expect(svg).toContain(">APPLICATION COMPONENT<");
+    expect(svg).toContain('fill="#b5ffff"');
+    expect(svg).toContain(">Realization<");
+    expect(svg).not.toContain("marker-end=\"url(#arrow)\"");
+    expect(svg).not.toMatch(/<script|<image|<foreignObject|href=|@import|var\(/i);
+    expect(modelToSvg(m, "dark", { lens: "archimate-only" })).toContain('fill="#3a5764"');
+
+    for (const lens of ["csdm", "archimate"] as const) {
+      const plain = modelToSvg(m, "light", { lens });
+      expect(plain).not.toContain("am-");
+      expect(plain.match(/marker-end="url\(#arrow\)"/g)).toHaveLength(m.edges.length);
+    }
+  });
+});
