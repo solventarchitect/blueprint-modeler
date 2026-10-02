@@ -237,6 +237,66 @@
   stroke-dashoffset: 10;
   animation: hero-signal 3.6s cubic-bezier(0.6, 0, 0.4, 1) 1.4s infinite;
 }
+
+/* Hero figures (HeroFigures sets data-fig on .hero-sheet). One sheet, three states: every element
+ * stays put and changes in place, cascading down the chain (--i is its row) behind the signal,
+ * which restarts at each change (a new animation name restarts it). Each row cross-fades at its
+ * own moment, so the outgoing figure stays until the sweep reaches that row. */
+.hero-sheet[data-fig="1"] .hero-signal {
+  animation: hero-signal-b 3.6s cubic-bezier(0.6, 0, 0.4, 1) infinite;
+}
+.hero-sheet[data-fig="2"] .hero-signal {
+  animation: hero-signal-c 3.6s cubic-bezier(0.6, 0, 0.4, 1) infinite;
+}
+.hero-sheet [data-show] {
+  opacity: 0;
+  transition: opacity 0.45s ease calc(var(--i, 0) * 0.35s + 0.1s);
+}
+.hero-sheet[data-fig="0"] [data-show~="0"],
+.hero-sheet[data-fig="1"] [data-show~="1"],
+.hero-sheet[data-fig="2"] [data-show~="2"] {
+  opacity: 1;
+  transition: opacity 0.6s ease var(--d, calc(var(--i, 0) * 0.35s + 0.1s));
+}
+.hero-box {
+  fill: var(--surface);
+  transition: fill 0.7s ease calc(var(--i, 0) * 0.35s + 0.1s);
+}
+.hero-sheet[data-fig="2"] .hero-box[data-am="strategy"] {
+  fill: var(--am-strategy);
+}
+.hero-sheet[data-fig="2"] .hero-box[data-am="application"] {
+  fill: var(--am-application);
+}
+.hero-sheet[data-fig="2"] .hero-box[data-am="technology"] {
+  fill: var(--am-technology);
+}
+.hero-am-ink {
+  fill: var(--am-ink);
+}
+/* Hollow ArchiMate markers show the sheet through them. */
+.hero-ground {
+  fill: var(--surface-raised);
+}
+.hero-dot {
+  fill: var(--border);
+  transition: fill 0.4s ease;
+}
+.hero-sheet[data-fig="0"] [data-dot="0"],
+.hero-sheet[data-fig="1"] [data-dot="1"],
+.hero-sheet[data-fig="2"] [data-dot="2"] {
+  fill: var(--status);
+}
+/* FIG.02's shortcut draws itself in, and pulls back when the figure ends. */
+.hero-reveal {
+  stroke-dasharray: 100;
+  stroke-dashoffset: 100;
+  transition: stroke-dashoffset 0.4s ease;
+}
+.hero-sheet[data-fig="1"] .hero-reveal {
+  stroke-dashoffset: 0;
+  transition: stroke-dashoffset 0.9s cubic-bezier(0.4, 0, 0.2, 1) 0.2s;
+}
 @keyframes hero-in {
   from {
     opacity: 0;
@@ -249,6 +309,16 @@
   }
 }
 @keyframes hero-signal {
+  to {
+    stroke-dashoffset: -400;
+  }
+}
+@keyframes hero-signal-b {
+  to {
+    stroke-dashoffset: -400;
+  }
+}
+@keyframes hero-signal-c {
   to {
     stroke-dashoffset: -400;
   }
@@ -388,6 +458,11 @@
   .hero-node,
   .hero-edge {
     animation: none;
+  }
+  /* Figures change at once, with no cascade or draw-in. */
+  .hero-sheet *,
+  .hero-sheet [data-show] {
+    transition: none !important;
   }
   .layer-card:hover .layer-card-table {
     animation-delay: 0s;
