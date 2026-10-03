@@ -145,6 +145,32 @@ test.describe("import, export and layout (desktop)", () => {
     expect(foreign).toEqual([]);
   });
 
+  test("a layout that finishes after another model opened leaves that model alone", async ({ page }) => {
+    // Hold the layout worker's answer back so another model can open while it runs (a slow machine
+    // does this by chance). The examples share element ids, so a stale layout would move them.
+    await page.addInitScript(() => {
+      const d = Object.getOwnPropertyDescriptor(Worker.prototype, "onmessage")!;
+      Object.defineProperty(Worker.prototype, "onmessage", {
+        get() {
+          return d.get!.call(this);
+        },
+        set(h: ((e: MessageEvent) => void) | null) {
+          d.set!.call(this, h && ((e: MessageEvent) => void setTimeout(() => h.call(this, e), 1500)));
+        },
+      });
+    });
+    await openExample(page, "Online store checkout");
+    await page.getByRole("button", { name: "Auto-layout" }).click();
+    await expect(page.getByRole("button", { name: "Laying out…" })).toBeVisible();
+
+    await page.getByRole("combobox", { name: "Start from an example" }).selectOption({ label: "HR self-service portal" });
+    await expect(page.getByRole("combobox", { name: "Open model" }).locator("option:checked")).toHaveText("HR self-service portal");
+    const before = await positions(page);
+    await expect(page.getByRole("button", { name: "Auto-layout" })).toBeEnabled({ timeout: 10_000 });
+    expect(await positions(page)).toEqual(before);
+    await expect(page.getByRole("button", { name: "Undo" })).toBeDisabled();
+  });
+
   for (const scheme of ["dark", "light"] as const) {
     test(`toolbar with the export menu open has no WCAG 2.2 AA violations (${scheme})`, async ({ page }) => {
       await page.emulateMedia({ colorScheme: scheme });

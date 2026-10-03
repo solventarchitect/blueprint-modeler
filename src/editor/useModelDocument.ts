@@ -74,6 +74,9 @@ export function useModelDocument() {
     pending.current = model;
     const t = setTimeout(() => {
       pending.current = null;
+      // Deleting the open model detaches it (loadedId) before the next one loads; a save that was
+      // still waiting must not write the deleted model back.
+      if (loadedId.current !== model.id) return;
       s.put(model)
         .then(() => {
           setStatus(persistent.current ? "saved" : "memory-only");
@@ -89,7 +92,7 @@ export function useModelDocument() {
   useEffect(() => {
     const flush = () => {
       const m = pending.current;
-      if (m && store.current) {
+      if (m && store.current && loadedId.current === m.id) {
         pending.current = null;
         void store.current.put(m);
       }

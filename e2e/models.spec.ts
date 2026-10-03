@@ -53,6 +53,54 @@ test.describe("managing saved models (desktop)", () => {
     await expect(picker(page).locator("option")).toHaveCount(1);
     await expect(picker(page).locator("option")).toHaveText("Untitled model");
   });
+
+  test("a change still waiting to autosave cannot bring a deleted model back", async ({ page }) => {
+    test.slow(true, "stretched autosave pause and a held-back model list");
+    // Make the race deterministic: the autosave pause (300 ms) is stretched so the change is still
+    // pending when the model is deleted, and the model list read right after a delete is held back,
+    // so that pending save fires after the delete (what a slow machine does by chance).
+    await page.addInitScript(() => {
+      const set = window.setTimeout;
+      window.setTimeout = ((fn: TimerHandler, ms?: number, ...rest: unknown[]) => set(fn, ms === 300 ? 4000 : ms, ...rest)) as typeof window.setTimeout;
+      let afterDelete = false;
+      const del = IDBObjectStore.prototype.delete;
+      IDBObjectStore.prototype.delete = function (this: IDBObjectStore, key: IDBValidKey | IDBKeyRange) {
+        afterDelete = true;
+        return del.call(this, key);
+      };
+      const getAll = IDBObjectStore.prototype.getAll;
+      IDBObjectStore.prototype.getAll = function (this: IDBObjectStore, ...args: Parameters<IDBObjectStore["getAll"]>) {
+        const req = getAll.apply(this, args);
+        if (!afterDelete) return req;
+        afterDelete = false;
+        let handler: ((e: Event) => void) | null = null;
+        Object.defineProperty(req, "onsuccess", { get: () => handler, set: (h) => (handler = h) });
+        req.addEventListener("success", (e) => void set(() => handler?.call(req, e), 6000));
+        return req;
+      };
+    });
+    await page.goto("/editor");
+    await expect(page.getByTestId("save-status")).toHaveText("Saved in this browser");
+    await page.getByRole("combobox", { name: "Start from an example" }).selectOption({ label: "Online store checkout" });
+    await expect(picker(page).locator("option:checked")).toHaveText("Online store checkout");
+    await expect(page.getByTestId("save-status")).toHaveText("Saved in this browser");
+
+    // A change, then delete the model before its autosave has run.
+    await page.getByRole("navigation", { name: "Element palette" }).getByRole("button", { name: "Business Capability", exact: true }).click();
+    await page.getByRole("button", { name: "Manage…" }).click();
+    const dialog = page.getByRole("dialog", { name: "Models in this browser" });
+    await dialog.getByRole("button", { name: "Delete Online store checkout" }).click();
+    // The race only exists while the change is unsaved; fail loudly rather than pass without it.
+    await expect(page.getByTestId("save-status")).toHaveText("Saving…");
+    await dialog.getByRole("button", { name: "Delete for good" }).click();
+    await expect(dialog.getByRole("status")).toHaveText("Deleted Online store checkout.", { timeout: 15_000 });
+    await page.keyboard.press("Escape");
+
+    await page.waitForTimeout(500);
+    await page.reload();
+    await expect(page.getByTestId("save-status")).toHaveText("Saved in this browser", { timeout: 15_000 });
+    await expect(picker(page).locator("option", { hasText: "Online store checkout" })).toHaveCount(0);
+  });
 });
 
 test.describe("starting blank (desktop)", () => {
