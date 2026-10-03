@@ -160,6 +160,28 @@ export default function GuidePage() {
           </a>{" "}
           that defines it, and every relationship is an allowed ArchiMate relationship. {ARCHIMATE_TRADEMARK}
         </p>
+        <div className="mt-6 max-w-2xl text-sm text-ink-muted" data-testid="togaf-note">
+          <h3 className="text-base font-semibold text-ink">Working with the TOGAF® standard</h3>
+          <p className="mt-2">
+            ArchiMate and the TOGAF standard are both published by The Open Group, and teams that follow the TOGAF standard
+            often draw their models in ArchiMate. Blueprint Modeler can feed that work from the CSDM side:
+          </p>
+          <ul className="mt-2 list-disc space-y-1 pl-5">
+            <li>
+              Switch the lens to <strong className="font-medium text-ink-soft">ArchiMate 3.2 only</strong> to review a model in
+              ArchiMate notation and layer colors.
+            </li>
+            <li>
+              Use <strong className="font-medium text-ink-soft">Export › ArchiMate model (XML)</strong> to hand the model to an
+              ArchiMate tool or architecture repository; each element keeps its CSDM class as a property.
+            </li>
+            <li>Use the SVG or draw.io exports for documents and slides.</li>
+          </ul>
+          <p className="mt-2">
+            Blueprint Modeler does not implement the TOGAF standard: it has no method phases, governance, catalogs or matrices,
+            and it makes no claim of TOGAF conformance or certification. TOGAF is a registered trademark of The Open Group.
+          </p>
+        </div>
         <div className="mt-6 overflow-x-auto border border-border" tabIndex={0} role="region" aria-label="ArchiMate element mapping">
           <table className="w-full min-w-[40rem] text-left text-sm">
             <thead className="bg-surface-raised font-mono text-xs tracking-[0.1em] text-ink-muted uppercase">

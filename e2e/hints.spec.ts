@@ -99,6 +99,19 @@ test.describe("class guide", () => {
     await expect(section).toContainText("registered trademark of The Open Group");
   });
 
+  test("the guide says how the ArchiMate views fit TOGAF work, with its notice and no conformance claim", async ({ page }) => {
+    await page.goto("/guide");
+    const note = page.getByTestId("archimate-section").getByTestId("togaf-note");
+    await expect(note.getByRole("heading", { name: "Working with the TOGAF® standard" })).toBeVisible();
+    await expect(note).toContainText("ArchiMate 3.2 only");
+    await expect(note).toContainText("Export › ArchiMate model (XML)");
+    await expect(note).toContainText("makes no claim of TOGAF conformance or certification");
+    await expect(note).toContainText("TOGAF is a registered trademark of The Open Group.");
+    expect(await note.locator("a").count()).toBe(0);
+    // Trademark use: never "TOGAF-compliant", "TOGAF certified" or the like as a claim.
+    expect(await page.locator("main").innerText()).not.toMatch(/TOGAF[®\s-]*(compliant|conformant|certified)/i);
+  });
+
   test("the header links to the editor and the guide", async ({ page }) => {
     await page.goto("/");
     const nav = page.getByRole("navigation", { name: "Main" });
