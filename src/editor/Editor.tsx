@@ -480,6 +480,8 @@ function EditorInner() {
     const filename = `${fileBase(model)}-blast-radius.gif`;
     const count = `${frames.svgs.length} frame${frames.svgs.length === 1 ? "" : "s"}`;
     setMakingGif(true);
+    // Pause the playing view: its hop announcements would replace the export's result on the status line.
+    setBlast((b) => (b ? { ...b, playing: false } : b));
     setMessage(`Making ${filename} (${count})…`);
     const abort = new AbortController();
     gifAbort.current = abort;

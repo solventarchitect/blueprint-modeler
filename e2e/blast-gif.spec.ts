@@ -70,6 +70,8 @@ test.describe("blast radius GIF export (desktop)", () => {
     expect(globalPalette(bytes)).toEqual(expect.arrayContaining([0x121e2b, 0xdeb163, 0xe99696]));
     expect(bytes.toString("latin1")).toContain("Blast radius: if db-prod-01 fails, 6 elements are affected within 4 hops. Hop 1: Orders database.");
     await expect(page.getByRole("status")).toContainText("Exported online-store-checkout-blast-radius.gif: 5 frames");
+    // Exporting pauses the playing view, so a hop announcement never replaces the export's result.
+    await expect(page.getByRole("region", { name: "Blast radius" }).getByRole("button", { name: "Play" })).toBeVisible();
 
     // The browser's own decoder reads it: five frames, each decodable.
     const decoded = await page.evaluate(async (data) => {
