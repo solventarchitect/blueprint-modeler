@@ -149,6 +149,11 @@ function EditorInner() {
   const [layingOut, setLayingOut] = useState(false);
   const [ioError, setIoError] = useState<string | null>(null);
   const engine = useRef<ReturnType<typeof createWorkerEngine> | null>(null);
+  // The open model's id, readable after an await (Auto-layout checks it before applying its result).
+  const openModelId = useRef(model.id);
+  useEffect(() => {
+    openModelId.current = model.id;
+  }, [model.id]);
   const fileInput = useRef<HTMLInputElement>(null);
 
   useEffect(() => () => engine.current?.dispose(), []);
@@ -386,7 +391,14 @@ function EditorInner() {
       const sizes = Object.fromEntries(
         flow.getNodes().map((n) => [n.id, { width: n.measured?.width ?? DEFAULT_SIZE.width, height: n.measured?.height ?? DEFAULT_SIZE.height }]),
       );
-      dispatch({ type: "set-layout", layout: await autoLayout(engine.current, model, sizes) });
+      const layout = await autoLayout(engine.current, model, sizes);
+      // Another model may have opened while the layout ran; examples share element ids, so a stale
+      // layout would move that model's elements.
+      if (openModelId.current !== model.id) {
+        setMessage("Auto-layout stopped: another model opened while it ran. Nothing was moved.");
+        return;
+      }
+      dispatch({ type: "set-layout", layout });
       setMessage("Laid out by CSDM layer. Undo restores the previous positions.");
       setTimeout(() => void flow.fitView({ maxZoom: 1, padding: fitPadding(0.15), duration: 300 }), 50);
     } catch {

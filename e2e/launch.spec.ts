@@ -33,16 +33,18 @@ for (const [os, forced] of [
   ["dark", "light"],
   ["light", "dark"],
 ] as const) {
-  test(`a forced ${forced} theme on a ${os} OS has no WCAG 2.2 AA violations`, async ({ page }) => {
-    await page.emulateMedia({ colorScheme: os });
-    await page.addInitScript((t) => localStorage.setItem("bm-theme", t), forced);
-    for (const path of pages) {
+  // One test per page: five axe scans in one test outran the 30 s budget under load.
+  for (const path of pages) {
+    test(`a forced ${forced} theme on a ${os} OS has no WCAG 2.2 AA violations (${path})`, async ({ page }) => {
+      test.slow(path === "/guide", "the guide is a long page: axe takes about 5 s alone and close to 30 s under load");
+      await page.emulateMedia({ colorScheme: os });
+      await page.addInitScript((t) => localStorage.setItem("bm-theme", t), forced);
       await page.goto(path);
       await expect(page.locator("html")).toHaveAttribute("data-theme", forced);
       const results = await new AxeBuilder({ page }).withTags(tags).analyze();
       expect(results.violations, path).toEqual([]);
-    }
-  });
+    });
+  }
 }
 
 test("About and Privacy are linked from every page and say what the app does with data", async ({ page }) => {

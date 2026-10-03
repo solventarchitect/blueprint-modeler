@@ -121,8 +121,11 @@ test.describe("stacked layers (desktop)", () => {
     // its 61 relationships make it wide enough that a fit zooms below where tabs can clear).
     for (const label of ["Online store checkout", "Storefront on Kubernetes", "Enterprise AI assistant"]) {
       await examples.selectOption({ label });
+      // Wait until the example is open (else Auto-layout lays out the previous model), then for the
+      // layout itself: the button reads "Laying out…" while ELK runs, which can outlast 5 s under load.
+      await expect(page.getByRole("combobox", { name: "Open model" }).locator("option:checked")).toHaveText(label);
       await page.getByRole("button", { name: "Auto-layout" }).click();
-      await expect(page.getByRole("button", { name: "Auto-layout" })).toBeEnabled();
+      await expect(page.getByRole("status")).toContainText("Laid out by CSDM layer", { timeout: 20_000 });
       await page.getByRole("button", { name: "Fit View" }).click();
       await expect.poll(clashes, { message: `${label} after auto-layout` }).toEqual([]);
     }
@@ -178,7 +181,16 @@ test.describe("landing page", () => {
     await expect(page.locator(".hero-signal")).toBeHidden();
     await page.locator(".layer-card").nth(2).hover();
     const table = page.locator(".layer-card-table").nth(2);
-    await expect.poll(() => table.evaluate((e) => e.scrollWidth - e.getBoundingClientRect().width), { timeout: 500 }).toBeLessThanOrEqual(1);
+    // "At once" is a style fact (no delay, a 0.01 ms typing animation), checked as such rather than
+    // as a 500 ms deadline, which a loaded machine can miss on the hover alone.
+    const timing = await table.evaluate((e) => {
+      const s = getComputedStyle(e);
+      return { name: s.animationName, delay: parseFloat(s.animationDelay), duration: parseFloat(s.animationDuration) };
+    });
+    expect(timing.name).toBe("card-type"); // the hover rule is the one measured
+    expect(timing.delay).toBe(0);
+    expect(timing.duration).toBeLessThan(0.001);
+    await expect.poll(() => table.evaluate((e) => e.scrollWidth - e.getBoundingClientRect().width)).toBeLessThanOrEqual(1);
   });
 });
 
