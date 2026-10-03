@@ -110,6 +110,7 @@
   --color-accent-ink: var(--accent-ink);
   --color-status: var(--status);
   --color-valid: var(--valid);
+  --color-invalid: var(--invalid);
   --color-ai: var(--ai);
   --color-border: var(--border);
   --color-border-strong: var(--border-strong);
@@ -216,6 +217,51 @@
 .react-flow__edge.hinted .react-flow__edge-path {
   stroke: var(--status);
   stroke-width: 2;
+}
+
+/* Blast radius (M33): relationships that carried impact turn amber; the current hop's dashes run
+ * the way impact travels (against the line when the dependent element is the line's From end).
+ * The current elements pulse once a cycle. Outlines and badges carry the meaning; motion is extra,
+ * and none of it runs with reduced motion. */
+.react-flow__edge.blast .react-flow__edge-path {
+  stroke: var(--status);
+  stroke-width: 2.5;
+}
+.react-flow__edge.blast-now .react-flow__edge-path {
+  stroke-width: 3;
+  stroke-dasharray: 10 6;
+  animation: blast-flow 0.9s linear infinite;
+}
+.react-flow__edge.blast-now.blast-reverse .react-flow__edge-path {
+  animation-name: blast-flow-reverse;
+}
+@keyframes blast-flow {
+  to {
+    stroke-dashoffset: -16;
+  }
+}
+@keyframes blast-flow-reverse {
+  to {
+    stroke-dashoffset: 16;
+  }
+}
+.blast-pulse {
+  animation: blast-pulse 1.5s ease-out infinite;
+}
+@keyframes blast-pulse {
+  from {
+    box-shadow: 0 0 0 0 color-mix(in oklab, var(--pulse, var(--status)) 55%, transparent);
+  }
+  to {
+    box-shadow: 0 0 0 14px transparent;
+  }
+}
+@media (prefers-reduced-motion: reduce) {
+  .react-flow__edge.blast-now .react-flow__edge-path,
+  .react-flow__edge.blast-now.blast-reverse .react-flow__edge-path,
+  .blast-pulse {
+    animation: none;
+  }
 }
 
 /* ── Landing page ─────────────────────────────────────────────────────────────────────────────

@@ -81,7 +81,7 @@ test.describe("context menus (desktop)", () => {
     await openCheckout(page);
     await node(page, "Checkout web app").click({ button: "right" });
     const menu = page.getByRole("menu", { name: "Checkout web app menu" });
-    await expect(menu.getByRole("menuitem")).toHaveText(["Rename", "Add a relationship…", "Duplicate", "No hints", "Select the Functional layer", "Delete"]);
+    await expect(menu.getByRole("menuitem")).toHaveText(["Rename", "Add a relationship…", "Duplicate", "No hints", "Show blast radius", "Select the Functional layer", "Delete"]);
     await expect(menu.getByRole("menuitem", { name: "Rename" })).toBeFocused();
     await page.keyboard.press("Enter");
     await expect(page.getByRole("complementary", { name: "Inspector" }).getByLabel("Name", { exact: true })).toBeFocused();

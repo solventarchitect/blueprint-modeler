@@ -41,12 +41,13 @@ import { distributeEvenly } from "@/layout/distribute";
 import { autoLayout, DEFAULT_SIZE } from "@/layout/layout";
 import { createWorkerEngine } from "@/layout/worker-engine";
 import { classById, classes, isClassId, type ClassId, type Layer } from "@/metamodel";
-import { evaluateHints, type HintResult } from "@/model";
+import { blastRadius, evaluateHints, type BlastDirection, type HintResult } from "@/model";
 import { site } from "@/lib/site";
 import { ClassNode, SuggestContext, type ClassFlowNode } from "./ClassNode";
 import { ConnectionLine, ConnectionModelContext } from "./ConnectionLine";
 import { ExportMenu, type ExportKind } from "./ExportMenu";
 import { ContextMenu, type MenuItem } from "./ContextMenu";
+import { blastAnnouncement, blastProgress, blastSteps, blastView } from "./blast";
 import { CanvasEdge, LabelObstacles } from "./CanvasEdge";
 import { ModelManager } from "./ModelManager";
 import { ToolbarIcon } from "./ToolbarIcon";
@@ -106,6 +107,10 @@ type Tab = "details" | "hints" | "read";
 const TABS: readonly Tab[] = ["details", "hints", "read"];
 
 const withIndefinite = (label: string) => `${/^[AEIOU]/.test(label) ? "an" : "a"} ${label}`;
+
+/** Blast radius auto-play: time on each hop. */
+const BLAST_STEP_MS = 1500;
+const prefersStill = () => typeof window !== "undefined" && window.matchMedia("(prefers-reduced-motion: reduce)").matches;
 
 function EditorInner() {
   const doc = useModelDocument();
@@ -172,6 +177,13 @@ function EditorInner() {
     [activeHint, readEdge],
   );
 
+  // Blast radius: view-only. The radius follows the model, so an edit while it is open updates it.
+  const [blast, setBlast] = useState<{ start: string; direction: BlastDirection; step: number; playing: boolean } | null>(null);
+  const blastReturn = useRef<HTMLElement | null>(null);
+  const playButton = useRef<HTMLButtonElement>(null);
+  const radius = useMemo(() => (blast ? blastRadius(model, blast.start, blast.direction) : null), [model, blast?.start, blast?.direction]); // eslint-disable-line react-hooks/exhaustive-deps -- step and playing do not change the radius
+  const blastShown = useMemo(() => (blast && radius ? blastView(model, radius, blast.step) : null), [model, radius, blast]);
+
   // A focused hint that no longer applies (fixed, undone, model switched) stops highlighting.
   useEffect(() => {
     if (activeHint && !hints.some((h) => h.id === activeHint.id)) setActiveHint(null);
@@ -212,6 +224,13 @@ function EditorInner() {
     return set;
   }, [model.edges, selectedId]);
 
+  const blastLabel = (id: string) => {
+    const b = blastShown?.nodes.get(id);
+    if (!b || !blast) return "";
+    const impact = blast.direction === "impact";
+    if (b.hop === 0) return impact ? " (failed: start of the blast radius)" : " (start of the dependencies view)";
+    return impact ? ` (affected at hop ${b.hop})` : ` (needed at hop ${b.hop})`;
+  };
   const nodes: ClassFlowNode[] = useMemo(
     () =>
       model.nodes.map((n) => ({
@@ -222,26 +241,29 @@ function EditorInner() {
         data: {
           name: n.name,
           cls: n.class,
-          hint: hintLevel.get(n.id),
-          highlight: highlighted.has(n.id),
-          neighbor: neighbors.has(n.id),
+          // While a blast radius is open it is the only highlight on the canvas.
+          hint: blastShown ? undefined : hintLevel.get(n.id),
+          highlight: !blastShown && highlighted.has(n.id),
+          neighbor: !blastShown && neighbors.has(n.id),
+          blast: blastShown?.nodes.has(n.id) ? { ...blastShown.nodes.get(n.id)!, impact: blast!.direction === "impact" } : undefined,
           description: n.attrs?.description,
           alt: showsArchimate(lens) && isClassId(n.class) ? { type: archimateElements[n.class].type, label: archimateElements[n.class].label, layer: archimateElements[n.class].layer } : undefined,
           archimateOnly: lens === "archimate-only",
-          suggest: wide && !presenting && !dismissed.has(n.id) && !model.edges.some((e) => e.from === n.id || e.to === n.id),
+          suggest: wide && !presenting && !blastShown && !dismissed.has(n.id) && !model.edges.some((e) => e.from === n.id || e.to === n.id),
         },
         selected: n.id === selectedId,
-        ariaLabel: `${classById(n.class)?.label ?? n.class}: ${n.name || "Untitled"}${hintLevel.get(n.id) ? " (has hints)" : ""}${neighbors.has(n.id) ? " (connected to the selected element)" : ""}`,
+        ariaLabel: `${classById(n.class)?.label ?? n.class}: ${n.name || "Untitled"}${hintLevel.get(n.id) ? " (has hints)" : ""}${!blastShown && neighbors.has(n.id) ? " (connected to the selected element)" : ""}${blastLabel(n.id)}`,
       })),
     // eslint-disable-next-line react-hooks/exhaustive-deps -- drag and measured are refs; dragTick re-runs this
-    [model, selectedId, dragTick, hintLevel, highlighted, lens, wide, presenting, dismissed, neighbors],
+    [model, selectedId, dragTick, hintLevel, highlighted, lens, wide, presenting, dismissed, neighbors, blastShown],
   );
 
   const hintedEdges = useMemo(() => new Set([...(activeHint?.edgeIds ?? []), ...(readEdge ? [readEdge.id] : [])]), [activeHint, readEdge]);
   const edges: FlowEdge[] = useMemo(
     () =>
       model.edges.map((e) => {
-        const connected = !!selectedId && (e.from === selectedId || e.to === selectedId);
+        const carried = blastShown?.edges.get(e.id);
+        const connected = !blastShown && !!selectedId && (e.from === selectedId || e.to === selectedId);
         // ArchiMate-only lens: the ArchiMate relationship's name and notation (line style, and the
         // decoration on each end ArchiMate puts it). Other lenses: the CSDM type with a plain arrow.
         const classOf = (id: string) => model.nodes.find((n) => n.id === id)?.class ?? "";
@@ -249,7 +271,8 @@ function EditorInner() {
         const a = model.layout[e.from] ?? { x: 0, y: 0 };
         const b = model.layout[e.to] ?? { x: 0, y: 0 };
         const [sourceHandle, targetHandle] = edgeSides(a, b);
-        const tone: EdgeTone = hintedEdges.has(e.id) ? "status" : connected ? "neighbor" : "line";
+        const hinted = !blastShown && hintedEdges.has(e.id);
+        const tone: EdgeTone = carried || hinted ? "status" : connected ? "neighbor" : "line";
         return {
           id: e.id,
           type: "csdm",
@@ -258,7 +281,13 @@ function EditorInner() {
           sourceHandle,
           targetHandle,
           label: am ? am.type : e.type.startsWith("reference:") ? "reference" : e.type.split("::")[0],
-          className: hintedEdges.has(e.id) ? "hinted" : connected ? "connected" : undefined,
+          className: carried
+            ? `blast${carried.current ? " blast-now" : ""}${carried.forward ? "" : " blast-reverse"}`
+            : hinted
+              ? "hinted"
+              : connected
+                ? "connected"
+                : undefined,
           ...(am
             ? {
                 style: am.dash ? { strokeDasharray: am.dash } : undefined,
@@ -271,10 +300,10 @@ function EditorInner() {
                   color: tone === "status" ? "var(--status)" : tone === "neighbor" ? "var(--neighbor)" : "var(--border-strong)",
                 },
               }),
-          ariaLabel: `${e.type} from ${model.nodes.find((n) => n.id === e.from)?.name} to ${model.nodes.find((n) => n.id === e.to)?.name}`,
+          ariaLabel: `${e.type} from ${model.nodes.find((n) => n.id === e.from)?.name} to ${model.nodes.find((n) => n.id === e.to)?.name}${carried ? " (carries impact)" : ""}`,
         };
       }),
-    [model, hintedEdges, selectedId, lens],
+    [model, hintedEdges, selectedId, lens, blastShown],
   );
 
   const onNodesChange = useCallback(
@@ -633,6 +662,7 @@ function EditorInner() {
         },
       },
       { kind: "item", label: count ? `Show hints (${count})` : "No hints", disabled: count === 0, onSelect: () => (setSelectedId(id), setTab("hints")) },
+      { kind: "item", label: "Show blast radius", onSelect: () => openBlast(id, menuReturn.current) },
       ...(layer && (view.boxes || view.lanes)
         ? [{ kind: "item" as const, label: `Select the ${layerName(layer)} layer`, onSelect: () => (setSelectedLayer(layer), focusLayerHandle(layer)) }]
         : []),
@@ -728,6 +758,67 @@ function EditorInner() {
     }
   };
 
+  // Blast radius: the start element, then each hop it reaches, played or stepped by hand.
+  const nameOf = (id: string) => model.nodes.find((n) => n.id === id)?.name || "Untitled";
+  const openBlast = (id: string, returnTo: HTMLElement | null, direction: BlastDirection = "impact", moveFocus = true) => {
+    const r = blastRadius(model, id, direction);
+    // Reduced motion: no playing; the whole radius at once.
+    const still = prefersStill();
+    blastReturn.current = returnTo;
+    setActiveHint(null);
+    setReadEdgeId(null);
+    setBlast({ start: id, direction, step: still ? r.steps.length - 1 : 0, playing: !still && r.steps.length > 1 });
+    setMessage(blastAnnouncement(r, 0, nameOf));
+    const ids = r.steps.flatMap((st) => st.nodeIds);
+    void flow.fitView({ nodes: ids.map((n) => ({ id: n })), padding: 0.3, maxZoom: 1, duration: still ? 0 : 300 });
+    if (moveFocus) setTimeout(() => playButton.current?.focus(), 0);
+  };
+  const blastTo = (step: number, playing = false) => {
+    if (!blast || !radius) return;
+    const k = Math.max(0, Math.min(step, radius.steps.length - 1));
+    setBlast({ ...blast, step: k, playing });
+    setMessage(blastAnnouncement(radius, k, nameOf));
+  };
+  const closeBlast = useCallback(() => {
+    setBlast(null);
+    setMessage("Blast radius closed.");
+    const el = blastReturn.current;
+    blastReturn.current = null;
+    if (el?.isConnected) setTimeout(() => el.focus(), 0);
+  }, []);
+  // Auto-play: one hop every BLAST_STEP_MS, stopping on the last.
+  useEffect(() => {
+    if (!blast?.playing || !radius) return;
+    const last = radius.steps.length - 1;
+    if (blast.step >= last) {
+      setBlast({ ...blast, playing: false });
+      return;
+    }
+    const t = setTimeout(() => {
+      setBlast({ ...blast, step: blast.step + 1 });
+      setMessage(blastAnnouncement(radius, blast.step + 1, nameOf));
+    }, BLAST_STEP_MS);
+    return () => clearTimeout(t);
+  }, [blast, radius]); // eslint-disable-line react-hooks/exhaustive-deps -- nameOf reads the same model as radius
+  // It closes when its element is deleted or another model opens.
+  useEffect(() => {
+    if (blast && !model.nodes.some((n) => n.id === blast.start)) setBlast(null);
+  }, [model.nodes, blast]);
+  useEffect(() => setBlast(null), [model.id]);
+  // Escape closes it, unless a menu, dialog or text field has the key.
+  useEffect(() => {
+    if (!blast || menu || managing) return;
+    const onKey = (e: KeyboardEvent) => {
+      const el = e.target as HTMLElement | null;
+      if (e.key !== "Escape" || e.defaultPrevented) return;
+      if (el && (el.tagName === "INPUT" || el.tagName === "TEXTAREA" || el.tagName === "SELECT" || el.isContentEditable)) return;
+      e.preventDefault();
+      closeBlast();
+    };
+    window.addEventListener("keydown", onKey);
+    return () => window.removeEventListener("keydown", onKey);
+  }, [blast, menu, managing, closeBlast]);
+
   // Present mode: the canvas alone, full screen, stepping through the model layer by layer.
   const steps = useMemo(() => [{ name: "Overview", nodeIds: [] as string[] }, ...boxes.map((b) => ({ name: b.name, nodeIds: b.nodeIds }))], [boxes]);
   const goTo = useCallback(
@@ -740,6 +831,7 @@ function EditorInner() {
     [steps, flow],
   );
   const startPresenting = () => {
+    setBlast(null);
     setSelectedId(null);
     setActiveHint(null);
     setPresenting(true);
@@ -980,6 +1072,71 @@ function EditorInner() {
         </div>
       )}
 
+      {blast && radius && !presenting && (
+        <div role="region" aria-label="Blast radius" className="flex flex-col gap-1.5 border-b border-border px-4 py-2">
+          <div className="flex flex-wrap items-center gap-2">
+            <p className="font-mono text-xs tracking-[0.14em] text-status uppercase">Blast radius</p>
+            <h2 className="text-sm font-medium">{blast.direction === "impact" ? `If ${nameOf(blast.start)} fails` : `What ${nameOf(blast.start)} needs`}</h2>
+            <div role="group" aria-label="Direction" className="inline-flex">
+              {(["impact", "dependencies"] as const).map((d, i) => (
+                <button
+                  key={d}
+                  type="button"
+                  aria-pressed={blast.direction === d}
+                  className={`${toolbarButton} ${i ? "-ml-px" : ""} aria-pressed:border-accent aria-pressed:bg-accent aria-pressed:text-accent-ink aria-pressed:hover:text-accent-ink`}
+                  onClick={() => blast.direction !== d && openBlast(blast.start, blastReturn.current, d, false)}
+                >
+                  {d === "impact" ? "Impact" : "Dependencies"}
+                </button>
+              ))}
+            </div>
+            <p className="text-sm text-ink-muted" data-testid="blast-progress">
+              {blastProgress(radius, blast.step)}
+            </p>
+            <span className="ml-auto flex flex-wrap gap-2">
+              <button type="button" className={toolbarButton} aria-label="Previous step" disabled={blast.step === 0} onClick={() => blastTo(blast.step - 1)}>
+                <span aria-hidden="true">←</span> Previous
+              </button>
+              <button
+                ref={playButton}
+                type="button"
+                className={toolbarButton}
+                disabled={radius.steps.length < 2}
+                onClick={() =>
+                  blast.playing ? setBlast({ ...blast, playing: false }) : blast.step >= radius.steps.length - 1 ? blastTo(0, true) : setBlast({ ...blast, playing: true })
+                }
+              >
+                {blast.playing ? "Pause" : "Play"}
+              </button>
+              <button type="button" className={toolbarButton} aria-label="Next step" disabled={blast.step >= radius.steps.length - 1} onClick={() => blastTo(blast.step + 1)}>
+                Next <span aria-hidden="true">→</span>
+              </button>
+              <button type="button" className={toolbarButton} onClick={closeBlast} aria-keyshortcuts="Escape">
+                Close
+              </button>
+            </span>
+          </div>
+          <details className="text-sm">
+            <summary className="inline-flex min-h-6 cursor-pointer items-center text-ink-muted hover:text-ink">Steps ({radius.steps.length})</summary>
+            <ol aria-label="Steps" className="mt-1 flex max-h-40 flex-col gap-0.5 overflow-y-auto">
+              {blastSteps(radius, nameOf).map((st) => (
+                <li key={st.hop} className={st.hop === blast.step ? "font-medium text-ink" : "text-ink-soft"} aria-current={st.hop === blast.step ? "step" : undefined}>
+                  <span className="font-mono text-xs text-ink-muted">{st.label}:</span> {st.names.join(", ")}
+                </li>
+              ))}
+            </ol>
+            {radius.truncated && <p className="mt-1 text-xs text-ink-muted">Stopped after {radius.steps.length - 1} hops; more elements lie beyond.</p>}
+            <p className="mt-1 text-xs text-ink-muted">
+              Follows the impact rules in the{" "}
+              <Link className="text-accent underline underline-offset-4" href="/guide#impact">
+                guide
+              </Link>
+              . Not ServiceNow&apos;s Impacted Services calculation.
+            </p>
+          </details>
+        </div>
+      )}
+
       <div className="flex min-h-0 flex-1">
         {wide && !presenting && (
           <aside className="w-60 shrink-0 overflow-y-auto border-r border-border" aria-label="Palette">
@@ -1137,6 +1294,7 @@ function EditorInner() {
                   lens={lens}
                   suggestions={selectedId ? suggestions(model, selectedId) : []}
                   onSuggest={(s) => selectedId && pickSuggestion(selectedId, s)}
+                  onBlast={(from) => selectedId && openBlast(selectedId, from)}
                 />
               ) : tab === "read" ? (
                 <ReadPanel reading={reading} activeEdgeId={readEdge?.id ?? null} onFocus={focusRead} scopeName={selected?.name} />
