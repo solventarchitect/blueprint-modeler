@@ -41,9 +41,9 @@ General diagramming tools will draw any line you ask for. Blueprint Modeler know
 | **Palette by layer** | 25 classes: 19 from the CSDM 5 white paper, from Business Capability to Host and Network, including the CSDM 5 Service Instance family (Application Service plus Data, Connection, Network, Operational Process and Facility Service Instances), and 6 CMDB Kubernetes classes (Cluster, Node, Namespace, Workload, Service, Pod), marked CMDB. Placed in lanes from business at the top to infrastructure at the bottom. Turn on View › Extended classes for 11 more from the white paper: strategy (Strategic Priority, Goal, Target, Product Idea, Planning Item), Value Stream and Stage, SDLC Component, Product Model, AI Application and AI Function. |
 | **Allowed relationships only** | Connect two elements and choose from the types CSDM uses for that pair (101 pairs, typed from the white paper's relationship figure where it names them). While you drag, the line turns green with the relationship type over a valid target, or red with the reason over an invalid one, before you let go. |
 | **Conformance hints** | 10 checks, such as a Business Application with no Business Capability, a service instance nobody can request, an offering with no parent service, or a capability hierarchy deeper than six levels. Hints advise rather than block, highlight the elements involved and link to their source. |
-| **Class guide** | [Every class, relationship and hint](https://model.mikereams.com/guide) on one page, with its source and how well the public text supports each relationship type. |
+| **Class guide** | [Every class, relationship and hint](https://model.mikereams.com/guide) on one page, with its source and how well the public text supports each relationship type, plus how impact travels along each relationship. |
 | **Examples** | Seven models to start from: five fictional ones (an online store checkout, a storefront on Kubernetes in the CMDB's Kubernetes classes, an enterprise AI assistant, an HR portal and a shared database platform; three trigger hints on purpose), a claims system read purely in ArchiMate, and the CSDM 5 core metamodel itself: every white-paper class and each relationship allowed between them. |
-| **Import and export** | A versioned JSON model file that round-trips exactly, standalone SVG images in light or dark for docs and slides, an ArchiMate® Model Exchange File that opens in Archi and other ArchiMate tools, and a draw.io file that opens in draw.io or imports into Lucidchart (shapes, colors, labels and connected lines; Lucid does not keep the CSDM properties as shape data), with a count of Lucid objects against the Lucid Free plan's per-document limit. A ServiceNow import workbook (.xlsx): one sheet per CMDB table with each element's name and description, a cmdb_rel_ci sheet for relationships, a references sheet, and a README sheet with the import steps. |
+| **Import and export** | A versioned JSON model file that round-trips exactly, standalone SVG images in light or dark for docs and slides, an ArchiMate® Model Exchange File that opens in Archi and other ArchiMate tools, and a draw.io file that opens in draw.io or imports into Lucidchart (shapes, colors, labels and connected lines; Lucid does not keep the CSDM properties as shape data), with a count of Lucid objects against the Lucid Free plan's per-document limit. A ServiceNow import workbook (.xlsx): one sheet per CMDB table with each element's name and description, a cmdb_rel_ci sheet for relationships, a references sheet, and a README sheet with the import steps. While a blast radius is open, an animated GIF of it. |
 | **Auto-layout** | One click lays the model out top-down by CSDM layer, in a background worker, as a single undo step. |
 | **ArchiMate lens** | Switch to CSDM + ArchiMate 3.2 and every element also shows its mapped ArchiMate element and notation icon; relationships read in ArchiMate terms. ArchiMate 3.2 only hides the CSDM names on the canvas: elements are headed by their ArchiMate type and filled with their ArchiMate layer color, and relationships carry their ArchiMate name and notation (diamonds, dashed realizations, open serving arrows), with a legend. View-only: files stay in CSDM terms. |
 | **Layer boxes, lanes and present mode** | A translucent box around each CSDM layer, optional full-width lanes that keep a dropped element in its own layer, snap to a 16px grid, and Present: a full-screen walk through the model, layer by layer, with the arrow keys. Drag a layer's label to move the layer with everything in it. |
@@ -51,6 +51,7 @@ General diagramming tools will draw any line you ask for. Blueprint Modeler know
 | **Right-click menus** | Menus for whatever you click: an element (rename, relate, duplicate, delete), a relationship (update an older one to its CSDM 5 type), a layer (zoom, select, distribute evenly, delete), or the canvas. Shift+F10 opens them from the keyboard. |
 | **Your models** | Every model is saved as you work, in this browser only. Manage… lists them: open, download a JSON copy, or delete one or all (it asks first). |
 | **Read this model** | The Read tab beside Hints says every relationship as a sentence, worded for the lens and scoped to the selected element. Choose a sentence to highlight that relationship on the canvas. |
+| **Blast radius** | Right-click an element, or use the Inspector, and choose Show blast radius: the element is marked failed, then each hop of elements that depend on it lights up in turn, with its relationships' dashes running the way impact travels. Switch to Dependencies to see what the element needs instead. Play, pause or step through it, with a list of every hop; with reduced motion it shows the whole radius at once. Export › Blast radius animation (GIF) saves it as an animated image, made in your browser. The [impact rules](https://model.mikereams.com/guide#impact) are in the guide with their evidence: one direction is stated in ServiceNow-hosted material, the rest are conventional readings. It is a what-if on your model, not ServiceNow's Impacted Services calculation. |
 | **Focus and descriptions** | Select an element and everything it connects to, with those relationships, is shaded. Hover an element to highlight it and show its description underneath. Each element has a description field. |
 | **Keyboard and themes** | Every canvas action has a keyboard path. Auto, light and dark themes. Checked against WCAG 2.2 AA. |
 
@@ -59,6 +60,14 @@ General diagramming tools will draw any line you ask for. Blueprint Modeler know
     <source media="(prefers-color-scheme: dark)" srcset="assets/screenshot-archimate-dark.png">
     <source media="(prefers-color-scheme: light)" srcset="assets/screenshot-archimate-light.png">
     <img alt="The claims handling example in the ArchiMate 3.2 only lens: elements filled with their ArchiMate layer colors (capability, business process, application component, business object, business service, product), relationships drawn in ArchiMate notation with labels (dashed realization lines ending in hollow triangles, an open serving arrow, a dotted access line, a hollow aggregation diamond), a legend of the relationship types in the top right, and the Read tab listing each relationship as a sentence, with one highlighted on the canvas." src="assets/screenshot-archimate-dark.png" width="100%">
+  </picture>
+</p>
+
+<p align="center">
+  <picture>
+    <source media="(prefers-color-scheme: dark)" srcset="assets/screenshot-blast-dark.png">
+    <source media="(prefers-color-scheme: light)" srcset="assets/screenshot-blast-light.png">
+    <img alt="The shared database platform example with the blast radius of host pg-node-01 open at hop 2 of 4: the host carries a red failed mark, the PostgreSQL cluster that runs on it is marked hop 1, and both production Application Services that depend on the cluster are marked hop 2, with the relationships that carried the impact drawn in amber and the current hop dashed. The bar above the canvas reads If pg-node-01 fails, Hop 2 of 4, 3 of 7 affected, with Impact and Dependencies, Previous, Play, Next and Close." src="assets/screenshot-blast-dark.png" width="100%">
   </picture>
 </p>
 
@@ -72,7 +81,7 @@ flowchart LR
   canvas -->|every change| hints["Hint engine<br/>10 checks"]
   hints -->|advice + source link| canvas
   canvas <-->|autosave| idb[("IndexedDB<br/>this browser only")]
-  canvas -->|export| files["JSON · SVG · ArchiMate · draw.io · ServiceNow .xlsx<br/>files on your device"]
+  canvas -->|export| files["JSON · SVG · GIF · ArchiMate · draw.io · ServiceNow .xlsx<br/>files on your device"]
   canvas -->|auto-layout| worker["elkjs<br/>Web Worker"]
 ```
 
@@ -124,11 +133,11 @@ The live site deploys from `main` on every merge. [GitHub releases](https://gith
 
 ```text
 src/
-  metamodel/    CSDM classes, relationship pairs and types, hint catalog, sources
-  model/        model schema (zod), parse and migrate, hint engine
-  editor/       canvas, palette, inspector, hints and read panels, notation legend, undo/redo state
+  metamodel/    CSDM classes, relationship pairs and types, hint catalog, impact rules, sources
+  model/        model schema (zod), parse and migrate, hint engine, blast radius
+  editor/       canvas, palette, inspector, hints and read panels, blast radius view, notation legend, undo/redo state
   frameworks/   ArchiMate 3.2 lens: element and relationship mapping, notation, layer colors
-  io/           JSON import/export, SVG, ArchiMate, draw.io and ServiceNow export, Lucid plan fit
+  io/           JSON import/export, SVG, GIF (in-repo encoder, in a worker), ArchiMate, draw.io and ServiceNow export, Lucid plan fit
   layout/       ELK graph, Web Worker engine, shared edge routing
   storage/      IndexedDB store (memory fallback)
   examples/     the seven starter models
