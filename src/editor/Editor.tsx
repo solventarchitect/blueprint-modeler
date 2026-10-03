@@ -48,6 +48,8 @@ import { ConnectionLine, ConnectionModelContext } from "./ConnectionLine";
 import { ExportMenu, type ExportKind } from "./ExportMenu";
 import { ContextMenu, type MenuItem } from "./ContextMenu";
 import { blastAnnouncement, blastProgress, blastSteps, blastView } from "./blast";
+import { blastFrames, GIF_MAX_SIDE, gifScale } from "./blastGif";
+import { renderGif } from "@/io/gif/render";
 import { CanvasEdge, LabelObstacles } from "./CanvasEdge";
 import { ModelManager } from "./ModelManager";
 import { ToolbarIcon } from "./ToolbarIcon";
@@ -116,6 +118,12 @@ const withIndefinite = (label: string) => `${/^[AEIOU]/.test(label) ? "an" : "a"
 /** Blast radius auto-play: time on each hop. */
 const BLAST_STEP_MS = 1500;
 const prefersStill = () => typeof window !== "undefined" && window.matchMedia("(prefers-reduced-motion: reduce)").matches;
+/** The theme being viewed: the header toggle's choice, else the system setting. */
+const viewedTheme = (): "dark" | "light" => {
+  const chosen = document.documentElement.dataset.theme;
+  if (chosen === "light" || chosen === "dark") return chosen;
+  return window.matchMedia("(prefers-color-scheme: light)").matches ? "light" : "dark";
+};
 
 function EditorInner() {
   const doc = useModelDocument();
@@ -462,8 +470,37 @@ function EditorInner() {
     setTimeout(() => void flow.fitView({ maxZoom: 1, padding: fitPadding(0.15) }), 50);
   };
 
+  const [makingGif, setMakingGif] = useState(false);
+  // An export still running when the editor closes is stopped, and saves nothing.
+  const gifAbort = useRef<AbortController | null>(null);
+  useEffect(() => () => gifAbort.current?.abort(), []);
+  const exportBlastGif = async () => {
+    if (!blast || !radius || !radius.steps.length || makingGif) return;
+    const frames = blastFrames(model, radius, viewedTheme(), lens);
+    const filename = `${fileBase(model)}-blast-radius.gif`;
+    const count = `${frames.svgs.length} frame${frames.svgs.length === 1 ? "" : "s"}`;
+    setMakingGif(true);
+    // Pause the playing view: its hop announcements would replace the export's result on the status line.
+    setBlast((b) => (b ? { ...b, playing: false } : b));
+    setMessage(`Making ${filename} (${count})…`);
+    const abort = new AbortController();
+    gifAbort.current = abort;
+    try {
+      const { bytes } = await renderGif({ ...frames, comment: frames.summary, scale: gifScale, signal: abort.signal });
+      downloadText(filename, bytes as Uint8Array<ArrayBuffer>, "image/gif");
+      setMessage(`Exported ${filename}: ${count}, ${Math.max(1, Math.round(bytes.length / 1024))} KB. ${frames.summary}`);
+    } catch {
+      if (!abort.signal.aborted) setMessage("Could not make the GIF in this browser. Nothing was saved.");
+    } finally {
+      gifAbort.current = null;
+      setMakingGif(false);
+    }
+  };
+
   const exportAs = (kind: ExportKind) => {
-    if (kind === "json") {
+    if (kind === "blast-gif") {
+      void exportBlastGif();
+    } else if (kind === "json") {
       const f = exportJson(model);
       downloadText(f.filename, f.text, "application/json");
       setMessage(`Exported ${f.filename}.`);
@@ -1017,7 +1054,19 @@ function EditorInner() {
             />
           </>
         )}
-        <ExportMenu onExport={exportAs} buttonClass={toolbarButton} notes={{ drawio: lucidFitNote(lucidFit(model)) }} />
+        <ExportMenu
+          onExport={exportAs}
+          buttonClass={toolbarButton}
+          notes={{
+            drawio: lucidFitNote(lucidFit(model)),
+            "blast-gif": makingGif
+              ? "Making the GIF…"
+              : blast && radius
+                ? `${radius.steps.length} frame${radius.steps.length === 1 ? "" : "s"}, up to ${GIF_MAX_SIDE} px, in the theme you are viewing`
+                : "Show a blast radius first: right-click an element",
+          }}
+          disabled={{ "blast-gif": !blast || !radius || makingGif }}
+        />
         </div>
         <span className={toolbarDivider} aria-hidden="true" />
         <div role="group" aria-label="Edit" className={toolbarGroup}>

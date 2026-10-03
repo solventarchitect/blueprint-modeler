@@ -105,6 +105,7 @@ test.describe("class guide", () => {
     await expect(section.getByRole("heading", { level: 2, name: "How impact travels" })).toBeVisible();
     await expect(section).toContainText("not ServiceNow's Impacted Services calculation");
     await expect(section.getByTestId("blast-how")).toContainText("Show blast radius");
+    await expect(section.getByTestId("blast-how")).toContainText("Export › Blast radius animation (GIF)");
     const rows = section.getByRole("region", { name: "Impact rules" }).locator("tbody tr");
     expect(await rows.count()).toBeGreaterThan(10);
     await expect(section.getByText("When the To element fails, the From element is affected.").first()).toBeVisible();
