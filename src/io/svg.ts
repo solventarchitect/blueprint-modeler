@@ -7,9 +7,32 @@ export type SvgTheme = "dark" | "light";
 
 /** Blueprint roles as literal hex (tokens.css), so the file stands alone: no CSS vars, nothing remote. */
 const palettes = {
-  dark: { bg: "#121e2b", node: "#172738", ink: "#f6f7f9", muted: "#7b9ec7", line: "#7b9ec7", status: "#deb163", accent: "#5ec8ff", ai: "#b4a7ff" },
-  light: { bg: "#f6f7f9", node: "#ffffff", ink: "#121e2b", muted: "#406996", line: "#34557a", status: "#6d4e17", accent: "#005785", ai: "#2000d6" },
+  dark: { bg: "#121e2b", node: "#172738", ink: "#f6f7f9", muted: "#7b9ec7", line: "#7b9ec7", status: "#deb163", accent: "#5ec8ff", ai: "#b4a7ff", invalid: "#e99696", onBadge: "#121e2b" },
+  light: { bg: "#f6f7f9", node: "#ffffff", ink: "#121e2b", muted: "#406996", line: "#34557a", status: "#6d4e17", accent: "#005785", ai: "#2000d6", invalid: "#b12525", onBadge: "#ffffff" },
 } as const;
+
+/**
+ * A blast radius step drawn into the picture (M34 GIF frames): the start element (hop 0) and each
+ * element reached so far get an outline and a badge; the relationships that carried impact turn the
+ * status color, the current hop's dashed; an optional caption band sits above the diagram.
+ */
+export type SvgHighlight = {
+  impact: boolean;
+  nodes: ReadonlyMap<string, { hop: number; current: boolean }>;
+  edges: ReadonlyMap<string, { current: boolean }>;
+  caption?: { label: string; text: string };
+};
+
+/** Every color a picture in this theme and lens can use: large fills, then lines and text. */
+export function svgColors(theme: SvgTheme, lens: Lens): { surfaces: string[]; inks: string[] } {
+  const p = palettes[theme];
+  const amOnly = lens === "archimate-only";
+  const fills = amOnly ? Object.values(archimateFill[theme]).filter((c): c is string => !!c) : [];
+  const inks = [p.ink, p.muted, p.line, p.status, p.accent, p.ai, p.invalid, p.onBadge, ...(amOnly ? [archimateTypeInk[theme]] : [])];
+  return { surfaces: [...new Set([p.bg, p.node, ...fills])], inks: [...new Set(inks)] };
+}
+
+const CAPTION_H = 48;
 
 const layerColor = (p: (typeof palettes)[SvgTheme], layer: Layer) =>
   ({ business: p.status, design: p.accent, service: p.ai, functional: p.muted, infrastructure: p.line })[layer];
@@ -57,8 +80,9 @@ function anchor(b: Box, side: Side) {
  * The model as a standalone SVG in the chosen theme: same boxes, lanes and edge routing as the
  * canvas, system fonts (IBM Plex if installed), no scripts, no external references.
  */
-export function modelToSvg(model: Model, theme: SvgTheme, opts: { lens?: Lens } = {}): string {
+export function modelToSvg(model: Model, theme: SvgTheme, opts: { lens?: Lens; highlight?: SvgHighlight } = {}): string {
   const lens = opts.lens ?? "csdm";
+  const hl = opts.highlight;
   // ArchiMate-only: the ArchiMate type heads each element (no CSDM line), fills follow the ArchiMate
   // layer, and relationships carry ArchiMate notation — as on the canvas.
   const amOnly = lens === "archimate-only";
@@ -75,16 +99,19 @@ export function modelToSvg(model: Model, theme: SvgTheme, opts: { lens?: Lens } 
 
   const all = [...boxes.values()];
   const minX = all.length ? Math.min(...all.map((b) => b.x)) - PAD : 0;
-  const minY = all.length ? Math.min(...all.map((b) => b.y)) - PAD : 0;
-  const maxX = all.length ? Math.max(...all.map((b) => b.x + b.w)) + PAD : 2 * PAD;
+  const minY = (all.length ? Math.min(...all.map((b) => b.y)) - PAD : 0) - (hl?.caption ? CAPTION_H : 0);
+  // The caption sets a minimum width (14px sans, about 7.6px a character).
+  const maxX = Math.max(all.length ? Math.max(...all.map((b) => b.x + b.w)) + PAD : 2 * PAD, hl?.caption ? minX + 32 + hl.caption.text.length * 7.6 : -Infinity);
   const maxY = all.length ? Math.max(...all.map((b) => b.y + b.h)) + PAD : 2 * PAD;
-  const width = maxX - minX;
+  const width = hl?.caption ? Math.ceil(maxX - minX) : maxX - minX;
   const height = maxY - minY;
 
   const classOf = (id: string) => model.nodes.find((n) => n.id === id)?.class ?? "";
   const shapes = new Set<MarkerShape>();
   const edges: string[] = [];
-  for (const e of model.edges) {
+  // Relationships that carried impact are drawn last, over the others.
+  const order = hl ? [...model.edges.filter((e) => !hl.edges.has(e.id)), ...model.edges.filter((e) => hl.edges.has(e.id))] : model.edges;
+  for (const e of order) {
     const a = boxes.get(e.from);
     const b = boxes.get(e.to);
     if (!a || !b) continue;
@@ -98,14 +125,17 @@ export function modelToSvg(model: Model, theme: SvgTheme, opts: { lens?: Lens } 
     const am = amOnly ? edgeNotation(archimateRelationshipFor(classOf(e.from), classOf(e.to))) : undefined;
     const label = am ? am.type : e.type.startsWith("reference:") ? "reference" : (e.type.split("::")[0] ?? e.type);
     const lw = label.length * 6.6 + 8;
-    let ends = ` marker-end="url(#arrow)"`;
+    const carried = hl?.edges.get(e.id);
+    let ends = ` marker-end="url(#${carried ? "arrow-blast" : "arrow"})"`;
     if (am) {
-      ends = (am.dash ? ` stroke-dasharray="${am.dash}"` : "") + (am.atFrom ? ` marker-start="url(#am-${am.atFrom})"` : "") + (am.atTo ? ` marker-end="url(#am-${am.atTo})"` : "");
+      // The current hop's dash replaces the notation's dash, as on the canvas.
+      ends = (am.dash && !carried?.current ? ` stroke-dasharray="${am.dash}"` : "") + (am.atFrom ? ` marker-start="url(#am-${am.atFrom})"` : "") + (am.atTo ? ` marker-end="url(#am-${am.atTo})"` : "");
       if (am.atFrom) shapes.add(am.atFrom);
       if (am.atTo) shapes.add(am.atTo);
     }
+    const stroke = carried ? `stroke="${p.status}" stroke-width="2.5"${carried.current ? ` stroke-dasharray="10 6"` : ""}` : `stroke="${p.line}" stroke-width="1.25"`;
     edges.push(
-      `<path d="M${r1(s.x)} ${r1(s.y)} C${r1(c1.x)} ${r1(c1.y)} ${r1(c2.x)} ${r1(c2.y)} ${r1(t.x)} ${r1(t.y)}" fill="none" stroke="${p.line}" stroke-width="1.25"${ends}/>`,
+      `<path d="M${r1(s.x)} ${r1(s.y)} C${r1(c1.x)} ${r1(c1.y)} ${r1(c2.x)} ${r1(c2.y)} ${r1(t.x)} ${r1(t.y)}" fill="none" ${stroke}${ends}/>`,
       `<rect x="${r1(mid.x - lw / 2)}" y="${r1(mid.y - 8)}" width="${r1(lw)}" height="16" fill="${p.bg}"/>`,
       `<text x="${r1(mid.x)}" y="${r1(mid.y + 4)}" text-anchor="middle" font-family="${MONO}" font-size="11" fill="${p.muted}">${esc(label)}</text>`,
     );
@@ -131,6 +161,26 @@ export function modelToSvg(model: Model, theme: SvgTheme, opts: { lens?: Lens } 
         `</g>`,
     );
   }
+  // Blast radius marks go over every element, so a badge is never hidden by a neighbor.
+  if (hl) {
+    for (const n of model.nodes) {
+      const mark = hl.nodes.get(n.id);
+      if (!mark) continue;
+      const b = boxes.get(n.id)!;
+      const color = mark.hop > 0 ? p.status : hl.impact ? p.invalid : p.accent;
+      const glyph = mark.hop > 0 ? String(mark.hop) : hl.impact ? "×" : "◎";
+      nodes.push(
+        `<g data-blast="${mark.hop === 0 ? "start" : "reached"}" data-blast-hop="${mark.hop}">` +
+          `<rect x="${b.x - 5}" y="${b.y - 5}" width="${b.w + 10}" height="${b.h + 10}" fill="none" stroke="${color}" stroke-width="${mark.current ? 3.5 : 2.5}"/>` +
+          `<circle cx="${b.x}" cy="${b.y}" r="11" fill="${color}"/><text x="${b.x}" y="${b.y + 4}" text-anchor="middle" font-family="${MONO}" font-size="12" font-weight="600" fill="${p.onBadge}">${glyph}</text>` +
+          `</g>`,
+      );
+    }
+  }
+  const caption = hl?.caption
+    ? `<text x="${minX + 16}" y="${minY + 20}" font-family="${MONO}" font-size="10" letter-spacing="1.4" fill="${p.status}">${esc(hl.caption.label.toUpperCase())}</text>` +
+      `<text x="${minX + 16}" y="${minY + 38}" font-family="${SANS}" font-size="14" font-weight="500" fill="${p.ink}">${esc(hl.caption.text)}</text>`
+    : "";
 
   const title = esc(model.name || "Untitled model");
   const desc = esc(
@@ -142,13 +192,16 @@ export function modelToSvg(model: Model, theme: SvgTheme, opts: { lens?: Lens } 
     `<?xml version="1.0" encoding="UTF-8"?>`,
     `<svg xmlns="http://www.w3.org/2000/svg" viewBox="${minX} ${minY} ${width} ${height}" width="${width}" height="${height}" role="img" aria-labelledby="t d">`,
     `<title id="t">${title}</title><desc id="d">${desc}</desc>`,
-    `<defs><marker id="arrow" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="8" markerHeight="8" orient="auto-start-reverse"><path d="M0 0L10 5L0 10z" fill="${p.line}"/></marker>${[...shapes]
+    `<defs><marker id="arrow" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="8" markerHeight="8" orient="auto-start-reverse"><path d="M0 0L10 5L0 10z" fill="${p.line}"/></marker>${
+      hl ? `<marker id="arrow-blast" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="6" markerHeight="6" orient="auto-start-reverse"><path d="M0 0L10 5L0 10z" fill="${p.status}"/></marker>` : ""
+    }${[...shapes]
       .sort()
       .map((shape) => markerSvg(`am-${shape}`, shape, p.line, p.bg))
       .join("")}</defs>`,
     `<rect x="${minX}" y="${minY}" width="${width}" height="${height}" fill="${p.bg}"/>`,
     ...edges,
     ...nodes,
+    ...(caption ? [caption] : []),
     `</svg>`,
     "",
   ].join("\n");

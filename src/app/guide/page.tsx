@@ -143,7 +143,9 @@ export default function GuidePage() {
           To see it on your model, right-click an element (or press Shift+F10 on it) and choose{" "}
           <strong className="font-medium text-ink-soft">Show blast radius</strong>, or use the button of that name in
           the Inspector. Each hop lights up in turn; Impact shows what is affected if the element fails, Dependencies
-          what it needs. It changes nothing in the model.
+          what it needs. It changes nothing in the model. While it is open,{" "}
+          <strong className="font-medium text-ink-soft">Export › Blast radius animation (GIF)</strong> saves it as an
+          animated image, one frame a hop, made in your browser; the file carries a text summary of every hop.
         </p>
         <div className="mt-6 overflow-x-auto border border-border" tabIndex={0} role="region" aria-label="Impact rules">
           <table className="w-full min-w-[48rem] text-left text-sm">

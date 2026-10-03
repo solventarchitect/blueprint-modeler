@@ -3,12 +3,13 @@
 import { useEffect, useId, useRef, useState } from "react";
 import { ToolbarIcon } from "./ToolbarIcon";
 
-export type ExportKind = "json" | "svg-dark" | "svg-light" | "archimate" | "drawio" | "servicenow";
+export type ExportKind = "json" | "svg-dark" | "svg-light" | "blast-gif" | "archimate" | "drawio" | "servicenow";
 
 const items: { kind: ExportKind; label: string; note: string }[] = [
   { kind: "json", label: "Model file (JSON)", note: "Back up, move or version it" },
   { kind: "svg-dark", label: "Image, dark (SVG)", note: "For docs and slides" },
   { kind: "svg-light", label: "Image, light (SVG)", note: "For docs and slides" },
+  { kind: "blast-gif", label: "Blast radius animation (GIF)", note: "The open blast radius, one frame a hop" },
   { kind: "archimate", label: "ArchiMate model (XML)", note: "Open in Archi or another ArchiMate tool" },
   { kind: "drawio", label: "draw.io / Lucidchart (.drawio)", note: "Open in draw.io, or import into Lucidchart" },
   { kind: "servicenow", label: "ServiceNow import (Excel)", note: "One sheet per CMDB table, plus relationships" },
@@ -19,11 +20,14 @@ export function ExportMenu({
   onExport,
   buttonClass,
   notes = {},
+  disabled = {},
 }: {
   onExport: (k: ExportKind) => void;
   buttonClass: string;
   /** Extra line under an item, e.g. the Lucid plan fit for the draw.io export. */
   notes?: Partial<Record<ExportKind, string>>;
+  /** Items that cannot run now; their note says why. */
+  disabled?: Partial<Record<ExportKind, boolean>>;
 }) {
   const [open, setOpen] = useState(false);
   const root = useRef<HTMLDivElement>(null);
@@ -60,7 +64,8 @@ export function ExportMenu({
           <li key={it.kind}>
             <button
               type="button"
-              className="flex w-full cursor-pointer flex-col px-3 py-2 text-left hover:bg-surface hover:text-accent focus-visible:bg-surface"
+              disabled={disabled[it.kind]}
+              className="flex w-full cursor-pointer flex-col px-3 py-2 text-left hover:bg-surface hover:text-accent focus-visible:bg-surface disabled:cursor-not-allowed disabled:opacity-60 disabled:hover:bg-transparent"
               onClick={() => {
                 setOpen(false);
                 button.current?.focus();
