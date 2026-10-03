@@ -16,6 +16,14 @@ async function openCheckout(page: Page) {
   await page.getByRole("button", { name: "Fit View" }).click();
 }
 
+/**
+ * Stop the page's clock. `clock.install()` alone keeps time flowing in step with the real clock, so
+ * auto-play would advance on a slow runner; once paused, only `runFor` moves it.
+ */
+async function freeze(page: Page) {
+  await page.clock.pauseAt(await page.evaluate(() => Date.now() + 1000));
+}
+
 async function showFrom(page: Page, name: string) {
   await node(page, name).click({ button: "right" });
   await page.getByRole("menu", { name: `${name} menu` }).getByRole("menuitem", { name: "Show blast radius" }).click();
@@ -28,6 +36,7 @@ test.describe("blast radius (desktop)", () => {
   test("the element menu shows a blast radius that steps hop by hop", async ({ page }) => {
     await page.clock.install();
     await openCheckout(page);
+    await freeze(page);
     await showFrom(page, "db-prod-01");
     const s = strip(page);
     await expect(s.getByRole("heading", { name: "If db-prod-01 fails" })).toBeVisible();
@@ -66,12 +75,17 @@ test.describe("blast radius (desktop)", () => {
   test("Play steps through on its own and stops at the last hop", async ({ page }) => {
     await page.clock.install();
     await openCheckout(page);
+    await freeze(page);
     await showFrom(page, "db-prod-01");
     const progress = strip(page).getByTestId("blast-progress");
     await expect(progress).toHaveText("Start · 0 of 6 affected");
     await page.clock.runFor(1600);
     await expect(progress).toHaveText("Hop 1 of 4 · 1 of 6 affected");
-    await page.clock.runFor(1500 * 3 + 100);
+    // One hop at a time: each hop's timer is set after the previous hop has rendered.
+    for (const k of [2, 3, 4]) {
+      await page.clock.runFor(1500);
+      await expect(progress).toHaveText(new RegExp(`^Hop ${k} of 4`));
+    }
     await expect(progress).toHaveText("Hop 4 of 4 · 6 of 6 affected");
     await expect(strip(page).getByRole("button", { name: "Play" })).toBeVisible();
     await page.clock.runFor(5000);
@@ -84,6 +98,7 @@ test.describe("blast radius (desktop)", () => {
   test("Dependencies walks the other way: what the element needs", async ({ page }) => {
     await page.clock.install();
     await openCheckout(page);
+    await freeze(page);
     await showFrom(page, "Checkout");
     const s = strip(page);
     await s.getByRole("button", { name: "Dependencies" }).click();
@@ -95,6 +110,21 @@ test.describe("blast radius (desktop)", () => {
     await s.getByRole("button", { name: "Pause" }).click();
     await s.getByRole("button", { name: "Next step" }).click();
     await expect(node(page, "Customer orders").locator("[data-blast]")).toHaveAttribute("data-blast-hop", "1");
+    // The dashes still run the way impact travels: from what Checkout needs back toward Checkout,
+    // against lines drawn from Checkout.
+    const now = page.locator(".react-flow__edge.blast-now");
+    await expect(now).toHaveCount(3);
+    for (const e of await now.all()) await expect(e).toHaveClass(/blast-reverse/);
+  });
+
+  test("an element nothing depends on says so, and keeps focus in the controls", async ({ page }) => {
+    await openCheckout(page);
+    await showFrom(page, "Online shopping");
+    await expect(strip(page).getByTestId("blast-progress")).toHaveText("Start · nothing affected");
+    await expect(page.getByRole("status")).toHaveText("Blast radius: nothing is affected if Online shopping fails. No relationship carries impact from it.");
+    const play = strip(page).getByRole("button", { name: "Play" });
+    await expect(play).toHaveAttribute("aria-disabled", "true");
+    await expect(play).toBeFocused();
   });
 
   test("the Inspector opens it too, and Escape closes it and returns focus", async ({ page }) => {
@@ -121,8 +151,17 @@ test.describe("blast radius (desktop)", () => {
     await menu.getByRole("menuitem", { name: "Show blast radius" }).focus();
     await page.keyboard.press("Enter");
     await expect(strip(page).getByRole("button", { name: "Pause" })).toBeFocused();
+    await page.keyboard.press("Space");
     await page.keyboard.press("Tab");
-    await expect(strip(page).getByRole("button", { name: "Next step" })).toBeFocused();
+    const next = strip(page).getByRole("button", { name: "Next step" });
+    await expect(next).toBeFocused();
+    // Reaching the last hop leaves focus on Next (now unavailable), not on the page.
+    for (let i = 0; i < 4; i++) await page.keyboard.press("Enter");
+    await expect(strip(page).getByTestId("blast-progress")).toHaveText("Hop 4 of 4 · 6 of 6 affected");
+    await expect(next).toHaveAttribute("aria-disabled", "true");
+    await expect(next).toBeFocused();
+    await page.keyboard.press("Enter");
+    await expect(strip(page).getByTestId("blast-progress")).toHaveText("Hop 4 of 4 · 6 of 6 affected");
     await strip(page).getByRole("button", { name: "Close" }).focus();
     await page.keyboard.press("Enter");
     await expect(strip(page)).toHaveCount(0);
@@ -145,6 +184,7 @@ test.describe("blast radius (desktop)", () => {
   test("with motion, the current relationships flow toward the affected elements", async ({ page }) => {
     await page.clock.install();
     await openCheckout(page);
+    await freeze(page);
     await showFrom(page, "db-prod-01");
     await strip(page).getByRole("button", { name: "Next step" }).click();
     const edge = page.locator(".react-flow__edge.blast-now");

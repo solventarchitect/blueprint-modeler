@@ -80,6 +80,11 @@ const toolbarButton =
   "inline-flex min-h-8 cursor-pointer items-center gap-1.5 border border-border-strong bg-surface-raised px-2.5 text-sm text-ink hover:border-accent hover:text-accent disabled:cursor-not-allowed disabled:opacity-60";
 /** Whole-model fits leave room above the diagram for the canvas title (see CanvasTitle). */
 const fitPadding = (p: number) => ({ x: p, bottom: p, top: "120px" }) as const;
+/**
+ * Blast-radius step controls: aria-disabled rather than disabled, so the button keeps focus when the
+ * last (or first) hop is reached (a disabled button drops focus to the page).
+ */
+const stepButton = `${toolbarButton} aria-disabled:cursor-not-allowed aria-disabled:opacity-60 aria-disabled:hover:border-border-strong aria-disabled:hover:text-ink`;
 /** Status bar links: a 24px-tall target even at the bar's small text size. */
 const footerLink = "inline-flex min-h-6 items-center text-accent underline underline-offset-4 hover:opacity-90";
 /** The one filled button: Present. */
@@ -252,7 +257,7 @@ function EditorInner() {
           suggest: wide && !presenting && !blastShown && !dismissed.has(n.id) && !model.edges.some((e) => e.from === n.id || e.to === n.id),
         },
         selected: n.id === selectedId,
-        ariaLabel: `${classById(n.class)?.label ?? n.class}: ${n.name || "Untitled"}${hintLevel.get(n.id) ? " (has hints)" : ""}${!blastShown && neighbors.has(n.id) ? " (connected to the selected element)" : ""}${blastLabel(n.id)}`,
+        ariaLabel: `${classById(n.class)?.label ?? n.class}: ${n.name || "Untitled"}${!blastShown && hintLevel.get(n.id) ? " (has hints)" : ""}${!blastShown && neighbors.has(n.id) ? " (connected to the selected element)" : ""}${blastLabel(n.id)}`,
       })),
     // eslint-disable-next-line react-hooks/exhaustive-deps -- drag and measured are refs; dragTick re-runs this
     [model, selectedId, dragTick, hintLevel, highlighted, lens, wide, presenting, dismissed, neighbors, blastShown],
@@ -290,7 +295,8 @@ function EditorInner() {
                 : undefined,
           ...(am
             ? {
-                style: am.dash ? { strokeDasharray: am.dash } : undefined,
+                // The flowing blast dash replaces the notation's dash while that hop is current.
+                style: am.dash && !carried?.current ? { strokeDasharray: am.dash } : undefined,
                 markerStart: am.atFrom ? markerId(am.atFrom, tone) : undefined,
                 markerEnd: am.atTo ? markerId(am.atTo, tone) : undefined,
               }
@@ -804,7 +810,17 @@ function EditorInner() {
   useEffect(() => {
     if (blast && !model.nodes.some((n) => n.id === blast.start)) setBlast(null);
   }, [model.nodes, blast]);
-  useEffect(() => setBlast(null), [model.id]);
+  useEffect(() => {
+    setBlast(null);
+    blastReturn.current = null;
+  }, [model.id]);
+  // An edit can shorten the radius under the open view: stay on its last hop.
+  useEffect(() => {
+    if (blast && radius && blast.step > radius.steps.length - 1) {
+      setBlast({ ...blast, step: radius.steps.length - 1, playing: false });
+      setMessage(blastAnnouncement(radius, radius.steps.length - 1, nameOf));
+    }
+  }, [blast, radius]); // eslint-disable-line react-hooks/exhaustive-deps -- nameOf reads the same model as radius
   // Escape closes it, unless a menu, dialog or text field has the key.
   useEffect(() => {
     if (!blast || menu || managing) return;
@@ -1094,21 +1110,29 @@ function EditorInner() {
               {blastProgress(radius, blast.step)}
             </p>
             <span className="ml-auto flex flex-wrap gap-2">
-              <button type="button" className={toolbarButton} aria-label="Previous step" disabled={blast.step === 0} onClick={() => blastTo(blast.step - 1)}>
+              <button type="button" className={stepButton} aria-label="Previous step" aria-disabled={blast.step === 0} onClick={() => blast.step > 0 && blastTo(blast.step - 1)}>
                 <span aria-hidden="true">←</span> Previous
               </button>
               <button
                 ref={playButton}
                 type="button"
-                className={toolbarButton}
-                disabled={radius.steps.length < 2}
+                className={stepButton}
+                aria-disabled={radius.steps.length < 2}
                 onClick={() =>
-                  blast.playing ? setBlast({ ...blast, playing: false }) : blast.step >= radius.steps.length - 1 ? blastTo(0, true) : setBlast({ ...blast, playing: true })
+                  radius.steps.length < 2
+                    ? undefined
+                    : blast.playing ? setBlast({ ...blast, playing: false }) : blast.step >= radius.steps.length - 1 ? blastTo(0, true) : setBlast({ ...blast, playing: true })
                 }
               >
                 {blast.playing ? "Pause" : "Play"}
               </button>
-              <button type="button" className={toolbarButton} aria-label="Next step" disabled={blast.step >= radius.steps.length - 1} onClick={() => blastTo(blast.step + 1)}>
+              <button
+                type="button"
+                className={stepButton}
+                aria-label="Next step"
+                aria-disabled={blast.step >= radius.steps.length - 1}
+                onClick={() => blast.step < radius.steps.length - 1 && blastTo(blast.step + 1)}
+              >
                 Next <span aria-hidden="true">→</span>
               </button>
               <button type="button" className={toolbarButton} onClick={closeBlast} aria-keyshortcuts="Escape">

@@ -7,7 +7,10 @@ import type { BlastRadius, Model } from "@/model";
  */
 export type BlastView = {
   nodes: Map<string, { hop: number; current: boolean }>;
-  /** `forward`: impact runs along the line's own direction (from → to); otherwise against it. */
+  /**
+   * `forward`: impact runs along the line's own direction (from → to); otherwise against it. In the
+   * Dependencies view the walk runs against impact, so the newly reached element is where impact comes from.
+   */
   edges: Map<string, { current: boolean; forward: boolean }>;
 };
 
@@ -21,7 +24,10 @@ export function blastView(model: Model, r: BlastRadius, step: number): BlastView
   for (const s of r.steps.slice(0, k + 1)) {
     const current = s.hop === k;
     for (const id of s.nodeIds) view.nodes.set(id, { hop: s.hop, current });
-    for (const id of s.edgeIds) view.edges.set(id, { current, forward: s.nodeIds.includes(to.get(id) ?? "") });
+    for (const id of s.edgeIds) {
+      const towardReached = s.nodeIds.includes(to.get(id) ?? "");
+      view.edges.set(id, { current, forward: r.direction === "impact" ? towardReached : !towardReached });
+    }
   }
   return view;
 }

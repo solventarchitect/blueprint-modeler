@@ -58,6 +58,15 @@ describe("blast view", () => {
     expect(v.edges.get("up")).toEqual({ current: true, forward: true });
   });
 
+  it("in the Dependencies view, still marks the way impact travels (toward the start)", () => {
+    const m = checkout();
+    const r = blastRadius(m, idOf(m, "Checkout"), "dependencies");
+    const v = blastView(m, r, r.steps.length - 1);
+    // The walk goes from Checkout along its lines to what it needs; impact runs back against them,
+    // the same way as in the Impact view: the direction belongs to the relationship, not the view.
+    expect(new Set([...v.edges.values()].map((e) => e.forward))).toEqual(new Set([false]));
+  });
+
   it("is empty for an element that is not in the model", () => {
     const m = checkout();
     const v = blastView(m, blastRadius(m, "nope", "impact"), 0);
