@@ -39,8 +39,14 @@ test.describe("blast radius GIF export (desktop)", () => {
   test("is unavailable until a blast radius is open, and says how to open one", async ({ page }) => {
     await openCheckout(page);
     await page.getByRole("button", { name: "Export" }).click();
-    await expect(gifItem(page)).toBeDisabled();
+    await expect(gifItem(page)).toHaveAttribute("aria-disabled", "true");
     await expect(gifItem(page)).toContainText("Show a blast radius first");
+    // Still reachable by keyboard, so its note can be read; choosing it does nothing.
+    await gifItem(page).focus();
+    await expect(gifItem(page)).toBeFocused();
+    await page.keyboard.press("Enter");
+    await expect(gifItem(page)).toBeVisible();
+    await expect(page.getByRole("status")).not.toContainText("Exported");
   });
 
   test("saves a looping GIF89a with one frame per hop, made in the browser", async ({ page, baseURL }) => {
@@ -49,7 +55,7 @@ test.describe("blast radius GIF export (desktop)", () => {
     await openCheckout(page);
     await showFrom(page, "db-prod-01");
     await page.getByRole("button", { name: "Export" }).click();
-    await expect(gifItem(page)).toBeEnabled();
+    await expect(gifItem(page)).not.toHaveAttribute("aria-disabled", "true");
     await expect(gifItem(page)).toContainText("5 frames");
     await page.keyboard.press("Escape");
 

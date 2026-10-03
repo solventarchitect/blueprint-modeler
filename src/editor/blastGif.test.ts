@@ -29,6 +29,16 @@ describe("blast radius GIF frames", () => {
     expect(d.svgs[0]).toContain(">What Checkout needs · Start · 0 of 8 needed<");
   });
 
+  it("gives every frame the same size, even when the caption is wider than a small model", () => {
+    const base = checkout();
+    const keep = new Set([idOf(base, "db-prod-01"), idOf(base, "Orders database")]);
+    const m: Model = { ...base, nodes: base.nodes.filter((n) => keep.has(n.id)), edges: base.edges.filter((e) => keep.has(e.from) && keep.has(e.to)) };
+    const f = blastFrames(m, blastRadius(m, idOf(m, "db-prod-01"), "impact"), "dark", "csdm");
+    expect(f.svgs.length).toBe(2);
+    const size = (svg: string) => /<svg[^>]* width="([\d.]+)" height="([\d.]+)"/.exec(svg)!.slice(1).join("x");
+    expect(new Set(f.svgs.map(size)).size).toBe(1);
+  });
+
   it("is one still frame when nothing is reached", () => {
     const m = checkout();
     const f = blastFrames(m, blastRadius(m, idOf(m, "Online shopping"), "impact"), "dark", "csdm");

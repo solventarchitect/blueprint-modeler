@@ -64,15 +64,17 @@ export function ExportMenu({
           <li key={it.kind}>
             <button
               type="button"
-              disabled={disabled[it.kind]}
-              className="flex w-full cursor-pointer flex-col px-3 py-2 text-left hover:bg-surface hover:text-accent focus-visible:bg-surface disabled:cursor-not-allowed disabled:opacity-60 disabled:hover:bg-transparent"
+              // aria-disabled, not disabled: the item stays reachable by keyboard, so its note can say why.
+              aria-disabled={disabled[it.kind] || undefined}
+              className="flex w-full cursor-pointer flex-col px-3 py-2 text-left hover:bg-surface hover:text-accent focus-visible:bg-surface aria-disabled:cursor-not-allowed aria-disabled:hover:bg-transparent"
               onClick={() => {
+                if (disabled[it.kind]) return;
                 setOpen(false);
                 button.current?.focus();
                 onExport(it.kind);
               }}
             >
-              <span className="text-sm text-ink">{it.label}</span>
+              <span className={`text-sm ${disabled[it.kind] ? "text-ink-muted" : "text-ink"}`}>{it.label}</span>
               <span className="text-xs text-ink-muted">{it.note}</span>
               {notes[it.kind] && (
                 <span className="text-xs text-ink-muted" data-testid={`export-note-${it.kind}`}>

@@ -20,7 +20,8 @@ export type SvgHighlight = {
   impact: boolean;
   nodes: ReadonlyMap<string, { hop: number; current: boolean }>;
   edges: ReadonlyMap<string, { current: boolean }>;
-  caption?: { label: string; text: string };
+  /** `reserve`: characters of width to keep for the caption, so frames with shorter captions match in size. */
+  caption?: { label: string; text: string; reserve?: number };
 };
 
 /** Every color a picture in this theme and lens can use: large fills, then lines and text. */
@@ -101,7 +102,7 @@ export function modelToSvg(model: Model, theme: SvgTheme, opts: { lens?: Lens; h
   const minX = all.length ? Math.min(...all.map((b) => b.x)) - PAD : 0;
   const minY = (all.length ? Math.min(...all.map((b) => b.y)) - PAD : 0) - (hl?.caption ? CAPTION_H : 0);
   // The caption sets a minimum width (14px sans, about 7.6px a character).
-  const maxX = Math.max(all.length ? Math.max(...all.map((b) => b.x + b.w)) + PAD : 2 * PAD, hl?.caption ? minX + 32 + hl.caption.text.length * 7.6 : -Infinity);
+  const maxX = Math.max(all.length ? Math.max(...all.map((b) => b.x + b.w)) + PAD : 2 * PAD, hl?.caption ? minX + 32 + Math.max(hl.caption.text.length, hl.caption.reserve ?? 0) * 7.6 : -Infinity);
   const maxY = all.length ? Math.max(...all.map((b) => b.y + b.h)) + PAD : 2 * PAD;
   const width = hl?.caption ? Math.ceil(maxX - minX) : maxX - minX;
   const height = maxY - minY;

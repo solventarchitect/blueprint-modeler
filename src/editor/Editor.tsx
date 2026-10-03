@@ -471,6 +471,9 @@ function EditorInner() {
   };
 
   const [makingGif, setMakingGif] = useState(false);
+  // An export still running when the editor closes is stopped, and saves nothing.
+  const gifAbort = useRef<AbortController | null>(null);
+  useEffect(() => () => gifAbort.current?.abort(), []);
   const exportBlastGif = async () => {
     if (!blast || !radius || !radius.steps.length || makingGif) return;
     const frames = blastFrames(model, radius, viewedTheme(), lens);
@@ -478,13 +481,16 @@ function EditorInner() {
     const count = `${frames.svgs.length} frame${frames.svgs.length === 1 ? "" : "s"}`;
     setMakingGif(true);
     setMessage(`Making ${filename} (${count})…`);
+    const abort = new AbortController();
+    gifAbort.current = abort;
     try {
-      const { bytes } = await renderGif({ ...frames, comment: frames.summary, scale: gifScale });
+      const { bytes } = await renderGif({ ...frames, comment: frames.summary, scale: gifScale, signal: abort.signal });
       downloadText(filename, bytes as Uint8Array<ArrayBuffer>, "image/gif");
       setMessage(`Exported ${filename}: ${count}, ${Math.max(1, Math.round(bytes.length / 1024))} KB. ${frames.summary}`);
     } catch {
-      setMessage("Could not make the GIF in this browser. Nothing was saved.");
+      if (!abort.signal.aborted) setMessage("Could not make the GIF in this browser. Nothing was saved.");
     } finally {
+      gifAbort.current = null;
       setMakingGif(false);
     }
   };
