@@ -21,6 +21,8 @@ type Props = {
   onSelect: (id: string | null) => void;
   newId: () => string;
   lens?: Lens;
+  /** Show the selected element's blast radius; `from` gets focus back when it closes. */
+  onBlast?: (from: HTMLElement) => void;
 };
 
 const input =
@@ -94,7 +96,7 @@ function archimateRelFor(model: Model) {
 }
 
 /** Details of the selected element, its relationships, and a keyboard way to add more. */
-export function Inspector({ model, selectedId, dispatch, focusName, focusConnect = 0, suggestions = [], onSuggest, onSelect, newId, lens = "csdm" }: Props) {
+export function Inspector({ model, selectedId, dispatch, focusName, focusConnect = 0, suggestions = [], onSuggest, onSelect, newId, lens = "csdm", onBlast }: Props) {
   const connectRef = useRef<HTMLSelectElement>(null);
   useEffect(() => {
     if (focusConnect) connectRef.current?.focus();
@@ -233,6 +235,15 @@ export function Inspector({ model, selectedId, dispatch, focusName, focusConnect
           </button>
         </div>
       </section>
+
+      {onBlast && (
+        <div className="flex flex-col gap-1">
+          <button type="button" className={`${button} self-start`} onClick={(e) => onBlast(e.currentTarget)}>
+            Show blast radius
+          </button>
+          <span className="text-xs text-ink-muted">What is affected if this element fails, hop by hop. Changes nothing.</span>
+        </div>
+      )}
 
       <button
         type="button"

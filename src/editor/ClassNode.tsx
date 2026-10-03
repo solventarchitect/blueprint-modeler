@@ -1,7 +1,7 @@
 "use client";
 
 import { Handle, NodeToolbar, Position, useConnection, useInternalNode, useStore, useViewport, type Node, type NodeProps } from "@xyflow/react";
-import { createContext, memo, useContext, useEffect, useRef, useState } from "react";
+import { createContext, memo, useContext, useEffect, useRef, useState, type CSSProperties } from "react";
 import { ArchimateGlyph } from "@/frameworks/ArchimateGlyph";
 import type { ArchimateElementType, ArchimateLayer } from "@/frameworks";
 import { classById } from "@/metamodel";
@@ -24,6 +24,8 @@ export type ClassNodeData = {
   archimateOnly?: boolean;
   /** Offer relationship suggestions (editing, and the element has no relationships yet). */
   suggest?: boolean;
+  /** Reached by the open blast radius: the start (hop 0) or an element reached at `hop`. */
+  blast?: { hop: number; current: boolean; impact: boolean };
 };
 
 /** ArchiMate-only lens: the element's fill follows its ArchiMate layer (tokens in globals.css). */
@@ -150,9 +152,12 @@ function ClassNodeView({ id, data, selected, dragging }: NodeProps<ClassFlowNode
     wrapper.style.zIndex = focus ? "1000" : "";
   }, [focus]);
 
+  const blast = data.blast;
   const ring = target
     ? "outline-2 outline-dashed outline-offset-4 outline-valid"
-    : data.highlight
+    : blast
+      ? `${blast.current ? "outline-[3px]" : "outline-2"} outline-offset-2 ${blast.hop > 0 ? "outline-status" : blast.impact ? "outline-invalid" : "outline-accent"} ${blast.current ? "blast-pulse" : ""}`
+      : data.highlight
       ? "ring-2 ring-status ring-offset-2 ring-offset-surface"
       : selected
         ? "outline-2 outline-offset-2 outline-accent"
@@ -169,6 +174,10 @@ function ClassNodeView({ id, data, selected, dragging }: NodeProps<ClassFlowNode
       data-neighbor={data.neighbor || undefined}
       data-archimate-layer={data.archimateOnly ? data.alt?.layer : undefined}
       data-hovered={focus || undefined}
+      data-blast={blast ? (blast.hop === 0 ? "start" : "reached") : undefined}
+      data-blast-hop={blast?.hop}
+      data-blast-current={blast?.current || undefined}
+      style={blast?.hop === 0 ? ({ "--pulse": blast.impact ? "var(--invalid)" : "var(--accent)" } as CSSProperties) : undefined}
       onMouseEnter={() => hover(true)}
       onMouseLeave={() => hover(false)}
     >
@@ -199,6 +208,18 @@ function ClassNodeView({ id, data, selected, dragging }: NodeProps<ClassFlowNode
           <ArchimateGlyph type={data.alt.type} />
           <span className="truncate">{data.alt.label}</span>
         </p>
+      )}
+      {blast && (
+        // The node's accessible name says the same ("affected at hop 2"), so the badge is hidden from it.
+        <span
+          aria-hidden="true"
+          data-testid="blast-badge"
+          className={`absolute -top-2.5 -left-2.5 flex h-5 min-w-5 items-center justify-center rounded-full px-1 font-mono text-[0.7rem] font-semibold text-accent-ink ${
+            blast.hop > 0 ? "bg-status" : blast.impact ? "bg-invalid" : "bg-accent"
+          }`}
+        >
+          {blast.hop > 0 ? blast.hop : blast.impact ? "×" : "◎"}
+        </span>
       )}
       {data.hint && (
         <span

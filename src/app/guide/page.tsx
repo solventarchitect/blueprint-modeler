@@ -139,6 +139,12 @@ export default function GuidePage() {
           how CSDM uses the pair, and need review. This is a what-if on your model, not ServiceNow&apos;s Impacted
           Services calculation, which follows its own rules.
         </p>
+        <p className="mt-2 max-w-2xl text-sm text-ink-muted" data-testid="blast-how">
+          To see it on your model, right-click an element (or press Shift+F10 on it) and choose{" "}
+          <strong className="font-medium text-ink-soft">Show blast radius</strong>, or use the button of that name in
+          the Inspector. Each hop lights up in turn; Impact shows what is affected if the element fails, Dependencies
+          what it needs. It changes nothing in the model.
+        </p>
         <div className="mt-6 overflow-x-auto border border-border" tabIndex={0} role="region" aria-label="Impact rules">
           <table className="w-full min-w-[48rem] text-left text-sm">
             <thead className="bg-surface-raised font-mono text-xs tracking-[0.1em] text-ink-muted uppercase">
