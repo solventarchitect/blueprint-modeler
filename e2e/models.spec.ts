@@ -101,6 +101,76 @@ test.describe("managing saved models (desktop)", () => {
     await expect(page.getByTestId("save-status")).toHaveText("Saved in this browser", { timeout: 15_000 });
     await expect(picker(page).locator("option", { hasText: "Online store checkout" })).toHaveCount(0);
   });
+
+  test("switching to another model keeps a change that was still waiting to autosave", async ({ page }) => {
+    test.slow(true, "stretched autosave pause");
+    // The autosave pause (300 ms) is stretched so the switch happens before the change is saved,
+    // as it does by chance when someone edits and switches quickly.
+    await page.addInitScript(() => {
+      const set = window.setTimeout;
+      window.setTimeout = ((fn: TimerHandler, ms?: number, ...rest: unknown[]) => set(fn, ms === 300 ? 4000 : ms, ...rest)) as typeof window.setTimeout;
+    });
+    const open = page.getByRole("combobox", { name: "Open model" });
+    const saved = () => expect(page.getByTestId("save-status")).toHaveText("Saved in this browser", { timeout: 15_000 });
+    await page.goto("/editor");
+    await saved();
+    const examples = page.getByRole("combobox", { name: "Start from an example" });
+    await examples.selectOption({ label: "Online store checkout" });
+    await expect(open.locator("option:checked")).toHaveText("Online store checkout");
+    await saved();
+    await examples.selectOption({ label: "HR self-service portal" });
+    await expect(open.locator("option:checked")).toHaveText("HR self-service portal");
+    await saved();
+    await open.selectOption({ label: "Online store checkout" });
+    await expect(open.locator("option:checked")).toHaveText("Online store checkout");
+    await saved();
+
+    // A change, then switch away before its autosave has run.
+    await page.getByRole("navigation", { name: "Element palette" }).getByRole("button", { name: "Business Capability", exact: true }).click();
+    await expect(page.locator(".react-flow__node").filter({ hasText: "New Business Capability" })).toBeVisible();
+    await expect(page.getByTestId("save-status")).toHaveText("Saving…");
+    await open.selectOption({ label: "HR self-service portal" });
+    await expect(open.locator("option:checked")).toHaveText("HR self-service portal");
+    await saved();
+
+    await page.reload();
+    await saved();
+    await open.selectOption({ label: "Online store checkout" });
+    await expect(open.locator("option:checked")).toHaveText("Online store checkout");
+    await expect(page.locator(".react-flow__node").filter({ hasText: "New Business Capability" })).toBeVisible();
+  });
+
+  test("if a waiting change cannot be saved, the switch stops and says so", async ({ page }) => {
+    test.slow(true, "stretched autosave pause");
+    const errors: string[] = [];
+    page.on("pageerror", (e) => errors.push(e.message));
+    await page.addInitScript(() => {
+      const set = window.setTimeout;
+      window.setTimeout = ((fn: TimerHandler, ms?: number, ...rest: unknown[]) => set(fn, ms === 300 ? 4000 : ms, ...rest)) as typeof window.setTimeout;
+      const put = IDBObjectStore.prototype.put;
+      IDBObjectStore.prototype.put = function (this: IDBObjectStore, ...args: Parameters<IDBObjectStore["put"]>) {
+        if ((window as unknown as { failPut?: boolean }).failPut) throw new DOMException("Quota exceeded", "QuotaExceededError");
+        return put.apply(this, args);
+      };
+    });
+    const open = page.getByRole("combobox", { name: "Open model" });
+    const saved = () => expect(page.getByTestId("save-status")).toHaveText("Saved in this browser", { timeout: 15_000 });
+    await page.goto("/editor");
+    await saved();
+    await page.getByRole("combobox", { name: "Start from an example" }).selectOption({ label: "Online store checkout" });
+    await expect(open.locator("option:checked")).toHaveText("Online store checkout");
+    await saved();
+
+    await page.getByRole("navigation", { name: "Element palette" }).getByRole("button", { name: "Business Capability", exact: true }).click();
+    await expect(page.getByTestId("save-status")).toHaveText("Saving…");
+    await page.evaluate(() => ((window as unknown as { failPut?: boolean }).failPut = true));
+    await open.selectOption({ label: "Untitled model" });
+
+    await expect(page.getByRole("alert").filter({ hasText: "could not be saved" })).toBeVisible();
+    await expect(open.locator("option:checked")).toHaveText("Online store checkout");
+    await expect(page.locator(".react-flow__node").filter({ hasText: "New Business Capability" })).toBeVisible();
+    expect(errors).toEqual([]);
+  });
 });
 
 test.describe("starting blank (desktop)", () => {
