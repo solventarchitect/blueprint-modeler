@@ -99,6 +99,25 @@ test.describe("class guide", () => {
     await expect(section).toContainText("registered trademark of The Open Group");
   });
 
+  test("the guide shows how impact travels along each relationship, with evidence and a caveat", async ({ page }) => {
+    await page.goto("/guide");
+    const section = page.getByTestId("impact-section");
+    await expect(section.getByRole("heading", { level: 2, name: "How impact travels" })).toBeVisible();
+    await expect(section).toContainText("not ServiceNow's Impacted Services calculation");
+    const rows = section.getByRole("region", { name: "Impact rules" }).locator("tbody tr");
+    expect(await rows.count()).toBeGreaterThan(10);
+    await expect(section.getByText("When the To element fails, the From element is affected.").first()).toBeVisible();
+    await expect(section.getByText("When the From element fails, the To element is affected.").first()).toBeVisible();
+    await expect(section.getByText("Does not spread impact.").first()).toBeVisible();
+    const table = section.getByRole("region", { name: "Impact rules" });
+    await expect(table.getByText("Stated", { exact: true })).toHaveCount(1);
+    expect(await table.getByText("Conventional", { exact: true }).count()).toBeGreaterThan(5);
+    // Every pair a rule covers can be listed.
+    const first = rows.first().locator("summary");
+    await first.click();
+    await expect(rows.first().locator("li").first()).toBeVisible();
+  });
+
   test("the guide says how the ArchiMate views fit TOGAF work, with its notice and no conformance claim", async ({ page }) => {
     await page.goto("/guide");
     const note = page.getByTestId("archimate-section").getByTestId("togaf-note");

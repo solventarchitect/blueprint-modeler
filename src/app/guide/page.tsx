@@ -1,5 +1,5 @@
 import type { Metadata } from "next";
-import { classById, classes, hints, isCsdmCore, isExtended, relationships, sources, type Layer, type SourceRef } from "@/metamodel";
+import { classById, classes, hints, impactRows, isCsdmCore, isExtended, relationships, sources, type Layer, type SourceRef } from "@/metamodel";
 import { layerAccent } from "@/editor/layerAccent";
 import { ARCHIMATE_TRADEMARK, archimateElements, archimateRelationshipFor, archimateSources, type ElementMapping } from "@/frameworks";
 import { ArchimateGlyph } from "@/frameworks/ArchimateGlyph";
@@ -42,6 +42,7 @@ export default function GuidePage() {
       <nav aria-label="On this page" className="mt-6 flex flex-wrap gap-x-5 gap-y-2 text-sm">
         <a className="text-accent underline underline-offset-4" href="#classes">Classes</a>
         <a className="text-accent underline underline-offset-4" href="#relationships">Relationships</a>
+        <a className="text-accent underline underline-offset-4" href="#impact">Impact</a>
         <a className="text-accent underline underline-offset-4" href="#hints">Hints</a>
         <a className="text-accent underline underline-offset-4" href="#archimate">ArchiMate mapping</a>
       </nav>
@@ -117,6 +118,63 @@ export default function GuidePage() {
                   <td className="px-3 py-2.5 capitalize">{r.typeEvidence}</td>
                   <td className="px-3 py-2.5 text-xs">
                     <Source src={r.source} />
+                  </td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
+      </section>
+
+      <section aria-labelledby="impact" className="mt-16" data-testid="impact-section">
+        <h2 id="impact" className="text-2xl font-semibold tracking-tight">How impact travels</h2>
+        <p className="mt-2 max-w-2xl text-sm text-ink-muted">
+          The blast-radius view follows these rules to show what is affected when an element fails, or what an element
+          depends on. Pairs read From → To, as in the Relationships table; for relationship types, From is the parent
+          (<span className="font-mono text-xs">parent::child</span>); in the capability hierarchy, From is the child
+          capability.{" "}
+          <strong className="font-medium text-ink-soft">Stated</strong> rules rest on ServiceNow-hosted material we cite (a
+          ServiceNow Community accepted answer);{" "}
+          <strong className="font-medium text-ink-soft">conventional</strong> rules are our reading of the type and of
+          how CSDM uses the pair, and need review. This is a what-if on your model, not ServiceNow&apos;s Impacted
+          Services calculation, which follows its own rules.
+        </p>
+        <div className="mt-6 overflow-x-auto border border-border" tabIndex={0} role="region" aria-label="Impact rules">
+          <table className="w-full min-w-[48rem] text-left text-sm">
+            <thead className="bg-surface-raised font-mono text-xs tracking-[0.1em] text-ink-muted uppercase">
+              <tr>
+                <th scope="col" className="px-3 py-2.5 font-medium">Type</th>
+                <th scope="col" className="px-3 py-2.5 font-medium">When one end fails</th>
+                <th scope="col" className="px-3 py-2.5 font-medium">Pairs</th>
+                <th scope="col" className="px-3 py-2.5 font-medium">Evidence</th>
+                <th scope="col" className="px-3 py-2.5 font-medium">Source</th>
+              </tr>
+            </thead>
+            <tbody>
+              {impactRows().map((row) => (
+                <tr key={`${row.type}|${row.rule.dependent}|${row.rule.why}`} className="border-t border-border align-top">
+                  <td className="px-3 py-2.5 font-mono text-xs">{row.type.replace(/^reference:/, "Reference: ")}</td>
+                  <td className="px-3 py-2.5">
+                    {row.effect}
+                    <span className="mt-1 block text-xs text-ink-muted">{row.rule.why}</span>
+                  </td>
+                  <td className="px-3 py-2.5 text-xs">
+                    <details>
+                      <summary className="cursor-pointer text-accent underline underline-offset-4">
+                        {row.pairs.length === 1 ? "1 pair" : `${row.pairs.length} pairs`}
+                      </summary>
+                      <ul className="mt-1 space-y-0.5">
+                        {row.pairs.map((p) => (
+                          <li key={`${p.from}-${p.to}`}>
+                            {label(p.from)} → {label(p.to)}
+                          </li>
+                        ))}
+                      </ul>
+                    </details>
+                  </td>
+                  <td className="px-3 py-2.5">{row.rule.evidence === "stated" ? "Stated" : "Conventional"}</td>
+                  <td className="px-3 py-2.5 text-xs">
+                    <Source src={row.rule.source} />
                   </td>
                 </tr>
               ))}

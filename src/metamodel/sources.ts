@@ -29,6 +29,10 @@ export const sources = {
     title: "Kubernetes extension classes (ServiceNow docs, Yokohama)",
     url: "https://www.servicenow.com/docs/r/yokohama/servicenow-platform/cmdb-ci-class-models/cmdb-ci-class-models-kubernetes.html",
   },
+  ciRelTypeDefinitions: {
+    title: "Definition which reflects the relationship types' purpose (ServiceNow Community, accepted solution)",
+    url: "https://www.servicenow.com/community/itom-forum/definiton-which-reflects-the-relationship-types-purpose/td-p/2937885",
+  },
   whatIsCsdm: {
     title: "What is CSDM? (ServiceNow)",
     url: "https://www.servicenow.com/products/it-operations-management/what-is-csdm.html",

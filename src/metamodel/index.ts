@@ -3,6 +3,7 @@ import { relationships, type RelDef } from "./relationships";
 
 export * from "./classes";
 export * from "./hints";
+export * from "./impact";
 export * from "./relationships";
 export * from "./sources";
 
