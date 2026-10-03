@@ -21,6 +21,8 @@ export function useModelDocument() {
   const store = useRef<ModelStore | null>(null);
   const loadedId = useRef<string | null>(null);
   const persistent = useRef(true);
+  /** The open model's latest change while its autosave pause runs (null once written). */
+  const pending = useRef<Model | null>(null);
 
   const refreshList = useCallback(async () => {
     if (store.current) setModels(await store.current.list());
@@ -29,6 +31,21 @@ export function useModelDocument() {
   const open = useCallback(async (id?: string) => {
     const s = store.current;
     if (!s) return;
+    // Switching away cancels the outgoing model's autosave pause, so write a change still waiting
+    // in it first (a deleted model has already been detached: loadedId is null).
+    const waiting = pending.current;
+    if (waiting && waiting.id === loadedId.current) {
+      pending.current = null;
+      try {
+        await s.put(waiting);
+      } catch {
+        // Stay on this model so the unsaved change is still on screen; its autosave runs again.
+        pending.current = waiting;
+        setStatus("error");
+        setProblem("Your last change could not be saved, so the other model was not opened. Try again, or export this model first.");
+        return;
+      }
+    }
     const list = await s.list();
     const targetId = id ?? list[0]?.id;
     let model: Model | undefined;
@@ -63,7 +80,6 @@ export function useModelDocument() {
   // Autosave the present model once it has settled. The status flips to "Saving…" before the
   // change is painted, so "Saved" never shows while a save is still pending.
   const model = history.present;
-  const pending = useRef<Model | null>(null);
   useLayoutEffect(() => {
     if (!store.current || loadedId.current !== model.id) return;
     setStatus((st) => (st === "memory-only" ? st : "saving"));
