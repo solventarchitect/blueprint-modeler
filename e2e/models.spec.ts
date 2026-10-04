@@ -182,7 +182,9 @@ test.describe("starting blank (desktop)", () => {
 
     await openExample(page, "Online Store Checkout");
     await expect(page.locator(".react-flow__node")).not.toHaveCount(0);
-    const before = Number(await modelButton(page).getAttribute("data-count"));
+    // The first model and the example: wait for the list to hold both before counting.
+    await expect(modelButton(page)).toHaveAttribute("data-count", "2");
+    const before = 2;
     await openExample(page, "Blank model");
     await expect(modelButton(page)).toHaveAttribute("data-count", String(before + 1));
     await expect(page.locator(".react-flow__node")).toHaveCount(0);
