@@ -182,7 +182,7 @@ function ClassNodeView({ id, data, selected, dragging }: NodeProps<ClassFlowNode
       onMouseLeave={() => hover(false)}
     >
       {data.suggest && <Suggestions id={id} name={data.name || "Untitled"} visible={(selected || hovered) && !fromId && !dragging} onHover={hover} />}
-      <Handle id="top" type="source" position={Position.Top} className="!size-2.5 !border-accent !bg-surface" />
+      <Handle id="top" type="source" position={Position.Top} className="!size-2.5 !rounded-full !border-accent !bg-surface" />
       {data.archimateOnly && data.alt ? (
         // On a layer fill the type takes --am-ink (the purple AI ink falls below 4.5:1 on dark fills).
         <p
@@ -231,9 +231,9 @@ function ClassNodeView({ id, data, selected, dragging }: NodeProps<ClassFlowNode
           {data.hint === "warning" ? "!" : "i"}
         </span>
       )}
-      <Handle id="bottom" type="source" position={Position.Bottom} className="!size-2.5 !border-accent !bg-surface" />
-      <Handle id="left" type="source" position={Position.Left} className="!size-2.5 !border-accent !bg-surface" />
-      <Handle id="right" type="source" position={Position.Right} className="!size-2.5 !border-accent !bg-surface" />
+      <Handle id="bottom" type="source" position={Position.Bottom} className="!size-2.5 !rounded-full !border-accent !bg-surface" />
+      <Handle id="left" type="source" position={Position.Left} className="!size-2.5 !rounded-full !border-accent !bg-surface" />
+      <Handle id="right" type="source" position={Position.Right} className="!size-2.5 !rounded-full !border-accent !bg-surface" />
     </div>
   );
 }
