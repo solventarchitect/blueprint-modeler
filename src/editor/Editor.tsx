@@ -31,6 +31,7 @@ import {
 } from "react";
 import Link from "next/link";
 import { exampleCategories, examples } from "@/examples";
+import { EXAMPLE_PARAM, exampleFromSearch } from "@/examples/deepLink";
 import { archimateElements, archimateRelationshipFor, edgeNotation, lenses, readLens, saveLens, showsArchimate, type ArchimateRelationshipType, type Lens } from "@/frameworks";
 import { downloadText } from "@/io/download";
 import { exportJson, fileBase, importJson, MAX_FILE_CHARS } from "@/io/file";
@@ -469,11 +470,29 @@ function EditorInner() {
     if (!ex) return;
     setSelectedId(null);
     setActiveHint(null);
-    await doc.createFrom(ex.create());
+    if (!(await doc.createFrom(ex.create()))) return;
     if (ex.lens) setLens(ex.lens);
     setMessage(`Opened the example “${ex.name}” as a new model.${ex.lens ? ` Lens: ${lenses.find((l) => l.id === ex.lens)?.label}.` : ""}`);
     setTimeout(() => void flow.fitView({ maxZoom: 1, padding: fitPadding(0.15) }), 50);
   };
+
+  // A link to /editor?example=<id> (M42) opens that example once the first load has finished, as
+  // choosing it from Examples does. The query comes off the URL first, so a reload, Back or a
+  // bookmark cannot add a second copy; an unknown id leaves the open model as it is and says so.
+  const deepLinked = useRef(false);
+  useEffect(() => {
+    if (!doc.ready || deepLinked.current) return;
+    deepLinked.current = true;
+    const search = window.location.search;
+    if (!new URLSearchParams(search).has(EXAMPLE_PARAM)) return;
+    // `null` state: Next.js's router then takes the new URL as its own (passing the current state
+    // would leave the router holding the old query, which it may write back later).
+    window.history.replaceState(null, "", `${window.location.pathname}${window.location.hash}`);
+    const link = exampleFromSearch(search);
+    if (!link) return;
+    if (link.example) void loadExample(link.example.id);
+    else setIoError(`No example named “${link.shown}”. Choose one from Examples.`);
+  }, [doc.ready]); // eslint-disable-line react-hooks/exhaustive-deps -- runs once, after the first load
 
   // "Blank model" closes the empty-state card for this model and moves focus to the palette.
   const [blankFor, setBlankFor] = useState<string | null>(null);
@@ -561,7 +580,7 @@ function EditorInner() {
     }
     setSelectedId(null);
     setActiveHint(null);
-    await doc.createFrom(r.model);
+    if (!(await doc.createFrom(r.model))) return;
     const warn = r.issues.length ? ` ${r.issues.length} relationship${r.issues.length === 1 ? " breaks" : "s break"} the CSDM rules; see Hints.` : "";
     setMessage(`Imported “${r.model.name || UNTITLED_MODEL}”${r.copied ? " as a copy (a model with the same id is already here)" : ""}.${warn}`);
     setTimeout(() => void flow.fitView({ maxZoom: 1, padding: fitPadding(0.15) }), 50);

@@ -18,6 +18,8 @@ export function useModelDocument() {
   const [status, setStatus] = useState<SaveStatus>("loading");
   const [models, setModels] = useState<ModelSummary[]>([]);
   const [problem, setProblem] = useState<string | null>(null);
+  /** True once the first load has finished: a model is open and the list of stored models is current. */
+  const [ready, setReady] = useState(false);
   const store = useRef<ModelStore | null>(null);
   const loadedId = useRef<string | null>(null);
   const persistent = useRef(true);
@@ -28,24 +30,32 @@ export function useModelDocument() {
     if (store.current) setModels(await store.current.list());
   }, []);
 
-  const open = useCallback(async (id?: string) => {
-    const s = store.current;
-    if (!s) return;
-    // Switching away cancels the outgoing model's autosave pause, so write a change still waiting
-    // in it first (a deleted model has already been detached: loadedId is null).
+  /**
+   * Switching away cancels the outgoing model's autosave pause, so write a change still waiting in
+   * it first (a deleted model has already been detached: loadedId is null). False when that write
+   * failed: the caller stays on this model, so the unsaved change is still on screen.
+   */
+  const flushPending = useCallback(async (s: ModelStore) => {
     const waiting = pending.current;
-    if (waiting && waiting.id === loadedId.current) {
-      pending.current = null;
-      try {
-        await s.put(waiting);
-      } catch {
-        // Stay on this model so the unsaved change is still on screen; its autosave runs again.
-        pending.current = waiting;
-        setStatus("error");
-        setProblem("Your last change could not be saved, so the other model was not opened. Try again, or export this model first.");
-        return;
-      }
+    if (!waiting || waiting.id !== loadedId.current) return true;
+    pending.current = null;
+    try {
+      await s.put(waiting);
+      return true;
+    } catch {
+      // Its autosave runs again.
+      pending.current = waiting;
+      setStatus("error");
+      setProblem("Your last change could not be saved, so the other model was not opened. Try again, or export this model first.");
+      return false;
     }
+  }, []);
+
+  /** Opens a stored model (the most recent when no id is given). False when nothing was opened. */
+  const open = useCallback(async (id?: string): Promise<boolean> => {
+    const s = store.current;
+    if (!s) return false;
+    if (!(await flushPending(s))) return false;
     const list = await s.list();
     const targetId = id ?? list[0]?.id;
     let model: Model | undefined;
@@ -61,7 +71,8 @@ export function useModelDocument() {
     loadedId.current = model.id;
     dispatchRaw({ type: "load", model });
     setModels(await s.list());
-  }, []);
+    return true;
+  }, [flushPending]);
 
   useEffect(() => {
     let canceled = false;
@@ -71,6 +82,7 @@ export function useModelDocument() {
       persistent.current = opened.persistent;
       await open();
       setStatus(opened.persistent ? "saved" : "memory-only");
+      setReady(true);
     });
     return () => {
       canceled = true;
@@ -155,15 +167,25 @@ export function useModelDocument() {
     [open, refreshList],
   );
 
-  /** Save a ready-made model (an example) as a new model and open it. */
+  /**
+   * Save a ready-made model (an example, an import) as a new model and open it. The open model's
+   * waiting change is written first, so a failure there leaves nothing new behind. False when the
+   * new model was not opened; the problem banner says why.
+   */
   const createFrom = useCallback(
-    async (m: Model) => {
+    async (m: Model): Promise<boolean> => {
       const s = store.current;
-      if (!s) return;
-      await s.put(m);
-      await open(m.id);
+      if (!s || !(await flushPending(s))) return false;
+      try {
+        await s.put(m);
+      } catch {
+        setStatus("error");
+        setProblem("This browser could not save the new model, so it was not opened. Free some space, or export a model you no longer need and delete it.");
+        return false;
+      }
+      return open(m.id);
     },
-    [open],
+    [open, flushPending],
   );
 
   return {
@@ -173,6 +195,7 @@ export function useModelDocument() {
     canRedo: history.future.length > 0,
     dispatch: dispatchRaw,
     status,
+    ready,
     models,
     open,
     newModel,
