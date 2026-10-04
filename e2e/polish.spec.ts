@@ -1,6 +1,7 @@
 import { expect, test, type Page } from "@playwright/test";
 import { contrastOf } from "./contrast";
 import { exampleNames, openExample } from "./examples";
+import { autoLayout } from "./layout";
 import { currentModel } from "./model-menu";
 
 const openCheckout = async (page: Page) => {
@@ -123,8 +124,7 @@ test.describe("stacked layers (desktop)", () => {
       // Wait until the example is open (else Auto-layout lays out the previous model), then for the
       // layout itself: the button reads "Laying out…" while ELK runs, which can outlast 5 s under load.
       await expect(currentModel(page)).toHaveText(label);
-      await page.getByRole("button", { name: "Auto-layout" }).click();
-      await expect(page.getByRole("status")).toContainText("Laid out by CSDM layer", { timeout: 20_000 });
+      await autoLayout(page);
       await page.getByRole("button", { name: "Fit View" }).click();
       await expect.poll(clashes, { message: `${label} after auto-layout` }).toEqual([]);
     }

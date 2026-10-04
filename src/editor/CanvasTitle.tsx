@@ -64,6 +64,7 @@ export function CanvasTitle({
   description?: string;
   artifactId?: string;
   boxes: LayerBox[];
+  /** Layer names sit above the boxes (box tabs, or column lane labels): leave them room. */
   tabsAbove: boolean;
   decorative: boolean;
 }) {

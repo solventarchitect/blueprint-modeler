@@ -1,6 +1,7 @@
 import { archimateElements, type Lens, showsArchimate } from "@/frameworks";
 import { classById, isClassId, type Layer } from "@/metamodel";
 import { UNTITLED_MODEL, type Model } from "@/model";
+import { layoutOrientation } from "@/layout/bands";
 import { edgeSides } from "@/layout/geometry";
 
 /**
@@ -59,6 +60,7 @@ export function modelToDrawio(model: Model, opts: { lens?: Lens; now?: Date } = 
     const p = model.layout[n.id] ?? { x: 0, y: 0 };
     box.set(n.id, { x: Math.round(p.x), y: Math.round(p.y), w: W, h: H });
   }
+  const columns = layoutOrientation(model, Object.fromEntries([...box].map(([id, b]) => [id, { width: b.w, height: b.h }]))) === "columns";
 
   const cells: string[] = [];
   for (const n of model.nodes) {
@@ -99,7 +101,7 @@ export function modelToDrawio(model: Model, opts: { lens?: Lens; now?: Date } = 
     const a = box.get(e.from);
     const b = box.get(e.to);
     if (!a || !b) continue;
-    const [ss, ts] = edgeSides(a, b);
+    const [ss, ts] = edgeSides(a, b, columns);
     const label = e.type.startsWith("reference:") ? "reference" : (e.type.split("::")[0] ?? e.type);
     const style = [
       "edgeStyle=orthogonalEdgeStyle",

@@ -53,6 +53,8 @@ export function LayerOverlay({
 }) {
   const { x, zoom } = useViewport();
   const visibleLeft = -x / zoom;
+  // Column labels sit just above the highest layer box (the title block is above that, left of it).
+  const boxesTop = boxes.length ? Math.min(...boxes.map((b) => b.y)) : 0;
   const count = (layer: Layer) => boxes.find((b) => b.layer === layer)?.nodeIds.length ?? 0;
 
   const handle = (layer: Layer, name: string, extra: string) =>
@@ -96,22 +98,27 @@ export function LayerOverlay({
               data-testid="layer-lane"
               className="absolute"
               style={{
-                transform: `translate(${-LANE_SPAN / 2}px, ${l.top}px)`,
-                width: LANE_SPAN,
-                height: l.bottom - l.top,
+                transform: l.columns ? `translate(${l.start}px, ${-LANE_SPAN / 2}px)` : `translate(${-LANE_SPAN / 2}px, ${l.start}px)`,
+                width: l.columns ? l.end - l.start : LANE_SPAN,
+                height: l.columns ? LANE_SPAN : l.end - l.start,
                 background:
                   handlers?.selected === l.layer
                     ? `color-mix(in oklab, ${layerColor[l.layer]} 14%, transparent)`
                     : i % 2 === 0
                       ? `color-mix(in oklab, ${layerColor[l.layer]} 5%, transparent)`
                       : "transparent",
-                borderTop: i === 0 ? "none" : `1px dashed color-mix(in oklab, ${layerColor[l.layer]} 45%, transparent)`,
+                [l.columns ? "borderLeft" : "borderTop"]: i === 0 ? "none" : `1px dashed color-mix(in oklab, ${layerColor[l.layer]} 45%, transparent)`,
               }}
             >
+              {/* A row's label sits at the left edge of the view; a column's just above the layer boxes. */}
               <div
                 data-testid="layer-lane-label"
                 className="absolute text-[11px]"
-                style={{ left: LANE_SPAN / 2 + visibleLeft + 12 / zoom, top: 6, transform: `scale(${1 / zoom})`, transformOrigin: "0 0" }}
+                style={
+                  l.columns
+                    ? { left: 6, top: LANE_SPAN / 2 + boxesTop - 30 / zoom, transform: `scale(${1 / zoom})`, transformOrigin: "0 0" }
+                    : { left: LANE_SPAN / 2 + visibleLeft + 12 / zoom, top: 6, transform: `scale(${1 / zoom})`, transformOrigin: "0 0" }
+                }
               >
                 {handle(l.layer, l.name, "left-0 top-0 whitespace-nowrap")}
               </div>

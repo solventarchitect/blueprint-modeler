@@ -2,6 +2,7 @@ import AxeBuilder from "@axe-core/playwright";
 import { readFile } from "node:fs/promises";
 import { expect, test, type Page } from "@playwright/test";
 import { watchForeignRequests } from "./network";
+import { autoLayout } from "./layout";
 import { openExample as chooseExample } from "./examples";
 import { modelButton, currentModel } from "./model-menu";
 
@@ -136,8 +137,7 @@ test.describe("import, export and layout (desktop)", () => {
 
     await openExample(page, "Shared Database Platform");
     const before = await positions(page);
-    await page.getByRole("button", { name: "Auto-layout" }).click();
-    await expect(page.getByRole("status")).toContainText("Laid out by CSDM layer");
+    await autoLayout(page);
     expect(workers.length).toBe(1);
     const after = await positions(page);
     expect(after).not.toEqual(before);
@@ -162,13 +162,14 @@ test.describe("import, export and layout (desktop)", () => {
       });
     });
     await openExample(page, "Online Store Checkout");
-    await page.getByRole("button", { name: "Auto-layout" }).click();
+    await page.getByRole("button", { name: /^Layout/ }).click();
+    await page.getByTestId("layout-menu").getByRole("button", { name: "Auto-layout", exact: true }).click();
     await expect(page.getByRole("button", { name: "Laying out…" })).toBeVisible();
 
     await chooseExample(page, "HR Self-Service Portal");
     await expect(currentModel(page)).toHaveText("HR Self-Service Portal");
     const before = await positions(page);
-    await expect(page.getByRole("button", { name: "Auto-layout" })).toBeEnabled({ timeout: 10_000 });
+    await expect(page.getByRole("button", { name: /^Layout/ })).toBeEnabled({ timeout: 10_000 });
     expect(await positions(page)).toEqual(before);
     await expect(page.getByRole("button", { name: "Undo" })).toBeDisabled();
   });
@@ -189,5 +190,5 @@ test("mobile can still export the model", async ({ page, isMobile }) => {
   await page.goto("/editor");
   await expect(page.getByRole("button", { name: "Export" })).toBeVisible();
   await expect(page.getByRole("button", { name: "Import…" })).toHaveCount(0);
-  await expect(page.getByRole("button", { name: "Auto-layout" })).toHaveCount(0);
+  await expect(page.getByRole("button", { name: /^Layout/ })).toHaveCount(0);
 });
