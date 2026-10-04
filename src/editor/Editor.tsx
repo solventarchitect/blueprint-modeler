@@ -372,7 +372,7 @@ function EditorInner() {
                   markerUnits: "userSpaceOnUse",
                 },
               }),
-          ariaLabel: `${e.type} from ${model.nodes.find((n) => n.id === e.from)?.name} to ${model.nodes.find((n) => n.id === e.to)?.name}${carried ? " (carries impact)" : ""}`,
+          ariaLabel: `${e.type} from ${model.nodes.find((n) => n.id === e.from)?.name} to ${model.nodes.find((n) => n.id === e.to)?.name}${carried ? (isFlow ? " (carries data)" : " (carries impact)") : ""}`,
         };
       }),
     [model, hintedEdges, selectedId, lens, blastShown, columns, isFlow],
@@ -921,14 +921,12 @@ function EditorInner() {
     setMessage(words(blast.kind).announce(radius, k, nameOf));
   };
   const closeBlast = useCallback(() => {
-    setBlast((b) => {
-      setMessage(b?.kind === "flow" ? "Data flow closed." : "Blast radius closed.");
-      return null;
-    });
+    setBlast(null);
+    setMessage(isFlow ? "Data flow closed." : "Blast radius closed.");
     const el = blastReturn.current;
     blastReturn.current = null;
     if (el?.isConnected) setTimeout(() => el.focus(), 0);
-  }, []);
+  }, [isFlow]);
   // Auto-play: one hop every BLAST_STEP_MS, stopping on the last.
   useEffect(() => {
     if (!blast?.playing || !radius) return;
@@ -1294,7 +1292,7 @@ function EditorInner() {
               <Link className="text-accent underline underline-offset-4" href="/guide#impact">
                 guide
               </Link>
-              . Not ServiceNow&apos;s Impacted Services calculation.
+              {isFlow ? ", read as dependencies" : ""}. Not ServiceNow&apos;s Impacted Services calculation.
             </p>
           </details>
         </div>

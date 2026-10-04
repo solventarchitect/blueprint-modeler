@@ -16,7 +16,7 @@ export type BlastView = {
 
 /**
  * `blast`: a blast radius (impact or dependencies). `flow`: a data flow from a Business Capability or
- * Business Process, the same walk as its dependencies, shown as data travelling toward each element
+ * Business Process, the same walk as its dependencies, shown as data traveling toward each element
  * it reaches.
  */
 export type BlastKind = "blast" | "flow";

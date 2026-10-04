@@ -245,7 +245,7 @@ export function modelToSvg(model: Model, theme: SvgTheme, opts: { lens?: Lens; h
   }
   const capY = minY + titleH;
   const caption = hl?.caption
-    ? `<text x="${tx}" y="${capY + 20}" font-family="${MONO}" font-size="10" letter-spacing="1.4" fill="${p.status}">${esc(hl.caption.label.toUpperCase())}</text>` +
+    ? `<text x="${tx}" y="${capY + 20}" font-family="${MONO}" font-size="10" letter-spacing="1.4" fill="${hl.flow ? p.ai : p.status}">${esc(hl.caption.label.toUpperCase())}</text>` +
       `<text x="${tx}" y="${capY + 38}" font-family="${SANS}" font-size="14" font-weight="500" fill="${p.ink}">${esc(hl.caption.text)}</text>`
     : "";
 

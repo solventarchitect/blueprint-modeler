@@ -123,7 +123,7 @@ describe("blast text", () => {
 describe("data flow", () => {
   const flowFrom = (m: Model, name: string) => blastRadius(m, idOf(m, name), "dependencies");
 
-  it("runs down from a capability through everything it relies on, data travelling with the walk", () => {
+  it("runs down from a capability through everything it relies on, data traveling with the walk", () => {
     const m = checkout();
     const r = flowFrom(m, "Order management");
     expect(r.reached).toBe(9);

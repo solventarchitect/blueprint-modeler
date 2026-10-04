@@ -41,9 +41,20 @@ test.describe("data flow (desktop)", () => {
     // The Inspector offers it too, with a line on what it does.
     await node(page, "Order management").click();
     const inspector = page.getByRole("complementary", { name: "Inspector" });
-    await expect(inspector.getByRole("button", { name: "Show data flow" })).toBeVisible();
+    const button = inspector.getByRole("button", { name: "Show data flow" });
+    await button.click();
+    await expect(strip(page)).toBeVisible();
+    await expect(strip(page).getByRole("button", { name: "Pause" })).toBeFocused();
+    await page.keyboard.press("Escape");
+    await expect(strip(page)).toHaveCount(0);
+    await expect(button).toBeFocused();
     await node(page, "db-prod-01").click();
     await expect(inspector.getByRole("button", { name: "Show data flow" })).toHaveCount(0);
+    // From the keyboard: Shift+F10 opens the element's menu with the item.
+    await node(page, "Order management").focus();
+    await page.keyboard.press("Shift+F10");
+    await page.getByRole("menu", { name: "Order management menu" }).getByRole("menuitem", { name: "Show data flow" }).click();
+    await expect(strip(page)).toBeVisible();
   });
 
   test("steps data from the capability down through everything it relies on, in its own color", async ({ page }) => {
@@ -76,7 +87,6 @@ test.describe("data flow (desktop)", () => {
     await expect(page.locator(".react-flow__edge.blast.flow")).toHaveCount(4);
     await expect(page.locator(".react-flow__edge.blast-now")).toHaveCount(3);
     await expect(page.locator(".react-flow__edge.blast-now.blast-reverse")).toHaveCount(0);
-    const stroke = await page.locator(".react-flow__edge.blast.flow .react-flow__edge-path").first().evaluate((e) => getComputedStyle(e).stroke);
     const ai = await page.evaluate(() => getComputedStyle(document.documentElement).getPropertyValue("--ai").trim());
     const probe = await page.evaluate((c) => {
       const el = document.createElement("div");
@@ -86,7 +96,7 @@ test.describe("data flow (desktop)", () => {
       el.remove();
       return out;
     }, ai);
-    expect(stroke).toBe(probe);
+    await expect(page.locator(".react-flow__edge.blast.flow .react-flow__edge-path").first()).toHaveCSS("stroke", probe);
 
     // The step list, then Escape closes it and says so.
     await s.getByText("Steps (5)").click();
