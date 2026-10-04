@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 import { examples } from "@/examples";
-import { createModel, withDetails } from "@/model";
+import { createModel, formatModelDate, modelDate, withDetails } from "@/model";
 import { svgColors, modelToSvg } from "./svg";
 
 const checkout = () => examples.find((e) => e.id === "checkout")!.create(new Date("2026-09-27T00:00:00Z"), "m1");
@@ -14,7 +14,7 @@ describe("SVG title block", () => {
     expect(plain).toMatch(/data-title="name"[^>]*>Online Store Checkout</);
     expect(plain).not.toContain('data-title="artifact"');
     // The date is always there: a blueprint carries one.
-    expect(plain).toMatch(/data-title="date"[^>]*>Sep 27, 2026</);
+    expect(plain).toMatch(new RegExp(`data-title="date"[^>]*>${formatModelDate(modelDate(m))}<`));
     expect(plain).not.toContain('data-title="description"');
 
     const svg = modelToSvg({ ...m, artifactId: "EA-0042", description: "How an order moves from the web store to the database. ".repeat(15).trim() }, "light");

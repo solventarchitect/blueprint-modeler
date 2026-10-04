@@ -43,7 +43,10 @@ test.describe("model details (desktop)", () => {
     await expect(page.getByTestId("canvas-artifact")).toHaveCount(0);
     await expect(page.getByTestId("canvas-description")).toHaveCount(0);
     // The date is always shown: today, the day the example was made, and it can be changed.
-    const today = new Date().toISOString().slice(0, 10);
+    const today = await page.evaluate(() => {
+      const d = new Date();
+      return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`;
+    });
     await expect(page.getByTestId("canvas-date")).toHaveAttribute("datetime", today);
     await expect(details(page).getByLabel("Date")).toHaveValue(today);
     await details(page).getByLabel("Date").fill("2026-03-15");

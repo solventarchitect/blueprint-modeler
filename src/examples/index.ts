@@ -1,6 +1,6 @@
 import type { Lens } from "@/frameworks";
 import { allowedTypes, classById, classes, isCsdmCore, isExtended, relationships, type ClassId, type Layer } from "@/metamodel";
-import { createModel, withDetails, type Model } from "@/model";
+import { createModel, localDay, withDetails, type Model } from "@/model";
 import { nextPosition, SLOT } from "@/editor/state";
 
 /**
@@ -691,7 +691,7 @@ export const examples: Example[] = [
     category: s.category,
     summary: s.summary,
     lens: s.lens,
-    create: (now = new Date(), id = crypto.randomUUID()) => withDetails(build(s, now, id), { date: now.toISOString().slice(0, 10), description: s.description, artifactId: exampleArtifactId(i) }),
+    create: (now = new Date(), id = crypto.randomUUID()) => withDetails(build(s, now, id), { date: localDay(now), description: s.description, artifactId: exampleArtifactId(i) }),
   })),
   {
     id: "csdm5-metamodel",
@@ -700,6 +700,6 @@ export const examples: Example[] = [
     lens: "csdm",
     summary:
       "Every class in the CSDM 5 white paper (no extended or CMDB-only classes) and each relationship the metamodel allows between them — a map to read before modeling. CSDM 6 has not been published yet (September 2026), so this is CSDM 5.",
-    create: (now = new Date(), id = crypto.randomUUID()) => withDetails(metamodel(now, id), { date: now.toISOString().slice(0, 10), description: METAMODEL_DESCRIPTION, artifactId: exampleArtifactId(specs.length) }),
+    create: (now = new Date(), id = crypto.randomUUID()) => withDetails(metamodel(now, id), { date: localDay(now), description: METAMODEL_DESCRIPTION, artifactId: exampleArtifactId(specs.length) }),
   },
 ];

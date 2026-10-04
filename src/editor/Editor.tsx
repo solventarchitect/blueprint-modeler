@@ -10,7 +10,10 @@ import {
   ReactFlow,
   ReactFlowProvider,
   useReactFlow,
+  useStore,
   useStoreApi,
+  getNodesBounds,
+  getViewportForBounds,
   type Connection,
   type Edge as FlowEdge,
   type EdgeChange,
@@ -128,6 +131,19 @@ const viewedTheme = (): "dark" | "light" => {
   return window.matchMedia("(prefers-color-scheme: light)").matches ? "light" : "dark";
 };
 
+/**
+ * The canvas controls, with Fit View leaving the same room for the title block as the editor's own
+ * fits: it follows the store (nodes, viewport size), so the estimate is current when the button is pressed.
+ */
+function FitControls({ hasDescription }: { hasDescription: boolean }) {
+  const width = useStore((s) => s.width);
+  const height = useStore((s) => s.height);
+  const nodes = useStore((s) => s.nodes);
+  const b = getNodesBounds(nodes);
+  const zoom = width && height && b.width && b.height ? getViewportForBounds(b, width, height, 0.05, 1, { x: FIT_PAD, bottom: FIT_PAD, top: 0 }).zoom : 1;
+  return <Controls showInteractive={false} fitViewOptions={{ maxZoom: 1, padding: { x: FIT_PAD, bottom: FIT_PAD, top: `${titleRoom(hasDescription, zoom)}px` } }} />;
+}
+
 function EditorInner() {
   const doc = useModelDocument();
   const { model, dispatch } = doc;
@@ -147,11 +163,14 @@ function EditorInner() {
     (p: number) => {
       const { width, height } = store.getState();
       const b = flow.getNodesBounds(flow.getNodes());
-      const zoom = b.width && b.height ? Math.min(1, (width * (1 - 2 * p)) / b.width, (height * (1 - 2 * p)) / b.height) : 1;
+      // React Flow's own fit math, without the top room (which only makes the zoom smaller: safe side).
+      const zoom = width && height && b.width && b.height ? getViewportForBounds(b, width, height, 0.05, 1, { x: p, bottom: p, top: 0 }).zoom : 1;
       return { x: p, bottom: p, top: `${titleRoom(hasDescription.current, zoom)}px` } as const;
     },
     [store, flow],
   );
+  // The first fit, before any model is measured: the room at zoom 1 is the most ever needed.
+  const firstFitOptions = { maxZoom: 1, padding: { x: FIT_PAD, bottom: FIT_PAD, top: `${titleRoom(!!model.description, 1)}px` } } as const;
   const [selectedId, setSelectedId] = useState<string | null>(null);
   const [focusName, setFocusName] = useState(0);
   const [focusConnect, setFocusConnect] = useState(0);
@@ -1295,14 +1314,14 @@ function EditorInner() {
               snapToGrid={view.snap}
               snapGrid={[16, 16]}
               fitView
-              fitViewOptions={{ maxZoom: 1, padding: fitPadding(FIT_PAD) }}
+              fitViewOptions={firstFitOptions}
               minZoom={0.2}
             >
               <NotationMarkers />
               <NotationLegend types={legendTypes} />
               <Background id="minor" variant={BackgroundVariant.Lines} gap={32} color="var(--canvas-grid)" />
               <Background id="major" variant={BackgroundVariant.Lines} gap={160} color="var(--canvas-grid-major)" />
-              {!presenting && <Controls showInteractive={false} fitViewOptions={{ maxZoom: 1, padding: fitPadding(FIT_PAD) }} />}
+              {!presenting && <FitControls hasDescription={!!model.description} />}
               <LayerOverlay boxes={boxes} lanes={lanes} showBoxes={view.boxes || presenting} showLanes={view.lanes} handlers={canMenu ? layerHandlers : undefined} />
               <CanvasTitle name={model.name} date={modelDate(model)} description={model.description} artifactId={model.artifactId} boxes={boxes} tabsAbove={view.boxes && !view.lanes && canMenu} decorative={presenting} />
             </ReactFlow>
