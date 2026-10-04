@@ -116,8 +116,11 @@ test.describe("data flow (desktop)", () => {
     await showFlowFrom(page, "Order management");
     const s = strip(page);
     await expect(s.getByRole("button", { name: "Pause" })).toBeVisible();
-    await page.clock.runFor(1500 * 4 + 200);
-    await expect(s.getByTestId("blast-progress")).toHaveText("Step 4 of 4 · 9 of 9 reached");
+    // One step per tick: each step's timer is set only after the previous step has rendered.
+    for (let k = 1; k <= 4; k++) {
+      await page.clock.runFor(1600);
+      await expect(s.getByTestId("blast-progress")).toHaveText(`Step ${k} of 4 · ${[1, 4, 7, 9][k - 1]} of 9 reached`);
+    }
     await expect(s.getByRole("button", { name: "Play" })).toBeVisible();
   });
 
