@@ -20,8 +20,20 @@ export function ExamplesMenu({ onPick, onBlank, buttonClass }: { onPick: (id: st
     const onDown = (e: PointerEvent) => {
       if (!root.current?.contains(e.target as Node)) setOpen(false);
     };
+    // Escape closes it wherever focus is (a click on a heading in the panel leaves focus on the
+    // page). Marked handled, so the editor's own Escape (closing a blast radius) skips it.
+    const onKey = (e: KeyboardEvent) => {
+      if (e.key !== "Escape") return;
+      e.preventDefault();
+      setOpen(false);
+      button.current?.focus();
+    };
     document.addEventListener("pointerdown", onDown);
-    return () => document.removeEventListener("pointerdown", onDown);
+    document.addEventListener("keydown", onKey, true);
+    return () => {
+      document.removeEventListener("pointerdown", onDown);
+      document.removeEventListener("keydown", onKey, true);
+    };
   }, [open]);
 
   const choose = (run: () => void) => {
@@ -33,13 +45,6 @@ export function ExamplesMenu({ onPick, onBlank, buttonClass }: { onPick: (id: st
   return (
     <div
       ref={root}
-      onKeyDown={(e) => {
-        if (e.key === "Escape" && open) {
-          e.stopPropagation();
-          setOpen(false);
-          button.current?.focus();
-        }
-      }}
       onBlur={(e) => {
         // Tabbing out of the panel closes it, so it never sits over the control that has focus.
         if (open && e.relatedTarget && !root.current?.contains(e.relatedTarget as Node)) setOpen(false);
@@ -81,7 +86,7 @@ export function ExamplesMenu({ onPick, onBlank, buttonClass }: { onPick: (id: st
                     <li key={ex.id}>
                       <button
                         type="button"
-                        data-name={ex.name}
+                        data-name={ex.name /* read by the e2e helpers to list the examples */}
                         aria-labelledby={`${id}-${ex.id}-name`}
                         aria-describedby={`${id}-${ex.id}-summary`}
                         className="w-full cursor-pointer px-2 py-1.5 text-left hover:bg-surface focus-visible:bg-surface"

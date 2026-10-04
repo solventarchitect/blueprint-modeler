@@ -63,6 +63,26 @@ test.describe("examples menu", () => {
     await expect(examplesMenu(page)).toBeHidden();
   });
 
+  test("Escape still closes it after a click on a heading inside it, and leaves an open blast radius alone", async ({ page }) => {
+    await page.goto("/editor");
+    await expect(page.getByTestId("save-status")).toHaveText("Saved in this browser");
+    await openExample(page, "Online store checkout");
+    const blast = page.getByRole("region", { name: "Blast radius" });
+    const isDesktop = (page.viewportSize()?.width ?? 0) >= 768;
+    if (isDesktop) {
+      await page.locator(".react-flow__node").filter({ has: page.getByText("db-prod-01", { exact: true }) }).click({ button: "right" });
+      await page.getByRole("menuitem", { name: "Show blast radius" }).click();
+      await expect(blast).toBeVisible();
+    }
+    await examplesButton(page).click();
+    // A heading is not focusable: clicking it moves focus out of the menu, to the page.
+    await examplesMenu(page).getByRole("heading", { name: "Reference architecture" }).click();
+    await page.keyboard.press("Escape");
+    await expect(examplesMenu(page)).toBeHidden();
+    await expect(examplesButton(page)).toBeFocused();
+    if (isDesktop) await expect(blast).toBeVisible();
+  });
+
   for (const scheme of ["dark", "light"] as const) {
     test(`has no WCAG 2.2 AA violations when open (${scheme})`, async ({ page }) => {
       await page.emulateMedia({ colorScheme: scheme });

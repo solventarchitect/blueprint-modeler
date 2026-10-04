@@ -164,7 +164,7 @@ test.describe("import, export and layout (desktop)", () => {
     await page.getByRole("button", { name: "Auto-layout" }).click();
     await expect(page.getByRole("button", { name: "Laying out…" })).toBeVisible();
 
-    await openExample(page, "HR self-service portal");
+    await chooseExample(page, "HR self-service portal");
     await expect(page.getByRole("combobox", { name: "Open model" }).locator("option:checked")).toHaveText("HR self-service portal");
     const before = await positions(page);
     await expect(page.getByRole("button", { name: "Auto-layout" })).toBeEnabled({ timeout: 10_000 });

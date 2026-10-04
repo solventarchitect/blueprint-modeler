@@ -125,7 +125,7 @@ test.describe("exports and examples", () => {
       const header = page.locator(".react-flow__node [data-neighbor]").first().getByTestId("archimate-type");
       expect(await contrastOf(header), scheme).toBeGreaterThanOrEqual(4.5);
     }
-    await openExample(page, "CSDM 5 core metamodel");
+    await chooseExample(page, "CSDM 5 core metamodel");
     await expect(page.getByRole("combobox", { name: "Framework lens" })).toHaveValue("csdm");
     await expect(page.locator(".react-flow__node")).toHaveCount(19);
   });
