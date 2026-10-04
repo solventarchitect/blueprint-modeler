@@ -39,13 +39,13 @@ import { modelToDrawioFile } from "@/io/drawio";
 import { lucidFit, lucidFitMessage, lucidFitNote } from "@/io/lucid";
 import { modelToServiceNowXlsx } from "@/io/servicenow";
 import { modelToSvg } from "@/io/svg";
-import { LAYERS, layerBoxes, layerLanes, settleIntoLane } from "@/layout/bands";
+import { LAYERS, layerBoxes, layerLanes, layoutOrientation, settleIntoLane } from "@/layout/bands";
 import { edgeSides } from "@/layout/geometry";
 import { distributeEvenly } from "@/layout/distribute";
-import { autoLayout, DEFAULT_SIZE } from "@/layout/layout";
+import { autoLayout, DEFAULT_SIZE, fillSpace, type LayoutMode } from "@/layout/layout";
 import { createWorkerEngine } from "@/layout/worker-engine";
 import { classById, classes, isClassId, type ClassId, type Layer } from "@/metamodel";
-import { blastRadius, evaluateHints, formatModelDate, modelDate, UNTITLED_MODEL, type BlastDirection, type HintResult } from "@/model";
+import { blastRadius, evaluateHints, formatModelDate, modelDate, UNTITLED_MODEL, type BlastDirection, type HintResult, type Model } from "@/model";
 import { site } from "@/lib/site";
 import { ClassNode, SuggestContext, type ClassFlowNode } from "./ClassNode";
 import { ConnectionLine, ConnectionModelContext } from "./ConnectionLine";
@@ -59,6 +59,7 @@ import { CanvasEdge, LabelObstacles } from "./CanvasEdge";
 import { ModelManager } from "./ModelManager";
 import { ToolbarIcon } from "./ToolbarIcon";
 import { CanvasTitle, titleRoom } from "./CanvasTitle";
+import { LayoutMenu, type LayoutChoice } from "./LayoutMenu";
 import { ModelMenu } from "./ModelMenu";
 import { LayerOverlay, layerHandleId, type LayerHandlers } from "./LayerOverlay";
 import { DEFAULT_VIEW, readView, saveView, ViewMenu, type ViewOptions } from "./ViewMenu";
@@ -88,6 +89,8 @@ const toolbarButton =
   "inline-flex min-h-8 cursor-pointer items-center gap-1.5 border border-border-strong bg-surface-raised px-2.5 text-sm text-ink hover:border-accent hover:text-accent disabled:cursor-not-allowed disabled:opacity-60";
 /** Fits keep this share of the viewport as padding on each side. */
 const FIT_PAD = 0.15;
+/** What React Flow takes off one side of a `length` for a numeric padding of FIT_PAD. */
+const fitSide = (length: number) => Math.floor((length - length / (1 + FIT_PAD)) * 0.5);
 /**
  * Blast-radius step controls: aria-disabled rather than disabled, so the button keeps focus when the
  * last (or first) hop is reached (a disabled button drops focus to the page).
@@ -312,6 +315,12 @@ function EditorInner() {
     [model, selectedId, dragTick, hintLevel, highlighted, lens, wide, presenting, dismissed, neighbors, blastShown],
   );
 
+  // Layers as columns (a left-to-right layout): relationships then run sideways between layers.
+  const columns = useMemo(
+    () => layoutOrientation(model, measured.current) === "columns",
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- measured is a ref; dragTick re-runs this
+    [model, dragTick],
+  );
   const hintedEdges = useMemo(() => new Set([...(activeHint?.edgeIds ?? []), ...(readEdge ? [readEdge.id] : [])]), [activeHint, readEdge]);
   const edges: FlowEdge[] = useMemo(
     () =>
@@ -324,7 +333,7 @@ function EditorInner() {
         const am = lens === "archimate-only" ? edgeNotation(archimateRelationshipFor(classOf(e.from), classOf(e.to))) : undefined;
         const a = model.layout[e.from] ?? { x: 0, y: 0 };
         const b = model.layout[e.to] ?? { x: 0, y: 0 };
-        const [sourceHandle, targetHandle] = edgeSides(a, b);
+        const [sourceHandle, targetHandle] = edgeSides(a, b, columns);
         const hinted = !blastShown && hintedEdges.has(e.id);
         const tone: EdgeTone = carried || hinted ? "status" : connected ? "neighbor" : "line";
         return {
@@ -362,7 +371,7 @@ function EditorInner() {
           ariaLabel: `${e.type} from ${model.nodes.find((n) => n.id === e.from)?.name} to ${model.nodes.find((n) => n.id === e.to)?.name}${carried ? " (carries impact)" : ""}`,
         };
       }),
-    [model, hintedEdges, selectedId, lens, blastShown],
+    [model, hintedEdges, selectedId, lens, blastShown, columns],
   );
 
   const onNodesChange = useCallback(
@@ -470,16 +479,23 @@ function EditorInner() {
     requestAnimationFrame(() => document.querySelector<HTMLButtonElement>('nav[aria-label="Element palette"] button')?.focus());
   };
 
-  const runLayout = async () => {
+  const measuredSizes = () =>
+    Object.fromEntries(flow.getNodes().map((n) => [n.id, { width: n.measured?.width ?? DEFAULT_SIZE.width, height: n.measured?.height ?? DEFAULT_SIZE.height }]));
+
+  const layoutDone: Record<LayoutMode, string> = {
+    auto: "Laid out by CSDM layer.",
+    rows: "Laid out by CSDM layer, top to bottom.",
+    columns: "Laid out by CSDM layer, left to right.",
+    symmetric: "Laid out by CSDM layer, centered.",
+  };
+
+  const runLayout = async (mode: LayoutMode = "auto") => {
     if (model.nodes.length === 0 || layingOut) return;
     setLayingOut(true);
     setMessage("Laying out by CSDM layer…");
     try {
       engine.current ??= createWorkerEngine();
-      const sizes = Object.fromEntries(
-        flow.getNodes().map((n) => [n.id, { width: n.measured?.width ?? DEFAULT_SIZE.width, height: n.measured?.height ?? DEFAULT_SIZE.height }]),
-      );
-      const layout = await autoLayout(engine.current, model, sizes);
+      const layout = await autoLayout(engine.current, model, measuredSizes(), mode);
       // Another model may have opened while the layout ran; examples share element ids, so a stale
       // layout would move that model's elements.
       if (openModelId.current !== model.id) {
@@ -487,7 +503,7 @@ function EditorInner() {
         return;
       }
       dispatch({ type: "set-layout", layout });
-      setMessage("Laid out by CSDM layer. Undo restores the previous positions.");
+      setMessage(`${layoutDone[mode]} Undo restores the previous positions.`);
       setTimeout(() => void flow.fitView({ maxZoom: 1, padding: fitPadding(0.15), duration: 300 }), 50);
     } catch {
       setMessage("Auto-layout failed. Your positions are unchanged.");
@@ -495,6 +511,37 @@ function EditorInner() {
       setLayingOut(false);
     }
   };
+
+  // Fill space: stretch the picture to the view's shape (the title block's room taken off the top).
+  const runFill = () => {
+    const { width, height } = store.getState();
+    const sizes = measuredSizes();
+    // The area a fit gives the picture: the padding each side and the title block's room above,
+    // which depends on the zoom the fit lands on, so the stretch is estimated twice (once at zoom 1,
+    // once at the zoom the first answer would fit at).
+    let layout: Model["layout"] | null = null;
+    let zoom = 1;
+    for (let pass = 0; pass < 2; pass++) {
+      const inner = { w: width - 2 * fitSide(width), h: height - fitSide(height) - titleRoom(hasDescription.current, zoom) };
+      layout = inner.w > 0 && inner.h > 0 ? fillSpace(model, sizes, inner.w / inner.h) : null;
+      if (!layout) break;
+      const next = layout;
+      const xs = model.nodes.map((n) => next[n.id]!.x), ys = model.nodes.map((n) => next[n.id]!.y);
+      const right = Math.max(...model.nodes.map((n) => next[n.id]!.x + (sizes[n.id] ?? DEFAULT_SIZE).width));
+      const bottom = Math.max(...model.nodes.map((n) => next[n.id]!.y + (sizes[n.id] ?? DEFAULT_SIZE).height));
+      const b = { x: Math.min(...xs), y: Math.min(...ys), width: right - Math.min(...xs), height: bottom - Math.min(...ys) };
+      zoom = getViewportForBounds(b, width, height, 0.05, 1, { x: FIT_PAD, bottom: FIT_PAD, top: 0 }).zoom || 1;
+    }
+    if (!layout) {
+      setMessage("The picture already fills the view.");
+      return;
+    }
+    dispatch({ type: "set-layout", layout });
+    setMessage("Spread to fill the view. Undo restores the previous positions.");
+    setTimeout(() => void flow.fitView({ maxZoom: 1, padding: fitPadding(0.15), duration: 300 }), 50);
+  };
+
+  const chooseLayout = (choice: LayoutChoice) => (choice === "fill" ? runFill() : void runLayout(choice));
 
   const importFile = async (file: File) => {
     setIoError(null);
@@ -1121,12 +1168,7 @@ function EditorInner() {
           <span className={groupCaption} aria-hidden="true">
             Arrange
           </span>
-          {wide && (
-            <button type="button" className={toolbarButton} disabled={layingOut || model.nodes.length === 0} aria-busy={layingOut} onClick={() => void runLayout()}>
-              <ToolbarIcon name="layout" />
-              {layingOut ? "Laying out…" : "Auto-layout"}
-            </button>
-          )}
+          {wide && <LayoutMenu busy={layingOut} disabled={model.nodes.length === 0} onChoose={chooseLayout} buttonClass={toolbarButton} />}
           <ViewMenu value={view} onChange={setView} buttonClass={toolbarButton} />
         </div>
         <span className={toolbarDivider} aria-hidden="true" />

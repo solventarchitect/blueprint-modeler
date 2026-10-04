@@ -1,6 +1,7 @@
 import { archimateElements, archimateFill, archimateRelationshipFor, archimateTypeInk, edgeNotation, markerSvg, type Lens, type MarkerShape, showsArchimate } from "@/frameworks";
 import { classById, isClassId, type Layer } from "@/metamodel";
 import { formatModelDate, modelDate, UNTITLED_MODEL, type Model } from "@/model";
+import { layoutOrientation } from "@/layout/bands";
 import { edgeSides, type Side } from "@/layout/geometry";
 import { ARTIFACT_ICON_PATH } from "./icons";
 
@@ -119,6 +120,7 @@ export function modelToSvg(model: Model, theme: SvgTheme, opts: { lens?: Lens; h
   }
 
   const all = [...boxes.values()];
+  const columns = layoutOrientation(model, Object.fromEntries([...boxes].map(([id, b]) => [id, { width: b.w, height: b.h }]))) === "columns";
   const minX = all.length ? Math.min(...all.map((b) => b.x)) - PAD : 0;
   const name = model.name || UNTITLED_MODEL;
   const artifactId = model.artifactId?.trim() ?? "";
@@ -154,7 +156,7 @@ export function modelToSvg(model: Model, theme: SvgTheme, opts: { lens?: Lens; h
     const a = boxes.get(e.from);
     const b = boxes.get(e.to);
     if (!a || !b) continue;
-    const [ss, ts] = edgeSides(a, b);
+    const [ss, ts] = edgeSides(a, b, columns);
     const s = anchor(a, ss);
     const t = anchor(b, ts);
     const d = Math.max((s.dx ? Math.abs(t.x - s.x) : Math.abs(t.y - s.y)) / 2, 24);

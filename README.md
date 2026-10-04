@@ -44,7 +44,7 @@ General diagramming tools will draw any line you ask for. Blueprint Modeler know
 | **Class guide** | [Every class, relationship and hint](https://model.mikereams.com/guide) on one page, with its source and how well the public text supports each relationship type, plus how impact travels along each relationship. |
 | **Examples** | Fifteen models to start from, grouped by category in the Examples menu. Application architecture: an online store checkout, an HR portal, a shared database platform and an enterprise AI assistant (three trigger hints on purpose). Security architecture: an internet edge and DMZ, directory and sign-in services, and remote access VPN. ServiceNow platform: ServiceNow modeled as a platform in its own CMDB — service management, instances and MID Servers, and integrations. Reference architecture: containerization (a storefront on Kubernetes), server virtualization and virtual desktops (VDI). Frameworks and metamodel: a claims system read purely in ArchiMate, and the CSDM 5 core metamodel itself: every white-paper class and each relationship allowed between them. All fictional. |
 | **Import and export** | A versioned JSON model file that round-trips exactly, standalone SVG images in light or dark for docs and slides, headed by the model's title block, an ArchiMate® Model Exchange File that opens in Archi and other ArchiMate tools, and a draw.io file that opens in draw.io or imports into Lucidchart (shapes, colors, labels and connected lines; Lucid does not keep the CSDM properties as shape data), with a count of Lucid objects against the Lucid Free plan's per-document limit. A ServiceNow import workbook (.xlsx): one sheet per CMDB table with each element's name and description, a cmdb_rel_ci sheet for relationships, a references sheet, and a README sheet with the import steps. While a blast radius is open, an animated GIF of it. |
-| **Auto-layout** | One click lays the model out top-down by CSDM layer, in a background worker, as a single undo step. |
+| **Layout menu** | Five arrangements, all by CSDM layer and each a single undo step: Auto-layout (ELK, in a background worker), Top to bottom (one row per layer), Left to right (one column per layer; lanes become columns and relationships run sideways), Symmetric (every layer centered on one axis) and Fill space (the picture stretched to the shape of the view). |
 | **ArchiMate lens** | Switch to CSDM + ArchiMate 3.2 and every element also shows its mapped ArchiMate element and notation icon; relationships read in ArchiMate terms. ArchiMate 3.2 only hides the CSDM names on the canvas: elements are headed by their ArchiMate type and filled with their ArchiMate layer color, and relationships carry their ArchiMate name and notation (diamonds, dashed realizations, open serving arrows), with a legend. View-only: files stay in CSDM terms. |
 | **Layer boxes, lanes and present mode** | A translucent box around each CSDM layer, optional full-width lanes that keep a dropped element in its own layer, snap to a 16px grid, and Present: a full-screen walk through the model, layer by layer, with the arrow keys. Drag a layer's label to move the layer with everything in it. |
 | **Suggestions** | A new element with no relationships offers what it can connect to (elements already on the canvas first, then the next CSDM classes) and adds the element and relationship in one click. While you draw a line, every element it can be dropped on is outlined. |
@@ -83,7 +83,7 @@ flowchart LR
   hints -->|advice + source link| canvas
   canvas <-->|autosave| idb[("IndexedDB<br/>this browser only")]
   canvas -->|export| files["JSON · SVG · GIF · ArchiMate · draw.io · ServiceNow .xlsx<br/>files on your device"]
-  canvas -->|auto-layout| worker["elkjs<br/>Web Worker"]
+  canvas -->|Layout menu| worker["elkjs<br/>Web Worker"]
 ```
 
 Three rules shape the code:
@@ -180,6 +180,6 @@ Issues and pull requests are welcome; see [CONTRIBUTING.md](CONTRIBUTING.md). Fo
 
 ## License
 
-[MIT](LICENSE) © 2026 [Mike Reams](https://mikereams.com). IBM Plex fonts: SIL Open Font License (see `src/fonts/README.md`). Auto-layout uses [elkjs](https://github.com/kieler/elkjs) (unmodified, EPL-2.0), loaded in a Web Worker only when you click Auto-layout.
+[MIT](LICENSE) © 2026 [Mike Reams](https://mikereams.com). IBM Plex fonts: SIL Open Font License (see `src/fonts/README.md`). Auto-layout uses [elkjs](https://github.com/kieler/elkjs) (unmodified, EPL-2.0), loaded in a Web Worker only when you choose a layout.
 
 Not affiliated with or endorsed by ServiceNow, The Open Group, Lucid Software or JGraph (draw.io). ServiceNow and CSDM are trademarks of ServiceNow, Inc.; ArchiMate® is a registered trademark of The Open Group. They are used here only to describe what the tool models.

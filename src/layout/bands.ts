@@ -14,7 +14,8 @@ export const LAYERS: { id: Layer; name: string }[] = [
 const BOX_PAD = 24;
 export type Rect = { x: number; y: number; w: number; h: number };
 export type LayerBox = Rect & { layer: Layer; name: string; nodeIds: string[] };
-export type Lane = { layer: Layer; name: string; top: number; bottom: number };
+/** A lane's span: y (rows, the usual) or x (columns, when the layers sit side by side). */
+export type Lane = { layer: Layer; name: string; start: number; end: number; columns: boolean };
 
 type Sizes = Record<string, Size | undefined>;
 const sizeOf = (sizes: Sizes, id: string) => sizes[id] ?? DEFAULT_SIZE;
@@ -40,18 +41,30 @@ export function layerBoxes(model: Model, sizes: Sizes = {}, skip?: string): Laye
 }
 
 /**
- * Full-width lanes, one per layer that has elements, in layer order. Where two layers' elements
- * overlap vertically, the boundary sits halfway between them so lanes never overlap.
+ * Which way the layers run. Columns when every populated layer sits wholly to the right of the one
+ * before it (a left-to-right layout); rows otherwise, including a single layer or no elements.
+ */
+export function layoutOrientation(model: Model, sizes: Sizes = {}, skip?: string): "rows" | "columns" {
+  const boxes = layerBoxes(model, sizes, skip);
+  if (boxes.length < 2) return "rows";
+  return boxes.every((b, i) => i === 0 || b.x >= boxes[i - 1]!.x + boxes[i - 1]!.w) ? "columns" : "rows";
+}
+
+/**
+ * Full-width lanes (or full-height, as columns), one per layer that has elements, in layer order.
+ * Where two layers' elements overlap along the lane axis, the boundary sits halfway between them
+ * so lanes never overlap.
  */
 export function layerLanes(model: Model, sizes: Sizes = {}, skip?: string): Lane[] {
   const boxes = layerBoxes(model, sizes, skip);
-  const lanes = boxes.map((b) => ({ layer: b.layer, name: b.name, top: b.y, bottom: b.y + b.h }));
+  const columns = layoutOrientation(model, sizes, skip) === "columns";
+  const lanes = boxes.map((b) => (columns ? { layer: b.layer, name: b.name, start: b.x, end: b.x + b.w, columns } : { layer: b.layer, name: b.name, start: b.y, end: b.y + b.h, columns }));
   for (let i = 1; i < lanes.length; i++) {
-    const above = lanes[i - 1]!;
+    const before = lanes[i - 1]!;
     const lane = lanes[i]!;
-    const edge = Math.round((above.bottom + lane.top) / 2);
-    above.bottom = edge;
-    lane.top = edge;
+    const edge = Math.round((before.end + lane.start) / 2);
+    before.end = edge;
+    lane.start = edge;
   }
   return lanes;
 }
@@ -66,9 +79,11 @@ export function settleIntoLane(model: Model, sizes: Sizes, id: string, pos: { x:
   const layer = node ? classById(node.class)?.layer : undefined;
   const lane = layerLanes(model, sizes, id).find((l) => l.layer === layer);
   if (!lane) return { ...pos, settled: false };
-  const h = sizeOf(sizes, id).height;
-  const min = lane.top + 16;
-  const max = Math.max(min, lane.bottom - h - 16);
-  const y = Math.min(Math.max(pos.y, min), max);
-  return { x: pos.x, y, settled: y !== pos.y, lane: lane.name };
+  const size = sizeOf(sizes, id);
+  const extent = lane.columns ? size.width : size.height;
+  const min = lane.start + 16;
+  const max = Math.max(min, lane.end - extent - 16);
+  const along = Math.min(Math.max(lane.columns ? pos.x : pos.y, min), max);
+  const settled = along !== (lane.columns ? pos.x : pos.y);
+  return lane.columns ? { x: along, y: pos.y, settled, lane: lane.name } : { x: pos.x, y: along, settled, lane: lane.name };
 }
