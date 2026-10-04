@@ -3,6 +3,8 @@ import { classById, classes, hints, impactRows, isCsdmCore, isExtended, relation
 import { layerAccent } from "@/editor/layerAccent";
 import { ARCHIMATE_TRADEMARK, archimateElements, archimateRelationshipFor, archimateSources, type ElementMapping } from "@/frameworks";
 import { ArchimateGlyph } from "@/frameworks/ArchimateGlyph";
+import { classKinds, classLinks, classSlug, GUIDE_SECTIONS, searchText } from "@/guide";
+import { GuideRail } from "./GuideRail";
 
 export const metadata: Metadata = {
   title: "Class guide",
@@ -29,26 +31,51 @@ function Source({ src }: { src: SourceRef }) {
 }
 
 const label = (id: string) => classById(id)?.label ?? id;
+const layersOf = (...ids: string[]) => [...new Set(ids.map((id) => classById(id)?.layer).filter(Boolean))].join(" ");
+const kindsOf = (...ids: string[]) => [...new Set(ids.flatMap((id) => (classById(id) ? classKinds(classById(id)!) : [])))].join(" ");
+
+/** A class name that links to its card in the Classes section. */
+function ClassLink({ id }: { id: string }) {
+  return (
+    <a className="underline decoration-border-strong underline-offset-4 hover:text-accent hover:decoration-accent" href={`#${classSlug(id)}`}>
+      {label(id)}
+    </a>
+  );
+}
+
+/** Shown in a section when the filter leaves nothing in it. Hidden until then. */
+function NoMatches() {
+  return (
+    <p data-guide-empty hidden className="mt-6 border border-dashed border-border px-4 py-3 text-sm text-ink-muted">
+      Nothing in this section matches the filter.
+    </p>
+  );
+}
+
+const sectionTotals: Record<(typeof GUIDE_SECTIONS)[number]["id"], number> = {
+  classes: classes.length,
+  relationships: relationships.length,
+  impact: impactRows().length,
+  hints: hints.length,
+  archimate: classes.length + relationships.length,
+};
+const h2 = "scroll-mt-48 text-2xl font-semibold tracking-tight lg:scroll-mt-6";
 
 export default function GuidePage() {
   return (
-    <div className="mx-auto max-w-6xl px-4 py-12 sm:px-6 sm:py-16">
+    <div className="mx-auto max-w-7xl px-4 py-12 sm:px-6 sm:py-16">
       <p className="font-mono text-sm tracking-[0.14em] text-accent uppercase">{"// Reference"}</p>
       <h1 className="mt-4 text-3xl font-semibold tracking-tight sm:text-4xl">Class guide</h1>
       <p className="mt-4 max-w-2xl text-ink-soft">
         Every class, relationship and hint the modeler knows, written in our own words from ServiceNow&apos;s public
         material: the CSDM white paper, and the product documentation for the Kubernetes, virtualization and security classes. Each entry links to its source so you can check it.
       </p>
-      <nav aria-label="On this page" className="mt-6 flex flex-wrap gap-x-5 gap-y-2 text-sm">
-        <a className="text-accent underline underline-offset-4" href="#classes">Classes</a>
-        <a className="text-accent underline underline-offset-4" href="#relationships">Relationships</a>
-        <a className="text-accent underline underline-offset-4" href="#impact">Impact</a>
-        <a className="text-accent underline underline-offset-4" href="#hints">Hints</a>
-        <a className="text-accent underline underline-offset-4" href="#archimate">ArchiMate mapping</a>
-      </nav>
+      <div className="mt-10 lg:grid lg:grid-cols-[14rem_minmax(0,1fr)] lg:gap-10">
+      <GuideRail sections={GUIDE_SECTIONS.map((s) => ({ ...s, total: sectionTotals[s.id] }))} />
+      <div className="min-w-0">
 
-      <section aria-labelledby="classes" className="mt-12">
-        <h2 id="classes" className="text-2xl font-semibold tracking-tight">Classes</h2>
+      <section aria-labelledby="classes" className="mt-8 lg:mt-0" data-guide-section="classes">
+        <h2 id="classes" className={h2}>Classes</h2>
         <p className="mt-2 max-w-2xl text-sm text-ink-muted">
           Grouped by the lane they sit in on the canvas, top to bottom. Lanes are a drawing aid, not CSDM domains: the white
           paper organizes CSDM 5 into seven domains (p. 14). Classes marked CMDB come from ServiceNow&apos;s product
@@ -59,11 +86,21 @@ export default function GuidePage() {
           const inLayer = classes.filter((c) => c.layer === layer.id);
           if (inLayer.length === 0) return null;
           return (
-            <div key={layer.id} className="mt-8">
+            <div key={layer.id} className="mt-8" data-guide-group>
               <h3 className="font-mono text-xs tracking-[0.14em] text-ink-muted uppercase">{layer.name}</h3>
-              <ul className="mt-3 grid gap-3 md:grid-cols-2">
-                {inLayer.map((c) => (
-                  <li key={c.id} className={`min-w-0 border border-border border-l-4 bg-surface-raised p-4 ${layerAccent[c.layer]}`}>
+              <ul className="mt-3 grid gap-3 xl:grid-cols-2">
+                {inLayer.map((c) => {
+                  const links = classLinks(c.id);
+                  return (
+                  <li
+                    key={c.id}
+                    id={classSlug(c.id)}
+                    data-guide-item
+                    data-text={searchText(c.label, "table" in c ? c.table : "", c.description, !isCsdmCore(c) ? "cmdb" : "", isExtended(c) ? "extended" : "")}
+                    data-layers={c.layer}
+                    data-kinds={classKinds(c).join(" ")}
+                    className={`min-w-0 scroll-mt-48 border border-border border-l-4 bg-surface-raised p-4 target:ring-2 target:ring-accent target:ring-offset-2 target:ring-offset-surface lg:scroll-mt-6 ${layerAccent[c.layer]}`}
+                  >
                     <p className="flex items-center gap-2 font-medium">
                       {c.label}
                       {!isCsdmCore(c) && <span className="border border-border-strong px-1 font-mono text-[0.6rem] tracking-[0.08em] text-ink-muted">CMDB</span>}
@@ -74,22 +111,55 @@ export default function GuidePage() {
                     <p className="mt-2 text-xs text-ink-muted">
                       Source: <Source src={c.source} />
                     </p>
+                    {links.out.length + links.in.length > 0 && (
+                      <details className="mt-2 text-xs">
+                        <summary className="inline-flex min-h-6 cursor-pointer items-center text-accent underline underline-offset-4">
+                          Connects to {links.out.length} · from {links.in.length}
+                        </summary>
+                        {links.out.length > 0 && (
+                          <>
+                            <p className="mt-2 font-mono text-[0.65rem] tracking-[0.1em] text-ink-muted uppercase">To</p>
+                            <ul className="mt-1 space-y-0.5">
+                              {links.out.map((l) => (
+                                <li key={l.to}>
+                                  <ClassLink id={l.to} /> <span className="font-mono text-ink-muted">{l.types.join(", ")}</span>
+                                </li>
+                              ))}
+                            </ul>
+                          </>
+                        )}
+                        {links.in.length > 0 && (
+                          <>
+                            <p className="mt-2 font-mono text-[0.65rem] tracking-[0.1em] text-ink-muted uppercase">From</p>
+                            <ul className="mt-1 space-y-0.5">
+                              {links.in.map((l) => (
+                                <li key={l.from}>
+                                  <ClassLink id={l.from} /> <span className="font-mono text-ink-muted">{l.types.join(", ")}</span>
+                                </li>
+                              ))}
+                            </ul>
+                          </>
+                        )}
+                      </details>
+                    )}
                   </li>
-                ))}
+                  );
+                })}
               </ul>
             </div>
           );
         })}
+        <NoMatches />
       </section>
 
-      <section aria-labelledby="relationships" className="mt-16">
-        <h2 id="relationships" className="text-2xl font-semibold tracking-tight">Relationships</h2>
+      <section aria-labelledby="relationships" className="mt-16" data-guide-section="relationships">
+        <h2 id="relationships" className={h2}>Relationships</h2>
         <p className="mt-2 max-w-2xl text-sm text-ink-muted">
           <strong className="font-medium text-ink-soft">Reported</strong> type labels appear in ServiceNow material we
           cite. <strong className="font-medium text-ink-soft">Conventional</strong> labels are standard CMDB types
           commonly used for the pairing; the pairing is sourced, the label is a suggestion.
         </p>
-        <div className="mt-6 overflow-x-auto border border-border" tabIndex={0} role="region" aria-label="Relationships table">
+        <div className="mt-6 overflow-x-auto border border-border" tabIndex={0} role="region" aria-label="Relationships table" data-guide-group>
           <table className="w-full min-w-[44rem] text-left text-sm">
             <thead className="bg-surface-raised font-mono text-xs tracking-[0.1em] text-ink-muted uppercase">
               <tr>
@@ -102,9 +172,27 @@ export default function GuidePage() {
             </thead>
             <tbody>
               {relationships.map((r) => (
-                <tr key={`${r.from}-${r.to}`} className="border-t border-border align-top">
-                  <td className="px-3 py-2.5">{label(r.from)}</td>
-                  <td className="px-3 py-2.5">{label(r.to)}</td>
+                <tr
+                  key={`${r.from}-${r.to}`}
+                  className="border-t border-border align-top"
+                  data-guide-item
+                  data-text={searchText(
+                    label(r.from),
+                    label(r.to),
+                    r.types.join(" "),
+                    "legacyTypes" in r && r.legacyTypes ? r.legacyTypes.join(" ") : "",
+                    "note" in r ? r.note : "",
+                    r.typeEvidence,
+                  )}
+                  data-layers={layersOf(r.from, r.to)}
+                  data-kinds={kindsOf(r.from, r.to)}
+                >
+                  <td className="px-3 py-2.5">
+                    <ClassLink id={r.from} />
+                  </td>
+                  <td className="px-3 py-2.5">
+                    <ClassLink id={r.to} />
+                  </td>
                   <td className="px-3 py-2.5">
                     <span className="font-mono text-xs">{r.types.join(", ")}</span>
                     {"legacyTypes" in r && r.legacyTypes && (
@@ -124,10 +212,11 @@ export default function GuidePage() {
             </tbody>
           </table>
         </div>
+        <NoMatches />
       </section>
 
-      <section aria-labelledby="impact" className="mt-16" data-testid="impact-section">
-        <h2 id="impact" className="text-2xl font-semibold tracking-tight">How impact travels</h2>
+      <section aria-labelledby="impact" className="mt-16" data-testid="impact-section" data-guide-section="impact">
+        <h2 id="impact" className={h2}>How impact travels</h2>
         <p className="mt-2 max-w-2xl text-sm text-ink-muted">
           The blast-radius view follows these rules to show what is affected when an element fails, or what an element
           depends on. Pairs read From → To, as in the Relationships table; for relationship types, From is the parent
@@ -150,7 +239,7 @@ export default function GuidePage() {
           same walk as its dependencies, shown as data traveling from it step by step through everything it relies on,
           with <strong className="font-medium text-ink-soft">Export › Data flow animation (GIF)</strong> to save it.
         </p>
-        <div className="mt-6 overflow-x-auto border border-border" tabIndex={0} role="region" aria-label="Impact rules">
+        <div className="mt-6 overflow-x-auto border border-border" tabIndex={0} role="region" aria-label="Impact rules" data-guide-group>
           <table className="w-full min-w-[48rem] text-left text-sm">
             <thead className="bg-surface-raised font-mono text-xs tracking-[0.1em] text-ink-muted uppercase">
               <tr>
@@ -163,7 +252,14 @@ export default function GuidePage() {
             </thead>
             <tbody>
               {impactRows().map((row) => (
-                <tr key={`${row.type}|${row.rule.dependent}|${row.rule.why}`} className="border-t border-border align-top">
+                <tr
+                  key={`${row.type}|${row.rule.dependent}|${row.rule.why}`}
+                  className="border-t border-border align-top"
+                  data-guide-item
+                  data-text={searchText(row.type, row.effect, row.rule.why, row.rule.evidence, ...row.pairs.flatMap((p) => [label(p.from), label(p.to)]))}
+                  data-layers={layersOf(...row.pairs.flatMap((p) => [p.from, p.to]))}
+                  data-kinds={kindsOf(...row.pairs.flatMap((p) => [p.from, p.to]))}
+                >
                   <td className="px-3 py-2.5 font-mono text-xs">{row.type.replace(/^reference:/, "Reference: ")}</td>
                   <td className="px-3 py-2.5">
                     {row.effect}
@@ -177,7 +273,7 @@ export default function GuidePage() {
                       <ul className="mt-1 space-y-0.5">
                         {row.pairs.map((p) => (
                           <li key={`${p.from}-${p.to}`}>
-                            {label(p.from)} → {label(p.to)}
+                            <ClassLink id={p.from} /> → <ClassLink id={p.to} />
                           </li>
                         ))}
                       </ul>
@@ -192,14 +288,15 @@ export default function GuidePage() {
             </tbody>
           </table>
         </div>
+        <NoMatches />
       </section>
 
-      <section aria-labelledby="hints" className="mt-16">
-        <h2 id="hints" className="text-2xl font-semibold tracking-tight">Hints</h2>
+      <section aria-labelledby="hints" className="mt-16" data-guide-section="hints">
+        <h2 id="hints" className={h2}>Hints</h2>
         <p className="mt-2 max-w-2xl text-sm text-ink-muted">Hints advise; they never block you from drawing.</p>
-        <ul className="mt-6 grid gap-3 md:grid-cols-2">
+        <ul className="mt-6 grid gap-3 xl:grid-cols-2" data-guide-group>
           {hints.map((h) => (
-            <li key={h.id} className="border border-border bg-surface-raised p-4">
+            <li key={h.id} className="border border-border bg-surface-raised p-4" data-guide-item data-text={searchText(h.title, h.explanation, h.severity)}>
               <p className="flex items-center gap-2 font-medium">
                 <span
                   className={`inline-flex h-5 items-center px-1.5 font-mono text-[0.65rem] tracking-[0.1em] uppercase ${
@@ -217,10 +314,11 @@ export default function GuidePage() {
             </li>
           ))}
         </ul>
+        <NoMatches />
       </section>
 
-      <section aria-labelledby="archimate" className="mt-16" data-testid="archimate-section">
-        <h2 id="archimate" className="text-2xl font-semibold tracking-tight">ArchiMate® 3.2 mapping</h2>
+      <section aria-labelledby="archimate" className="mt-16" data-testid="archimate-section" data-guide-section="archimate">
+        <h2 id="archimate" className={h2}>ArchiMate® 3.2 mapping</h2>
         <p className="mt-2 max-w-2xl text-sm text-ink-muted">
           Switch the editor&apos;s lens to <strong className="font-medium text-ink-soft">CSDM + ArchiMate 3.2</strong> to see
           these names on the canvas. The mapping is our interpretation; each element links to the chapter of the{" "}
@@ -251,7 +349,7 @@ export default function GuidePage() {
             and it makes no claim of TOGAF conformance or certification. TOGAF is a registered trademark of The Open Group.
           </p>
         </div>
-        <div className="mt-6 overflow-x-auto border border-border" tabIndex={0} role="region" aria-label="ArchiMate element mapping">
+        <div className="mt-6 overflow-x-auto border border-border" tabIndex={0} role="region" aria-label="ArchiMate element mapping" data-guide-group>
           <table className="w-full min-w-[40rem] text-left text-sm">
             <thead className="bg-surface-raised font-mono text-xs tracking-[0.1em] text-ink-muted uppercase">
               <tr>
@@ -265,8 +363,17 @@ export default function GuidePage() {
               {classes.map((c) => {
                 const m: ElementMapping = archimateElements[c.id];
                 return (
-                  <tr key={c.id} className="border-t border-border align-top">
-                    <td className="px-3 py-2.5">{c.label}</td>
+                  <tr
+                    key={c.id}
+                    className="border-t border-border align-top"
+                    data-guide-item
+                    data-text={searchText(c.label, m.label, m.layer, m.note)}
+                    data-layers={c.layer}
+                    data-kinds={classKinds(c).join(" ")}
+                  >
+                    <td className="px-3 py-2.5">
+                      <ClassLink id={c.id} />
+                    </td>
                     <td className="px-3 py-2.5">
                       <a
                         className="inline-flex items-center gap-1.5 text-accent underline underline-offset-4"
@@ -286,7 +393,7 @@ export default function GuidePage() {
             </tbody>
           </table>
         </div>
-        <div className="mt-6 overflow-x-auto border border-border" tabIndex={0} role="region" aria-label="ArchiMate relationship mapping">
+        <div className="mt-6 overflow-x-auto border border-border" tabIndex={0} role="region" aria-label="ArchiMate relationship mapping" data-guide-group>
           <table className="w-full min-w-[40rem] text-left text-sm">
             <thead className="bg-surface-raised font-mono text-xs tracking-[0.1em] text-ink-muted uppercase">
               <tr>
@@ -299,9 +406,16 @@ export default function GuidePage() {
               {relationships.map((r) => {
                 const m = archimateRelationshipFor(r.from, r.to);
                 return (
-                  <tr key={`${r.from}-${r.to}`} className="border-t border-border align-top">
+                  <tr
+                    key={`${r.from}-${r.to}`}
+                    className="border-t border-border align-top"
+                    data-guide-item
+                    data-text={searchText(label(r.from), label(r.to), m?.type, m?.reads)}
+                    data-layers={layersOf(r.from, r.to)}
+                    data-kinds={kindsOf(r.from, r.to)}
+                  >
                     <td className="px-3 py-2.5">
-                      {label(r.from)} → {label(r.to)}
+                      <ClassLink id={r.from} /> → <ClassLink id={r.to} />
                     </td>
                     <td className="px-3 py-2.5 font-mono text-xs">{m ? `${m.type}${m.reverse ? " (reversed)" : ""}` : "—"}</td>
                     <td className="px-3 py-2.5 text-xs text-ink-soft">{m?.reads ?? ""}</td>
@@ -311,7 +425,10 @@ export default function GuidePage() {
             </tbody>
           </table>
         </div>
+        <NoMatches />
       </section>
+      </div>
+      </div>
     </div>
   );
 }

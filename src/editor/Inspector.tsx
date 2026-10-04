@@ -3,6 +3,7 @@
 import { useEffect, useId, useRef, useState } from "react";
 import { ARCHIMATE_TRADEMARK, archimateElements, archimateRelationshipFor, archimateSources, type ElementMapping, type Lens, showsArchimate } from "@/frameworks";
 import { ArchimateGlyph } from "@/frameworks/ArchimateGlyph";
+import { classSlug } from "@/guide";
 import { allowedTypes, classById, isClassId, isCsdmCore, sources } from "@/metamodel";
 import { modelDate, type Model } from "@/model";
 import type { Action } from "./state";
@@ -217,6 +218,11 @@ export function Inspector({ model, selectedId, dispatch, focusName, focusConnect
             Source: {def.source.id === "whitepaper" ? "CSDM 5 white paper" : sources[def.source.id].title}
             {"page" in def.source ? `, p. ${def.source.page}` : ""}
             <span className="sr-only"> (opens in a new tab)</span>
+          </a>
+        )}
+        {def && (
+          <a className="mt-1 block w-fit text-xs text-accent underline underline-offset-4" href={`/guide#${classSlug(def.id)}`}>
+            In the guide: what {def.label} connects to
           </a>
         )}
       </div>
