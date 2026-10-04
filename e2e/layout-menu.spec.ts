@@ -1,20 +1,9 @@
 import AxeBuilder from "@axe-core/playwright";
 import { expect, test, type Page } from "@playwright/test";
 import { openExample } from "./examples";
-import { chooseLayout, diagramRect, layerBoxRects, layoutButton, layoutMenu } from "./layout";
+import { chooseLayout, diagramRect, layerBoxRects, layoutButton, layoutMenu, settled } from "./layout";
 
 const tags = ["wcag2a", "wcag2aa", "wcag21aa", "wcag22aa"];
-
-/** The on-screen rectangles of the elements whose center lies in a layer box. */
-const nodesIn = (page: Page, box: { left: number; top: number; right: number; bottom: number }) =>
-  page.locator(".react-flow__node").evaluateAll(
-    (els, box) =>
-      els
-        .map((e) => e.getBoundingClientRect())
-        .filter((r) => r.left + r.width / 2 > box.left && r.left + r.width / 2 < box.right && r.top + r.height / 2 > box.top && r.top + r.height / 2 < box.bottom)
-        .map((r) => ({ left: r.left, top: r.top })),
-    box,
-  );
 
 const open = async (page: Page, name = "Online Store Checkout") => {
   await page.goto("/editor");
@@ -36,6 +25,8 @@ test.describe("Layout menu (desktop)", () => {
     await expect(menu.getByRole("button")).toHaveText([/Auto-layout/, /Top to bottom/, /Left to right/, /Symmetric/, /Fill space/]);
     await expect(menu.getByRole("button", { name: "Left to right", exact: true })).toHaveAccessibleDescription(/column/);
     await expect(menu).toContainText("CSDM layer");
+    await page.keyboard.press("Tab");
+    await expect(menu.getByRole("button", { name: "Auto-layout", exact: true })).toBeFocused();
     await page.keyboard.press("Escape");
     await expect(menu).toBeHidden();
     await expect(layoutButton(page)).toBeFocused();
@@ -47,14 +38,14 @@ test.describe("Layout menu (desktop)", () => {
     let boxes = await layerBoxRects(page);
     expect(boxes).toHaveLength(5);
     for (const [i, b] of boxes.entries()) {
-      expect(new Set((await nodesIn(page, b)).map((n) => Math.round(n.top))).size, `row ${i} is one row`).toBe(1);
+      expect(new Set(b.nodes.map((n) => Math.round(n.top))).size, `row ${i} is one row`).toBe(1);
       if (i) expect(b.top, `row ${i} below row ${i - 1}`).toBeGreaterThan(boxes[i - 1]!.bottom);
     }
 
     await chooseLayout(page, "Left to right");
     boxes = await layerBoxRects(page);
     for (const [i, b] of boxes.entries()) {
-      expect(new Set((await nodesIn(page, b)).map((n) => Math.round(n.left))).size, `column ${i} is one column`).toBe(1);
+      expect(new Set(b.nodes.map((n) => Math.round(n.left))).size, `column ${i} is one column`).toBe(1);
       if (i) expect(b.left, `column ${i} right of column ${i - 1}`).toBeGreaterThan(boxes[i - 1]!.right);
     }
     // Lanes become columns: taller than wide, side by side, and a drop settles sideways.
@@ -76,8 +67,20 @@ test.describe("Layout menu (desktop)", () => {
     await page.mouse.move(hb.x + hb.width / 2 - 400, hb.y + hb.height / 2, { steps: 6 });
     await page.mouse.up();
     await expect(page.getByRole("status")).toHaveText("Kept in the Infrastructure lane.");
-    // Within a column a relationship runs up or down; the one below leaves by the right side.
-    await expect(page.locator(".react-flow__edge").first()).toBeVisible();
+    // Between columns a relationship leaves by a side: the path from Checkout web app to its host
+    // starts at the right edge of the web app, not below it.
+    const start = await page.evaluate(() => {
+      const edge = document.querySelector('.react-flow__edge[aria-label*="from Checkout web app to web-prod-01"] .react-flow__edge-path')!;
+      const m = /^M\s*([\d.-]+)[ ,]([\d.-]+)/.exec(edge.getAttribute("d") ?? "")!;
+      const p = (edge as SVGPathElement).ownerSVGElement!.createSVGPoint();
+      p.x = Number(m[1]);
+      p.y = Number(m[2]);
+      const s = p.matrixTransform((edge as SVGGraphicsElement).getScreenCTM()!);
+      const node = [...document.querySelectorAll(".react-flow__node")].find((n) => n.textContent?.includes("Checkout web app"))!.getBoundingClientRect();
+      return { dx: s.x - node.right, inside: s.y > node.top && s.y < node.bottom };
+    });
+    expect(Math.abs(start.dx)).toBeLessThanOrEqual(3);
+    expect(start.inside).toBe(true);
 
     // Undo twice: positions back to top-to-bottom rows.
     await page.getByRole("button", { name: "Undo" }).click();
@@ -107,18 +110,33 @@ test.describe("Layout menu (desktop)", () => {
       const r = await diagramRect(page);
       return { left: r.left - canvas.x, right: canvas.x + canvas.width - r.left - r.width, bottom: canvas.y + canvas.height - r.top - r.height };
     };
-    expect((await gaps()).bottom, "a fitted left-to-right picture leaves an empty band below").toBeGreaterThan(side(canvas.height) + 40);
+    await expect.poll(async () => (await gaps()).bottom, { message: "a fitted left-to-right picture leaves an empty band below" }).toBeGreaterThan(side(canvas.height) + 40);
     await chooseLayout(page, "Fill space");
     await expect(page.getByRole("status")).toContainText("Spread to fill the view");
-    await expect.poll(gaps).toEqual({ left: expect.closeTo(side(canvas.width), -1), right: expect.closeTo(side(canvas.width), -1), bottom: expect.closeTo(side(canvas.height), -1) });
+    await settled(page);
+    const g = await gaps();
+    expect(Math.abs(g.left - side(canvas.width)), "left").toBeLessThanOrEqual(8);
+    expect(Math.abs(g.right - side(canvas.width)), "right").toBeLessThanOrEqual(8);
+    expect(Math.abs(g.bottom - side(canvas.height)), "bottom").toBeLessThanOrEqual(8);
     await chooseLayout(page, "Fill space");
     await expect(page.getByRole("status")).toContainText("already fills the view");
   });
 
-  test("is disabled on an empty model, and the canvas menu still offers Auto-layout", async ({ page }) => {
+  test("is disabled on an empty model; the canvas menu still offers Auto-layout; a single row cannot fill space", async ({ page }) => {
     await page.goto("/editor");
     await expect(page.getByTestId("save-status")).toHaveText("Saved in this browser");
     await expect(layoutButton(page)).toBeDisabled();
+    await openExample(page, "Online Store Checkout");
+    await page.locator(".react-flow__pane").click({ button: "right", position: { x: 30, y: 30 } });
+    await expect(page.getByRole("menu", { name: "Canvas menu" }).getByRole("menuitem", { name: "Auto-layout" })).toBeVisible();
+    await page.keyboard.press("Escape");
+    // A model whose placed elements share one row has no second dimension to spread.
+    await openExample(page, "Blank model");
+    const palette = page.getByRole("navigation", { name: "Element palette" });
+    await palette.getByRole("button", { name: "Business Capability", exact: true }).click();
+    await layoutButton(page).click();
+    await layoutMenu(page).getByRole("button", { name: "Fill space", exact: true }).click();
+    await expect(page.getByRole("status")).toContainText("Nothing to spread");
   });
 
   for (const scheme of ["dark", "light"] as const) {

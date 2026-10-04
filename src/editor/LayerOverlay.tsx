@@ -51,9 +51,10 @@ export function LayerOverlay({
   /** Absent while presenting or on small screens: labels are plain text then. */
   handlers?: LayerHandlers;
 }) {
-  const { x, y, zoom } = useViewport();
+  const { x, zoom } = useViewport();
   const visibleLeft = -x / zoom;
-  const visibleTop = -y / zoom;
+  // Column labels sit just above the highest layer box (the title block is above that, left of it).
+  const boxesTop = boxes.length ? Math.min(...boxes.map((b) => b.y)) : 0;
   const count = (layer: Layer) => boxes.find((b) => b.layer === layer)?.nodeIds.length ?? 0;
 
   const handle = (layer: Layer, name: string, extra: string) =>
@@ -109,13 +110,13 @@ export function LayerOverlay({
                 [l.columns ? "borderLeft" : "borderTop"]: i === 0 ? "none" : `1px dashed color-mix(in oklab, ${layerColor[l.layer]} 45%, transparent)`,
               }}
             >
-              {/* The label sits at the visible edge of the lane: the left of the view for a row, the top for a column. */}
+              {/* A row's label sits at the left edge of the view; a column's just above the layer boxes. */}
               <div
                 data-testid="layer-lane-label"
                 className="absolute text-[11px]"
                 style={
                   l.columns
-                    ? { left: 6, top: LANE_SPAN / 2 + visibleTop + 12 / zoom, transform: `scale(${1 / zoom})`, transformOrigin: "0 0" }
+                    ? { left: 6, top: LANE_SPAN / 2 + boxesTop - 30 / zoom, transform: `scale(${1 / zoom})`, transformOrigin: "0 0" }
                     : { left: LANE_SPAN / 2 + visibleLeft + 12 / zoom, top: 6, transform: `scale(${1 / zoom})`, transformOrigin: "0 0" }
                 }
               >

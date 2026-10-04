@@ -11,20 +11,39 @@ export async function chooseLayout(page: Page, choice: LayoutChoice) {
   await layoutButton(page).click();
   await layoutMenu(page).getByRole("button", { name: choice, exact: true }).click();
   await expect(layoutMenu(page)).toBeHidden();
-  await expect(page.getByRole("status")).toContainText(choice === "Fill space" ? /fill|already/i : "Laid out by CSDM layer", { timeout: 20_000 });
+  await expect(page.getByRole("status")).toContainText(choice === "Fill space" ? /fill|already|spread/i : "Laid out by CSDM layer", { timeout: 20_000 });
+  await settled(page);
+}
+
+/** Waits until the fit animation that follows a layout has stopped moving the picture. */
+export async function settled(page: Page) {
+  let last = "";
+  await expect
+    .poll(async () => {
+      const now = JSON.stringify(await diagramRect(page));
+      const same = now === last;
+      last = now;
+      return same;
+    })
+    .toBe(true);
 }
 
 /** Auto-layout, as the old toolbar button did it. */
 export const autoLayout = (page: Page) => chooseLayout(page, "Auto-layout");
 
-/** The layer boxes' on-screen rectangles, in layer order. */
+/**
+ * The layer boxes' on-screen rectangles, in layer order, each with the top-left corners of the
+ * elements whose center lies in it — read in one go so no animation frame can come between.
+ */
 export const layerBoxRects = (page: Page) =>
-  page.getByTestId("layer-box").evaluateAll((els) =>
-    els.map((e) => {
+  page.evaluate(() => {
+    const nodes = [...document.querySelectorAll(".react-flow__node")].map((e) => e.getBoundingClientRect());
+    return [...document.querySelectorAll("[data-testid=layer-box]")].map((e) => {
       const r = e.getBoundingClientRect();
-      return { left: r.left, top: r.top, right: r.right, bottom: r.bottom, width: r.width, height: r.height };
-    }),
-  );
+      const inside = nodes.filter((n) => n.left + n.width / 2 > r.left && n.left + n.width / 2 < r.right && n.top + n.height / 2 > r.top && n.top + n.height / 2 < r.bottom);
+      return { left: r.left, top: r.top, right: r.right, bottom: r.bottom, width: r.width, height: r.height, nodes: inside.map((n) => ({ left: n.left, top: n.top })) };
+    });
+  });
 
 /** The on-screen rectangle round every element. */
 export const diagramRect = (page: Page) =>

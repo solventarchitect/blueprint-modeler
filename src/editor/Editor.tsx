@@ -499,14 +499,14 @@ function EditorInner() {
       // Another model may have opened while the layout ran; examples share element ids, so a stale
       // layout would move that model's elements.
       if (openModelId.current !== model.id) {
-        setMessage("Auto-layout stopped: another model opened while it ran. Nothing was moved.");
+        setMessage("Layout stopped: another model opened while it ran. Nothing was moved.");
         return;
       }
       dispatch({ type: "set-layout", layout });
       setMessage(`${layoutDone[mode]} Undo restores the previous positions.`);
       setTimeout(() => void flow.fitView({ maxZoom: 1, padding: fitPadding(0.15), duration: 300 }), 50);
     } catch {
-      setMessage("Auto-layout failed. Your positions are unchanged.");
+      setMessage("Layout failed. Your positions are unchanged.");
     } finally {
       setLayingOut(false);
     }
@@ -525,15 +525,16 @@ function EditorInner() {
       const inner = { w: width - 2 * fitSide(width), h: height - fitSide(height) - titleRoom(hasDescription.current, zoom) };
       layout = inner.w > 0 && inner.h > 0 ? fillSpace(model, sizes, inner.w / inner.h) : null;
       if (!layout) break;
-      const next = layout;
-      const xs = model.nodes.map((n) => next[n.id]!.x), ys = model.nodes.map((n) => next[n.id]!.y);
-      const right = Math.max(...model.nodes.map((n) => next[n.id]!.x + (sizes[n.id] ?? DEFAULT_SIZE).width));
-      const bottom = Math.max(...model.nodes.map((n) => next[n.id]!.y + (sizes[n.id] ?? DEFAULT_SIZE).height));
-      const b = { x: Math.min(...xs), y: Math.min(...ys), width: right - Math.min(...xs), height: bottom - Math.min(...ys) };
+      // Only placed elements are in the answer (an imported file may leave one without a position).
+      const placed = Object.entries(layout).map(([id, p]) => ({ ...p, ...(sizes[id] ?? DEFAULT_SIZE) }));
+      const x = Math.min(...placed.map((p) => p.x)), y = Math.min(...placed.map((p) => p.y));
+      const b = { x, y, width: Math.max(...placed.map((p) => p.x + p.width)) - x, height: Math.max(...placed.map((p) => p.y + p.height)) - y };
       zoom = getViewportForBounds(b, width, height, 0.05, 1, { x: FIT_PAD, bottom: FIT_PAD, top: 0 }).zoom || 1;
     }
     if (!layout) {
-      setMessage("The picture already fills the view.");
+      const placed = model.nodes.filter((n) => model.layout[n.id]);
+      const line = new Set(placed.map((n) => model.layout[n.id]!.x)).size === 1 || new Set(placed.map((n) => model.layout[n.id]!.y)).size === 1;
+      setMessage(placed.length < 2 ? "Nothing to spread: the model has one element." : line ? "Fill space needs elements in more than one row and column." : "The picture already fills the view.");
       return;
     }
     dispatch({ type: "set-layout", layout });
@@ -1365,7 +1366,7 @@ function EditorInner() {
               <Background id="major" variant={BackgroundVariant.Lines} gap={160} color="var(--canvas-grid-major)" />
               {!presenting && <FitControls hasDescription={!!model.description} />}
               <LayerOverlay boxes={boxes} lanes={lanes} showBoxes={view.boxes || presenting} showLanes={view.lanes} handlers={canMenu ? layerHandlers : undefined} />
-              <CanvasTitle name={model.name} date={modelDate(model)} description={model.description} artifactId={model.artifactId} boxes={boxes} tabsAbove={view.boxes && !view.lanes && canMenu} decorative={presenting} />
+              <CanvasTitle name={model.name} date={modelDate(model)} description={model.description} artifactId={model.artifactId} boxes={boxes} tabsAbove={(view.boxes && !view.lanes && canMenu) || (view.lanes && columns)} decorative={presenting} />
             </ReactFlow>
           </LabelObstacles>
           </SuggestContext.Provider>

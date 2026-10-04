@@ -42,11 +42,17 @@ export function layerBoxes(model: Model, sizes: Sizes = {}, skip?: string): Laye
 
 /**
  * Which way the layers run. Columns when every populated layer sits wholly to the right of the one
- * before it (a left-to-right layout); rows otherwise, including a single layer or no elements.
+ * before it and the layers do not also stack top to bottom (a left-to-right layout); rows
+ * otherwise, including a single layer or no elements.
  */
 export function layoutOrientation(model: Model, sizes: Sizes = {}, skip?: string): "rows" | "columns" {
-  const boxes = layerBoxes(model, sizes, skip);
+  return orientationOf(layerBoxes(model, sizes, skip));
+}
+
+/** Rows win when the layers both stack and step sideways (a hand-drawn diagonal is still top-down). */
+function orientationOf(boxes: LayerBox[]): "rows" | "columns" {
   if (boxes.length < 2) return "rows";
+  if (boxes.every((b, i) => i === 0 || b.y >= boxes[i - 1]!.y + boxes[i - 1]!.h)) return "rows";
   return boxes.every((b, i) => i === 0 || b.x >= boxes[i - 1]!.x + boxes[i - 1]!.w) ? "columns" : "rows";
 }
 
@@ -57,7 +63,7 @@ export function layoutOrientation(model: Model, sizes: Sizes = {}, skip?: string
  */
 export function layerLanes(model: Model, sizes: Sizes = {}, skip?: string): Lane[] {
   const boxes = layerBoxes(model, sizes, skip);
-  const columns = layoutOrientation(model, sizes, skip) === "columns";
+  const columns = orientationOf(boxes) === "columns";
   const lanes = boxes.map((b) => (columns ? { layer: b.layer, name: b.name, start: b.x, end: b.x + b.w, columns } : { layer: b.layer, name: b.name, start: b.y, end: b.y + b.h, columns }));
   for (let i = 1; i < lanes.length; i++) {
     const before = lanes[i - 1]!;

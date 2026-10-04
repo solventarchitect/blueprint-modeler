@@ -1,6 +1,6 @@
 "use client";
 
-import { useId, useRef, useState } from "react";
+import { useCallback, useId, useRef, useState } from "react";
 import type { LayoutMode } from "@/layout/layout";
 import { ToolbarIcon } from "./ToolbarIcon";
 import { useDismiss } from "./useDismiss";
@@ -8,11 +8,11 @@ import { useDismiss } from "./useDismiss";
 export type LayoutChoice = LayoutMode | "fill";
 
 const choices: { id: LayoutChoice; label: string; note: string }[] = [
-  { id: "auto", label: "Auto-layout", note: "ELK places each element within its layer's band" },
+  { id: "auto", label: "Auto-layout", note: "Places each element freely within its layer" },
   { id: "rows", label: "Top to bottom", note: "One row per layer, Business at the top" },
   { id: "columns", label: "Left to right", note: "One column per layer, Business on the left" },
   { id: "symmetric", label: "Symmetric", note: "Auto-layout with every layer centered on one axis" },
-  { id: "fill", label: "Fill space", note: "Spread the picture, as arranged, to the shape of the view" },
+  { id: "fill", label: "Fill space", note: "Spread the picture, as arranged, to the shape of the view (never zoomed past 100%)" },
 ];
 
 /**
@@ -24,16 +24,37 @@ export function LayoutMenu({ busy, disabled, onChoose, buttonClass }: { busy: bo
   const root = useRef<HTMLDivElement>(null);
   const button = useRef<HTMLButtonElement>(null);
   const panelId = useId();
-  useDismiss(open, () => setOpen(false), root, button);
+  const close = useCallback(() => setOpen(false), []);
+  useDismiss(open, close, root, button);
 
   return (
-    <div ref={root} className="relative">
-      <button ref={button} type="button" className={buttonClass} disabled={disabled || busy} aria-busy={busy} aria-expanded={open} aria-controls={panelId} onClick={() => setOpen((o) => !o)}>
+    <div
+      ref={root}
+      className="relative"
+      onBlur={(e) => {
+        // Tabbing out of the panel closes it, so it never sits over the control that has focus.
+        if (open && e.relatedTarget && !root.current?.contains(e.relatedTarget as Node)) setOpen(false);
+      }}
+    >
+      {/* While a layout runs the button is aria-disabled, not disabled, so keyboard focus stays on it. */}
+      <button
+        ref={button}
+        type="button"
+        className={`${buttonClass} aria-disabled:cursor-not-allowed aria-disabled:opacity-60`}
+        disabled={disabled}
+        aria-disabled={busy || undefined}
+        aria-busy={busy}
+        aria-expanded={open}
+        aria-controls={panelId}
+        onClick={() => !busy && setOpen((o) => !o)}
+      >
         <ToolbarIcon name="layout" />
         {busy ? "Laying out…" : "Layout"} {!busy && <span aria-hidden="true">▾</span>}
       </button>
-      <div id={panelId} hidden={!open} data-testid="layout-menu" className="absolute left-0 z-20 mt-1 w-80 border border-border-strong bg-surface-raised py-1">
-        <p className="px-3 pt-1.5 pb-1 font-mono text-[10px] tracking-[0.14em] text-ink-muted uppercase">Arrange by CSDM layer</p>
+      <div id={panelId} hidden={!open} data-testid="layout-menu" role="group" aria-labelledby={`${panelId}-heading`} className="absolute left-0 z-20 mt-1 w-80 border border-border-strong bg-surface-raised py-1">
+        <p id={`${panelId}-heading`} className="px-3 pt-1.5 pb-1 font-mono text-[10px] tracking-[0.14em] text-ink-muted uppercase">
+          Arrange by CSDM layer
+        </p>
         <ul>
           {choices.map((c) => (
             <li key={c.id}>

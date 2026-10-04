@@ -56,6 +56,10 @@ describe("layer boxes and lanes", () => {
     expect(r.y).toBe(10);
     expect(r.x).toBeGreaterThanOrEqual(lanes.find((l) => l.name === "Infrastructure")!.start);
     expect(layoutOrientation({ ...m, nodes: m.nodes.filter((n) => n.class === "host") })).toBe("rows");
+    // A diagonal (each layer below and right of the one before) is still top-down.
+    const diagonal = { ...m, layout: { ...m.layout } };
+    for (const [i, b] of boxes.entries()) for (const id of b.nodeIds) diagonal.layout[id] = { x: m.layout[id]!.x - b.x + i * 2000, y: m.layout[id]!.y - b.y + i * 600 };
+    expect(layoutOrientation(diagonal)).toBe("rows");
   });
 
   it("skip empty layers", () => {
