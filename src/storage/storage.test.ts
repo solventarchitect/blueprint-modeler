@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 import { createModel } from "@/model";
-import { createMemoryStore } from "./index";
+import { createMemoryStore, summary, toRow } from "./index";
 
 describe("memory store", () => {
   it("puts, lists newest first, gets back an equal model, and removes", async () => {
@@ -14,5 +14,28 @@ describe("memory store", () => {
     await store.remove("a");
     expect(await store.get("a")).toBeUndefined();
     expect((await store.list()).map((s) => s.id)).toEqual(["b"]);
+  });
+
+  it("keeps the summary in the stored row, reads older rows from their JSON, and marks unreadable ones", () => {
+    const m = { ...createModel("Checkout", new Date("2026-09-27T10:00:00Z"), "c"), artifactId: "EA-0042" };
+    const row = toRow(m);
+    expect(row).toMatchObject({ artifactId: "EA-0042", nodes: 0, edges: 0 });
+    // A row saved before M38 has no summary fields: they come from its JSON.
+    expect(summary({ id: "c", name: "Checkout", updated: m.updated, json: row.json })).toMatchObject({ artifactId: "EA-0042", nodes: 0, edges: 0 });
+    expect(summary({ id: "d", name: "Broken", updated: m.updated, json: "{not json" })).toMatchObject({ damaged: true });
+  });
+
+  it("summarizes each model for the Model menu: details and counts", async () => {
+    const store = createMemoryStore();
+    const m = { ...createModel("Checkout", new Date("2026-09-27T10:00:00Z"), "c"), description: "Order flow.", artifactId: "EA-0042" };
+    m.nodes = [{ id: "ba", class: "business_application", name: "Checkout" }, { id: "svc", class: "application_service", name: "Checkout — prod" }];
+    m.edges = [{ id: "e1", from: "ba", to: "svc", type: "Uses::Used by" }];
+    m.layout = { ba: { x: 0, y: 0 }, svc: { x: 0, y: 200 } };
+    await store.put(m);
+    await store.put(createModel("Plain", new Date("2026-09-27T09:00:00Z"), "p"));
+    expect(await store.list()).toEqual([
+      { id: "c", name: "Checkout", updated: "2026-09-27T10:00:00.000Z", description: "Order flow.", artifactId: "EA-0042", nodes: 2, edges: 1 },
+      { id: "p", name: "Plain", updated: "2026-09-27T09:00:00.000Z", nodes: 0, edges: 0 },
+    ]);
   });
 });

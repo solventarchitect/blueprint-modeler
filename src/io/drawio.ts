@@ -1,6 +1,6 @@
 import { archimateElements, type Lens, showsArchimate } from "@/frameworks";
 import { classById, isClassId, type Layer } from "@/metamodel";
-import type { Model } from "@/model";
+import { UNTITLED_MODEL, type Model } from "@/model";
 import { edgeSides } from "@/layout/geometry";
 
 /**
@@ -125,7 +125,7 @@ export function modelToDrawio(model: Model, opts: { lens?: Lens; now?: Date } = 
   return [
     `<?xml version="1.0" encoding="UTF-8"?>`,
     `<mxfile host="Blueprint Modeler" modified="${modified}" agent="Blueprint Modeler (model.mikereams.com)" version="24.0.0" type="device">`,
-    `<diagram id="${esc(makeId("page"))}" name="${esc(model.name || "Untitled model")}">`,
+    `<diagram id="${esc(makeId("page"))}" name="${esc(model.name || UNTITLED_MODEL)}">`,
     `<mxGraphModel dx="1200" dy="800" grid="1" gridSize="8" guides="1" tooltips="1" connect="1" arrows="1" fold="1" page="0" pageScale="1" math="0" shadow="0">`,
     `<root>`,
     `<mxCell id="0"/>`,

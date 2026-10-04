@@ -9,7 +9,7 @@ const gifItem = (page: Page) => page.getByRole("button", { name: /^Blast radius 
 async function openCheckout(page: Page) {
   await page.goto("/editor");
   await expect(page.getByTestId("save-status")).toHaveText("Saved in this browser");
-  await openExample(page, "Online store checkout");
+  await openExample(page, "Online Store Checkout");
   await expect(page.locator(".react-flow__node")).toHaveCount(14);
   await page.getByRole("button", { name: "Fit View" }).click();
 }

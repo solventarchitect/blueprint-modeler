@@ -26,6 +26,10 @@ export const modelSchema = z.object({
   schema: z.literal(CURRENT_SCHEMA),
   id,
   name,
+  /** Optional: what the model is for, shown under its name on the canvas and in images. */
+  description: z.string().max(1000).optional(),
+  /** Optional: the owner's reference for the model, such as a document or architecture ID. */
+  artifactId: z.string().max(64).optional(),
   created: z.iso.datetime(),
   updated: z.iso.datetime(),
   nodes: z.array(nodeSchema).max(5000),

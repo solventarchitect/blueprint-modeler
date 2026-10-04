@@ -1,5 +1,5 @@
 import { acceptedTypes, allowedTypes, classById, relationshipsBetween, type ClassId, type Layer } from "@/metamodel";
-import { edgeKey, type Edge, type Model, type Node } from "@/model";
+import { edgeKey, withDetails, type Edge, type Model, type Node } from "@/model";
 
 /**
  * Editor state: the model plus undo/redo history. Pure functions only, so every rule the
@@ -10,6 +10,7 @@ export type History = { past: Model[]; present: Model; future: Model[] };
 export type Action =
   | { type: "load"; model: Model }
   | { type: "rename-model"; name: string }
+  | { type: "model-details"; description?: string; artifactId?: string }
   | { type: "add-node"; id: string; class: ClassId; name: string }
   | { type: "rename-node"; id: string; name: string }
   | { type: "describe-node"; id: string; description: string }
@@ -95,6 +96,10 @@ function apply(model: Model, action: Action): Model | null {
   switch (action.type) {
     case "rename-model":
       return action.name === model.name ? null : { ...model, name: action.name };
+    case "model-details": {
+      const next = withDetails(model, { description: action.description ?? model.description, artifactId: action.artifactId ?? model.artifactId });
+      return next.description === model.description && next.artifactId === model.artifactId ? null : next;
+    }
     case "add-node": {
       if (model.nodes.some((n) => n.id === action.id)) return null;
       const node: Node = { id: action.id, class: action.class, name: action.name };

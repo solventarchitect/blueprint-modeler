@@ -5,6 +5,20 @@ import { CURRENT_SCHEMA, edgeKey, modelSchema, type Model } from "./schema";
 export type Issue = { level: "warning"; code: "disallowed-relationship" | "legacy-type"; edgeId: string; message: string };
 export type ParseResult = { ok: true; model: Model; issues: Issue[] } | { ok: false; error: string };
 
+/** The name a new model starts with. */
+export const UNTITLED_MODEL = "Untitled Model";
+
+/**
+ * The model with its optional details set: trimmed, absent when empty, and placed right after the
+ * name, so an exported file reads name, description, Artifact ID, then the rest.
+ */
+export function withDetails(model: Model, details: { description?: string; artifactId?: string }): Model {
+  const description = details.description?.trim() ?? "";
+  const artifactId = details.artifactId?.trim() ?? "";
+  const { schema, id, name, created, updated, nodes, edges, layout } = model;
+  return { schema, id, name, ...(description ? { description } : {}), ...(artifactId ? { artifactId } : {}), created, updated, nodes, edges, layout };
+}
+
 /** A new, empty model. */
 export function createModel(name: string, now = new Date(), id: string = crypto.randomUUID()): Model {
   const ts = now.toISOString();
@@ -27,7 +41,7 @@ export function parseModel(input: unknown): ParseResult {
     const where = first?.path.length ? ` at ${first.path.join(".")}` : "";
     return { ok: false, error: `The file is not a valid model${where}: ${first?.message ?? "unknown problem"}.` };
   }
-  const model = parsed.data;
+  const model = withDetails(parsed.data, parsed.data);
 
   const nodeIds = new Set<string>();
   for (const n of model.nodes) {

@@ -1,7 +1,8 @@
 import { archimateElements, archimateFill, archimateRelationshipFor, archimateTypeInk, edgeNotation, markerSvg, type Lens, type MarkerShape, showsArchimate } from "@/frameworks";
 import { classById, isClassId, type Layer } from "@/metamodel";
-import type { Model } from "@/model";
+import { UNTITLED_MODEL, type Model } from "@/model";
 import { edgeSides, type Side } from "@/layout/geometry";
+import { ARTIFACT_ICON_PATH } from "./icons";
 
 export type SvgTheme = "dark" | "light";
 
@@ -62,6 +63,25 @@ function wrap(text: string, width: number): string[] {
   return lines.slice(0, 2);
 }
 
+/** Words into lines of at most `width` characters; past `max` lines the last one ends with "…". */
+function wrapText(text: string, width: number, max: number): string[] {
+  const lines: string[] = [];
+  let line = "";
+  for (const word of text.split(/\s+/).filter(Boolean)) {
+    const next = line ? `${line} ${word}` : word;
+    if (line && next.length > width) {
+      lines.push(line);
+      line = word;
+    } else line = next;
+  }
+  if (line) lines.push(line);
+  if (lines.length <= max) return lines.map((l) => clip(l, width));
+  return [...lines.slice(0, max - 1), clip(`${lines[max - 1]}…`, width)];
+}
+
+/** The title block: model name, with its Artifact ID above and description below when they exist. */
+const TITLE = { top: 28, artifact: 22, name: 28, line: 18, gap: 24, nameChar: 12.4, textChar: 7.2, monoChar: 7.6, maxName: 800 } as const;
+
 type Box = { x: number; y: number; w: number; h: number };
 
 function anchor(b: Box, side: Side) {
@@ -100,9 +120,27 @@ export function modelToSvg(model: Model, theme: SvgTheme, opts: { lens?: Lens; h
 
   const all = [...boxes.values()];
   const minX = all.length ? Math.min(...all.map((b) => b.x)) - PAD : 0;
-  const minY = (all.length ? Math.min(...all.map((b) => b.y)) - PAD : 0) - (hl?.caption ? CAPTION_H : 0);
-  // The caption sets a minimum width (14px sans, about 7.6px a character).
-  const maxX = Math.max(all.length ? Math.max(...all.map((b) => b.x + b.w)) + PAD : 2 * PAD, hl?.caption ? minX + 32 + Math.max(hl.caption.text.length, hl.caption.reserve ?? 0) * 7.6 : -Infinity);
+  const name = model.name || UNTITLED_MODEL;
+  const artifactId = model.artifactId?.trim() ?? "";
+  const about = model.description?.trim() ?? "";
+  const diagramMaxX = all.length ? Math.max(...all.map((b) => b.x + b.w)) + PAD : 2 * PAD;
+  // Description lines: as wide as the diagram allows, between 40 and 110 characters (readable).
+  const aboutChars = Math.min(110, Math.max(40, Math.floor((diagramMaxX - minX - 2 * PAD) / TITLE.textChar)));
+  const aboutLines = about ? wrapText(about, aboutChars, 3) : [];
+  // The title block sets a minimum width: name (22px sans), Artifact ID (12px mono after its icon)
+  // and description lines; so does a blast caption (14px sans, about 7.6px a character).
+  const titleWidth = Math.max(
+    Math.min(name.length * TITLE.nameChar, TITLE.maxName),
+    artifactId ? 20 + artifactId.length * TITLE.monoChar : 0,
+    ...aboutLines.map((l) => l.length * TITLE.textChar),
+  );
+  const maxX = Math.max(
+    diagramMaxX,
+    hl?.caption ? minX + 2 * PAD + Math.max(hl.caption.text.length, hl.caption.reserve ?? 0) * 7.6 : -Infinity,
+    minX + 2 * PAD + titleWidth,
+  );
+  const titleH = TITLE.top + (artifactId ? TITLE.artifact : 0) + TITLE.name + (aboutLines.length ? 6 + aboutLines.length * TITLE.line : 0) + TITLE.gap;
+  const minY = (all.length ? Math.min(...all.map((b) => b.y)) - PAD : 0) - titleH - (hl?.caption ? CAPTION_H : 0);
   const maxY = all.length ? Math.max(...all.map((b) => b.y + b.h)) + PAD : 2 * PAD;
   const width = hl?.caption ? Math.ceil(maxX - minX) : maxX - minX;
   const height = maxY - minY;
@@ -178,12 +216,35 @@ export function modelToSvg(model: Model, theme: SvgTheme, opts: { lens?: Lens; h
       );
     }
   }
+  // Title block at the top, aligned with the leftmost element; a blast caption goes below it.
+  const tx = minX + PAD;
+  let ty = minY + TITLE.top;
+  const titleBlock: string[] = [];
+  if (artifactId) {
+    titleBlock.push(
+      `<g data-title="artifact"><path data-icon="artifact" d="${ARTIFACT_ICON_PATH}" transform="translate(${tx} ${ty - 12}) scale(0.875)" fill="none" stroke="${p.muted}" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/>` +
+        `<text x="${tx + 20}" y="${ty}" font-family="${MONO}" font-size="12" letter-spacing="0.4" fill="${p.muted}">${esc(clip(artifactId, 64))}</text></g>`,
+    );
+    ty += TITLE.artifact;
+  }
+  ty += TITLE.name - 6;
+  titleBlock.push(
+    `<text data-title="name" x="${tx}" y="${ty}" font-family="${SANS}" font-size="22" font-weight="600" fill="${p.ink}">${esc(clip(name, Math.floor(TITLE.maxName / TITLE.nameChar)))}</text>`,
+  );
+  if (aboutLines.length) {
+    titleBlock.push(
+      `<text data-title="description" x="${tx}" y="${ty + 6}" font-family="${SANS}" font-size="13" fill="${p.muted}">` +
+        aboutLines.map((l) => `<tspan x="${tx}" dy="${TITLE.line}" data-title-line="">${esc(l)}</tspan>`).join("") +
+        `</text>`,
+    );
+  }
+  const capY = minY + titleH;
   const caption = hl?.caption
-    ? `<text x="${minX + 16}" y="${minY + 20}" font-family="${MONO}" font-size="10" letter-spacing="1.4" fill="${p.status}">${esc(hl.caption.label.toUpperCase())}</text>` +
-      `<text x="${minX + 16}" y="${minY + 38}" font-family="${SANS}" font-size="14" font-weight="500" fill="${p.ink}">${esc(hl.caption.text)}</text>`
+    ? `<text x="${tx}" y="${capY + 20}" font-family="${MONO}" font-size="10" letter-spacing="1.4" fill="${p.status}">${esc(hl.caption.label.toUpperCase())}</text>` +
+      `<text x="${tx}" y="${capY + 38}" font-family="${SANS}" font-size="14" font-weight="500" fill="${p.ink}">${esc(hl.caption.text)}</text>`
     : "";
 
-  const title = esc(model.name || "Untitled model");
+  const title = esc(name);
   const desc = esc(
     amOnly
       ? `CSDM model with ${model.nodes.length} elements and ${model.edges.length} relationships, shown as an ArchiMate 3.2 view (ArchiMate element types, relationship notation and layer colors), exported from Blueprint Modeler.`
@@ -200,6 +261,7 @@ export function modelToSvg(model: Model, theme: SvgTheme, opts: { lens?: Lens; h
       .map((shape) => markerSvg(`am-${shape}`, shape, p.line, p.bg))
       .join("")}</defs>`,
     `<rect x="${minX}" y="${minY}" width="${width}" height="${height}" fill="${p.bg}"/>`,
+    ...titleBlock,
     ...edges,
     ...nodes,
     ...(caption ? [caption] : []),

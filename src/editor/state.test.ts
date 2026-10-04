@@ -13,6 +13,21 @@ const base: Action[] = [
   { type: "add-node", id: "host", class: "host", name: "web-01" },
 ];
 
+describe("model details", () => {
+  it("sets, trims and clears the description and Artifact ID, as one undo step each", () => {
+    let s = run([{ type: "model-details", description: "  Order flow.  ", artifactId: " EA-0042 " }]);
+    expect(s.present).toMatchObject({ description: "Order flow.", artifactId: "EA-0042" });
+    // Name, then the details, right after it in the file.
+    expect(Object.keys(s.present).slice(0, 5)).toEqual(["schema", "id", "name", "description", "artifactId"]);
+    s = run([{ type: "model-details", artifactId: "" }], s);
+    expect("artifactId" in s.present).toBe(false);
+    expect(s.present.description).toBe("Order flow.");
+    expect(run([{ type: "model-details", description: "Order flow." }], s)).toBe(s);
+    s = run([{ type: "undo" }], s);
+    expect(s.present.artifactId).toBe("EA-0042");
+  });
+});
+
 describe("editor state", () => {
   it("places new elements in their layer lane, left to right", () => {
     const s = run([...base, { type: "add-node", id: "ba2", class: "business_application", name: "Billing" }]);

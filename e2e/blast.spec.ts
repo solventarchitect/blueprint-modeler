@@ -11,7 +11,7 @@ const strip = (page: Page) => page.getByRole("region", { name: "Blast radius" })
 async function openCheckout(page: Page) {
   await page.goto("/editor");
   await expect(page.getByTestId("save-status")).toHaveText("Saved in this browser");
-  await openExample(page, "Online store checkout");
+  await openExample(page, "Online Store Checkout");
   await expect(page.locator(".react-flow__node")).toHaveCount(14);
   // Example loads fit the view after a short delay; let it settle so clicks land where expected.
   await page.getByRole("button", { name: "Fit View" }).click();
@@ -208,7 +208,7 @@ test.describe("blast radius (desktop)", () => {
     await expect(page.getByRole("region", { name: "Presentation" })).toHaveCount(0);
 
     await showFrom(page, "Checkout");
-    await openExample(page, "Shared database platform");
+    await openExample(page, "Shared Database Platform");
     await expect(strip(page)).toHaveCount(0);
   });
 

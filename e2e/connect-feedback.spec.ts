@@ -23,7 +23,7 @@ test.describe("connection feedback (desktop)", () => {
   test("the line turns green with the relationship type over a valid target, red with the reason over an invalid one", async ({ page }) => {
     await page.goto("/editor");
     await expect(page.getByTestId("save-status")).toHaveText("Saved in this browser");
-    await openExample(page, "HR self-service portal");
+    await openExample(page, "HR Self-Service Portal");
     await expect(page.locator(".react-flow__node")).not.toHaveCount(0);
     // Opening an example fits the canvas a moment later; fit now so handles stop moving before measuring.
     await page.getByRole("button", { name: "Fit View" }).click();

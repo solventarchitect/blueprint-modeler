@@ -1,5 +1,5 @@
 import { classById } from "@/metamodel";
-import type { Model } from "@/model";
+import { UNTITLED_MODEL, type Model } from "@/model";
 import { workbook, type Sheet } from "./xlsx";
 
 const NO_TABLE = "No CMDB table";
@@ -34,7 +34,7 @@ export function modelToServiceNowSheets(model: Model): Sheet[] {
       name: "README",
       rows: [
         ["Blueprint Modeler export for ServiceNow"],
-        [`Model: ${model.name || "Untitled model"} (${model.nodes.length} elements, ${rels.length} relationships, ${refs.length} references)`],
+        [`Model: ${model.name || UNTITLED_MODEL} (${model.nodes.length} elements, ${rels.length} relationships, ${refs.length} references)`],
         [""],
         ["How to import"],
         ["1. Load each table sheet into an import set (System Import Sets › Load Data), one sheet at a time."],
