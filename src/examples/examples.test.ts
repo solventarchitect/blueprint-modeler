@@ -20,7 +20,7 @@ describe("examples", () => {
     const hintIds = (id: string) => evaluateHints(examples.find((e) => e.id === id)!.create()).map((h) => h.hint.id);
     expect(hintIds("checkout")).toEqual([]);
     expect(hintIds("hr-portal")).toEqual(["ba-without-service-instance"]);
-    expect(hintIds("db-platform")).toEqual(["ba-without-capability", "ba-without-capability", "service-not-exposed"]);
+    expect(hintIds("db-platform")).toEqual(["service-not-exposed"]);
     expect(hintIds("kubernetes")).toEqual([]);
     expect(hintIds("enterprise-ai")).toEqual(["ba-without-service-instance"]);
     expect(hintIds("archimate-claims")).toEqual([]);
@@ -65,16 +65,15 @@ describe("examples", () => {
     }
   });
 
-  it("leave the existing examples exactly as they were before M36", () => {
-    // SHA-256 of the seven M35 examples serialized in their original order (nodes, edges, layout).
-    const ids = ["checkout", "hr-portal", "db-platform", "kubernetes", "enterprise-ai", "archimate-claims", "csdm5-metamodel"];
-    const out = Object.fromEntries(
-      ids.map((id) => {
-        const m = examples.find((e) => e.id === id)!.create(new Date("2026-09-27T00:00:00Z"), id);
-        return [id, { nodes: m.nodes, edges: m.edges, layout: m.layout }];
-      }),
-    );
-    expect(createHash("sha256").update(JSON.stringify(out)).digest("hex")).toBe("f1e05d95bb41c62f6b39fa59ac9785d63dd62fb0ab6fdc0b8a6e880160121a74");
+  it("change their elements, relationships and layouts only on purpose", () => {
+    // SHA-256 of every example serialized in menu order (nodes, edges, layout). Last changed in M39:
+    // a Business Capability (and for Server Virtualization a Business Application) added to the
+    // examples that had no capability or process.
+    const out = examples.map((ex) => {
+      const m = ex.create(new Date("2026-09-27T00:00:00Z"), ex.id);
+      return [ex.id, { nodes: m.nodes, edges: m.edges, layout: m.layout }];
+    });
+    expect(createHash("sha256").update(JSON.stringify(out)).digest("hex")).toBe("e687b617dd5c6c4bb55abcbca6d2b6590b94de48d18d67b8e370aab1c647082b");
   });
 
   it("each belong to a listed category, and every listed category has examples", () => {
@@ -101,6 +100,16 @@ describe("examples", () => {
       expect(ex.create().name).toBe(ex.name);
     }
     expect(examples.map((e) => e.name)).toContain("Online Store Checkout");
+  });
+
+  it("each have a description and a sequenced Artifact ID, and a Business Capability or Business Process", () => {
+    examples.forEach((ex, i) => {
+      const m = ex.create();
+      expect(m.description?.length, ex.id).toBeGreaterThan(20);
+      expect(m.artifactId, ex.id).toBe(`BM-EX-${String(i + 1).padStart(3, "0")}`);
+      expect(m.date, ex.id).toMatch(/^\d{4}-\d{2}-\d{2}$/);
+      expect(m.nodes.some((n) => n.class === "business_capability" || n.class === "business_process"), ex.id).toBe(true);
+    });
   });
 
   it("the ArchiMate example opens in the ArchiMate-only lens", () => {

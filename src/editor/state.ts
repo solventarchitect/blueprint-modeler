@@ -10,7 +10,7 @@ export type History = { past: Model[]; present: Model; future: Model[] };
 export type Action =
   | { type: "load"; model: Model }
   | { type: "rename-model"; name: string }
-  | { type: "model-details"; description?: string; artifactId?: string }
+  | { type: "model-details"; date?: string; description?: string; artifactId?: string }
   | { type: "add-node"; id: string; class: ClassId; name: string }
   | { type: "rename-node"; id: string; name: string }
   | { type: "describe-node"; id: string; description: string }
@@ -97,8 +97,12 @@ function apply(model: Model, action: Action): Model | null {
     case "rename-model":
       return action.name === model.name ? null : { ...model, name: action.name };
     case "model-details": {
-      const next = withDetails(model, { description: action.description ?? model.description, artifactId: action.artifactId ?? model.artifactId });
-      return next.description === model.description && next.artifactId === model.artifactId ? null : next;
+      const next = withDetails(model, {
+        date: action.date ?? model.date,
+        description: action.description ?? model.description,
+        artifactId: action.artifactId ?? model.artifactId,
+      });
+      return next.date === model.date && next.description === model.description && next.artifactId === model.artifactId ? null : next;
     }
     case "add-node": {
       if (model.nodes.some((n) => n.id === action.id)) return null;

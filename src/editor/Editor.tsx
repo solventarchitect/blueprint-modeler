@@ -10,6 +10,10 @@ import {
   ReactFlow,
   ReactFlowProvider,
   useReactFlow,
+  useStore,
+  useStoreApi,
+  getNodesBounds,
+  getViewportForBounds,
   type Connection,
   type Edge as FlowEdge,
   type EdgeChange,
@@ -41,7 +45,7 @@ import { distributeEvenly } from "@/layout/distribute";
 import { autoLayout, DEFAULT_SIZE } from "@/layout/layout";
 import { createWorkerEngine } from "@/layout/worker-engine";
 import { classById, classes, isClassId, type ClassId, type Layer } from "@/metamodel";
-import { blastRadius, evaluateHints, UNTITLED_MODEL, type BlastDirection, type HintResult } from "@/model";
+import { blastRadius, evaluateHints, formatModelDate, modelDate, UNTITLED_MODEL, type BlastDirection, type HintResult } from "@/model";
 import { site } from "@/lib/site";
 import { ClassNode, SuggestContext, type ClassFlowNode } from "./ClassNode";
 import { ConnectionLine, ConnectionModelContext } from "./ConnectionLine";
@@ -54,7 +58,7 @@ import { renderGif } from "@/io/gif/render";
 import { CanvasEdge, LabelObstacles } from "./CanvasEdge";
 import { ModelManager } from "./ModelManager";
 import { ToolbarIcon } from "./ToolbarIcon";
-import { CanvasTitle } from "./CanvasTitle";
+import { CanvasTitle, titleRoom } from "./CanvasTitle";
 import { ModelMenu } from "./ModelMenu";
 import { LayerOverlay, layerHandleId, type LayerHandlers } from "./LayerOverlay";
 import { DEFAULT_VIEW, readView, saveView, ViewMenu, type ViewOptions } from "./ViewMenu";
@@ -82,11 +86,8 @@ const statusText: Record<SaveStatus, string> = {
 
 const toolbarButton =
   "inline-flex min-h-8 cursor-pointer items-center gap-1.5 border border-border-strong bg-surface-raised px-2.5 text-sm text-ink hover:border-accent hover:text-accent disabled:cursor-not-allowed disabled:opacity-60";
-/**
- * Whole-model fits leave room above the diagram for the canvas title block (see CanvasTitle):
- * the name, plus the Artifact ID and up to three lines of description when the model has them.
- */
-const titleRoom = (m: { artifactId?: string; description?: string }) => 120 + (m.artifactId ? 24 : 0) + (m.description ? 76 : 0);
+/** Fits keep this share of the viewport as padding on each side. */
+const FIT_PAD = 0.15;
 /**
  * Blast-radius step controls: aria-disabled rather than disabled, so the button keeps focus when the
  * last (or first) hop is reached (a disabled button drops focus to the page).
@@ -130,17 +131,46 @@ const viewedTheme = (): "dark" | "light" => {
   return window.matchMedia("(prefers-color-scheme: light)").matches ? "light" : "dark";
 };
 
+/**
+ * The canvas controls, with Fit View leaving the same room for the title block as the editor's own
+ * fits: it follows the store (nodes, viewport size), so the estimate is current when the button is pressed.
+ */
+function FitControls({ hasDescription }: { hasDescription: boolean }) {
+  const width = useStore((s) => s.width);
+  const height = useStore((s) => s.height);
+  const nodes = useStore((s) => s.nodes);
+  const b = getNodesBounds(nodes);
+  const zoom = width && height && b.width && b.height ? getViewportForBounds(b, width, height, 0.05, 1, { x: FIT_PAD, bottom: FIT_PAD, top: 0 }).zoom : 1;
+  return <Controls showInteractive={false} fitViewOptions={{ maxZoom: 1, padding: { x: FIT_PAD, bottom: FIT_PAD, top: `${titleRoom(hasDescription, zoom)}px` } }} />;
+}
+
 function EditorInner() {
   const doc = useModelDocument();
   const { model, dispatch } = doc;
   const wide = useIsWide();
   const flow = useReactFlow();
-  // Read when a fit runs (often from a timeout after a model opens), so it follows the open model.
-  const room = useRef(titleRoom(model));
+  const store = useStoreApi();
+  /**
+   * Whole-model fits leave room above the diagram for the title block (see CanvasTitle). The room
+   * depends on the zoom the fit will land on, estimated from the diagram's bounds and the viewport;
+   * read when the fit runs (often from a timeout after a model opens), so it follows the open model.
+   */
+  const hasDescription = useRef(!!model.description);
   useEffect(() => {
-    room.current = titleRoom(model);
-  }, [model]);
-  const fitPadding = (p: number) => ({ x: p, bottom: p, top: `${room.current}px` }) as const;
+    hasDescription.current = !!model.description;
+  }, [model.description]);
+  const fitPadding = useCallback(
+    (p: number) => {
+      const { width, height } = store.getState();
+      const b = flow.getNodesBounds(flow.getNodes());
+      // React Flow's own fit math, without the top room (which only makes the zoom smaller: safe side).
+      const zoom = width && height && b.width && b.height ? getViewportForBounds(b, width, height, 0.05, 1, { x: p, bottom: p, top: 0 }).zoom : 1;
+      return { x: p, bottom: p, top: `${titleRoom(hasDescription.current, zoom)}px` } as const;
+    },
+    [store, flow],
+  );
+  // The first fit, before any model is measured: the room at zoom 1 is the most ever needed.
+  const firstFitOptions = { maxZoom: 1, padding: { x: FIT_PAD, bottom: FIT_PAD, top: `${titleRoom(!!model.description, 1)}px` } } as const;
   const [selectedId, setSelectedId] = useState<string | null>(null);
   const [focusName, setFocusName] = useState(0);
   const [focusConnect, setFocusConnect] = useState(0);
@@ -896,7 +926,7 @@ function EditorInner() {
       const target = steps[next]!;
       void flow.fitView(target.nodeIds.length ? { nodes: target.nodeIds.map((id) => ({ id })), padding: 0.25, maxZoom: 1.25, duration: 400 } : { padding: fitPadding(0.12), maxZoom: 1, duration: 400 });
     },
-    [steps, flow],
+    [steps, flow, fitPadding],
   );
   const startPresenting = () => {
     setBlast(null);
@@ -921,7 +951,7 @@ function EditorInner() {
       presentButton.current?.focus();
       void flow.fitView({ maxZoom: 1, padding: fitPadding(0.15) });
     }, 60);
-  }, [flow]);
+  }, [flow, fitPadding]);
   useEffect(() => {
     if (!presenting) return;
     const onKey = (e: KeyboardEvent) => {
@@ -983,6 +1013,7 @@ function EditorInner() {
           <h1 className="text-sm font-medium">{model.name || UNTITLED_MODEL}</h1>
           {/* The canvas title block is hidden from screen readers while presenting; its details are read here. */}
           {model.artifactId && <p className="sr-only">Artifact ID {model.artifactId}</p>}
+          <p className="sr-only">Dated {formatModelDate(modelDate(model))}</p>
           {model.description && <p className="sr-only">{model.description}</p>}
           <p className="text-sm text-ink-muted" aria-live="polite" data-testid="present-step">
             {steps[step]?.name} · {step + 1} of {steps.length}
@@ -1283,16 +1314,16 @@ function EditorInner() {
               snapToGrid={view.snap}
               snapGrid={[16, 16]}
               fitView
-              fitViewOptions={{ maxZoom: 1, padding: { x: 0.15, bottom: 0.15, top: `${titleRoom(model)}px` } }}
+              fitViewOptions={firstFitOptions}
               minZoom={0.2}
             >
               <NotationMarkers />
               <NotationLegend types={legendTypes} />
               <Background id="minor" variant={BackgroundVariant.Lines} gap={32} color="var(--canvas-grid)" />
               <Background id="major" variant={BackgroundVariant.Lines} gap={160} color="var(--canvas-grid-major)" />
-              {!presenting && <Controls showInteractive={false} fitViewOptions={{ maxZoom: 1, padding: { x: 0.15, bottom: 0.15, top: `${titleRoom(model)}px` } }} />}
+              {!presenting && <FitControls hasDescription={!!model.description} />}
               <LayerOverlay boxes={boxes} lanes={lanes} showBoxes={view.boxes || presenting} showLanes={view.lanes} handlers={canMenu ? layerHandlers : undefined} />
-              <CanvasTitle name={model.name} description={model.description} artifactId={model.artifactId} boxes={boxes} tabsAbove={view.boxes && !view.lanes && canMenu} decorative={presenting} />
+              <CanvasTitle name={model.name} date={modelDate(model)} description={model.description} artifactId={model.artifactId} boxes={boxes} tabsAbove={view.boxes && !view.lanes && canMenu} decorative={presenting} />
             </ReactFlow>
           </LabelObstacles>
           </SuggestContext.Provider>

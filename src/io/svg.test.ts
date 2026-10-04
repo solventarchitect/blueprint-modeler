@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 import { examples } from "@/examples";
-import { createModel } from "@/model";
+import { createModel, formatModelDate, modelDate, withDetails } from "@/model";
 import { svgColors, modelToSvg } from "./svg";
 
 const checkout = () => examples.find((e) => e.id === "checkout")!.create(new Date("2026-09-27T00:00:00Z"), "m1");
@@ -8,11 +8,13 @@ const idOf = (m: ReturnType<typeof checkout>, name: string) => m.nodes.find((n) 
 
 describe("SVG title block", () => {
   it("draws the model name above the diagram, with the Artifact ID and description only when they exist", () => {
-    const m = checkout();
+    const m = withDetails(checkout(), {});
     const plain = modelToSvg(m, "light");
     expect(plain).toContain('data-title="name"');
     expect(plain).toMatch(/data-title="name"[^>]*>Online Store Checkout</);
     expect(plain).not.toContain('data-title="artifact"');
+    // The date is always there: a blueprint carries one.
+    expect(plain).toMatch(new RegExp(`data-title="date"[^>]*>${formatModelDate(modelDate(m))}<`));
     expect(plain).not.toContain('data-title="description"');
 
     const svg = modelToSvg({ ...m, artifactId: "EA-0042", description: "How an order moves from the web store to the database. ".repeat(15).trim() }, "light");

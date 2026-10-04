@@ -18,13 +18,22 @@ describe("model details", () => {
     let s = run([{ type: "model-details", description: "  Order flow.  ", artifactId: " EA-0042 " }]);
     expect(s.present).toMatchObject({ description: "Order flow.", artifactId: "EA-0042" });
     // Name, then the details, right after it in the file.
-    expect(Object.keys(s.present).slice(0, 5)).toEqual(["schema", "id", "name", "description", "artifactId"]);
+    expect(Object.keys(s.present).slice(0, 6)).toEqual(["schema", "id", "name", "date", "description", "artifactId"]);
     s = run([{ type: "model-details", artifactId: "" }], s);
     expect("artifactId" in s.present).toBe(false);
     expect(s.present.description).toBe("Order flow.");
     expect(run([{ type: "model-details", description: "Order flow." }], s)).toBe(s);
     s = run([{ type: "undo" }], s);
     expect(s.present.artifactId).toBe("EA-0042");
+  });
+
+  it("sets the model date, in file order after the name", () => {
+    let s = run([{ type: "model-details", date: "2026-10-04" }]);
+    expect(s.present.date).toBe("2026-10-04");
+    expect(Object.keys(s.present).slice(0, 4)).toEqual(["schema", "id", "name", "date"]);
+    expect(run([{ type: "model-details", date: "2026-10-04" }], s)).toBe(s);
+    s = run([{ type: "model-details", date: "" }], s);
+    expect("date" in s.present).toBe(false);
   });
 });
 

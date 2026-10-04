@@ -99,6 +99,30 @@ test.describe("examples menu", () => {
     });
   }
 
+  test("every example carries a sequenced Artifact ID and a Business Capability or Business Process, so no model-level hint fires", async ({ page, isMobile }) => {
+    test.skip(!!isMobile, "editing is desktop-only");
+    await page.goto("/editor");
+    await expect(page.getByTestId("save-status")).toHaveText("Saved in this browser");
+    for (const [i, name] of ["Shared Database Platform", "Remote Access VPN", "Server Virtualization", "Virtual Desktops (VDI)"].entries()) {
+      await openExample(page, name);
+      await expect(page.getByTestId("canvas-artifact"), name).toHaveText(/^BM-EX-\d{3}$/);
+      const hints = page.getByRole("tabpanel", { name: /Hints/ });
+      await page.getByRole("tab", { name: /^Hints/ }).click();
+      await expect(hints.getByText("Model has no Business Capability or Business Process"), name).toHaveCount(0);
+      await page.getByRole("tab", { name: "Details" }).click();
+      if (i === 0) await expect(page.getByTestId("canvas-artifact")).toHaveText("BM-EX-003");
+    }
+    // A model with elements but no capability or process gets the hint.
+    await page.getByRole("button", { name: "New model" }).click();
+    await page.getByRole("button", { name: /^Blank model/ }).click();
+    await page.getByRole("navigation", { name: "Element palette" }).getByRole("button", { name: "Host", exact: true }).click();
+    await expect(page.locator(".react-flow__node")).toHaveCount(1);
+    // The new element is selected, which scopes the Hints tab to it; the model-level hint shows unscoped.
+    await page.locator(".react-flow__pane").click({ position: { x: 20, y: 20 } });
+    await page.getByRole("tab", { name: "Hints (1)" }).click();
+    await expect(page.getByRole("tabpanel")).toContainText("Model has no Business Capability or Business Process");
+  });
+
   test("the empty state groups the examples the same way", async ({ page }) => {
     await page.goto("/editor");
     await expect(page.getByTestId("save-status")).toHaveText("Saved in this browser");
@@ -116,7 +140,7 @@ test.describe("new examples (desktop)", () => {
     await page.goto("/editor");
     await expect(page.getByTestId("save-status")).toHaveText("Saved in this browser");
     await openExample(page, "Server Virtualization");
-    await expect(page.locator(".react-flow__node")).toHaveCount(15);
+    await expect(page.locator(".react-flow__node")).toHaveCount(17);
     const esx = page.locator(".react-flow__node").filter({ has: page.getByText("esx-01", { exact: true }) });
     await expect(esx).toContainText("ESX Server");
     await esx.click({ button: "right" });

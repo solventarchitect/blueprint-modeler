@@ -33,15 +33,28 @@ test.describe("model details (desktop)", () => {
   test("the Details tab edits an optional description and Artifact ID; the canvas shows them only when set", async ({ page }) => {
     await start(page);
     await expect(details(page).getByLabel("Model name")).toHaveValue("Online Store Checkout");
-    await expect(details(page).getByLabel("Description")).toHaveValue("");
-    await expect(details(page).getByLabel("Artifact ID")).toHaveValue("");
+    await expect(details(page).getByLabel("Description")).toHaveValue(/checkout/);
+    await expect(details(page).getByLabel("Artifact ID")).toHaveValue("BM-EX-001");
     await expect(titleBlock(page).getByTestId("canvas-title")).toHaveText("Online Store Checkout");
+    // Examples come with a description and a sequenced Artifact ID; clearing them clears the canvas.
+    await expect(page.getByTestId("canvas-artifact")).toHaveText("BM-EX-001");
+    await expect(page.getByTestId("canvas-description")).toContainText("checkout");
+    await setDetails(page, { artifactId: "", description: "" });
     await expect(page.getByTestId("canvas-artifact")).toHaveCount(0);
     await expect(page.getByTestId("canvas-description")).toHaveCount(0);
+    // The date is always shown: today, the day the example was made, and it can be changed.
+    const today = await page.evaluate(() => {
+      const d = new Date();
+      return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`;
+    });
+    await expect(page.getByTestId("canvas-date")).toHaveAttribute("datetime", today);
+    await expect(details(page).getByLabel("Date")).toHaveValue(today);
+    await details(page).getByLabel("Date").fill("2026-03-15");
+    await expect(page.getByTestId("canvas-date")).toHaveText("Mar 15, 2026");
 
     await setDetails(page, { artifactId: "EA-0042", description: "How an order moves from the web store to the orders database." });
     await expect(page.getByTestId("canvas-artifact")).toHaveText("EA-0042");
-    await expect(page.getByTestId("canvas-artifact").locator("svg")).toHaveCount(1);
+    await expect(titleBlock(page).locator("svg")).toHaveCount(1);
     await expect(page.getByTestId("canvas-description")).toHaveText("How an order moves from the web store to the orders database.");
     // The block sits above the diagram: its bottom is above the highest element.
     const block = (await titleBlock(page).boundingBox())!;
@@ -75,6 +88,7 @@ test.describe("model details (desktop)", () => {
     const svg = await readFile((await download.path())!, "utf8");
     expect(svg).toMatch(/data-title="name"[^>]*>Online Store Checkout</);
     expect(svg).toContain(">EA-0042<");
+    expect(svg).toMatch(/data-title="date"[^>]*>[A-Z][a-z]{2} \d{1,2}, \d{4}</);
     expect(svg).toContain(">Order flow for the web store.<");
   });
 

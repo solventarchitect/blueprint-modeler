@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { createModel, migrate, parseModel, serializeModel, UNTITLED_MODEL, type Model } from "./index";
+import { createModel, formatModelDate, localDay, migrate, modelDate, parseModel, serializeModel, UNTITLED_MODEL, type Model } from "./index";
 
 const NOW = new Date("2026-09-27T12:00:00.000Z");
 
@@ -48,6 +48,26 @@ describe("parseModel", () => {
     const r = parseModel({ ...base, description: "   ", artifactId: "  EA-1  " });
     expect(r.ok && "description" in r.model).toBe(false);
     expect(r.ok && r.model.artifactId).toBe("EA-1");
+  });
+
+  it("gives a new model today's date, keeps a date from a file, and falls back to the creation day", () => {
+    const m = createModel("A", NOW, "a");
+    expect(m.date).toBe(localDay(NOW));
+    // The day where the person is, not the UTC day: late evening west of Greenwich is still today.
+    const evening = new Date(2026, 9, 4, 23, 30);
+    expect(localDay(evening)).toBe("2026-10-04");
+    expect(createModel("B", evening, "b").date).toBe("2026-10-04");
+    expect(modelDate({ created: evening.toISOString() })).toBe("2026-10-04");
+    expect(Object.keys(m).slice(0, 4)).toEqual(["schema", "id", "name", "date"]);
+    const base = JSON.parse(serializeModel(sample()));
+    delete base.date;
+    const r = parseModel(base);
+    expect(r.ok && "date" in r.model).toBe(false);
+    expect(r.ok && modelDate(r.model)).toBe(localDay(NOW));
+    const dated = parseModel({ ...base, date: "2026-10-04" });
+    expect(dated.ok && modelDate(dated.model)).toBe("2026-10-04");
+    expect(parseModel({ ...base, date: "yesterday" }).ok).toBe(false);
+    expect(formatModelDate("2026-10-04")).toBe("Oct 4, 2026");
   });
 
   it("names new models in Title Case", () => {

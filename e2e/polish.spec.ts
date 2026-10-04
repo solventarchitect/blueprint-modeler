@@ -10,11 +10,15 @@ const openCheckout = async (page: Page) => {
   await expect(page.locator(".react-flow__node").first()).toBeVisible();
 };
 
-/** Top and left of everything drawn for the diagram: nodes and layer boxes with their tabs. */
-const diagramCorner = (page: Page) =>
+/**
+ * The title's box and the top-left of everything drawn for the diagram (nodes and layer boxes with
+ * their tabs), read in one go so a fit landing between two reads cannot skew the comparison.
+ */
+const titleAndCorner = (page: Page) =>
   page.evaluate(() => {
+    const t = document.querySelector("[data-testid=canvas-title]")!.getBoundingClientRect();
     const rects = [...document.querySelectorAll(".react-flow__node, [data-testid=layer-box], [data-testid=layer-handle]")].map((e) => e.getBoundingClientRect());
-    return { top: Math.min(...rects.map((r) => r.top)), left: Math.min(...rects.map((r) => r.left)) };
+    return { t: { x: t.left, y: t.top, width: t.width, height: t.height }, c: { top: Math.min(...rects.map((r) => r.top)), left: Math.min(...rects.map((r) => r.left)) } };
   });
 
 test.describe("canvas title (desktop)", () => {
@@ -26,8 +30,7 @@ test.describe("canvas title (desktop)", () => {
     await expect(title).toBeVisible();
 
     const check = async () => {
-      const t = (await title.boundingBox())!;
-      const c = await diagramCorner(page);
+      const { t, c } = await titleAndCorner(page);
       const canvas = (await page.locator(".react-flow").boundingBox())!;
       expect(t.y + t.height, "above the highest element or tab").toBeLessThanOrEqual(c.top);
       expect(Math.abs(t.x - c.left), "left-aligned with the diagram").toBeLessThanOrEqual(2);

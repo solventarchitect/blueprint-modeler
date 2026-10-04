@@ -1,6 +1,6 @@
 import { archimateElements, archimateFill, archimateRelationshipFor, archimateTypeInk, edgeNotation, markerSvg, type Lens, type MarkerShape, showsArchimate } from "@/frameworks";
 import { classById, isClassId, type Layer } from "@/metamodel";
-import { UNTITLED_MODEL, type Model } from "@/model";
+import { formatModelDate, modelDate, UNTITLED_MODEL, type Model } from "@/model";
 import { edgeSides, type Side } from "@/layout/geometry";
 import { ARTIFACT_ICON_PATH } from "./icons";
 
@@ -131,7 +131,7 @@ export function modelToSvg(model: Model, theme: SvgTheme, opts: { lens?: Lens; h
   // and description lines; so does a blast caption (14px sans, about 7.6px a character).
   const titleWidth = Math.max(
     Math.min(name.length * TITLE.nameChar, TITLE.maxName),
-    artifactId ? 20 + artifactId.length * TITLE.monoChar : 0,
+    (artifactId ? 20 + (artifactId.length + 3) * TITLE.monoChar : 0) + 12 * TITLE.monoChar,
     ...aboutLines.map((l) => l.length * TITLE.textChar),
   );
   const maxX = Math.max(
@@ -139,7 +139,7 @@ export function modelToSvg(model: Model, theme: SvgTheme, opts: { lens?: Lens; h
     hl?.caption ? minX + 2 * PAD + Math.max(hl.caption.text.length, hl.caption.reserve ?? 0) * 7.6 : -Infinity,
     minX + 2 * PAD + titleWidth,
   );
-  const titleH = TITLE.top + (artifactId ? TITLE.artifact : 0) + TITLE.name + (aboutLines.length ? 6 + aboutLines.length * TITLE.line : 0) + TITLE.gap;
+  const titleH = TITLE.top + TITLE.artifact + TITLE.name + (aboutLines.length ? 6 + aboutLines.length * TITLE.line : 0) + TITLE.gap;
   const minY = (all.length ? Math.min(...all.map((b) => b.y)) - PAD : 0) - titleH - (hl?.caption ? CAPTION_H : 0);
   const maxY = all.length ? Math.max(...all.map((b) => b.y + b.h)) + PAD : 2 * PAD;
   const width = hl?.caption ? Math.ceil(maxX - minX) : maxX - minX;
@@ -220,13 +220,14 @@ export function modelToSvg(model: Model, theme: SvgTheme, opts: { lens?: Lens; h
   const tx = minX + PAD;
   let ty = minY + TITLE.top;
   const titleBlock: string[] = [];
-  if (artifactId) {
-    titleBlock.push(
-      `<g data-title="artifact"><path data-icon="artifact" d="${ARTIFACT_ICON_PATH}" transform="translate(${tx} ${ty - 12}) scale(0.875)" fill="none" stroke="${p.muted}" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/>` +
-        `<text x="${tx + 20}" y="${ty}" font-family="${MONO}" font-size="12" letter-spacing="0.4" fill="${p.muted}">${esc(clip(artifactId, 64))}</text></g>`,
-    );
-    ty += TITLE.artifact;
-  }
+  // The reference line: the Artifact ID (with its tag icon) when set, then the model's date.
+  const date = formatModelDate(modelDate(model));
+  const refLine = artifactId
+    ? `<g data-title="artifact"><path data-icon="artifact" d="${ARTIFACT_ICON_PATH}" transform="translate(${tx} ${ty - 12}) scale(0.875)" fill="none" stroke="${p.muted}" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/>` +
+      `<text x="${tx + 20}" y="${ty}" font-family="${MONO}" font-size="12" letter-spacing="0.4" fill="${p.muted}">${esc(clip(artifactId, 64))}<tspan dx="8">·</tspan><tspan data-title="date" dx="8">${esc(date)}</tspan></text></g>`
+    : `<text data-title="date" x="${tx}" y="${ty}" font-family="${MONO}" font-size="12" letter-spacing="0.4" fill="${p.muted}">${esc(date)}</text>`;
+  titleBlock.push(refLine);
+  ty += TITLE.artifact;
   ty += TITLE.name - 6;
   titleBlock.push(
     `<text data-title="name" x="${tx}" y="${ty}" font-family="${SANS}" font-size="22" font-weight="600" fill="${p.ink}">${esc(clip(name, Math.floor(TITLE.maxName / TITLE.nameChar)))}</text>`,

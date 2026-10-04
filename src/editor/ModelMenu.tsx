@@ -104,7 +104,8 @@ export function ModelMenu({
                   <span id={`${id}-${i}-about`} className="mt-1 flex flex-col gap-1 text-xs">
                     {m.artifactId && (
                       <span className="flex items-center gap-1.5 font-mono text-ink-soft">
-                        <ArtifactIcon className="size-3.5" label="Artifact ID" />
+                        <ArtifactIcon className="size-3.5" />
+                        <span className="sr-only">Artifact ID </span>
                         <span className="truncate">{m.artifactId}</span>
                       </span>
                     )}

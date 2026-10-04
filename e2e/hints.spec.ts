@@ -24,7 +24,7 @@ test.describe("examples and hints (desktop)", () => {
     await page.goto("/editor");
     await expect(page.getByTestId("save-status")).toHaveText("Saved in this browser");
     await openExample(page, "Shared Database Platform");
-    const tab = page.getByRole("tab", { name: "Hints (3)" });
+    const tab = page.getByRole("tab", { name: "Hints (1)" });
     await tab.click();
     const panel = page.getByRole("tabpanel");
     const first = panel.getByRole("button").first();

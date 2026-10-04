@@ -26,6 +26,8 @@ export const modelSchema = z.object({
   schema: z.literal(CURRENT_SCHEMA),
   id,
   name,
+  /** The model's date (a revision or "as of" date), shown in the title block; the creation day when absent. */
+  date: z.iso.date().optional(),
   /** Optional: what the model is for, shown under its name on the canvas and in images. */
   description: z.string().max(1000).optional(),
   /** Optional: the owner's reference for the model, such as a document or architecture ID. */

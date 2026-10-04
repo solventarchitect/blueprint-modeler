@@ -12,17 +12,39 @@ export const UNTITLED_MODEL = "Untitled Model";
  * The model with its optional details set: trimmed, absent when empty, and placed right after the
  * name, so an exported file reads name, description, Artifact ID, then the rest.
  */
-export function withDetails(model: Model, details: { description?: string; artifactId?: string }): Model {
+export function withDetails(model: Model, details: { date?: string; description?: string; artifactId?: string }): Model {
+  const date = details.date?.trim() ?? "";
   const description = details.description?.trim() ?? "";
   const artifactId = details.artifactId?.trim() ?? "";
   const { schema, id, name, created, updated, nodes, edges, layout } = model;
-  return { schema, id, name, ...(description ? { description } : {}), ...(artifactId ? { artifactId } : {}), created, updated, nodes, edges, layout };
+  return {
+    schema,
+    id,
+    name,
+    ...(date ? { date } : {}),
+    ...(description ? { description } : {}),
+    ...(artifactId ? { artifactId } : {}),
+    created,
+    updated,
+    nodes,
+    edges,
+    layout,
+  };
 }
 
-/** A new, empty model. */
+/** A moment as the YYYY-MM-DD of the day it falls on where the person is (not the UTC day). */
+export const localDay = (d: Date) => `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`;
+
+/** The model's date as YYYY-MM-DD: the one set on it, else the day it was created. */
+export const modelDate = (m: Pick<Model, "date" | "created">) => m.date ?? localDay(new Date(m.created));
+
+/** A YYYY-MM-DD date as people read it: "Oct 4, 2026". */
+export const formatModelDate = (date: string) => new Date(`${date}T00:00:00`).toLocaleDateString("en-US", { dateStyle: "medium" });
+
+/** A new, empty model, dated the day it is made. */
 export function createModel(name: string, now = new Date(), id: string = crypto.randomUUID()): Model {
   const ts = now.toISOString();
-  return { schema: CURRENT_SCHEMA, id, name, created: ts, updated: ts, nodes: [], edges: [], layout: {} };
+  return { schema: CURRENT_SCHEMA, id, name, date: localDay(now), created: ts, updated: ts, nodes: [], edges: [], layout: {} };
 }
 
 /**
