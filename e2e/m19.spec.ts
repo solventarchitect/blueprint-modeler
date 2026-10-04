@@ -1,13 +1,14 @@
 import { readFile } from "node:fs/promises";
 import { expect, test, type Page } from "@playwright/test";
 import { contrastOf } from "./contrast";
+import { openExample as chooseExample } from "./examples";
 
 const node = (page: Page, name: string) => page.locator(".react-flow__node").filter({ hasText: name }).first();
 
 const openExample = async (page: Page, label = "Online store checkout") => {
   await page.goto("/editor");
   await expect(page.getByTestId("save-status")).toHaveText("Saved in this browser");
-  await page.getByRole("combobox", { name: "Start from an example" }).selectOption({ label });
+  await chooseExample(page, label);
   await expect(page.locator(".react-flow__node").first()).toBeVisible();
   await page.getByRole("button", { name: "Fit View" }).click();
 };
@@ -124,7 +125,7 @@ test.describe("exports and examples", () => {
       const header = page.locator(".react-flow__node [data-neighbor]").first().getByTestId("archimate-type");
       expect(await contrastOf(header), scheme).toBeGreaterThanOrEqual(4.5);
     }
-    await page.getByRole("combobox", { name: "Start from an example" }).selectOption({ label: "CSDM 5 core metamodel" });
+    await chooseExample(page, "CSDM 5 core metamodel");
     await expect(page.getByRole("combobox", { name: "Framework lens" })).toHaveValue("csdm");
     await expect(page.locator(".react-flow__node")).toHaveCount(19);
   });

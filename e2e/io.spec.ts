@@ -2,13 +2,14 @@ import AxeBuilder from "@axe-core/playwright";
 import { readFile } from "node:fs/promises";
 import { expect, test, type Page } from "@playwright/test";
 import { watchForeignRequests } from "./network";
+import { openExample as chooseExample } from "./examples";
 
 const tags = ["wcag2a", "wcag2aa", "wcag21aa", "wcag22aa"];
 
 async function openExample(page: Page, name: string) {
   await page.goto("/editor");
   await expect(page.getByTestId("save-status")).toHaveText("Saved in this browser");
-  await page.getByRole("combobox", { name: "Start from an example" }).selectOption({ label: name });
+  await chooseExample(page, name);
   // Wait until the example is stored and open, not just the placeholder model (a race made counts flaky).
   await expect(page.getByRole("combobox", { name: "Open model" }).locator("option:checked")).toHaveText(name);
   await expect(page.locator(".react-flow__node")).not.toHaveCount(0);
@@ -163,7 +164,7 @@ test.describe("import, export and layout (desktop)", () => {
     await page.getByRole("button", { name: "Auto-layout" }).click();
     await expect(page.getByRole("button", { name: "Laying out…" })).toBeVisible();
 
-    await page.getByRole("combobox", { name: "Start from an example" }).selectOption({ label: "HR self-service portal" });
+    await chooseExample(page, "HR self-service portal");
     await expect(page.getByRole("combobox", { name: "Open model" }).locator("option:checked")).toHaveText("HR self-service portal");
     const before = await positions(page);
     await expect(page.getByRole("button", { name: "Auto-layout" })).toBeEnabled({ timeout: 10_000 });

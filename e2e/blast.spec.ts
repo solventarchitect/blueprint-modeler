@@ -1,6 +1,7 @@
 import AxeBuilder from "@axe-core/playwright";
 import { expect, test, type Page } from "@playwright/test";
 import { contrastOf } from "./contrast";
+import { openExample } from "./examples";
 
 const tags = ["wcag2a", "wcag2aa", "wcag21aa", "wcag22aa"];
 /** An element by its exact name ("Checkout" alone, not "Checkout — production"). */
@@ -10,7 +11,7 @@ const strip = (page: Page) => page.getByRole("region", { name: "Blast radius" })
 async function openCheckout(page: Page) {
   await page.goto("/editor");
   await expect(page.getByTestId("save-status")).toHaveText("Saved in this browser");
-  await page.getByRole("combobox", { name: "Start from an example" }).selectOption({ label: "Online store checkout" });
+  await openExample(page, "Online store checkout");
   await expect(page.locator(".react-flow__node")).toHaveCount(14);
   // Example loads fit the view after a short delay; let it settle so clicks land where expected.
   await page.getByRole("button", { name: "Fit View" }).click();
@@ -207,7 +208,7 @@ test.describe("blast radius (desktop)", () => {
     await expect(page.getByRole("region", { name: "Presentation" })).toHaveCount(0);
 
     await showFrom(page, "Checkout");
-    await page.getByRole("combobox", { name: "Start from an example" }).selectOption({ label: "Shared database platform" });
+    await openExample(page, "Shared database platform");
     await expect(strip(page)).toHaveCount(0);
   });
 

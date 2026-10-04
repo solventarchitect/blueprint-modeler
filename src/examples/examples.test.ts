@@ -1,7 +1,7 @@
 import { describe, expect, it } from "vitest";
 import { allowedTypes, classes, isCsdmCore, isExtended } from "@/metamodel";
 import { evaluateHints, parseModel, serializeModel } from "@/model";
-import { examples } from "./index";
+import { exampleCategories, examples } from "./index";
 
 describe("examples", () => {
   it("are valid models that load without relationship warnings", () => {
@@ -21,6 +21,17 @@ describe("examples", () => {
     expect(hintIds("enterprise-ai")).toEqual(["ba-without-service-instance"]);
     expect(hintIds("archimate-claims")).toEqual([]);
     expect(hintIds("csdm5-metamodel")).toEqual(["generic-service-instance"]);
+  });
+
+  it("each belong to a listed category, and every listed category has examples", () => {
+    const ids = exampleCategories.map((c) => c.id);
+    for (const ex of examples) expect(ids, ex.id).toContain(ex.category);
+    for (const c of exampleCategories) expect(examples.filter((e) => e.category === c.id).length, c.id).toBeGreaterThan(0);
+    expect(exampleCategories.map((c) => c.label)).toEqual(["Application architecture", "Reference architecture", "Frameworks and metamodel"]);
+    const of = (id: string) => examples.find((e) => e.id === id)!.category;
+    expect(["checkout", "hr-portal", "db-platform", "enterprise-ai"].map(of)).toEqual(Array(4).fill("application"));
+    expect(of("kubernetes")).toBe("reference");
+    expect([of("archimate-claims"), of("csdm5-metamodel")]).toEqual(["frameworks", "frameworks"]);
   });
 
   it("the ArchiMate example opens in the ArchiMate-only lens", () => {

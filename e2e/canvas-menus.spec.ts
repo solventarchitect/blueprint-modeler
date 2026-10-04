@@ -1,6 +1,7 @@
 import AxeBuilder from "@axe-core/playwright";
 import { expect, test, type Page } from "@playwright/test";
 import { contrastOf } from "./contrast";
+import { openExample } from "./examples";
 
 const tags = ["wcag2a", "wcag2aa", "wcag21aa", "wcag22aa"];
 const node = (page: Page, name: string) => page.locator(".react-flow__node").filter({ hasText: name });
@@ -8,7 +9,7 @@ const node = (page: Page, name: string) => page.locator(".react-flow__node").fil
 async function openCheckout(page: Page) {
   await page.goto("/editor");
   await expect(page.getByTestId("save-status")).toHaveText("Saved in this browser");
-  await page.getByRole("combobox", { name: "Start from an example" }).selectOption({ label: "Online store checkout" });
+  await openExample(page, "Online store checkout");
   await expect(page.locator(".react-flow__node")).toHaveCount(14);
 }
 
