@@ -31,6 +31,7 @@ import {
 } from "react";
 import Link from "next/link";
 import { exampleCategories, examples } from "@/examples";
+import { EXAMPLE_PARAM, exampleFromSearch } from "@/examples/deepLink";
 import { archimateElements, archimateRelationshipFor, edgeNotation, lenses, readLens, saveLens, showsArchimate, type ArchimateRelationshipType, type Lens } from "@/frameworks";
 import { downloadText } from "@/io/download";
 import { exportJson, fileBase, importJson, MAX_FILE_CHARS } from "@/io/file";
@@ -474,6 +475,24 @@ function EditorInner() {
     setMessage(`Opened the example “${ex.name}” as a new model.${ex.lens ? ` Lens: ${lenses.find((l) => l.id === ex.lens)?.label}.` : ""}`);
     setTimeout(() => void flow.fitView({ maxZoom: 1, padding: fitPadding(0.15) }), 50);
   };
+
+  // A link to /editor?example=<id> (M42) opens that example once the stored models have loaded, as
+  // choosing it from Examples does. The parameter comes off the URL first, so a reload, Back or a
+  // bookmark cannot add a second copy; an unknown id leaves the open model as it is and says so.
+  const deepLinked = useRef(false);
+  useEffect(() => {
+    if (doc.status === "loading" || deepLinked.current) return;
+    deepLinked.current = true;
+    const params = new URLSearchParams(window.location.search);
+    if (!params.has(EXAMPLE_PARAM)) return;
+    const link = exampleFromSearch(window.location.search);
+    params.delete(EXAMPLE_PARAM);
+    const rest = params.toString();
+    window.history.replaceState(window.history.state, "", `${window.location.pathname}${rest ? `?${rest}` : ""}${window.location.hash}`);
+    if (!link) return;
+    if (link.example) void loadExample(link.example.id);
+    else setIoError(`No example named “${link.shown}”. Choose one from Examples.`);
+  }, [doc.status]); // eslint-disable-line react-hooks/exhaustive-deps -- runs once, after the first load
 
   // "Blank model" closes the empty-state card for this model and moves focus to the palette.
   const [blankFor, setBlankFor] = useState<string | null>(null);
