@@ -1,10 +1,11 @@
 import { expect, test, type Page } from "@playwright/test";
 import { contrastOf } from "./contrast";
+import { exampleNames, openExample } from "./examples";
 
-const openExample = async (page: Page) => {
+const openCheckout = async (page: Page) => {
   await page.goto("/editor");
   await expect(page.getByTestId("save-status")).toHaveText("Saved in this browser");
-  await page.getByRole("combobox", { name: "Start from an example" }).selectOption({ label: "Online store checkout" });
+  await openExample(page, "Online store checkout");
   await expect(page.locator(".react-flow__node").first()).toBeVisible();
 };
 
@@ -19,7 +20,7 @@ test.describe("canvas title (desktop)", () => {
   test.skip(({ isMobile }) => !!isMobile, "editing is desktop-only");
 
   test("sits at the top-left of the diagram, follows the highest element and the model name", async ({ page }) => {
-    await openExample(page);
+    await openCheckout(page);
     const title = page.getByRole("heading", { level: 1, name: "Online store checkout" });
     await expect(title).toBeVisible();
 
@@ -54,7 +55,7 @@ test.describe("canvas title (desktop)", () => {
   });
 
   test("keeps a readable size when zoomed out", async ({ page }) => {
-    await openExample(page);
+    await openCheckout(page);
     const zoomOut = page.getByRole("button", { name: "Zoom Out" });
     while (await zoomOut.isEnabled()) await zoomOut.click();
     const size = await page.getByTestId("canvas-title").evaluate((e) => e.getBoundingClientRect().height);
@@ -76,11 +77,8 @@ test.describe("edge labels (desktop)", () => {
       });
     await page.goto("/editor");
     await expect(page.getByTestId("save-status")).toHaveText("Saved in this browser");
-    const examples = page.getByRole("combobox", { name: "Start from an example" });
-    const count = await examples.locator("option").count();
-    for (let i = 1; i < count; i++) {
-      if ((await examples.locator("option").nth(i).getAttribute("value")) === "__blank") continue;
-      await examples.selectOption({ index: i });
+    for (const [i, name] of (await exampleNames(page)).entries()) {
+      await openExample(page, name);
       await expect(page.locator(".react-flow__edge-text").first()).toBeVisible();
       await expect.poll(overlaps, { message: `example ${i}` }).toEqual([]);
       await page.getByRole("button", { name: "Zoom In" }).click();
@@ -109,18 +107,15 @@ test.describe("stacked layers (desktop)", () => {
       });
     await page.goto("/editor");
     await expect(page.getByTestId("save-status")).toHaveText("Saved in this browser");
-    const examples = page.getByRole("combobox", { name: "Start from an example" });
-    const count = await examples.locator("option").count();
-    for (let i = 1; i < count; i++) {
-      if ((await examples.locator("option").nth(i).getAttribute("value")) === "__blank") continue;
-      await examples.selectOption({ index: i });
+    for (const [i, name] of (await exampleNames(page)).entries()) {
+      await openExample(page, name);
       await expect(page.getByTestId("layer-handle").first()).toBeVisible();
       await expect.poll(clashes, { message: `example ${i}` }).toEqual([]);
     }
     // Auto-layout the application models (the metamodel poster is laid out by hand: auto-laid out,
     // its 61 relationships make it wide enough that a fit zooms below where tabs can clear).
     for (const label of ["Online store checkout", "Storefront on Kubernetes", "Enterprise AI assistant"]) {
-      await examples.selectOption({ label });
+      await openExample(page, label);
       // Wait until the example is open (else Auto-layout lays out the previous model), then for the
       // layout itself: the button reads "Laying out…" while ELK runs, which can outlast 5 s under load.
       await expect(page.getByRole("combobox", { name: "Open model" }).locator("option:checked")).toHaveText(label);
@@ -206,7 +201,7 @@ test.describe("editor toolbar (desktop)", () => {
       await expect(page.getByRole("group", { name: "Edit" }).getByRole("button")).toHaveText(["Undo", "Redo"]);
       await expect(page.locator("main").getByRole("button", { name: /^Hints/ })).toHaveCount(0);
       await expect(page.getByRole("tab", { name: "Hints (0)" })).toBeVisible();
-      await page.getByRole("combobox", { name: "Start from an example" }).selectOption({ label: "Online store checkout" });
+      await openExample(page, "Online store checkout");
       const present = page.getByRole("button", { name: "Present" });
       await expect(present).toBeEnabled();
       expect(await contrastOf(present), scheme).toBeGreaterThanOrEqual(4.5);

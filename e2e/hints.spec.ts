@@ -1,5 +1,6 @@
 import AxeBuilder from "@axe-core/playwright";
 import { expect, test } from "@playwright/test";
+import { openExample } from "./examples";
 
 const tags = ["wcag2a", "wcag2aa", "wcag21aa", "wcag22aa"];
 
@@ -21,7 +22,7 @@ test.describe("examples and hints (desktop)", () => {
   test("selecting a hint highlights its elements and cites a source", async ({ page }) => {
     await page.goto("/editor");
     await expect(page.getByTestId("save-status")).toHaveText("Saved in this browser");
-    await page.getByRole("combobox", { name: "Start from an example" }).selectOption({ label: "Shared database platform" });
+    await openExample(page, "Shared database platform");
     const tab = page.getByRole("tab", { name: "Hints (3)" });
     await tab.click();
     const panel = page.getByRole("tabpanel");
@@ -42,7 +43,7 @@ test.describe("examples and hints (desktop)", () => {
   test("the Kubernetes example uses the CMDB's Kubernetes classes, sourced from the product docs", async ({ page }) => {
     await page.goto("/editor");
     await expect(page.getByTestId("save-status")).toHaveText("Saved in this browser");
-    await page.getByRole("combobox", { name: "Start from an example" }).selectOption({ label: "Storefront on Kubernetes" });
+    await openExample(page, "Storefront on Kubernetes");
     const workload = page.locator(".react-flow__node").filter({ hasText: "catalog-service" });
     await expect(workload).toContainText("Kubernetes Workload");
     await workload.click();
@@ -66,7 +67,7 @@ test.describe("examples and hints (desktop)", () => {
       await page.emulateMedia({ colorScheme: scheme });
       await page.goto("/editor");
       await expect(page.getByTestId("save-status")).toHaveText("Saved in this browser");
-      await page.getByRole("combobox", { name: "Start from an example" }).selectOption({ label: "Shared database platform" });
+      await openExample(page, "Shared database platform");
       await page.getByRole("tab", { name: /Hints/ }).click();
       await page.getByRole("tabpanel").getByRole("button").first().click();
       const results = await new AxeBuilder({ page }).withTags(tags).analyze();

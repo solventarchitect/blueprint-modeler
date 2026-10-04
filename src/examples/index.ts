@@ -10,12 +10,21 @@ import { nextPosition, SLOT } from "@/editor/state";
  * classes, an AI assistant modeled like any other application, a claims system read purely in
  * ArchiMate, and the CSDM 5 core metamodel itself.
  */
-type Spec = { id: string; name: string; summary: string; nodes: [string, ClassId, string][]; edges: [string, string][]; lens?: Lens };
+/** Groups in the Examples menu, in menu order. */
+export const exampleCategories = [
+  { id: "application", label: "Application architecture" },
+  { id: "reference", label: "Reference architecture" },
+  { id: "frameworks", label: "Frameworks and metamodel" },
+] as const;
+export type ExampleCategory = (typeof exampleCategories)[number]["id"];
+
+type Spec = { id: string; name: string; category: ExampleCategory; summary: string; nodes: [string, ClassId, string][]; edges: [string, string][]; lens?: Lens };
 
 const specs: Spec[] = [
   {
     id: "checkout",
     name: "Online store checkout",
+    category: "application",
     summary: "A complete chain: capability → Business Application → production and test service instances → software → hosts, exposed through a Business Service Offering.",
     nodes: [
       ["cap", "business_capability", "Order management"],
@@ -52,6 +61,7 @@ const specs: Spec[] = [
   {
     id: "hr-portal",
     name: "HR self-service portal",
+    category: "application",
     summary: "A process-led view: onboarding depends on an HR portal delivered as a service, and a planned payroll application with no deployment yet — watch the hints.",
     nodes: [
       ["proc", "business_process", "Onboard a new hire"],
@@ -76,6 +86,7 @@ const specs: Spec[] = [
   {
     id: "db-platform",
     name: "Shared database platform",
+    category: "application",
     summary: "A Technology Management Service Offering shared databases: two Application Services depend on the same database software and network — one is not exposed yet.",
     nodes: [
       ["tms", "technology_management_service", "Database hosting"],
@@ -104,7 +115,8 @@ const specs: Spec[] = [
   {
     id: "kubernetes",
     name: "Storefront on Kubernetes",
-    summary: "A containerized app in the CMDB's Kubernetes classes: the storefront's service instance depends on its workloads and cluster, a Kubernetes Service fronts the catalog, and the cluster's nodes are hosted on servers — all offered by the platform team.",
+    category: "reference",
+    summary: "Containerization reference: a storefront in the CMDB's Kubernetes classes. Its service instance depends on its workloads and cluster, a Kubernetes Service fronts the catalog, and the cluster's nodes are hosted on servers — all offered by the platform team.",
     nodes: [
       ["cap", "business_capability", "Digital commerce"],
       ["ba", "business_application", "Storefront"],
@@ -149,6 +161,7 @@ const specs: Spec[] = [
   {
     id: "enterprise-ai",
     name: "Enterprise AI assistant",
+    category: "application",
     summary: "An AI assistant modeled like any other application: a Business Application with its knowledge source, a production service on an AI platform offering, and the hosted language model as a CSDM 5 Data Service Instance. A planned refund agent has no deployment yet — watch the hints.",
     nodes: [
       ["proc", "business_process", "Resolve a customer case"],
@@ -189,6 +202,7 @@ const specs: Spec[] = [
   {
     id: "archimate-claims",
     name: "Claims handling (ArchiMate view)",
+    category: "frameworks",
     summary: "A claims system read purely in ArchiMate 3.2: opens in the ArchiMate-only lens, so elements show their ArchiMate type and relationships their ArchiMate name — capability, process, product, application components, interface, system software and nodes.",
     lens: "archimate-only",
     nodes: [
@@ -241,7 +255,7 @@ function build(spec: Spec, now: Date, id: string): Model {
   return model;
 }
 
-export type Example = { id: string; name: string; summary: string; lens?: Lens; create: (now?: Date, id?: string) => Model };
+export type Example = { id: string; name: string; category: ExampleCategory; summary: string; lens?: Lens; create: (now?: Date, id?: string) => Model };
 
 const LAYER_ORDER: Layer[] = ["business", "design", "service", "functional", "infrastructure"];
 const PER_ROW = 4;
@@ -282,6 +296,7 @@ export const examples: Example[] = [
   ...specs.map((s) => ({
     id: s.id,
     name: s.name,
+    category: s.category,
     summary: s.summary,
     lens: s.lens,
     create: (now = new Date(), id = crypto.randomUUID()) => build(s, now, id),
@@ -289,6 +304,7 @@ export const examples: Example[] = [
   {
     id: "csdm5-metamodel",
     name: "CSDM 5 core metamodel",
+    category: "frameworks",
     lens: "csdm",
     summary:
       "Every class in the CSDM 5 white paper (no extended or CMDB-only classes) and each relationship the metamodel allows between them — a map to read before modeling. CSDM 6 has not been published yet (September 2026), so this is CSDM 5.",
