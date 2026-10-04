@@ -1,6 +1,7 @@
 import { readFile } from "node:fs/promises";
 import { expect, test, type Page } from "@playwright/test";
 import { watchForeignRequests } from "./network";
+import { openExample } from "./examples";
 
 const node = (page: Page, name: string) => page.locator(".react-flow__node").filter({ has: page.getByText(name, { exact: true }) });
 const gifItem = (page: Page) => page.getByRole("button", { name: /^Blast radius animation \(GIF\)/ });
@@ -8,7 +9,7 @@ const gifItem = (page: Page) => page.getByRole("button", { name: /^Blast radius 
 async function openCheckout(page: Page) {
   await page.goto("/editor");
   await expect(page.getByTestId("save-status")).toHaveText("Saved in this browser");
-  await page.getByRole("combobox", { name: "Start from an example" }).selectOption({ label: "Online store checkout" });
+  await openExample(page, "Online store checkout");
   await expect(page.locator(".react-flow__node")).toHaveCount(14);
   await page.getByRole("button", { name: "Fit View" }).click();
 }

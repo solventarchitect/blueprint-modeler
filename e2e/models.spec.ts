@@ -1,5 +1,6 @@
 import AxeBuilder from "@axe-core/playwright";
 import { expect, test, type Page } from "@playwright/test";
+import { openExample } from "./examples";
 
 const picker = (page: Page) => page.locator("select").first();
 
@@ -9,9 +10,8 @@ test.describe("managing saved models (desktop)", () => {
   test("lists, downloads and deletes models, one or all, asking first", async ({ page }) => {
     await page.goto("/editor");
     await expect(page.getByTestId("save-status")).toHaveText("Saved in this browser");
-    const examples = page.getByRole("combobox", { name: "Start from an example" });
-    await examples.selectOption({ label: "Online store checkout" });
-    await examples.selectOption({ label: "HR self-service portal" });
+    await openExample(page, "Online store checkout");
+    await openExample(page, "HR self-service portal");
     await expect(picker(page)).toHaveValue(/.+/);
     await expect(picker(page).locator("option")).toHaveCount(3);
 
@@ -81,7 +81,7 @@ test.describe("managing saved models (desktop)", () => {
     });
     await page.goto("/editor");
     await expect(page.getByTestId("save-status")).toHaveText("Saved in this browser");
-    await page.getByRole("combobox", { name: "Start from an example" }).selectOption({ label: "Online store checkout" });
+    await openExample(page, "Online store checkout");
     await expect(picker(page).locator("option:checked")).toHaveText("Online store checkout");
     await expect(page.getByTestId("save-status")).toHaveText("Saved in this browser");
 
@@ -114,11 +114,10 @@ test.describe("managing saved models (desktop)", () => {
     const saved = () => expect(page.getByTestId("save-status")).toHaveText("Saved in this browser", { timeout: 15_000 });
     await page.goto("/editor");
     await saved();
-    const examples = page.getByRole("combobox", { name: "Start from an example" });
-    await examples.selectOption({ label: "Online store checkout" });
+    await openExample(page, "Online store checkout");
     await expect(open.locator("option:checked")).toHaveText("Online store checkout");
     await saved();
-    await examples.selectOption({ label: "HR self-service portal" });
+    await openExample(page, "HR self-service portal");
     await expect(open.locator("option:checked")).toHaveText("HR self-service portal");
     await saved();
     await open.selectOption({ label: "Online store checkout" });
@@ -157,7 +156,7 @@ test.describe("managing saved models (desktop)", () => {
     const saved = () => expect(page.getByTestId("save-status")).toHaveText("Saved in this browser", { timeout: 15_000 });
     await page.goto("/editor");
     await saved();
-    await page.getByRole("combobox", { name: "Start from an example" }).selectOption({ label: "Online store checkout" });
+    await openExample(page, "Online store checkout");
     await expect(open.locator("option:checked")).toHaveText("Online store checkout");
     await saved();
 
@@ -184,13 +183,13 @@ test.describe("starting blank (desktop)", () => {
     await expect(page.getByRole("navigation", { name: "Element palette" }).getByRole("button").first()).toBeFocused();
     await expect(page.getByRole("status")).toContainText("Blank model ready");
 
-    await page.getByRole("combobox", { name: "Start from an example" }).selectOption({ label: "Online store checkout" });
+    await openExample(page, "Online store checkout");
     await expect(page.locator(".react-flow__node")).not.toHaveCount(0);
     const before = await page.getByRole("combobox", { name: "Open model" }).locator("option").count();
-    await page.getByRole("combobox", { name: "Start from an example" }).selectOption({ label: "Blank model" });
+    await openExample(page, "Blank model");
     await expect(page.getByRole("combobox", { name: "Open model" }).locator("option")).toHaveCount(before + 1);
     await expect(page.locator(".react-flow__node")).toHaveCount(0);
     await expect(page.getByRole("combobox", { name: "Open model" })).toHaveValue(/.+/);
-    await expect(page.getByRole("combobox", { name: "Start from an example" })).toHaveValue("");
+    await expect(page.getByRole("button", { name: "Examples", exact: true })).toHaveAttribute("aria-expanded", "false");
   });
 });

@@ -32,6 +32,15 @@ export default function AboutPage() {
         <a href="/guide#archimate">class guide</a>, and Export › ArchiMate model writes a Model Exchange File you can open in Archi or another ArchiMate tool. ArchiMate® is a registered trademark of The Open Group; this tool is
         not affiliated with or endorsed by The Open Group.
       </p>
+      <h2>Blast radius</h2>
+      <p>
+        Right-click an element on the canvas, or use the button in the Inspector, and choose{" "}
+        <strong>Show blast radius</strong>: the element is marked failed, and each hop of elements that depend on it
+        lights up in turn. Switch to Dependencies to see what the element needs instead. While it is open, Export ›
+        Blast radius animation (GIF) saves it as an animated image. The impact rules behind it, with their evidence, are
+        in the <a href="/guide#impact">class guide</a>. It is a what-if on your model, not ServiceNow&apos;s Impacted
+        Services calculation, and it never changes the model.
+      </p>
       <h2>No account, no server</h2>
       <p>
         The app is a static site. Your models are saved only in your browser, and import, export and auto-layout all

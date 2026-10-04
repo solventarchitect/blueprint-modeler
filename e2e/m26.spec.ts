@@ -1,6 +1,7 @@
 import AxeBuilder from "@axe-core/playwright";
 import { expect, test, type Page } from "@playwright/test";
 import { contrastOf } from "./contrast";
+import { openExample as chooseExample } from "./examples";
 
 const tags = ["wcag2a", "wcag2aa", "wcag21aa", "wcag22aa"];
 const node = (page: Page, name: string) => page.locator(".react-flow__node").filter({ hasText: name }).first();
@@ -8,7 +9,7 @@ const node = (page: Page, name: string) => page.locator(".react-flow__node").fil
 const openExample = async (page: Page, label: string) => {
   await page.goto("/editor");
   await expect(page.getByTestId("save-status")).toHaveText("Saved in this browser");
-  await page.getByRole("combobox", { name: "Start from an example" }).selectOption({ label });
+  await chooseExample(page, label);
   await expect(page.locator(".react-flow__node").first()).toBeVisible();
   await page.getByRole("button", { name: "Fit View" }).click();
 };

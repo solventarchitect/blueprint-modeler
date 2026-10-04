@@ -26,7 +26,7 @@ import {
   type PointerEvent as ReactPointerEvent,
 } from "react";
 import Link from "next/link";
-import { examples } from "@/examples";
+import { exampleCategories, examples } from "@/examples";
 import { archimateElements, archimateRelationshipFor, edgeNotation, lenses, readLens, saveLens, showsArchimate, type ArchimateRelationshipType, type Lens } from "@/frameworks";
 import { downloadText } from "@/io/download";
 import { exportJson, fileBase, importJson, MAX_FILE_CHARS } from "@/io/file";
@@ -46,6 +46,7 @@ import { site } from "@/lib/site";
 import { ClassNode, SuggestContext, type ClassFlowNode } from "./ClassNode";
 import { ConnectionLine, ConnectionModelContext } from "./ConnectionLine";
 import { ExportMenu, type ExportKind } from "./ExportMenu";
+import { ExamplesMenu } from "./ExamplesMenu";
 import { ContextMenu, type MenuItem } from "./ContextMenu";
 import { blastAnnouncement, blastProgress, blastSteps, blastView } from "./blast";
 import { blastFrames, GIF_MAX_SIDE, gifScale } from "./blastGif";
@@ -982,7 +983,8 @@ function EditorInner() {
           </span>
         </div>
       )}
-      <div className={`flex flex-wrap items-center gap-2 border-b border-border px-4 py-2 ${presenting ? "hidden" : ""}`}>
+      {/* relative: the Examples panel spans the toolbar. */}
+      <div className={`relative flex flex-wrap items-center gap-2 border-b border-border px-4 py-2 ${presenting ? "hidden" : ""}`}>
         <div role="group" aria-label="Model" className={toolbarGroup}>
         <span className={groupCaption} aria-hidden="true">
           Model
@@ -1014,26 +1016,15 @@ function EditorInner() {
           <ToolbarIcon name="new" />
           New
         </button>
-        <label className="flex items-center text-sm">
-          <span className="sr-only">Start from an example</span>
-          {/* Fixed width, like the model picker: a long example name must not re-wrap the toolbar. */}
-          <select className={`${toolbarSelect} w-36`} value="" onChange={(e) => {
-              const v = e.target.value;
-              if (v === "__blank") {
-                setSelectedId(null);
-                setActiveHint(null);
-                void doc.newModel().then(() => setMessage("Opened a new blank model."));
-              } else void loadExample(v);
-            }}>
-            <option value="">Examples…</option>
-            <option value="__blank">Blank model</option>
-            {examples.map((ex) => (
-              <option key={ex.id} value={ex.id}>
-                {ex.name}
-              </option>
-            ))}
-          </select>
-        </label>
+        <ExamplesMenu
+          buttonClass={toolbarButton}
+          onPick={(id) => void loadExample(id)}
+          onBlank={() => {
+            setSelectedId(null);
+            setActiveHint(null);
+            void doc.newModel().then(() => setMessage("Opened a new blank model."));
+          }}
+        />
         {wide && (
           <>
             <button type="button" className={toolbarButton} onClick={() => fileInput.current?.click()}>
@@ -1299,7 +1290,7 @@ function EditorInner() {
           </ConnectionModelContext.Provider>
           {model.nodes.length === 0 && doc.status !== "loading" && blankFor !== model.id && (
             <div className="pointer-events-none absolute inset-0 flex items-center justify-center p-6">
-              <div className="pointer-events-auto max-h-full max-w-lg overflow-y-auto border border-border bg-surface-raised p-6">
+              <div data-testid="empty-state" className="pointer-events-auto max-h-full max-w-lg overflow-y-auto border border-border bg-surface-raised p-6">
                 <p className="font-mono text-xs tracking-[0.14em] text-accent uppercase">{"// Empty model"}</p>
                 <h2 className="mt-2 text-lg font-semibold">Start blank, or open an example</h2>
                 <ul className="mt-4 flex flex-col gap-2">
@@ -1309,15 +1300,24 @@ function EditorInner() {
                       <span className="mt-1 block text-xs text-ink-muted">An empty canvas: add elements from the palette.</span>
                     </button>
                   </li>
-                  {examples.map((ex) => (
-                    <li key={ex.id}>
-                      <button type="button" onClick={() => void loadExample(ex.id)} className="w-full cursor-pointer border border-border p-3 text-left hover:border-accent">
-                        <span className="block text-sm font-medium text-ink">{ex.name}</span>
-                        <span className="mt-1 block text-xs text-ink-muted">{ex.summary}</span>
-                      </button>
-                    </li>
-                  ))}
                 </ul>
+                {exampleCategories.map((c) => (
+                  <section key={c.id} className="mt-4">
+                    <h3 className="font-mono text-[0.65rem] tracking-[0.14em] text-accent uppercase">{c.label}</h3>
+                    <ul className="mt-2 flex flex-col gap-2">
+                      {examples
+                        .filter((ex) => ex.category === c.id)
+                        .map((ex) => (
+                          <li key={ex.id}>
+                            <button type="button" onClick={() => void loadExample(ex.id)} className="w-full cursor-pointer border border-border p-3 text-left hover:border-accent">
+                              <span className="block text-sm font-medium text-ink">{ex.name}</span>
+                              <span className="mt-1 block text-xs text-ink-muted">{ex.summary}</span>
+                            </button>
+                          </li>
+                        ))}
+                    </ul>
+                  </section>
+                ))}
               </div>
             </div>
           )}
