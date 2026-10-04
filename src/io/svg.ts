@@ -80,7 +80,7 @@ function wrapText(text: string, width: number, max: number): string[] {
 }
 
 /** The title block: model name, with its Artifact ID above and description below when they exist. */
-const TITLE = { top: 28, artifact: 22, name: 28, line: 18, gap: 24, nameChar: 12.4, textChar: 7.2, maxName: 800 } as const;
+const TITLE = { top: 28, artifact: 22, name: 28, line: 18, gap: 24, nameChar: 12.4, textChar: 7.2, monoChar: 7.6, maxName: 800 } as const;
 
 type Box = { x: number; y: number; w: number; h: number };
 
@@ -123,16 +123,22 @@ export function modelToSvg(model: Model, theme: SvgTheme, opts: { lens?: Lens; h
   const name = model.name || UNTITLED_MODEL;
   const artifactId = model.artifactId?.trim() ?? "";
   const about = model.description?.trim() ?? "";
-  const nameWidth = Math.min(name.length * TITLE.nameChar, TITLE.maxName);
-  // The caption and the name set a minimum width (14px sans, about 7.6px a character).
-  const maxX = Math.max(
-    all.length ? Math.max(...all.map((b) => b.x + b.w)) + PAD : 2 * PAD,
-    hl?.caption ? minX + 32 + Math.max(hl.caption.text.length, hl.caption.reserve ?? 0) * 7.6 : -Infinity,
-    minX + 2 * PAD + nameWidth,
+  const diagramMaxX = all.length ? Math.max(...all.map((b) => b.x + b.w)) + PAD : 2 * PAD;
+  // Description lines: as wide as the diagram allows, between 40 and 110 characters (readable).
+  const aboutChars = Math.min(110, Math.max(40, Math.floor((diagramMaxX - minX - 2 * PAD) / TITLE.textChar)));
+  const aboutLines = about ? wrapText(about, aboutChars, 3) : [];
+  // The title block sets a minimum width: name (22px sans), Artifact ID (12px mono after its icon)
+  // and description lines; so does a blast caption (14px sans, about 7.6px a character).
+  const titleWidth = Math.max(
+    Math.min(name.length * TITLE.nameChar, TITLE.maxName),
+    artifactId ? 20 + artifactId.length * TITLE.monoChar : 0,
+    ...aboutLines.map((l) => l.length * TITLE.textChar),
   );
-  const textWidth = maxX - minX - 2 * PAD;
-  // Readable line length, however wide the diagram: at most about 110 characters a line.
-  const aboutLines = about ? wrapText(about, Math.min(110, Math.max(40, Math.floor(textWidth / TITLE.textChar))), 3) : [];
+  const maxX = Math.max(
+    diagramMaxX,
+    hl?.caption ? minX + 2 * PAD + Math.max(hl.caption.text.length, hl.caption.reserve ?? 0) * 7.6 : -Infinity,
+    minX + 2 * PAD + titleWidth,
+  );
   const titleH = TITLE.top + (artifactId ? TITLE.artifact : 0) + TITLE.name + (aboutLines.length ? 6 + aboutLines.length * TITLE.line : 0) + TITLE.gap;
   const minY = (all.length ? Math.min(...all.map((b) => b.y)) - PAD : 0) - titleH - (hl?.caption ? CAPTION_H : 0);
   const maxY = all.length ? Math.max(...all.map((b) => b.y + b.h)) + PAD : 2 * PAD;
@@ -234,8 +240,8 @@ export function modelToSvg(model: Model, theme: SvgTheme, opts: { lens?: Lens; h
   }
   const capY = minY + titleH;
   const caption = hl?.caption
-    ? `<text x="${minX + 16}" y="${capY + 20}" font-family="${MONO}" font-size="10" letter-spacing="1.4" fill="${p.status}">${esc(hl.caption.label.toUpperCase())}</text>` +
-      `<text x="${minX + 16}" y="${capY + 38}" font-family="${SANS}" font-size="14" font-weight="500" fill="${p.ink}">${esc(hl.caption.text)}</text>`
+    ? `<text x="${tx}" y="${capY + 20}" font-family="${MONO}" font-size="10" letter-spacing="1.4" fill="${p.status}">${esc(hl.caption.label.toUpperCase())}</text>` +
+      `<text x="${tx}" y="${capY + 38}" font-family="${SANS}" font-size="14" font-weight="500" fill="${p.ink}">${esc(hl.caption.text)}</text>`
     : "";
 
   const title = esc(name);

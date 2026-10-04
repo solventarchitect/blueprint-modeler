@@ -77,7 +77,7 @@ export function ModelMenu({
           Models in this browser · {models.length}
         </h2>
         <ul className="mt-3 grid gap-2 md:grid-cols-2 xl:grid-cols-3">
-          {models.map((m) => {
+          {models.map((m, i) => {
             const current = m.id === currentId;
             const name = m.name || UNTITLED_MODEL;
             return (
@@ -85,14 +85,14 @@ export function ModelMenu({
                 <button
                   type="button"
                   data-model-name={name /* read by the e2e helpers to list the models */}
-                  aria-labelledby={`${id}-${m.id}-name`}
-                  aria-describedby={`${id}-${m.id}-about`}
+                  aria-labelledby={`${id}-${i}-name`}
+                  aria-describedby={`${id}-${i}-about`}
                   aria-current={current || undefined}
                   className={`flex h-full w-full cursor-pointer flex-col border px-3 py-2 text-left hover:bg-surface focus-visible:bg-surface ${current ? "border-accent" : "border-border"}`}
                   onClick={() => choose(m.id)}
                 >
                   <span className="flex w-full items-start justify-between gap-2">
-                    <span id={`${id}-${m.id}-name`} className="min-w-0 truncate text-sm font-medium text-ink">
+                    <span id={`${id}-${i}-name`} className="min-w-0 truncate text-sm font-medium text-ink">
                       {name}
                     </span>
                     {current && (
@@ -101,7 +101,7 @@ export function ModelMenu({
                       </span>
                     )}
                   </span>
-                  <span id={`${id}-${m.id}-about`} className="mt-1 flex flex-col gap-1 text-xs">
+                  <span id={`${id}-${i}-about`} className="mt-1 flex flex-col gap-1 text-xs">
                     {m.artifactId && (
                       <span className="flex items-center gap-1.5 font-mono text-ink-soft">
                         <ArtifactIcon className="size-3.5" label="Artifact ID" />
@@ -110,7 +110,7 @@ export function ModelMenu({
                     )}
                     {m.description && <span className="line-clamp-2 text-ink-muted">{m.description}</span>}
                     <span className="text-ink-muted">
-                      {count(m.nodes, "element", "elements")} · {count(m.edges, "relationship", "relationships")} · Updated {when(m.updated)}
+                      {m.damaged ? "Can't be read" : `${count(m.nodes, "element", "elements")} · ${count(m.edges, "relationship", "relationships")}`} · Updated {when(m.updated)}
                     </span>
                   </span>
                 </button>

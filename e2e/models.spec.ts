@@ -11,7 +11,7 @@ test.describe("managing saved models (desktop)", () => {
     await expect(page.getByTestId("save-status")).toHaveText("Saved in this browser");
     await openExample(page, "Online Store Checkout");
     await openExample(page, "HR Self-Service Portal");
-    await expect(modelButton(page)).toHaveAttribute("data-current", /.+/);
+    await expect(modelButton(page)).toHaveAttribute("data-current", /^(?!placeholder$).+/);
     await expect(modelButton(page)).toHaveAttribute("data-count", "3");
 
     const manage = page.getByRole("button", { name: "Manage…" });
@@ -182,11 +182,11 @@ test.describe("starting blank (desktop)", () => {
 
     await openExample(page, "Online Store Checkout");
     await expect(page.locator(".react-flow__node")).not.toHaveCount(0);
-    const before = await Number(await modelButton(page).getAttribute("data-count"));
+    const before = Number(await modelButton(page).getAttribute("data-count"));
     await openExample(page, "Blank model");
     await expect(modelButton(page)).toHaveAttribute("data-count", String(before + 1));
     await expect(page.locator(".react-flow__node")).toHaveCount(0);
-    await expect(modelButton(page)).toHaveAttribute("data-current", /.+/);
+    await expect(modelButton(page)).toHaveAttribute("data-current", /^(?!placeholder$).+/);
     await expect(page.getByRole("button", { name: "Examples", exact: true })).toHaveAttribute("aria-expanded", "false");
   });
 });

@@ -1,5 +1,6 @@
 import { describe, expect, it } from "vitest";
 import { examples } from "@/examples";
+import { createModel } from "@/model";
 import { svgColors, modelToSvg } from "./svg";
 
 const checkout = () => examples.find((e) => e.id === "checkout")!.create(new Date("2026-09-27T00:00:00Z"), "m1");
@@ -23,6 +24,20 @@ describe("SVG title block", () => {
     // The title block sits above the highest element: the picture grows upward to hold it.
     const top = (s: string) => Number(s.match(/viewBox="[-\d.]+ ([-\d.]+)/)![1]);
     expect(top(svg)).toBeLessThan(top(plain));
+  });
+});
+
+describe("SVG title block width", () => {
+  it("widens a small picture so a long Artifact ID and description stay inside it", () => {
+    const one = createModel("A", new Date("2026-09-27T00:00:00Z"), "a");
+    one.nodes = [{ id: "h", class: "host", name: "web-01" }];
+    one.layout = { h: { x: 0, y: 0 } };
+    const svg = modelToSvg({ ...one, artifactId: "X".repeat(64), description: "word ".repeat(60).trim() }, "light");
+    const [x, , w] = svg.match(/viewBox="([-\d.]+) ([-\d.]+) ([\d.]+)/)!.slice(1).map(Number);
+    // 64 mono characters at 12 px (about 7.6 px each) after a 20 px icon, inside the 32 px margins.
+    expect(x! + w!).toBeGreaterThanOrEqual(x! + 32 + 20 + 64 * 7.6 + 32);
+    const longest = Math.max(...[...svg.matchAll(/data-title-line="">([^<]*)</g)].map((m) => m[1]!.length));
+    expect(32 + longest * 7.2 + 32).toBeLessThanOrEqual(w!);
   });
 });
 

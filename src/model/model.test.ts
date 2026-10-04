@@ -43,6 +43,13 @@ describe("parseModel", () => {
     expect(parseModel({ ...JSON.parse(serializeModel(sample())), description: "x".repeat(1001) }).ok).toBe(false);
   });
 
+  it("drops details that are only spaces, and trims the rest, when a file is read", () => {
+    const base = JSON.parse(serializeModel(sample()));
+    const r = parseModel({ ...base, description: "   ", artifactId: "  EA-1  " });
+    expect(r.ok && "description" in r.model).toBe(false);
+    expect(r.ok && r.model.artifactId).toBe("EA-1");
+  });
+
   it("names new models in Title Case", () => {
     expect(UNTITLED_MODEL).toBe("Untitled Model");
   });

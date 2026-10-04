@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 import { createModel } from "@/model";
-import { createMemoryStore } from "./index";
+import { createMemoryStore, summary, toRow } from "./index";
 
 describe("memory store", () => {
   it("puts, lists newest first, gets back an equal model, and removes", async () => {
@@ -14,6 +14,15 @@ describe("memory store", () => {
     await store.remove("a");
     expect(await store.get("a")).toBeUndefined();
     expect((await store.list()).map((s) => s.id)).toEqual(["b"]);
+  });
+
+  it("keeps the summary in the stored row, reads older rows from their JSON, and marks unreadable ones", () => {
+    const m = { ...createModel("Checkout", new Date("2026-09-27T10:00:00Z"), "c"), artifactId: "EA-0042" };
+    const row = toRow(m);
+    expect(row).toMatchObject({ artifactId: "EA-0042", nodes: 0, edges: 0 });
+    // A row saved before M38 has no summary fields: they come from its JSON.
+    expect(summary({ id: "c", name: "Checkout", updated: m.updated, json: row.json })).toMatchObject({ artifactId: "EA-0042", nodes: 0, edges: 0 });
+    expect(summary({ id: "d", name: "Broken", updated: m.updated, json: "{not json" })).toMatchObject({ damaged: true });
   });
 
   it("summarizes each model for the Model menu: details and counts", async () => {

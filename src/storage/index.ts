@@ -4,8 +4,17 @@ import { parseModel, serializeModel, type Model } from "@/model";
  * Where models live between visits: this browser only (CLAUDE.md rule 2). Every read goes back
  * through parseModel, so a corrupted or hand-edited record is reported, never trusted.
  */
-/** What the Model menu shows for each stored model, without opening it. */
-export type ModelSummary = { id: string; name: string; updated: string; description?: string; artifactId?: string; nodes: number; edges: number };
+/** What the Model menu shows for each stored model, without opening it. `damaged`: the row cannot be read. */
+export type ModelSummary = {
+  id: string;
+  name: string;
+  updated: string;
+  description?: string;
+  artifactId?: string;
+  nodes: number;
+  edges: number;
+  damaged?: true;
+};
 export type StoredModel = { ok: true; model: Model } | { ok: false; error: string };
 
 export interface ModelStore {
@@ -15,25 +24,37 @@ export interface ModelStore {
   remove(id: string): Promise<void>;
 }
 
-type Row = { id: string; name: string; updated: string; json: string };
+/** A stored row: the serialized model, plus its summary so listing never parses every model. */
+type Row = { id: string; name: string; updated: string; json: string; description?: string; artifactId?: string; nodes?: number; edges?: number };
 
-function summary(r: Row): ModelSummary {
+/** The Model menu's summary of a row; rows saved before the summary fields existed are read from their JSON. */
+export function summary(r: Row): ModelSummary {
   const base = { id: r.id, name: r.name, updated: r.updated };
+  const details = (d?: string, a?: string) => ({ ...(d?.trim() ? { description: d.trim() } : {}), ...(a?.trim() ? { artifactId: a.trim() } : {}) });
+  if (typeof r.nodes === "number" && typeof r.edges === "number") return { ...base, ...details(r.description, r.artifactId), nodes: r.nodes, edges: r.edges };
   try {
     const m = JSON.parse(r.json) as Partial<Model>;
     return {
       ...base,
-      ...(typeof m.description === "string" && m.description ? { description: m.description } : {}),
-      ...(typeof m.artifactId === "string" && m.artifactId ? { artifactId: m.artifactId } : {}),
+      ...details(typeof m.description === "string" ? m.description : undefined, typeof m.artifactId === "string" ? m.artifactId : undefined),
       nodes: Array.isArray(m.nodes) ? m.nodes.length : 0,
       edges: Array.isArray(m.edges) ? m.edges.length : 0,
     };
   } catch {
-    return { ...base, nodes: 0, edges: 0 };
+    return { ...base, nodes: 0, edges: 0, damaged: true };
   }
 }
 const byUpdatedDesc = (a: ModelSummary, b: ModelSummary) => b.updated.localeCompare(a.updated);
-const toRow = (m: Model): Row => ({ id: m.id, name: m.name, updated: m.updated, json: serializeModel(m) });
+export const toRow = (m: Model): Row => ({
+  id: m.id,
+  name: m.name,
+  updated: m.updated,
+  json: serializeModel(m),
+  ...(m.description ? { description: m.description } : {}),
+  ...(m.artifactId ? { artifactId: m.artifactId } : {}),
+  nodes: m.nodes.length,
+  edges: m.edges.length,
+});
 
 function fromRow(row: Row): StoredModel {
   let data: unknown;

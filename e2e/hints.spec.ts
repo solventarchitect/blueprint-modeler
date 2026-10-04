@@ -16,7 +16,7 @@ test.describe("examples and hints (desktop)", () => {
     await expect(page.locator(".react-flow__node")).not.toHaveCount(0);
     await expect(page.getByRole("tab", { name: "Hints (0)" })).toBeVisible();
     await page.reload();
-    await expect(modelButton(page)).toHaveAttribute("data-current", /.+/);
+    await expect(modelButton(page)).toHaveAttribute("data-current", /^(?!placeholder$).+/);
     await expect(page.locator(".react-flow__node")).not.toHaveCount(0);
   });
 

@@ -56,6 +56,10 @@ export function CanvasTitle({
   if (boxes.length === 0) return null;
   const left = Math.min(...boxes.map((b) => b.x));
   const top = Math.min(...boxes.map((b) => b.y));
+  // The description wraps at the diagram's width (at least 480 units, at most 680), so it never
+  // reaches far past the elements a fit makes room for.
+  const right = Math.max(...boxes.map((b) => b.x + b.w));
+  const aboutWidth = Math.min(680, Math.max(480, right - left));
   const scale = Math.max(1, MIN_ON_SCREEN / (SIZE * zoom));
   const bottom = top - (GAP + (tabsAbove ? TAB : 0)) / zoom;
   const Tag = decorative ? "p" : "h1";
@@ -80,7 +84,7 @@ export function CanvasTitle({
             {name || UNTITLED_MODEL}
           </Tag>
           {description && (
-            <p data-testid="canvas-description" className="mt-2 line-clamp-3 text-ink-soft" style={{ fontSize: 16, lineHeight: 1.45, width: "max-content", maxWidth: 680 }}>
+            <p data-testid="canvas-description" className="mt-2 line-clamp-3 text-ink-soft" style={{ fontSize: 16, lineHeight: 1.45, width: "max-content", maxWidth: aboutWidth }}>
               {description}
             </p>
           )}

@@ -1,5 +1,5 @@
 import { acceptedTypes, allowedTypes, classById, relationshipsBetween, type ClassId, type Layer } from "@/metamodel";
-import { edgeKey, type Edge, type Model, type Node } from "@/model";
+import { edgeKey, withDetails, type Edge, type Model, type Node } from "@/model";
 
 /**
  * Editor state: the model plus undo/redo history. Pure functions only, so every rule the
@@ -97,12 +97,8 @@ function apply(model: Model, action: Action): Model | null {
     case "rename-model":
       return action.name === model.name ? null : { ...model, name: action.name };
     case "model-details": {
-      const description = (action.description ?? model.description ?? "").trim();
-      const artifactId = (action.artifactId ?? model.artifactId ?? "").trim();
-      if (description === (model.description ?? "") && artifactId === (model.artifactId ?? "")) return null;
-      // Rebuilt in file order, so the details sit right after the name in an exported file.
-      const { schema, id, name, created, updated, nodes, edges, layout } = model;
-      return { schema, id, name, ...(description ? { description } : {}), ...(artifactId ? { artifactId } : {}), created, updated, nodes, edges, layout };
+      const next = withDetails(model, { description: action.description ?? model.description, artifactId: action.artifactId ?? model.artifactId });
+      return next.description === model.description && next.artifactId === model.artifactId ? null : next;
     }
     case "add-node": {
       if (model.nodes.some((n) => n.id === action.id)) return null;

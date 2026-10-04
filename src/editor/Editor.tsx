@@ -981,6 +981,9 @@ function EditorInner() {
         <div role="region" aria-label="Presentation" className="flex flex-wrap items-center gap-2 border-b border-border px-4 py-2">
           <p className="font-mono text-xs tracking-[0.14em] text-accent uppercase">Presenting</p>
           <h1 className="text-sm font-medium">{model.name || UNTITLED_MODEL}</h1>
+          {/* The canvas title block is hidden from screen readers while presenting; its details are read here. */}
+          {model.artifactId && <p className="sr-only">Artifact ID {model.artifactId}</p>}
+          {model.description && <p className="sr-only">{model.description}</p>}
           <p className="text-sm text-ink-muted" aria-live="polite" data-testid="present-step">
             {steps[step]?.name} · {step + 1} of {steps.length}
           </p>
@@ -997,7 +1000,7 @@ function EditorInner() {
           </span>
         </div>
       )}
-      {/* relative: the Examples panel spans the toolbar. */}
+      {/* relative: the Model and Examples panels span the toolbar. */}
       <div className={`relative flex flex-wrap items-center gap-2 border-b border-border px-4 py-2 ${presenting ? "hidden" : ""}`}>
         <div role="group" aria-label="Model" className={toolbarGroup}>
         <span className={groupCaption} aria-hidden="true">
@@ -1280,14 +1283,14 @@ function EditorInner() {
               snapToGrid={view.snap}
               snapGrid={[16, 16]}
               fitView
-              fitViewOptions={{ maxZoom: 1, padding: fitPadding(0.15) }}
+              fitViewOptions={{ maxZoom: 1, padding: { x: 0.15, bottom: 0.15, top: `${titleRoom(model)}px` } }}
               minZoom={0.2}
             >
               <NotationMarkers />
               <NotationLegend types={legendTypes} />
               <Background id="minor" variant={BackgroundVariant.Lines} gap={32} color="var(--canvas-grid)" />
               <Background id="major" variant={BackgroundVariant.Lines} gap={160} color="var(--canvas-grid-major)" />
-              {!presenting && <Controls showInteractive={false} fitViewOptions={{ maxZoom: 1, padding: fitPadding(0.15) }} />}
+              {!presenting && <Controls showInteractive={false} fitViewOptions={{ maxZoom: 1, padding: { x: 0.15, bottom: 0.15, top: `${titleRoom(model)}px` } }} />}
               <LayerOverlay boxes={boxes} lanes={lanes} showBoxes={view.boxes || presenting} showLanes={view.lanes} handlers={canMenu ? layerHandlers : undefined} />
               <CanvasTitle name={model.name} description={model.description} artifactId={model.artifactId} boxes={boxes} tabsAbove={view.boxes && !view.lanes && canMenu} decorative={presenting} />
             </ReactFlow>

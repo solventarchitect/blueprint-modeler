@@ -43,7 +43,7 @@ test.describe("import, export and layout (desktop)", () => {
 
   test("an invalid file is refused with a readable error and changes nothing", async ({ page }) => {
     await openExample(page, "HR Self-Service Portal");
-    const before = await Number(await modelButton(page).getAttribute("data-count"));
+    const before = Number(await modelButton(page).getAttribute("data-count"));
     await page.getByTestId("import-file").setInputFiles({ name: "notes.json", mimeType: "application/json", buffer: Buffer.from('{"hello":1}') });
     const alert = page.getByRole("alert").filter({ hasText: "Could not import" });
     await expect(alert).toContainText("Could not import “notes.json”");
