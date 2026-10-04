@@ -1,7 +1,7 @@
 import { expect, test, type Page } from "@playwright/test";
 import { contrastOf } from "./contrast";
 import { exampleNames, openExample } from "./examples";
-import { autoLayout } from "./layout";
+import { autoLayout, settled } from "./layout";
 import { currentModel } from "./model-menu";
 
 const openCheckout = async (page: Page) => {
@@ -86,6 +86,9 @@ test.describe("edge labels (desktop)", () => {
       await openExample(page, name);
       await expect(page.locator(".react-flow__edge-text").first()).toBeVisible();
       await expect.poll(overlaps, { message: `example ${i}` }).toEqual([]);
+      // Let the example's fit land before zooming: a Zoom In during the fit's animation stops it
+      // part way, far out, where the constant-size tabs cover whole short edges.
+      await settled(page);
       await page.getByRole("button", { name: "Zoom In" }).click();
       await expect.poll(overlaps, { message: `example ${i}, zoomed in` }).toEqual([]);
       // Zoomed far out, a tab (constant on-screen size) can cover a whole short edge; labels are

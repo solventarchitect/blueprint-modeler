@@ -14,9 +14,16 @@ export type BlastView = {
   edges: Map<string, { current: boolean; forward: boolean }>;
 };
 
+/**
+ * `blast`: a blast radius (impact or dependencies). `flow`: a data flow from a Business Capability or
+ * Business Process, the same walk as its dependencies, shown as data traveling toward each element
+ * it reaches.
+ */
+export type BlastKind = "blast" | "flow";
+
 const clamp = (r: BlastRadius, k: number) => Math.max(0, Math.min(k, r.steps.length - 1));
 
-export function blastView(model: Model, r: BlastRadius, step: number): BlastView {
+export function blastView(model: Model, r: BlastRadius, step: number, kind: BlastKind = "blast"): BlastView {
   const view: BlastView = { nodes: new Map(), edges: new Map() };
   if (!r.steps.length) return view;
   const k = clamp(r, step);
@@ -26,7 +33,9 @@ export function blastView(model: Model, r: BlastRadius, step: number): BlastView
     for (const id of s.nodeIds) view.nodes.set(id, { hop: s.hop, current });
     for (const id of s.edgeIds) {
       const towardReached = s.nodeIds.includes(to.get(id) ?? "");
-      view.edges.set(id, { current, forward: r.direction === "impact" ? towardReached : !towardReached });
+      // Impact belongs to the relationship (toward the dependent); data travels with the walk.
+      const forward = kind === "flow" ? towardReached : r.direction === "impact" ? towardReached : !towardReached;
+      view.edges.set(id, { current, forward });
     }
   }
   return view;
@@ -66,4 +75,28 @@ export function blastSteps(r: BlastRadius, nameOf: (id: string) => string): { ho
     label: s.hop === 0 ? (r.direction === "impact" ? "Failed" : "Start") : `Hop ${s.hop}`,
     names: s.nodeIds.map(nameOf),
   }));
+}
+
+/** "Step 2 of 3 · 5 of 8 reached" — the data flow strip's progress line. */
+export function flowProgress(r: BlastRadius, step: number): string {
+  const k = clamp(r, step);
+  const where = k === 0 ? "Source" : `Step ${k} of ${hops(r)}`;
+  if (r.reached === 0) return `${where} · nothing reached`;
+  const sofar = r.steps.slice(1, k + 1).reduce((n, s) => n + s.nodeIds.length, 0);
+  return `${where} · ${sofar} of ${r.reached} reached`;
+}
+
+/** What a screen reader hears at each step of a data flow. */
+export function flowAnnouncement(r: BlastRadius, step: number, nameOf: (id: string) => string): string {
+  const k = clamp(r, step);
+  const start = nameOf(r.start);
+  if (k > 0) return `Step ${k}: data reaches ${r.steps[k]!.nodeIds.map(nameOf).join(", ")}.`;
+  if (r.reached === 0) return `Data flow: nothing follows from ${start}. No relationship carries data from it.`;
+  const limit = r.truncated ? " (stopped at the step limit)" : "";
+  return `Data flow: from ${start}, data reaches ${plural(r.reached, "element")} in ${plural(hops(r), "step")}${limit}.`;
+}
+
+/** Every step of a data flow with the names it reached, for the step list. */
+export function flowSteps(r: BlastRadius, nameOf: (id: string) => string): { hop: number; label: string; names: string[] }[] {
+  return r.steps.map((s) => ({ hop: s.hop, label: s.hop === 0 ? "Source" : `Step ${s.hop}`, names: s.nodeIds.map(nameOf) }));
 }

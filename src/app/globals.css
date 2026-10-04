@@ -239,6 +239,10 @@
   stroke: var(--status);
   stroke-width: 2.5;
 }
+/* A data flow (M41): the same motion in the flow color, running the way the data travels. */
+.react-flow__edge.blast.flow .react-flow__edge-path {
+  stroke: var(--ai);
+}
 .react-flow__edge.blast-now .react-flow__edge-path {
   stroke-width: 3;
   stroke-dasharray: 10 6;

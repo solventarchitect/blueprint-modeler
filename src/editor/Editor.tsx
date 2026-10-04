@@ -45,14 +45,14 @@ import { distributeEvenly } from "@/layout/distribute";
 import { autoLayout, DEFAULT_SIZE, fillSpace, type LayoutMode } from "@/layout/layout";
 import { createWorkerEngine } from "@/layout/worker-engine";
 import { classById, classes, isClassId, type ClassId, type Layer } from "@/metamodel";
-import { blastRadius, evaluateHints, formatModelDate, modelDate, UNTITLED_MODEL, type BlastDirection, type HintResult, type Model } from "@/model";
+import { blastRadius, evaluateHints, formatModelDate, isBusinessAnchor as isAnchor, modelDate, UNTITLED_MODEL, type BlastDirection, type HintResult, type Model } from "@/model";
 import { site } from "@/lib/site";
 import { ClassNode, SuggestContext, type ClassFlowNode } from "./ClassNode";
 import { ConnectionLine, ConnectionModelContext } from "./ConnectionLine";
 import { ExportMenu, type ExportKind } from "./ExportMenu";
 import { ExamplesMenu } from "./ExamplesMenu";
 import { ContextMenu, type MenuItem } from "./ContextMenu";
-import { blastAnnouncement, blastProgress, blastSteps, blastView } from "./blast";
+import { blastAnnouncement, blastProgress, blastSteps, blastView, flowAnnouncement, flowProgress, flowSteps, type BlastKind } from "./blast";
 import { blastFrames, GIF_MAX_SIDE, gifScale } from "./blastGif";
 import { renderGif } from "@/io/gif/render";
 import { CanvasEdge, LabelObstacles } from "./CanvasEdge";
@@ -235,11 +235,14 @@ function EditorInner() {
   );
 
   // Blast radius: view-only. The radius follows the model, so an edit while it is open updates it.
-  const [blast, setBlast] = useState<{ start: string; direction: BlastDirection; step: number; playing: boolean } | null>(null);
+  const [blast, setBlast] = useState<{ start: string; direction: BlastDirection; kind: BlastKind; step: number; playing: boolean } | null>(null);
   const blastReturn = useRef<HTMLElement | null>(null);
   const playButton = useRef<HTMLButtonElement>(null);
   const radius = useMemo(() => (blast ? blastRadius(model, blast.start, blast.direction) : null), [model, blast?.start, blast?.direction]); // eslint-disable-line react-hooks/exhaustive-deps -- step and playing do not change the radius
-  const blastShown = useMemo(() => (blast && radius ? blastView(model, radius, blast.step) : null), [model, radius, blast]);
+  const blastShown = useMemo(() => (blast && radius ? blastView(model, radius, blast.step, blast.kind) : null), [model, radius, blast]);
+  const isFlow = blast?.kind === "flow";
+  // The words for the open view: a blast radius speaks of hops and impact, a data flow of steps and data.
+  const words = (kind: BlastKind) => (kind === "flow" ? { progress: flowProgress, announce: flowAnnouncement, steps: flowSteps } : { progress: blastProgress, announce: blastAnnouncement, steps: blastSteps });
 
   // A focused hint that no longer applies (fixed, undone, model switched) stops highlighting.
   useEffect(() => {
@@ -284,6 +287,7 @@ function EditorInner() {
   const blastLabel = (id: string) => {
     const b = blastShown?.nodes.get(id);
     if (!b || !blast) return "";
+    if (isFlow) return b.hop === 0 ? " (source of the data flow)" : ` (data reaches it at step ${b.hop})`;
     const impact = blast.direction === "impact";
     if (b.hop === 0) return impact ? " (failed: start of the blast radius)" : " (start of the dependencies view)";
     return impact ? ` (affected at hop ${b.hop})` : ` (needed at hop ${b.hop})`;
@@ -302,7 +306,7 @@ function EditorInner() {
           hint: blastShown ? undefined : hintLevel.get(n.id),
           highlight: !blastShown && highlighted.has(n.id),
           neighbor: !blastShown && neighbors.has(n.id),
-          blast: blastShown?.nodes.has(n.id) ? { ...blastShown.nodes.get(n.id)!, impact: blast!.direction === "impact" } : undefined,
+          blast: blastShown?.nodes.has(n.id) ? { ...blastShown.nodes.get(n.id)!, impact: blast!.direction === "impact", flow: isFlow } : undefined,
           description: n.attrs?.description,
           alt: showsArchimate(lens) && isClassId(n.class) ? { type: archimateElements[n.class].type, label: archimateElements[n.class].label, layer: archimateElements[n.class].layer } : undefined,
           archimateOnly: lens === "archimate-only",
@@ -345,7 +349,7 @@ function EditorInner() {
           targetHandle,
           label: am ? am.type : e.type.startsWith("reference:") ? "reference" : e.type.split("::")[0],
           className: carried
-            ? `blast${carried.current ? " blast-now" : ""}${carried.forward ? "" : " blast-reverse"}`
+            ? `blast${isFlow ? " flow" : ""}${carried.current ? " blast-now" : ""}${carried.forward ? "" : " blast-reverse"}`
             : hinted
               ? "hinted"
               : connected
@@ -368,10 +372,10 @@ function EditorInner() {
                   markerUnits: "userSpaceOnUse",
                 },
               }),
-          ariaLabel: `${e.type} from ${model.nodes.find((n) => n.id === e.from)?.name} to ${model.nodes.find((n) => n.id === e.to)?.name}${carried ? " (carries impact)" : ""}`,
+          ariaLabel: `${e.type} from ${model.nodes.find((n) => n.id === e.from)?.name} to ${model.nodes.find((n) => n.id === e.to)?.name}${carried ? (isFlow ? " (carries data)" : " (carries impact)") : ""}`,
         };
       }),
-    [model, hintedEdges, selectedId, lens, blastShown, columns],
+    [model, hintedEdges, selectedId, lens, blastShown, columns, isFlow],
   );
 
   const onNodesChange = useCallback(
@@ -569,8 +573,8 @@ function EditorInner() {
   useEffect(() => () => gifAbort.current?.abort(), []);
   const exportBlastGif = async () => {
     if (!blast || !radius || !radius.steps.length || makingGif) return;
-    const frames = blastFrames(model, radius, viewedTheme(), lens);
-    const filename = `${fileBase(model)}-blast-radius.gif`;
+    const frames = blastFrames(model, radius, viewedTheme(), lens, blast.kind);
+    const filename = `${fileBase(model)}-${isFlow ? "data-flow" : "blast-radius"}.gif`;
     const count = `${frames.svgs.length} frame${frames.svgs.length === 1 ? "" : "s"}`;
     setMakingGif(true);
     // Pause the playing view: its hop announcements would replace the export's result on the status line.
@@ -591,7 +595,7 @@ function EditorInner() {
   };
 
   const exportAs = (kind: ExportKind) => {
-    if (kind === "blast-gif") {
+    if (kind === "blast-gif" || kind === "flow-gif") {
       void exportBlastGif();
     } else if (kind === "json") {
       const f = exportJson(model);
@@ -799,6 +803,7 @@ function EditorInner() {
       },
       { kind: "item", label: count ? `Show hints (${count})` : "No hints", disabled: count === 0, onSelect: () => (setSelectedId(id), setTab("hints")) },
       { kind: "item", label: "Show blast radius", onSelect: () => openBlast(id, menuReturn.current) },
+      ...(isAnchor(n.class) ? [{ kind: "item" as const, label: "Show data flow", onSelect: () => openBlast(id, menuReturn.current, "dependencies", true, "flow") }] : []),
       ...(layer && (view.boxes || view.lanes)
         ? [{ kind: "item" as const, label: `Select the ${layerName(layer)} layer`, onSelect: () => (setSelectedLayer(layer), focusLayerHandle(layer)) }]
         : []),
@@ -896,15 +901,15 @@ function EditorInner() {
 
   // Blast radius: the start element, then each hop it reaches, played or stepped by hand.
   const nameOf = (id: string) => model.nodes.find((n) => n.id === id)?.name || "Untitled";
-  const openBlast = (id: string, returnTo: HTMLElement | null, direction: BlastDirection = "impact", moveFocus = true) => {
+  const openBlast = (id: string, returnTo: HTMLElement | null, direction: BlastDirection = "impact", moveFocus = true, kind: BlastKind = "blast") => {
     const r = blastRadius(model, id, direction);
     // Reduced motion: no playing; the whole radius at once.
     const still = prefersStill();
     blastReturn.current = returnTo;
     setActiveHint(null);
     setReadEdgeId(null);
-    setBlast({ start: id, direction, step: still ? r.steps.length - 1 : 0, playing: !still && r.steps.length > 1 });
-    setMessage(blastAnnouncement(r, 0, nameOf));
+    setBlast({ start: id, direction, kind, step: still ? r.steps.length - 1 : 0, playing: !still && r.steps.length > 1 });
+    setMessage(words(kind).announce(r, 0, nameOf));
     const ids = r.steps.flatMap((st) => st.nodeIds);
     void flow.fitView({ nodes: ids.map((n) => ({ id: n })), padding: 0.3, maxZoom: 1, duration: still ? 0 : 300 });
     if (moveFocus) setTimeout(() => playButton.current?.focus(), 0);
@@ -913,15 +918,15 @@ function EditorInner() {
     if (!blast || !radius) return;
     const k = Math.max(0, Math.min(step, radius.steps.length - 1));
     setBlast({ ...blast, step: k, playing });
-    setMessage(blastAnnouncement(radius, k, nameOf));
+    setMessage(words(blast.kind).announce(radius, k, nameOf));
   };
   const closeBlast = useCallback(() => {
     setBlast(null);
-    setMessage("Blast radius closed.");
+    setMessage(isFlow ? "Data flow closed." : "Blast radius closed.");
     const el = blastReturn.current;
     blastReturn.current = null;
     if (el?.isConnected) setTimeout(() => el.focus(), 0);
-  }, []);
+  }, [isFlow]);
   // Auto-play: one hop every BLAST_STEP_MS, stopping on the last.
   useEffect(() => {
     if (!blast?.playing || !radius) return;
@@ -932,7 +937,7 @@ function EditorInner() {
     }
     const t = setTimeout(() => {
       setBlast({ ...blast, step: blast.step + 1 });
-      setMessage(blastAnnouncement(radius, blast.step + 1, nameOf));
+      setMessage(words(blast.kind).announce(radius, blast.step + 1, nameOf));
     }, BLAST_STEP_MS);
     return () => clearTimeout(t);
   }, [blast, radius]); // eslint-disable-line react-hooks/exhaustive-deps -- nameOf reads the same model as radius
@@ -948,7 +953,7 @@ function EditorInner() {
   useEffect(() => {
     if (blast && radius && blast.step > radius.steps.length - 1) {
       setBlast({ ...blast, step: radius.steps.length - 1, playing: false });
-      setMessage(blastAnnouncement(radius, radius.steps.length - 1, nameOf));
+      setMessage(words(blast.kind).announce(radius, radius.steps.length - 1, nameOf));
     }
   }, [blast, radius]); // eslint-disable-line react-hooks/exhaustive-deps -- nameOf reads the same model as radius
   // Escape closes it, unless a menu, dialog or text field has the key.
@@ -1140,11 +1145,16 @@ function EditorInner() {
             drawio: lucidFitNote(lucidFit(model)),
             "blast-gif": makingGif
               ? "Making the GIF…"
-              : blast && radius
+              : blast && radius && !isFlow
                 ? `${radius.steps.length} frame${radius.steps.length === 1 ? "" : "s"}, up to ${GIF_MAX_SIDE} px, in the theme you are viewing`
                 : "Show a blast radius first: right-click an element",
+            "flow-gif": makingGif
+              ? "Making the GIF…"
+              : blast && radius && isFlow
+                ? `${radius.steps.length} frame${radius.steps.length === 1 ? "" : "s"}, up to ${GIF_MAX_SIDE} px, in the theme you are viewing`
+                : "Show a data flow first: right-click a Business Capability or Business Process",
           }}
-          disabled={{ "blast-gif": !blast || !radius || makingGif }}
+          disabled={{ "blast-gif": !blast || !radius || isFlow || makingGif, "flow-gif": !blast || !radius || !isFlow || makingGif }}
         />
         </div>
         <span className={toolbarDivider} aria-hidden="true" />
@@ -1212,10 +1222,13 @@ function EditorInner() {
       )}
 
       {blast && radius && !presenting && (
-        <div role="region" aria-label="Blast radius" className="flex flex-col gap-1.5 border-b border-border px-4 py-2">
+        <div role="region" aria-label={isFlow ? "Data flow" : "Blast radius"} className="flex flex-col gap-1.5 border-b border-border px-4 py-2">
           <div className="flex flex-wrap items-center gap-2">
-            <p className="font-mono text-xs tracking-[0.14em] text-status uppercase">Blast radius</p>
-            <h2 className="text-sm font-medium">{blast.direction === "impact" ? `If ${nameOf(blast.start)} fails` : `What ${nameOf(blast.start)} needs`}</h2>
+            <p className={`font-mono text-xs tracking-[0.14em] uppercase ${isFlow ? "text-ai" : "text-status"}`}>{isFlow ? "Data flow" : "Blast radius"}</p>
+            <h2 className="text-sm font-medium">
+              {isFlow ? `Data flow from ${nameOf(blast.start)}` : blast.direction === "impact" ? `If ${nameOf(blast.start)} fails` : `What ${nameOf(blast.start)} needs`}
+            </h2>
+            {!isFlow && (
             <div role="group" aria-label="Direction" className="inline-flex">
               {(["impact", "dependencies"] as const).map((d, i) => (
                 <button
@@ -1229,8 +1242,9 @@ function EditorInner() {
                 </button>
               ))}
             </div>
+            )}
             <p className="text-sm text-ink-muted" data-testid="blast-progress">
-              {blastProgress(radius, blast.step)}
+              {words(blast.kind).progress(radius, blast.step)}
             </p>
             <span className="ml-auto flex flex-wrap gap-2">
               <button type="button" className={stepButton} aria-label="Previous step" aria-disabled={blast.step === 0} onClick={() => blast.step > 0 && blastTo(blast.step - 1)}>
@@ -1266,19 +1280,19 @@ function EditorInner() {
           <details className="text-sm">
             <summary className="inline-flex min-h-6 cursor-pointer items-center text-ink-muted hover:text-ink">Steps ({radius.steps.length})</summary>
             <ol aria-label="Steps" className="mt-1 flex max-h-40 flex-col gap-0.5 overflow-y-auto">
-              {blastSteps(radius, nameOf).map((st) => (
+              {words(blast.kind).steps(radius, nameOf).map((st) => (
                 <li key={st.hop} className={st.hop === blast.step ? "font-medium text-ink" : "text-ink-soft"} aria-current={st.hop === blast.step ? "step" : undefined}>
                   <span className="font-mono text-xs text-ink-muted">{st.label}:</span> {st.names.join(", ")}
                 </li>
               ))}
             </ol>
-            {radius.truncated && <p className="mt-1 text-xs text-ink-muted">Stopped after {radius.steps.length - 1} hops; more elements lie beyond.</p>}
+            {radius.truncated && <p className="mt-1 text-xs text-ink-muted">Stopped after {radius.steps.length - 1} {isFlow ? "steps" : "hops"}; more elements lie beyond.</p>}
             <p className="mt-1 text-xs text-ink-muted">
               Follows the impact rules in the{" "}
               <Link className="text-accent underline underline-offset-4" href="/guide#impact">
                 guide
               </Link>
-              . Not ServiceNow&apos;s Impacted Services calculation.
+              {isFlow ? ", read as dependencies" : ""}. Not ServiceNow&apos;s Impacted Services calculation.
             </p>
           </details>
         </div>
@@ -1451,6 +1465,7 @@ function EditorInner() {
                   suggestions={selectedId ? suggestions(model, selectedId) : []}
                   onSuggest={(s) => selectedId && pickSuggestion(selectedId, s)}
                   onBlast={(from) => selectedId && openBlast(selectedId, from)}
+                  onFlow={selected && isAnchor(selected.class) ? (from) => selectedId && openBlast(selectedId, from, "dependencies", true, "flow") : undefined}
                 />
               ) : tab === "read" ? (
                 <ReadPanel reading={reading} activeEdgeId={readEdge?.id ?? null} onFocus={focusRead} scopeName={selected?.name} />
