@@ -37,7 +37,7 @@ export default function GuidePage() {
       <h1 className="mt-4 text-3xl font-semibold tracking-tight sm:text-4xl">Class guide</h1>
       <p className="mt-4 max-w-2xl text-ink-soft">
         Every class, relationship and hint the modeler knows, written in our own words from ServiceNow&apos;s public
-        material: the CSDM white paper, and the product documentation for the Kubernetes classes. Each entry links to its source so you can check it.
+        material: the CSDM white paper, and the product documentation for the Kubernetes, virtualization and security classes. Each entry links to its source so you can check it.
       </p>
       <nav aria-label="On this page" className="mt-6 flex flex-wrap gap-x-5 gap-y-2 text-sm">
         <a className="text-accent underline underline-offset-4" href="#classes">Classes</a>
@@ -52,7 +52,7 @@ export default function GuidePage() {
         <p className="mt-2 max-w-2xl text-sm text-ink-muted">
           Grouped by the lane they sit in on the canvas, top to bottom. Lanes are a drawing aid, not CSDM domains: the white
           paper organizes CSDM 5 into seven domains (p. 14). Classes marked CMDB come from ServiceNow&apos;s product
-          documentation rather than the white paper. Classes marked Extended (strategy, value streams, SDLC, product models and AI) appear in the
+          documentation rather than the white paper. Classes marked Extended (strategy, value streams, SDLC, product models, AI, virtualization and security) appear in the
           palette when you turn on View › Extended classes.
         </p>
         {layerOrder.map((layer) => {

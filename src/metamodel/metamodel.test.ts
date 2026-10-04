@@ -1,5 +1,8 @@
 import { describe, expect, it } from "vitest";
-import { acceptedTypes, allowedTypes, classes, hints, isClassId, relationships, sources } from "./index";
+import { acceptedTypes, allowedTypes, classes, hints, isClassId, isCsdmCore, relationships, sources } from "./index";
+
+const VIRTUALIZATION = ["vcenter_instance", "vcenter_datacenter", "vcenter_cluster", "esx_server", "vmware_instance", "vcenter_datastore"];
+const SECURITY = ["firewall_device", "firewall_cluster", "load_balancer", "vpn", "certificate", "ad_controller"];
 
 const SN_HOST = /(^|\.)servicenow\.com$/;
 
@@ -23,10 +26,31 @@ describe("classes", () => {
     for (const c of classes) if ("table" in c) expect(c.table, c.id).toMatch(/^(cmdb_ci_[a-z_]+|service_offering|cmdb_model|cmn_[a-z_]+|sn_[a-z_]+)$/);
   });
 
-  it("keeps the extended group to CSDM 5 classes, each citing the white paper", () => {
+  it("keeps the extended group to CSDM 5 classes from the white paper, then CMDB virtualization and security classes from ServiceNow product documentation", () => {
     const ext = classes.filter((c) => "extended" in c && c.extended);
-    expect(ext.map((c) => c.id)).toEqual(["strategic_priority", "goal", "target", "product_idea", "planning_item", "value_stream", "value_stream_stage", "sdlc_component", "product_model", "ai_application", "ai_function"]);
-    for (const c of ext) expect(c.source, c.id).toMatchObject({ id: "whitepaper" });
+    const csdm = ["strategic_priority", "goal", "target", "product_idea", "planning_item", "value_stream", "value_stream_stage", "sdlc_component", "product_model", "ai_application", "ai_function"];
+    const cmdb = [...VIRTUALIZATION, ...SECURITY];
+    expect(ext.map((c) => c.id)).toEqual([...csdm, ...cmdb]);
+    for (const c of ext) {
+      if (csdm.includes(c.id)) expect(c.source, c.id).toMatchObject({ id: "whitepaper" });
+      else expect(isCsdmCore(c), c.id).toBe(false);
+    }
+  });
+
+  it("label the CMDB classes and tables as ServiceNow's documentation does", () => {
+    const of = (id: string) => classes.find((c) => c.id === id);
+    expect(of("vcenter_instance")).toMatchObject({ label: "VMware vCenter Instance", table: "cmdb_ci_vcenter" });
+    expect(of("vcenter_datacenter")).toMatchObject({ label: "VMware vCenter Datacenter", table: "cmdb_ci_vcenter_datacenter" });
+    expect(of("vcenter_cluster")).toMatchObject({ label: "VMware vCenter Cluster", table: "cmdb_ci_vcenter_cluster" });
+    expect(of("esx_server")).toMatchObject({ label: "ESX Server", table: "cmdb_ci_esx_server" });
+    expect(of("vmware_instance")).toMatchObject({ label: "VMware Virtual Machine Instance", table: "cmdb_ci_vmware_instance" });
+    expect(of("vcenter_datastore")).toMatchObject({ label: "VMware vCenter Datastore", table: "cmdb_ci_vcenter_datastore" });
+    expect(of("firewall_device")).toMatchObject({ label: "Firewall Device", table: "cmdb_ci_firewall_device" });
+    expect(of("firewall_cluster")).toMatchObject({ label: "Firewall Cluster", table: "cmdb_ci_firewall_cluster" });
+    expect(of("load_balancer")).toMatchObject({ label: "Load Balancer", table: "cmdb_ci_lb" });
+    expect(of("vpn")).toMatchObject({ label: "Virtual Private Network", table: "cmdb_ci_vpn" });
+    expect(of("certificate")).toMatchObject({ label: "Unique Certificate", table: "cmdb_ci_certificate" });
+    expect(of("ad_controller")).toMatchObject({ label: "Active Directory Domain Controller", table: "cmdb_ci_ad_controller" });
   });
 });
 
@@ -118,6 +142,51 @@ describe("Kubernetes", () => {
     for (const r of relationships.filter((r) => r.from.startsWith("kubernetes_") || r.to.startsWith("kubernetes_"))) {
       if (r.from !== "application_service") expect(r.typeEvidence, `${r.from}->${r.to}`).toBe("reported");
     }
+  });
+});
+
+describe("server virtualization", () => {
+  it("uses the relationship types the vCenter discovery documentation reports, in its direction", () => {
+    // The guest server (a Host here; ServiceNow's Computer class) is the parent of both links.
+    expect(allowedTypes("host", "vmware_instance")).toEqual(["Instantiates::Instantiated by"]);
+    expect(allowedTypes("host", "esx_server")).toEqual(["Virtualized by::Virtualizes"]);
+    expect(allowedTypes("vmware_instance", "esx_server")).toEqual(["Registered on::Has registered"]);
+    expect(allowedTypes("vcenter_cluster", "esx_server")).toEqual(["Members::Member of"]);
+    for (const to of ["vmware_instance", "esx_server", "vcenter_datastore", "vcenter_cluster"]) expect(allowedTypes("vcenter_datacenter", to), to).toEqual(["Contains::Contained by"]);
+    expect(allowedTypes("vcenter_datastore", "vmware_instance")).toEqual(["Provides storage for::Stored on"]);
+    expect(allowedTypes("vcenter_datastore", "esx_server")).toEqual(["Used by::Uses"]);
+    for (const r of relationships.filter((r) => r.source.id === "vcenterData")) expect(r.typeEvidence, `${r.from}->${r.to}`).toBe("reported");
+    expect(allowedTypes("esx_server", "vmware_instance")).toEqual([]);
+  });
+
+  it("relates vCenter to the host it runs on and the platform's service instance, marked conventional", () => {
+    expect(allowedTypes("vcenter_instance", "host")).toEqual(["Runs on::Runs"]);
+    expect(allowedTypes("application_service", "vcenter_instance")).toEqual(["Depends on::Used by"]);
+    expect(allowedTypes("application_service", "vcenter_cluster")).toEqual(["Depends on::Used by"]);
+    for (const [from, to] of [["vcenter_instance", "host"], ["application_service", "vcenter_instance"], ["application_service", "vcenter_cluster"]]) {
+      expect(relationships.find((r) => r.from === from && r.to === to)!.typeEvidence, `${from}->${to}`).toBe("conventional");
+    }
+  });
+});
+
+describe("security", () => {
+  it("runs a domain controller on its server, as the discovery documentation reports", () => {
+    const r = relationships.find((r) => r.from === "ad_controller" && r.to === "host")!;
+    expect(r).toMatchObject({ types: ["Runs on::Runs"], typeEvidence: "reported", source: { id: "adDiscovery" } });
+  });
+
+  it("lets application and network service instances depend on security infrastructure, marked conventional", () => {
+    for (const to of ["firewall_device", "firewall_cluster", "load_balancer", "vpn", "ad_controller"]) {
+      expect(allowedTypes("application_service", to), to).toEqual(["Depends on::Used by"]);
+      expect(allowedTypes("network_service_instance", to), to).toEqual(["Depends on::Used by"]);
+    }
+    expect(allowedTypes("firewall_cluster", "firewall_device")).toEqual(["Cluster of::Cluster"]);
+    for (const r of relationships.filter((r) => SECURITY.includes(r.to))) expect(r.typeEvidence, `${r.from}->${r.to}`).toBe("conventional");
+  });
+
+  it("relates certificates to the servers, software and devices that use them", () => {
+    for (const from of ["host", "application", "load_balancer", "firewall_device"]) expect(allowedTypes(from, "certificate"), from).toEqual(["Uses::Used by"]);
+    expect(relationships.find((r) => r.from === "host" && r.to === "certificate")!.source).toMatchObject({ id: "certificateTables" });
   });
 });
 

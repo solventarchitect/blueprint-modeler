@@ -13,13 +13,16 @@ test.describe("examples menu", () => {
     await button.click();
     await expect(button).toHaveAttribute("aria-expanded", "true");
     const menu = examplesMenu(page);
-    await expect(menu.getByRole("heading")).toHaveText(["Application architecture", "Reference architecture", "Frameworks and metamodel"]);
+    await expect(menu.getByRole("heading")).toHaveText(["Application architecture", "Security architecture", "ServiceNow platform", "Reference architecture", "Frameworks and metamodel"]);
     const section = (name: string) => menu.getByRole("region", { name });
     await expect(section("Application architecture").getByRole("button")).toHaveText([/^Online store checkout/, /^HR self-service portal/, /^Shared database platform/, /^Enterprise AI assistant/]);
+    await expect(section("Security architecture").getByRole("button")).toHaveText([/^Internet edge and DMZ/, /^Directory and sign-in services/, /^Remote access VPN/]);
+    await expect(section("ServiceNow platform").getByRole("button")).toHaveText([/^ServiceNow service management/, /^ServiceNow instances and MID Servers/, /^ServiceNow integrations/]);
+    await expect(section("Reference architecture").getByRole("button")).toHaveText([/^Storefront on Kubernetes/, /^Server virtualization/, /^Virtual desktops \(VDI\)/]);
     await expect(section("Reference architecture").getByRole("button", { name: "Storefront on Kubernetes" })).toHaveAccessibleDescription(/Containerization/);
     await expect(section("Frameworks and metamodel").getByRole("button")).toHaveCount(2);
     await expect(menu.getByRole("button", { name: "Blank model" })).toBeVisible();
-    expect(await exampleNames(page)).toHaveLength(7);
+    expect(await exampleNames(page)).toHaveLength(15);
   });
 
   test("choosing an example opens it and closes the menu; Blank model opens an empty one", async ({ page }) => {
@@ -99,9 +102,26 @@ test.describe("examples menu", () => {
     await page.goto("/editor");
     await expect(page.getByTestId("save-status")).toHaveText("Saved in this browser");
     const card = page.getByTestId("empty-state");
-    await expect(card.getByRole("heading", { level: 3 })).toHaveText(["Application architecture", "Reference architecture", "Frameworks and metamodel"]);
+    await expect(card.getByRole("heading", { level: 3 })).toHaveText(["Application architecture", "Security architecture", "ServiceNow platform", "Reference architecture", "Frameworks and metamodel"]);
     await card.getByRole("button", { name: /^Storefront on Kubernetes/ }).click();
     await expect(page.getByRole("combobox", { name: "Open model" }).locator("option:checked")).toHaveText("Storefront on Kubernetes");
+  });
+});
+
+test.describe("new examples (desktop)", () => {
+  test.skip(({ isMobile }) => !!isMobile, "editing is desktop-only");
+
+  test("server virtualization opens in the CMDB's VMware classes and shows an ESX Server's blast radius", async ({ page }) => {
+    await page.goto("/editor");
+    await expect(page.getByTestId("save-status")).toHaveText("Saved in this browser");
+    await openExample(page, "Server virtualization");
+    await expect(page.locator(".react-flow__node")).toHaveCount(15);
+    const esx = page.locator(".react-flow__node").filter({ has: page.getByText("esx-01", { exact: true }) });
+    await expect(esx).toContainText("ESX Server");
+    await esx.click({ button: "right" });
+    await page.getByRole("menu", { name: "esx-01 menu" }).getByRole("menuitem", { name: "Show blast radius" }).click();
+    await expect(page.getByRole("region", { name: "Blast radius" })).toContainText("If esx-01 fails");
+    await expect(page.getByRole("region", { name: "Blast radius" })).toContainText("Virtualization platform — production");
   });
 });
 
@@ -118,6 +138,18 @@ for (const width of [320, 768, 1024, 1536]) {
     expect(overflow).toBeLessThanOrEqual(0);
   });
 }
+
+test("the guide lists the virtualization and security classes with their ServiceNow sources", async ({ page }) => {
+  await page.goto("/guide");
+  await expect(page.locator("main").getByText(/product documentation for the Kubernetes, virtualization and security classes/)).toBeVisible();
+  for (const [label, table] of [["ESX Server", "cmdb_ci_esx_server"], ["Firewall Device", "cmdb_ci_firewall_device"], ["Unique Certificate", "cmdb_ci_certificate"]] as const) {
+    const card = page.locator("section[aria-labelledby=classes] li").filter({ has: page.getByText(table, { exact: true }) });
+    await expect(card, label).toContainText(label);
+    await expect(card, label).toContainText("Extended");
+    await expect(card.getByRole("link").first(), label).toHaveAttribute("href", /^https:\/\/www\.servicenow\.com\/docs\//);
+  }
+  await expect(page.getByRole("region", { name: "Relationships table" })).toContainText("Registered on::Has registered");
+});
 
 test("the About page explains the blast radius", async ({ page }) => {
   await page.goto("/about");
