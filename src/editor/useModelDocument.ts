@@ -12,8 +12,11 @@ const EMPTY: History = initialHistory(createModel(UNTITLED_MODEL, new Date(0), "
 /**
  * The open model, its undo history, and autosave to this browser. Loads the most recently
  * updated model (or creates one); every change is written back after a short pause.
+ * `firstModel`, asked once when the browser store has opened, can hand over a model to start with
+ * instead (a deep-linked example): it is saved and opened as the first load, so no empty model is
+ * made beside it. When it returns nothing, or the model cannot be saved, the first load runs as usual.
  */
-export function useModelDocument() {
+export function useModelDocument(firstModel?: () => Model | undefined) {
   const [history, dispatchRaw] = useReducer((s: History, a: Action) => reduce(s, a), EMPTY);
   const [status, setStatus] = useState<SaveStatus>("loading");
   const [models, setModels] = useState<ModelSummary[]>([]);
@@ -25,6 +28,7 @@ export function useModelDocument() {
   const persistent = useRef(true);
   /** The open model's latest change while its autosave pause runs (null once written). */
   const pending = useRef<Model | null>(null);
+  const first = useRef(firstModel);
 
   const refreshList = useCallback(async () => {
     if (store.current) setModels(await store.current.list());
@@ -80,7 +84,17 @@ export function useModelDocument() {
       if (canceled) return;
       store.current = opened.store;
       persistent.current = opened.persistent;
-      await open();
+      const start = first.current?.();
+      let opened1 = false;
+      if (start) {
+        try {
+          await opened.store.put(start);
+          opened1 = await open(start.id);
+        } catch {
+          setProblem("This browser could not save the example, so it was not opened. Choose it from Examples to try again.");
+        }
+      }
+      if (!opened1) await open();
       setStatus(opened.persistent ? "saved" : "memory-only");
       setReady(true);
     });

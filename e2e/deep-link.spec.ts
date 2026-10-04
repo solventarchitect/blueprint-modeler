@@ -1,6 +1,6 @@
 import AxeBuilder from "@axe-core/playwright";
 import { expect, test, type Page } from "@playwright/test";
-import { currentModel, modelButton } from "./model-menu";
+import { currentModel, modelButton, storedModelNames } from "./model-menu";
 import { watchForeignRequests } from "./network";
 
 const tags = ["wcag2a", "wcag2aa", "wcag21aa", "wcag22aa"];
@@ -30,14 +30,16 @@ test.describe("example deep links", () => {
     await expect(page.getByTestId("canvas-title")).toHaveText("Online Store Checkout");
     await expect(page.getByRole("status")).toContainText("Online Store Checkout");
     await expect(page).toHaveURL(cleanEditorUrl);
+    // A first visit opens only the example: no empty model beside it (M43). Wait out a late extra.
     await saved(page);
-    // The model that opened first, and the example.
-    await expect(modelButton(page)).toHaveAttribute("data-count", "2");
+    await page.waitForTimeout(800);
+    await expect(modelButton(page)).toHaveAttribute("data-count", "1");
+    expect(await storedModelNames(page)).toEqual(["Online Store Checkout"]);
 
     const example = await modelButton(page).getAttribute("data-current");
     await page.reload();
     await expect(currentModel(page)).toHaveText("Online Store Checkout");
-    await nothingAdded(page, "2", example);
+    await nothingAdded(page, "1", example);
     expect(foreign).toEqual([]);
   });
 
@@ -45,10 +47,11 @@ test.describe("example deep links", () => {
     await page.goto("/editor?example=hr-portal");
     await expect(currentModel(page)).toHaveText("HR Self-Service Portal");
     await saved(page);
-    await expect(modelButton(page)).toHaveAttribute("data-count", "2");
+    await expect(modelButton(page)).toHaveAttribute("data-count", "1");
     await page.goto("/editor?example=hr-portal");
     await expect(page).toHaveURL(cleanEditorUrl);
-    await expect(modelButton(page)).toHaveAttribute("data-count", "3");
+    await expect(modelButton(page)).toHaveAttribute("data-count", "2");
+    expect(await storedModelNames(page)).toEqual(["HR Self-Service Portal", "HR Self-Service Portal"]);
   });
 
   test("an unknown id opens the editor as usual and says so, with the id shown as text", async ({ page }) => {
@@ -65,15 +68,44 @@ test.describe("example deep links", () => {
     await expect(page).toHaveURL(cleanEditorUrl);
     // The most recent model, and nothing new.
     await expect(currentModel(page)).toHaveText("Online Store Checkout");
-    await nothingAdded(page, "2", example);
+    await nothingAdded(page, "1", example);
     await alert.getByRole("button", { name: "Dismiss" }).click();
     await expect(banner(page)).toHaveCount(0);
+  });
+
+  test("a first visit with an unknown id starts as /editor does: one empty model, and the message", async ({ page }) => {
+    await page.goto("/editor?example=nope");
+    await expect(currentModel(page)).toHaveText("Untitled Model");
+    await nothingAdded(page, "1", null);
+    expect(await storedModelNames(page)).toEqual(["Untitled Model"]);
+    await expect(banner(page)).toContainText("No example named “nope”.");
+    await expect(page).toHaveURL(cleanEditorUrl);
+  });
+
+  test("if the example cannot be saved, the first load runs as usual and says why, once", async ({ page }) => {
+    const errors: string[] = [];
+    page.on("pageerror", (e) => errors.push(e.message));
+    // Refuse to store the example only (the empty model the normal first load makes still saves).
+    await page.addInitScript(() => {
+      const put = IDBObjectStore.prototype.put;
+      IDBObjectStore.prototype.put = function (this: IDBObjectStore, ...args: Parameters<IDBObjectStore["put"]>) {
+        if (JSON.stringify(args[0]).includes("Online Store Checkout")) throw new DOMException("Quota exceeded", "QuotaExceededError");
+        return put.apply(this, args);
+      };
+    });
+    await page.goto("/editor?example=checkout");
+    await expect(currentModel(page)).toHaveText("Untitled Model");
+    await expect(banner(page)).toContainText("could not save the example");
+    await nothingAdded(page, "1", null);
+    await expect(page).toHaveURL(cleanEditorUrl);
+    expect(errors).toEqual([]);
   });
 
   test("an empty ?example= behaves like /editor", async ({ page }) => {
     await page.goto("/editor?example=");
     await expect(currentModel(page)).toHaveText("Untitled Model");
     await nothingAdded(page, "1", null);
+    expect(await storedModelNames(page)).toEqual(["Untitled Model"]);
     await expect(banner(page)).toHaveCount(0);
     // The empty parameter is tidied away too.
     await expect(page).toHaveURL(cleanEditorUrl);
