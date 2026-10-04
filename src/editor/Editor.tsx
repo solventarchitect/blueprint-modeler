@@ -149,7 +149,21 @@ function FitControls({ hasDescription }: { hasDescription: boolean }) {
 }
 
 function EditorInner() {
-  const doc = useModelDocument();
+  // A link to /editor?example=<id> (M42, M43): read once when the browser store opens. The query
+  // comes off the URL first, so a reload, Back or a bookmark cannot add a second copy. A real example
+  // becomes the first load itself (no empty model beside it); the announcement waits for `doc.ready`.
+  const deepLink = useRef<{ link: ReturnType<typeof exampleFromSearch>; modelId?: string } | null>(null);
+  const doc = useModelDocument(() => {
+    const search = window.location.search;
+    if (!new URLSearchParams(search).has(EXAMPLE_PARAM)) return undefined;
+    // `null` state: Next.js's router then takes the new URL as its own (passing the current state
+    // would leave the router holding the old query, which it may write back later).
+    window.history.replaceState(null, "", `${window.location.pathname}${window.location.hash}`);
+    const link = exampleFromSearch(search);
+    const model = link?.example?.create();
+    deepLink.current = { link, modelId: model?.id };
+    return model;
+  });
   const { model, dispatch } = doc;
   const wide = useIsWide();
   const flow = useReactFlow();
@@ -465,33 +479,33 @@ function EditorInner() {
     setMessage(off ? "Relationship no longer highlighted." : sentence.text);
   };
 
+  /** After an example has opened: its lens, the announcement and a fit, as the Examples menu does. */
+  const exampleOpened = (ex: (typeof examples)[number]) => {
+    if (ex.lens) setLens(ex.lens);
+    setMessage(`Opened the example “${ex.name}” as a new model.${ex.lens ? ` Lens: ${lenses.find((l) => l.id === ex.lens)?.label}.` : ""}`);
+    setTimeout(() => void flow.fitView({ maxZoom: 1, padding: fitPadding(0.15) }), 50);
+  };
+
   const loadExample = async (exampleId: string) => {
     const ex = examples.find((e) => e.id === exampleId);
     if (!ex) return;
     setSelectedId(null);
     setActiveHint(null);
     if (!(await doc.createFrom(ex.create()))) return;
-    if (ex.lens) setLens(ex.lens);
-    setMessage(`Opened the example “${ex.name}” as a new model.${ex.lens ? ` Lens: ${lenses.find((l) => l.id === ex.lens)?.label}.` : ""}`);
-    setTimeout(() => void flow.fitView({ maxZoom: 1, padding: fitPadding(0.15) }), 50);
+    exampleOpened(ex);
   };
 
-  // A link to /editor?example=<id> (M42) opens that example once the first load has finished, as
-  // choosing it from Examples does. The query comes off the URL first, so a reload, Back or a
-  // bookmark cannot add a second copy; an unknown id leaves the open model as it is and says so.
+  // Once the first load has finished, say what a deep link did: the example it opened (only when it
+  // really is the open model; a failed save has its own banner), or that no example has that id.
   const deepLinked = useRef(false);
   useEffect(() => {
     if (!doc.ready || deepLinked.current) return;
     deepLinked.current = true;
-    const search = window.location.search;
-    if (!new URLSearchParams(search).has(EXAMPLE_PARAM)) return;
-    // `null` state: Next.js's router then takes the new URL as its own (passing the current state
-    // would leave the router holding the old query, which it may write back later).
-    window.history.replaceState(null, "", `${window.location.pathname}${window.location.hash}`);
-    const link = exampleFromSearch(search);
-    if (!link) return;
-    if (link.example) void loadExample(link.example.id);
-    else setIoError(`No example named “${link.shown}”. Choose one from Examples.`);
+    const d = deepLink.current;
+    if (!d?.link) return;
+    if (d.link.example) {
+      if (doc.model.id === d.modelId) exampleOpened(d.link.example);
+    } else setIoError(`No example named “${d.link.shown}”. Choose one from Examples.`);
   }, [doc.ready]); // eslint-disable-line react-hooks/exhaustive-deps -- runs once, after the first load
 
   // "Blank model" closes the empty-state card for this model and moves focus to the palette.
