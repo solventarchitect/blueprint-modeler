@@ -35,6 +35,24 @@ describe("impact rules", () => {
     expect(impactRule(hosts).dependent).toBe("to");
   });
 
+  it("send impact from failed virtualization infrastructure up to the guest servers and what runs on them", () => {
+    const rule = (from: string, to: string) => impactRule(relationships.find((r) => r.from === from && r.to === to)!).dependent;
+    expect(rule("vmware_instance", "esx_server")).toBe("from"); // a failing ESX Server affects its virtual machines
+    expect(rule("host", "vmware_instance")).toBe("from"); // a failing virtual machine affects its guest server
+    expect(rule("host", "esx_server")).toBe("from");
+    expect(rule("vcenter_cluster", "esx_server")).toBe("from"); // a failing member degrades the cluster
+    expect(rule("vcenter_datastore", "vmware_instance")).toBe("to"); // a failing datastore affects what is stored on it
+    expect(rule("vcenter_datastore", "esx_server")).toBe("to");
+    expect(rule("vcenter_datacenter", "esx_server")).toBe("to");
+  });
+
+  it("send impact from an expired certificate to whatever uses it", () => {
+    const r = relationships.find((r) => r.from === "load_balancer" && r.to === "certificate")!;
+    expect(impactRule(r).dependent).toBe("from");
+    const fw = relationships.find((r) => r.from === "firewall_cluster" && r.to === "firewall_device")!;
+    expect(impactRule(fw).dependent).toBe("from");
+  });
+
   it("do not spread impact through planning, strategy or build-time links", () => {
     const planning = relationships.filter((r) => ["Promoted to", "Aligned to", "Measures", "In service of", "Many-to-many map"].includes(r.types[0]!));
     expect(planning.length).toBeGreaterThan(0);

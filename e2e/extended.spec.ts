@@ -9,10 +9,17 @@ test.describe("extended classes (desktop)", () => {
     const palette = page.getByRole("navigation", { name: "Element palette" });
     await expect(palette.getByRole("button", { name: "Goal", exact: true })).toHaveCount(0);
 
+    await expect(palette.getByRole("button", { name: "ESX Server", exact: true })).toHaveCount(0);
+
     await page.getByRole("button", { name: "View", exact: true }).click();
+    await expect(page.getByRole("button", { name: /^Extended classes/ })).toContainText("virtualization and security");
     await page.getByRole("button", { name: /^Extended classes/ }).click();
     await page.keyboard.press("Escape");
     for (const name of ["Strategic Priority", "Goal", "Target", "Value Stream", "SDLC Component", "Product Model", "AI Application", "AI Function"]) {
+      await expect(palette.getByRole("button", { name, exact: true }), name).toBeVisible();
+    }
+    // CMDB classes from ServiceNow's product documentation, marked as such.
+    for (const name of ["VMware vCenter Cluster", "ESX Server", "VMware Virtual Machine Instance", "Firewall Device", "Load Balancer", "Unique Certificate", "Active Directory Domain Controller"]) {
       await expect(palette.getByRole("button", { name, exact: true }), name).toBeVisible();
     }
 

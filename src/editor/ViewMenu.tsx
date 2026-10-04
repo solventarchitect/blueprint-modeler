@@ -28,7 +28,7 @@ const items: { key: keyof ViewOptions; label: string; note: string }[] = [
   { key: "boxes", label: "Layer boxes", note: "A box around each CSDM layer" },
   { key: "lanes", label: "Lanes", note: "Full-width bands; drops settle in their layer" },
   { key: "snap", label: "Snap to grid", note: "Positions snap to 16px" },
-  { key: "extended", label: "Extended classes", note: "Strategy, value streams, SDLC, product models and AI in the palette" },
+  { key: "extended", label: "Extended classes", note: "Strategy, value streams, SDLC, product models, AI, virtualization and security in the palette" },
 ];
 
 /** Disclosure menu of view toggles. Escape or a click outside closes it. */

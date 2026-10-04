@@ -56,6 +56,12 @@ const byType: Record<string, ImpactRule> = {
     id: "ciRelTypeDefinitions",
     quote: "Typically a containment relationship (CI to contained CI).",
   }),
+  "Instantiates::Instantiated by": conventional("from", "A guest server is the operating system its virtual machine runs, so a failing virtual machine takes the server down.", { id: "vcenterData" }),
+  "Virtualized by::Virtualizes": conventional("from", "A virtualized server runs on its hypervisor server, so a failing hypervisor affects it.", { id: "vcenterData" }),
+  "Registered on::Has registered": conventional("from", "A virtual machine runs on the server it is registered on, so a failing server affects it.", { id: "vcenterData" }),
+  "Members::Member of": conventional("from", "A cluster is made of its members, so failing members degrade the cluster.", { id: "vcenterData" }),
+  "Provides storage for::Stored on": conventional("to", "What is stored on a datastore is affected when the datastore fails.", { id: "vcenterData" }),
+  "Used by::Uses": conventional("to", "The child uses the parent, so a failing parent affects the child.", { id: "vcenterData" }),
   "reference:parent": conventional("from", "A service is made up of its offerings, so a failing offering affects the service."),
 };
 
