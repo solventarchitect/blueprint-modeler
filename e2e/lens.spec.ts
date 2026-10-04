@@ -7,7 +7,7 @@ const tags = ["wcag2a", "wcag2aa", "wcag21aa", "wcag22aa"];
 async function openCheckout(page: Page) {
   await page.goto("/editor");
   await expect(page.getByTestId("save-status")).toHaveText("Saved in this browser");
-  await openExample(page, "Online store checkout");
+  await openExample(page, "Online Store Checkout");
   await expect(page.locator(".react-flow__node")).not.toHaveCount(0);
 }
 

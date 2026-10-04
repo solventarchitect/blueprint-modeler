@@ -3,6 +3,7 @@ import { readFile } from "node:fs/promises";
 import { expect, test, type Page } from "@playwright/test";
 import { watchForeignRequests } from "./network";
 import { openExample as chooseExample } from "./examples";
+import { modelButton, currentModel } from "./model-menu";
 
 const tags = ["wcag2a", "wcag2aa", "wcag21aa", "wcag22aa"];
 
@@ -11,7 +12,7 @@ async function openExample(page: Page, name: string) {
   await expect(page.getByTestId("save-status")).toHaveText("Saved in this browser");
   await chooseExample(page, name);
   // Wait until the example is stored and open, not just the placeholder model (a race made counts flaky).
-  await expect(page.getByRole("combobox", { name: "Open model" }).locator("option:checked")).toHaveText(name);
+  await expect(currentModel(page)).toHaveText(name);
   await expect(page.locator(".react-flow__node")).not.toHaveCount(0);
 }
 
@@ -28,7 +29,7 @@ test.describe("import, export and layout (desktop)", () => {
   test.skip(({ isMobile }) => !!isMobile, "editing is desktop-only");
 
   test("export JSON, import it back as a copy, and get the same model", async ({ page }) => {
-    await openExample(page, "Online store checkout");
+    await openExample(page, "Online Store Checkout");
     const file = await exportFile(page, /Model file \(JSON\)/);
     expect(file.name).toBe("online-store-checkout.json");
     const exported = JSON.parse(file.text);
@@ -41,20 +42,20 @@ test.describe("import, export and layout (desktop)", () => {
   });
 
   test("an invalid file is refused with a readable error and changes nothing", async ({ page }) => {
-    await openExample(page, "HR self-service portal");
-    const before = await page.getByRole("combobox", { name: "Open model" }).locator("option").count();
+    await openExample(page, "HR Self-Service Portal");
+    const before = await Number(await modelButton(page).getAttribute("data-count"));
     await page.getByTestId("import-file").setInputFiles({ name: "notes.json", mimeType: "application/json", buffer: Buffer.from('{"hello":1}') });
     const alert = page.getByRole("alert").filter({ hasText: "Could not import" });
     await expect(alert).toContainText("Could not import “notes.json”");
     await expect(alert).toContainText("Nothing was changed");
-    await expect(page.getByRole("combobox", { name: "Open model" }).locator("option")).toHaveCount(before);
+    await expect(modelButton(page)).toHaveAttribute("data-count", String(before));
     await page.getByRole("button", { name: "Dismiss" }).click();
     await expect(alert).toHaveCount(0);
   });
 
   for (const theme of ["dark", "light"] as const) {
     test(`exports a standalone SVG (${theme})`, async ({ page }) => {
-      await openExample(page, "Shared database platform");
+      await openExample(page, "Shared Database Platform");
       const file = await exportFile(page, new RegExp(`Image, ${theme}`));
       expect(file.name).toBe(`shared-database-platform-${theme}.svg`);
       expect(file.text).toContain("<svg");
@@ -64,7 +65,7 @@ test.describe("import, export and layout (desktop)", () => {
   }
 
   test("exports an ArchiMate exchange file that parses and matches the model", async ({ page }) => {
-    await openExample(page, "Online store checkout");
+    await openExample(page, "Online Store Checkout");
     const file = await exportFile(page, /ArchiMate model \(XML\)/);
     expect(file.name).toBe("online-store-checkout-archimate.xml");
     await expect(page.getByRole("status")).toContainText("Open Exchange XML Model");
@@ -85,7 +86,7 @@ test.describe("import, export and layout (desktop)", () => {
   });
 
   test("exports a draw.io file that parses, matches the model and states the Lucid Free fit", async ({ page }) => {
-    await openExample(page, "Online store checkout");
+    await openExample(page, "Online Store Checkout");
     // Edges render once the nodes are measured; count only after they are there.
     await expect(page.locator(".react-flow__edge")).not.toHaveCount(0);
     const nodes = await page.locator(".react-flow__node").count();
@@ -116,7 +117,7 @@ test.describe("import, export and layout (desktop)", () => {
   });
 
   test("the export menu works from the keyboard and closes on Escape", async ({ page }) => {
-    await openExample(page, "Online store checkout");
+    await openExample(page, "Online Store Checkout");
     const button = page.getByRole("button", { name: "Export" });
     await button.focus();
     await page.keyboard.press("Enter");
@@ -133,7 +134,7 @@ test.describe("import, export and layout (desktop)", () => {
     const workers: string[] = [];
     page.on("worker", (w) => workers.push(w.url()));
 
-    await openExample(page, "Shared database platform");
+    await openExample(page, "Shared Database Platform");
     const before = await positions(page);
     await page.getByRole("button", { name: "Auto-layout" }).click();
     await expect(page.getByRole("status")).toContainText("Laid out by CSDM layer");
@@ -160,12 +161,12 @@ test.describe("import, export and layout (desktop)", () => {
         },
       });
     });
-    await openExample(page, "Online store checkout");
+    await openExample(page, "Online Store Checkout");
     await page.getByRole("button", { name: "Auto-layout" }).click();
     await expect(page.getByRole("button", { name: "Laying out…" })).toBeVisible();
 
-    await chooseExample(page, "HR self-service portal");
-    await expect(page.getByRole("combobox", { name: "Open model" }).locator("option:checked")).toHaveText("HR self-service portal");
+    await chooseExample(page, "HR Self-Service Portal");
+    await expect(currentModel(page)).toHaveText("HR Self-Service Portal");
     const before = await positions(page);
     await expect(page.getByRole("button", { name: "Auto-layout" })).toBeEnabled({ timeout: 10_000 });
     expect(await positions(page)).toEqual(before);
@@ -175,7 +176,7 @@ test.describe("import, export and layout (desktop)", () => {
   for (const scheme of ["dark", "light"] as const) {
     test(`toolbar with the export menu open has no WCAG 2.2 AA violations (${scheme})`, async ({ page }) => {
       await page.emulateMedia({ colorScheme: scheme });
-      await openExample(page, "Online store checkout");
+      await openExample(page, "Online Store Checkout");
       await page.getByRole("button", { name: "Export" }).click();
       const results = await new AxeBuilder({ page }).withTags(tags).analyze();
       expect(results.violations).toEqual([]);

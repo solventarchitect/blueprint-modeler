@@ -1,13 +1,13 @@
 "use client";
 
 import { useCallback, useEffect, useLayoutEffect, useReducer, useRef, useState } from "react";
-import { createModel, type Model } from "@/model";
+import { createModel, UNTITLED_MODEL, type Model } from "@/model";
 import { openBrowserStore, type ModelStore, type ModelSummary } from "@/storage";
 import { initialHistory, reduce, type Action, type History } from "./state";
 
 export type SaveStatus = "loading" | "saved" | "saving" | "memory-only" | "error";
 
-const EMPTY: History = initialHistory(createModel("Untitled model", new Date(0), "placeholder"));
+const EMPTY: History = initialHistory(createModel(UNTITLED_MODEL, new Date(0), "placeholder"));
 
 /**
  * The open model, its undo history, and autosave to this browser. Loads the most recently
@@ -55,7 +55,7 @@ export function useModelDocument() {
       else if (got) setProblem(`A saved model could not be opened: ${got.error}`);
     }
     if (!model) {
-      model = createModel("Untitled model");
+      model = createModel(UNTITLED_MODEL);
       await s.put(model);
     }
     loadedId.current = model.id;
@@ -120,7 +120,7 @@ export function useModelDocument() {
   const newModel = useCallback(async () => {
     const s = store.current;
     if (!s) return;
-    const m = createModel("Untitled model");
+    const m = createModel(UNTITLED_MODEL);
     await s.put(m);
     await open(m.id);
   }, [open]);

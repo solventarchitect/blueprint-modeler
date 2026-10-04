@@ -1,6 +1,7 @@
 import AxeBuilder from "@axe-core/playwright";
 import { expect, test } from "@playwright/test";
 import { openExample } from "./examples";
+import { modelButton } from "./model-menu";
 
 const tags = ["wcag2a", "wcag2aa", "wcag21aa", "wcag22aa"];
 
@@ -10,19 +11,19 @@ test.describe("examples and hints (desktop)", () => {
   test("the empty state opens an example as a new model", async ({ page }) => {
     await page.goto("/editor");
     await expect(page.getByTestId("save-status")).toHaveText("Saved in this browser");
-    await page.getByRole("button", { name: /Online store checkout/ }).click();
+    await page.getByRole("button", { name: /Online Store Checkout/ }).click();
     await expect(page.getByRole("status")).toContainText("Opened the example");
     await expect(page.locator(".react-flow__node")).not.toHaveCount(0);
     await expect(page.getByRole("tab", { name: "Hints (0)" })).toBeVisible();
     await page.reload();
-    await expect(page.getByRole("combobox", { name: "Open model" })).toHaveValue(/.+/);
+    await expect(modelButton(page)).toHaveAttribute("data-current", /.+/);
     await expect(page.locator(".react-flow__node")).not.toHaveCount(0);
   });
 
   test("selecting a hint highlights its elements and cites a source", async ({ page }) => {
     await page.goto("/editor");
     await expect(page.getByTestId("save-status")).toHaveText("Saved in this browser");
-    await openExample(page, "Shared database platform");
+    await openExample(page, "Shared Database Platform");
     const tab = page.getByRole("tab", { name: "Hints (3)" });
     await tab.click();
     const panel = page.getByRole("tabpanel");
@@ -67,7 +68,7 @@ test.describe("examples and hints (desktop)", () => {
       await page.emulateMedia({ colorScheme: scheme });
       await page.goto("/editor");
       await expect(page.getByTestId("save-status")).toHaveText("Saved in this browser");
-      await openExample(page, "Shared database platform");
+      await openExample(page, "Shared Database Platform");
       await page.getByRole("tab", { name: /Hints/ }).click();
       await page.getByRole("tabpanel").getByRole("button").first().click();
       const results = await new AxeBuilder({ page }).withTags(tags).analyze();

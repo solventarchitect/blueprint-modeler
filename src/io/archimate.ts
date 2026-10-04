@@ -1,6 +1,6 @@
 import { archimateElements, archimateRelationshipFor, type ArchimateRelationshipType, type ElementMapping } from "@/frameworks";
 import { classById, isClassId } from "@/metamodel";
-import type { Model } from "@/model";
+import { UNTITLED_MODEL, type Model } from "@/model";
 
 /**
  * The model as an ArchiMate® Model Exchange File Format document (3.1 schema; namespace …/3.0/),
@@ -46,7 +46,7 @@ export function modelToArchimateXml(model: Model): string {
 
   out.push(`<?xml version="1.0" encoding="UTF-8"?>`);
   out.push(`<model xmlns="${NS}" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xsi:schemaLocation="${SCHEMA}" identifier="${uid("model", model.id)}">`);
-  out.push(`  ${name(model.name || "Untitled model")}`);
+  out.push(`  ${name(model.name || UNTITLED_MODEL)}`);
   out.push(`  <documentation xml:lang="en">${esc("Exported from Blueprint Modeler (https://model.mikereams.com): CSDM classes mapped to ArchiMate 3.2 elements. ArchiMate® is a registered trademark of The Open Group.")}</documentation>`);
 
   if (model.nodes.length) out.push(`  <elements>`);
@@ -92,7 +92,7 @@ export function modelToArchimateXml(model: Model): string {
   out.push(`  <views>`);
   out.push(`    <diagrams>`);
   out.push(`      <view identifier="${uid("view", model.id)}" xsi:type="Diagram">`);
-  out.push(`        ${name(model.name || "Untitled model")}`);
+  out.push(`        ${name(model.name || UNTITLED_MODEL)}`);
   for (const n of model.nodes) {
     const p = model.layout[n.id] ?? { x: 0, y: 0 };
     out.push(

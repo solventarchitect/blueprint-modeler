@@ -1,11 +1,12 @@
 import { expect, test, type Page } from "@playwright/test";
 import { contrastOf } from "./contrast";
 import { exampleNames, openExample } from "./examples";
+import { currentModel } from "./model-menu";
 
 const openCheckout = async (page: Page) => {
   await page.goto("/editor");
   await expect(page.getByTestId("save-status")).toHaveText("Saved in this browser");
-  await openExample(page, "Online store checkout");
+  await openExample(page, "Online Store Checkout");
   await expect(page.locator(".react-flow__node").first()).toBeVisible();
 };
 
@@ -21,7 +22,7 @@ test.describe("canvas title (desktop)", () => {
 
   test("sits at the top-left of the diagram, follows the highest element and the model name", async ({ page }) => {
     await openCheckout(page);
-    const title = page.getByRole("heading", { level: 1, name: "Online store checkout" });
+    const title = page.getByRole("heading", { level: 1, name: "Online Store Checkout" });
     await expect(title).toBeVisible();
 
     const check = async () => {
@@ -114,11 +115,11 @@ test.describe("stacked layers (desktop)", () => {
     }
     // Auto-layout the application models (the metamodel poster is laid out by hand: auto-laid out,
     // its 61 relationships make it wide enough that a fit zooms below where tabs can clear).
-    for (const label of ["Online store checkout", "Storefront on Kubernetes", "Enterprise AI assistant"]) {
+    for (const label of ["Online Store Checkout", "Storefront on Kubernetes", "Enterprise AI Assistant"]) {
       await openExample(page, label);
       // Wait until the example is open (else Auto-layout lays out the previous model), then for the
       // layout itself: the button reads "Laying out…" while ELK runs, which can outlast 5 s under load.
-      await expect(page.getByRole("combobox", { name: "Open model" }).locator("option:checked")).toHaveText(label);
+      await expect(currentModel(page)).toHaveText(label);
       await page.getByRole("button", { name: "Auto-layout" }).click();
       await expect(page.getByRole("status")).toContainText("Laid out by CSDM layer", { timeout: 20_000 });
       await page.getByRole("button", { name: "Fit View" }).click();
@@ -201,7 +202,7 @@ test.describe("editor toolbar (desktop)", () => {
       await expect(page.getByRole("group", { name: "Edit" }).getByRole("button")).toHaveText(["Undo", "Redo"]);
       await expect(page.locator("main").getByRole("button", { name: /^Hints/ })).toHaveCount(0);
       await expect(page.getByRole("tab", { name: "Hints (0)" })).toBeVisible();
-      await openExample(page, "Online store checkout");
+      await openExample(page, "Online Store Checkout");
       const present = page.getByRole("button", { name: "Present" });
       await expect(present).toBeEnabled();
       expect(await contrastOf(present), scheme).toBeGreaterThanOrEqual(4.5);

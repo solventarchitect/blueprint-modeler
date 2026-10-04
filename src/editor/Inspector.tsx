@@ -31,7 +31,26 @@ const button =
   "cursor-pointer border border-border-strong px-2.5 py-1.5 text-sm text-ink hover:border-accent hover:text-accent disabled:cursor-not-allowed disabled:opacity-60";
 
 /** Name committed on Enter or blur, so typing a name is one undo step, not one per key. */
-function NameField({ id, value, label, onCommit, focusToken }: { id: string; value: string; label: string; onCommit: (v: string) => void; focusToken?: number }) {
+function NameField({
+  id,
+  value,
+  label,
+  onCommit,
+  focusToken,
+  optional = false,
+  maxLength = 200,
+  help,
+}: {
+  id: string;
+  value: string;
+  label: string;
+  onCommit: (v: string) => void;
+  focusToken?: number;
+  /** An optional field may be cleared; a name falls back to its last value when left empty. */
+  optional?: boolean;
+  maxLength?: number;
+  help?: string;
+}) {
   const [draft, setDraft] = useState(value);
   const ref = useRef<HTMLInputElement>(null);
   useEffect(() => setDraft(value), [value, id]);
@@ -41,7 +60,7 @@ function NameField({ id, value, label, onCommit, focusToken }: { id: string; val
       ref.current?.select();
     }
   }, [focusToken]);
-  const commit = () => draft !== value && onCommit(draft.trim() || value);
+  const commit = () => draft !== value && onCommit(optional ? draft.trim() : draft.trim() || value);
   return (
     <label className="flex flex-col gap-1 text-sm">
       <span className="text-ink-muted">{label}</span>
@@ -49,7 +68,7 @@ function NameField({ id, value, label, onCommit, focusToken }: { id: string; val
         ref={ref}
         className={input}
         value={draft}
-        maxLength={200}
+        maxLength={maxLength}
         onChange={(e) => setDraft(e.target.value)}
         onBlur={commit}
         onKeyDown={(e) => {
@@ -57,12 +76,23 @@ function NameField({ id, value, label, onCommit, focusToken }: { id: string; val
           if (e.key === "Escape") setDraft(value);
         }}
       />
+      {help && <span className="text-xs text-ink-muted">{help}</span>}
     </label>
   );
 }
 
 /** A CI's description: saved when the field loses focus (Ctrl+Enter also saves; Escape reverts). */
-function DescriptionField({ id, value, onCommit }: { id: string; value: string; onCommit: (v: string) => void }) {
+function DescriptionField({
+  id,
+  value,
+  onCommit,
+  help = "Shown when you hover the element, and exported to ServiceNow as its description.",
+}: {
+  id: string;
+  value: string;
+  onCommit: (v: string) => void;
+  help?: string;
+}) {
   const [draft, setDraft] = useState(value);
   useEffect(() => setDraft(value), [value, id]);
   const commit = () => draft.trim() !== value && onCommit(draft);
@@ -81,7 +111,7 @@ function DescriptionField({ id, value, onCommit }: { id: string; value: string; 
           if (e.key === "Escape") setDraft(value);
         }}
       />
-      <span className="text-xs text-ink-muted">Shown when you hover the element, and exported to ServiceNow as its description.</span>
+      <span className="text-xs text-ink-muted">{help}</span>
     </label>
   );
 }
@@ -111,6 +141,21 @@ export function Inspector({ model, selectedId, dispatch, focusName, focusConnect
     return (
       <div className="flex flex-col gap-4 p-4">
         <NameField id={model.id} value={model.name} label="Model name" onCommit={(name) => dispatch({ type: "rename-model", name })} />
+        <DescriptionField
+          id={model.id}
+          value={model.description ?? ""}
+          help="Optional. Shown under the model's name on the canvas, when presenting and in images."
+          onCommit={(description) => dispatch({ type: "model-details", description })}
+        />
+        <NameField
+          id={model.id}
+          value={model.artifactId ?? ""}
+          label="Artifact ID"
+          optional
+          maxLength={64}
+          help="Optional. Your reference for this model, such as a document or architecture ID. Shown with a tag icon above the name."
+          onCommit={(artifactId) => dispatch({ type: "model-details", artifactId })}
+        />
         <p className="text-sm text-ink-muted">
           {model.nodes.length} elements · {model.edges.length} relationships. Add an element from the palette, or select one on the canvas.
         </p>

@@ -10,6 +10,7 @@ export type History = { past: Model[]; present: Model; future: Model[] };
 export type Action =
   | { type: "load"; model: Model }
   | { type: "rename-model"; name: string }
+  | { type: "model-details"; description?: string; artifactId?: string }
   | { type: "add-node"; id: string; class: ClassId; name: string }
   | { type: "rename-node"; id: string; name: string }
   | { type: "describe-node"; id: string; description: string }
@@ -95,6 +96,14 @@ function apply(model: Model, action: Action): Model | null {
   switch (action.type) {
     case "rename-model":
       return action.name === model.name ? null : { ...model, name: action.name };
+    case "model-details": {
+      const description = (action.description ?? model.description ?? "").trim();
+      const artifactId = (action.artifactId ?? model.artifactId ?? "").trim();
+      if (description === (model.description ?? "") && artifactId === (model.artifactId ?? "")) return null;
+      // Rebuilt in file order, so the details sit right after the name in an exported file.
+      const { schema, id, name, created, updated, nodes, edges, layout } = model;
+      return { schema, id, name, ...(description ? { description } : {}), ...(artifactId ? { artifactId } : {}), created, updated, nodes, edges, layout };
+    }
     case "add-node": {
       if (model.nodes.some((n) => n.id === action.id)) return null;
       const node: Node = { id: action.id, class: action.class, name: action.name };

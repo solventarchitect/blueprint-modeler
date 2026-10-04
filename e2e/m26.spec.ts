@@ -18,7 +18,7 @@ test.describe("M26: ArchiMate notation, layer colors and the Read tab (desktop)"
   test.skip(({ isMobile }) => !!isMobile, "editing is desktop-only");
 
   test("the ArchiMate-only lens draws relationship notation with a legend; other lenses keep plain arrows", async ({ page }) => {
-    await openExample(page, "Online store checkout");
+    await openExample(page, "Online Store Checkout");
     await page.getByRole("combobox", { name: "Framework lens" }).selectOption({ label: "ArchiMate 3.2 only" });
 
     // Every edge carries ArchiMate markers, and realizations are dashed with the hollow triangle.
@@ -49,7 +49,7 @@ test.describe("M26: ArchiMate notation, layer colors and the Read tab (desktop)"
   });
 
   test("text on ArchiMate layer fills stays readable in both themes", async ({ page }) => {
-    await openExample(page, "Claims handling (ArchiMate view)");
+    await openExample(page, "Claims Handling (ArchiMate View)");
     await expect(page.getByRole("combobox", { name: "Framework lens" })).toHaveValue("archimate-only");
     for (const scheme of ["dark", "light"] as const) {
       await page.emulateMedia({ colorScheme: scheme });
@@ -61,7 +61,7 @@ test.describe("M26: ArchiMate notation, layer colors and the Read tab (desktop)"
   });
 
   test("the Read tab reads every relationship, follows the lens and the selection, and highlights a choice", async ({ page }) => {
-    await openExample(page, "Online store checkout");
+    await openExample(page, "Online Store Checkout");
     await page.getByRole("tab", { name: "Details" }).focus();
     await page.keyboard.press("ArrowRight");
     await page.keyboard.press("ArrowRight");
@@ -98,7 +98,7 @@ test.describe("M26: ArchiMate notation, layer colors and the Read tab (desktop)"
   for (const scheme of ["dark", "light"] as const) {
     test(`notation legend, layer fills and the Read tab have no WCAG 2.2 AA violations (${scheme})`, async ({ page }) => {
       await page.emulateMedia({ colorScheme: scheme });
-      await openExample(page, "Claims handling (ArchiMate view)");
+      await openExample(page, "Claims Handling (ArchiMate View)");
       await expect(page.getByTestId("notation-legend")).toBeVisible();
       await page.getByRole("tab", { name: "Read" }).click();
       await page.getByTestId("read-panel").getByRole("button").first().click();

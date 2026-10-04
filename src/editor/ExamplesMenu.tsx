@@ -1,7 +1,8 @@
 "use client";
 
-import { useEffect, useId, useRef, useState } from "react";
+import { useCallback, useId, useRef, useState } from "react";
 import { exampleCategories, examples } from "@/examples";
+import { useDismiss } from "./useDismiss";
 
 /**
  * The toolbar's Examples menu: a disclosure button opening a panel of categories, each listing its
@@ -15,26 +16,8 @@ export function ExamplesMenu({ onPick, onBlank, buttonClass }: { onPick: (id: st
   const button = useRef<HTMLButtonElement>(null);
   const id = useId();
 
-  useEffect(() => {
-    if (!open) return;
-    const onDown = (e: PointerEvent) => {
-      if (!root.current?.contains(e.target as Node)) setOpen(false);
-    };
-    // Escape closes it wherever focus is (a click on a heading in the panel leaves focus on the
-    // page). Marked handled, so the editor's own Escape (closing a blast radius) skips it.
-    const onKey = (e: KeyboardEvent) => {
-      if (e.key !== "Escape") return;
-      e.preventDefault();
-      setOpen(false);
-      button.current?.focus();
-    };
-    document.addEventListener("pointerdown", onDown);
-    document.addEventListener("keydown", onKey, true);
-    return () => {
-      document.removeEventListener("pointerdown", onDown);
-      document.removeEventListener("keydown", onKey, true);
-    };
-  }, [open]);
+  const close = useCallback(() => setOpen(false), []);
+  useDismiss(open, close, root, button);
 
   const choose = (run: () => void) => {
     setOpen(false);

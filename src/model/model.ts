@@ -5,6 +5,9 @@ import { CURRENT_SCHEMA, edgeKey, modelSchema, type Model } from "./schema";
 export type Issue = { level: "warning"; code: "disallowed-relationship" | "legacy-type"; edgeId: string; message: string };
 export type ParseResult = { ok: true; model: Model; issues: Issue[] } | { ok: false; error: string };
 
+/** The name a new model starts with. */
+export const UNTITLED_MODEL = "Untitled Model";
+
 /** A new, empty model. */
 export function createModel(name: string, now = new Date(), id: string = crypto.randomUUID()): Model {
   const ts = now.toISOString();

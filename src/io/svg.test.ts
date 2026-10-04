@@ -5,6 +5,27 @@ import { svgColors, modelToSvg } from "./svg";
 const checkout = () => examples.find((e) => e.id === "checkout")!.create(new Date("2026-09-27T00:00:00Z"), "m1");
 const idOf = (m: ReturnType<typeof checkout>, name: string) => m.nodes.find((n) => n.name === name)!.id;
 
+describe("SVG title block", () => {
+  it("draws the model name above the diagram, with the Artifact ID and description only when they exist", () => {
+    const m = checkout();
+    const plain = modelToSvg(m, "light");
+    expect(plain).toContain('data-title="name"');
+    expect(plain).toMatch(/data-title="name"[^>]*>Online Store Checkout</);
+    expect(plain).not.toContain('data-title="artifact"');
+    expect(plain).not.toContain('data-title="description"');
+
+    const svg = modelToSvg({ ...m, artifactId: "EA-0042", description: "How an order moves from the web store to the database. ".repeat(15).trim() }, "light");
+    expect(svg).toMatch(/data-title="artifact"[\s\S]*<path[^>]*data-icon="artifact"[\s\S]*>EA-0042</);
+    const lines = svg.match(/<tspan[^>]*data-title-line/g) ?? [];
+    // Long descriptions wrap to at most three lines, the last ending with an ellipsis.
+    expect(lines.length).toBe(3);
+    expect(svg).toMatch(/…<\/tspan><\/text>/);
+    // The title block sits above the highest element: the picture grows upward to hold it.
+    const top = (s: string) => Number(s.match(/viewBox="[-\d.]+ ([-\d.]+)/)![1]);
+    expect(top(svg)).toBeLessThan(top(plain));
+  });
+});
+
 describe("SVG highlight (blast radius frames)", () => {
   it("marks the start, numbers each reached element, colors the carried relationships and adds a caption", () => {
     const m = checkout();

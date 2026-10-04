@@ -90,6 +90,19 @@ describe("examples", () => {
     expect([of("archimate-claims"), of("csdm5-metamodel")]).toEqual(["frameworks", "frameworks"]);
   });
 
+  it("are named in Title Case", () => {
+    const small = new Set(["a", "an", "and", "as", "at", "for", "in", "of", "on", "or", "the", "to"]);
+    for (const ex of examples) {
+      ex.name.split(/[\s-]+/).forEach((word, i) => {
+        const w = word.replace(/^[(]/, "");
+        if (i > 0 && small.has(w)) return;
+        expect(w[0], `${ex.name}: ${word}`).toBe(w[0]!.toUpperCase());
+      });
+      expect(ex.create().name).toBe(ex.name);
+    }
+    expect(examples.map((e) => e.name)).toContain("Online Store Checkout");
+  });
+
   it("the ArchiMate example opens in the ArchiMate-only lens", () => {
     expect(examples.find((e) => e.id === "archimate-claims")!.lens).toBe("archimate-only");
   });

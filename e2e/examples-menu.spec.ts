@@ -1,6 +1,7 @@
 import AxeBuilder from "@axe-core/playwright";
 import { expect, test } from "@playwright/test";
 import { exampleNames, examplesButton, examplesMenu, openExample } from "./examples";
+import { currentModel } from "./model-menu";
 
 const tags = ["wcag2a", "wcag2aa", "wcag21aa", "wcag22aa"];
 
@@ -15,10 +16,10 @@ test.describe("examples menu", () => {
     const menu = examplesMenu(page);
     await expect(menu.getByRole("heading")).toHaveText(["Application architecture", "Security architecture", "ServiceNow platform", "Reference architecture", "Frameworks and metamodel"]);
     const section = (name: string) => menu.getByRole("region", { name });
-    await expect(section("Application architecture").getByRole("button")).toHaveText([/^Online store checkout/, /^HR self-service portal/, /^Shared database platform/, /^Enterprise AI assistant/]);
-    await expect(section("Security architecture").getByRole("button")).toHaveText([/^Internet edge and DMZ/, /^Directory and sign-in services/, /^Remote access VPN/]);
-    await expect(section("ServiceNow platform").getByRole("button")).toHaveText([/^ServiceNow service management/, /^ServiceNow instances and MID Servers/, /^ServiceNow integrations/]);
-    await expect(section("Reference architecture").getByRole("button")).toHaveText([/^Storefront on Kubernetes/, /^Server virtualization/, /^Virtual desktops \(VDI\)/]);
+    await expect(section("Application architecture").getByRole("button")).toHaveText([/^Online Store Checkout/, /^HR Self-Service Portal/, /^Shared Database Platform/, /^Enterprise AI Assistant/]);
+    await expect(section("Security architecture").getByRole("button")).toHaveText([/^Internet Edge and DMZ/, /^Directory and Sign-In Services/, /^Remote Access VPN/]);
+    await expect(section("ServiceNow platform").getByRole("button")).toHaveText([/^ServiceNow Service Management/, /^ServiceNow Instances and MID Servers/, /^ServiceNow Integrations/]);
+    await expect(section("Reference architecture").getByRole("button")).toHaveText([/^Storefront on Kubernetes/, /^Server Virtualization/, /^Virtual Desktops \(VDI\)/]);
     await expect(section("Reference architecture").getByRole("button", { name: "Storefront on Kubernetes" })).toHaveAccessibleDescription(/Containerization/);
     await expect(section("Frameworks and metamodel").getByRole("button")).toHaveCount(2);
     await expect(menu.getByRole("button", { name: "Blank model" })).toBeVisible();
@@ -28,9 +29,9 @@ test.describe("examples menu", () => {
   test("choosing an example opens it and closes the menu; Blank model opens an empty one", async ({ page }) => {
     await page.goto("/editor");
     await expect(page.getByTestId("save-status")).toHaveText("Saved in this browser");
-    await openExample(page, "Shared database platform");
-    await expect(page.getByRole("combobox", { name: "Open model" }).locator("option:checked")).toHaveText("Shared database platform");
-    await expect(page.getByRole("status")).toContainText("Opened the example “Shared database platform”");
+    await openExample(page, "Shared Database Platform");
+    await expect(currentModel(page)).toHaveText("Shared Database Platform");
+    await expect(page.getByRole("status")).toContainText("Opened the example “Shared Database Platform”");
     await expect(examplesButton(page)).toBeFocused();
     await openExample(page, "Blank model");
     await expect(page.locator(".react-flow__node")).toHaveCount(0);
@@ -46,7 +47,7 @@ test.describe("examples menu", () => {
     await page.keyboard.press("Tab");
     await expect(examplesMenu(page).getByRole("button", { name: "Blank model" })).toBeFocused();
     await page.keyboard.press("Tab");
-    await expect(examplesMenu(page).getByRole("button", { name: "Online store checkout" })).toBeFocused();
+    await expect(examplesMenu(page).getByRole("button", { name: "Online Store Checkout" })).toBeFocused();
     await page.keyboard.press("Escape");
     await expect(examplesMenu(page)).toBeHidden();
     await expect(button).toBeFocused();
@@ -69,7 +70,7 @@ test.describe("examples menu", () => {
   test("Escape still closes it after a click on a heading inside it, and leaves an open blast radius alone", async ({ page }) => {
     await page.goto("/editor");
     await expect(page.getByTestId("save-status")).toHaveText("Saved in this browser");
-    await openExample(page, "Online store checkout");
+    await openExample(page, "Online Store Checkout");
     const blast = page.getByRole("region", { name: "Blast radius" });
     const isDesktop = (page.viewportSize()?.width ?? 0) >= 768;
     if (isDesktop) {
@@ -104,7 +105,7 @@ test.describe("examples menu", () => {
     const card = page.getByTestId("empty-state");
     await expect(card.getByRole("heading", { level: 3 })).toHaveText(["Application architecture", "Security architecture", "ServiceNow platform", "Reference architecture", "Frameworks and metamodel"]);
     await card.getByRole("button", { name: /^Storefront on Kubernetes/ }).click();
-    await expect(page.getByRole("combobox", { name: "Open model" }).locator("option:checked")).toHaveText("Storefront on Kubernetes");
+    await expect(currentModel(page)).toHaveText("Storefront on Kubernetes");
   });
 });
 
@@ -114,7 +115,7 @@ test.describe("new examples (desktop)", () => {
   test("server virtualization opens in the CMDB's VMware classes and shows an ESX Server's blast radius", async ({ page }) => {
     await page.goto("/editor");
     await expect(page.getByTestId("save-status")).toHaveText("Saved in this browser");
-    await openExample(page, "Server virtualization");
+    await openExample(page, "Server Virtualization");
     await expect(page.locator(".react-flow__node")).toHaveCount(15);
     const esx = page.locator(".react-flow__node").filter({ has: page.getByText("esx-01", { exact: true }) });
     await expect(esx).toContainText("ESX Server");

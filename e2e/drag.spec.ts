@@ -7,7 +7,7 @@ test.describe("dragging (desktop)", () => {
   test("elements stay visible while a node is being dragged", async ({ page }) => {
     await page.goto("/editor");
     await expect(page.getByTestId("save-status")).toHaveText("Saved in this browser");
-    await openExample(page, "Online store checkout");
+    await openExample(page, "Online Store Checkout");
     const node = page.locator(".react-flow__node").filter({ hasText: "Checkout web app" });
     await expect(node).toBeVisible();
     const box = (await node.boundingBox())!;

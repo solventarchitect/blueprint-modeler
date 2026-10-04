@@ -15,4 +15,18 @@ describe("memory store", () => {
     expect(await store.get("a")).toBeUndefined();
     expect((await store.list()).map((s) => s.id)).toEqual(["b"]);
   });
+
+  it("summarizes each model for the Model menu: details and counts", async () => {
+    const store = createMemoryStore();
+    const m = { ...createModel("Checkout", new Date("2026-09-27T10:00:00Z"), "c"), description: "Order flow.", artifactId: "EA-0042" };
+    m.nodes = [{ id: "ba", class: "business_application", name: "Checkout" }, { id: "svc", class: "application_service", name: "Checkout — prod" }];
+    m.edges = [{ id: "e1", from: "ba", to: "svc", type: "Uses::Used by" }];
+    m.layout = { ba: { x: 0, y: 0 }, svc: { x: 0, y: 200 } };
+    await store.put(m);
+    await store.put(createModel("Plain", new Date("2026-09-27T09:00:00Z"), "p"));
+    expect(await store.list()).toEqual([
+      { id: "c", name: "Checkout", updated: "2026-09-27T10:00:00.000Z", description: "Order flow.", artifactId: "EA-0042", nodes: 2, edges: 1 },
+      { id: "p", name: "Plain", updated: "2026-09-27T09:00:00.000Z", nodes: 0, edges: 0 },
+    ]);
+  });
 });

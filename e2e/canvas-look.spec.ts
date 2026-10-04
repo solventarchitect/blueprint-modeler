@@ -11,7 +11,7 @@ test.describe("canvas elements and arrows (desktop)", () => {
   test.beforeEach(async ({ page }) => {
     await page.goto("/editor");
     await expect(page.getByTestId("save-status")).toHaveText("Saved in this browser");
-    await openExample(page, "Online store checkout");
+    await openExample(page, "Online Store Checkout");
     await expect(page.locator(".react-flow__node")).toHaveCount(14);
     // Opening an example fits the canvas a moment later; fit now so elements stop moving before measuring.
     await page.getByRole("button", { name: "Fit View" }).click();

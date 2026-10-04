@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { createModel, migrate, parseModel, serializeModel, type Model } from "./index";
+import { createModel, migrate, parseModel, serializeModel, UNTITLED_MODEL, type Model } from "./index";
 
 const NOW = new Date("2026-09-27T12:00:00.000Z");
 
@@ -30,6 +30,21 @@ describe("parseModel", () => {
     if (!r.ok) return;
     expect(r.model).toEqual(m);
     expect(r.issues).toEqual([]);
+  });
+
+  it("keeps an optional description and Artifact ID, and still opens files without them", () => {
+    const m = { ...sample(), description: "Order flow for the web store.", artifactId: "EA-0042" };
+    const r = roundTrip(m);
+    expect(r.ok && r.model).toMatchObject({ description: "Order flow for the web store.", artifactId: "EA-0042" });
+    const plain = roundTrip(sample());
+    expect(plain.ok && "description" in plain.model).toBe(false);
+    expect(plain.ok && "artifactId" in plain.model).toBe(false);
+    expect(parseModel({ ...JSON.parse(serializeModel(sample())), artifactId: "x".repeat(65) }).ok).toBe(false);
+    expect(parseModel({ ...JSON.parse(serializeModel(sample())), description: "x".repeat(1001) }).ok).toBe(false);
+  });
+
+  it("names new models in Title Case", () => {
+    expect(UNTITLED_MODEL).toBe("Untitled Model");
   });
 
   it("serializes stably", () => {

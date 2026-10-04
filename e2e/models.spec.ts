@@ -1,8 +1,7 @@
 import AxeBuilder from "@axe-core/playwright";
-import { expect, test, type Page } from "@playwright/test";
+import { expect, test } from "@playwright/test";
 import { openExample } from "./examples";
-
-const picker = (page: Page) => page.locator("select").first();
+import { modelButton, currentModel, openStoredModel, storedModelNames } from "./model-menu";
 
 test.describe("managing saved models (desktop)", () => {
   test.skip(({ isMobile }) => !!isMobile, "the model manager is in the desktop toolbar");
@@ -10,33 +9,33 @@ test.describe("managing saved models (desktop)", () => {
   test("lists, downloads and deletes models, one or all, asking first", async ({ page }) => {
     await page.goto("/editor");
     await expect(page.getByTestId("save-status")).toHaveText("Saved in this browser");
-    await openExample(page, "Online store checkout");
-    await openExample(page, "HR self-service portal");
-    await expect(picker(page)).toHaveValue(/.+/);
-    await expect(picker(page).locator("option")).toHaveCount(3);
+    await openExample(page, "Online Store Checkout");
+    await openExample(page, "HR Self-Service Portal");
+    await expect(modelButton(page)).toHaveAttribute("data-current", /.+/);
+    await expect(modelButton(page)).toHaveAttribute("data-count", "3");
 
     const manage = page.getByRole("button", { name: "Manage…" });
     await manage.click();
     const dialog = page.getByRole("dialog", { name: "Models in this browser" });
     await expect(dialog).toBeVisible();
     await expect(dialog.getByTestId("model-list").locator("li")).toHaveCount(3);
-    await expect(dialog.getByRole("button", { name: "Open HR self-service portal" })).toBeDisabled();
+    await expect(dialog.getByRole("button", { name: "Open HR Self-Service Portal" })).toBeDisabled();
     expect((await new AxeBuilder({ page }).include("dialog").withTags(["wcag2a", "wcag2aa", "wcag22aa"]).analyze()).violations).toEqual([]);
 
-    const [download] = await Promise.all([page.waitForEvent("download"), dialog.getByRole("button", { name: "Download Online store checkout" }).click()]);
+    const [download] = await Promise.all([page.waitForEvent("download"), dialog.getByRole("button", { name: "Download Online Store Checkout" }).click()]);
     expect(download.suggestedFilename()).toBe("online-store-checkout.json");
 
     // Deleting asks once; Cancel keeps the model.
-    await dialog.getByRole("button", { name: "Delete Online store checkout" }).click();
+    await dialog.getByRole("button", { name: "Delete Online Store Checkout" }).click();
     await dialog.getByRole("button", { name: "Cancel" }).click();
     await expect(dialog.getByTestId("model-list").locator("li")).toHaveCount(3);
-    await dialog.getByRole("button", { name: "Delete Online store checkout" }).click();
+    await dialog.getByRole("button", { name: "Delete Online Store Checkout" }).click();
     await dialog.getByRole("button", { name: "Delete for good" }).click();
     await expect(dialog.getByTestId("model-list").locator("li")).toHaveCount(2);
-    await expect(dialog.getByRole("status")).toHaveText("Deleted Online store checkout.");
+    await expect(dialog.getByRole("status")).toHaveText("Deleted Online Store Checkout.");
 
     // Deleting the open model opens the next one.
-    await dialog.getByRole("button", { name: "Delete HR self-service portal" }).click();
+    await dialog.getByRole("button", { name: "Delete HR Self-Service Portal" }).click();
     await dialog.getByRole("button", { name: "Delete for good" }).click();
     await expect(dialog.getByTestId("model-list").locator("li")).toHaveCount(1);
     await expect(page.getByTestId("canvas-title")).toHaveCount(0);
@@ -50,8 +49,8 @@ test.describe("managing saved models (desktop)", () => {
     await expect(manage).toBeFocused();
     await page.reload();
     await expect(page.getByTestId("save-status")).toHaveText("Saved in this browser");
-    await expect(picker(page).locator("option")).toHaveCount(1);
-    await expect(picker(page).locator("option")).toHaveText("Untitled model");
+    await expect(modelButton(page)).toHaveAttribute("data-count", "1");
+    await expect(currentModel(page)).toHaveText("Untitled Model");
   });
 
   test("a change still waiting to autosave cannot bring a deleted model back", async ({ page }) => {
@@ -81,25 +80,25 @@ test.describe("managing saved models (desktop)", () => {
     });
     await page.goto("/editor");
     await expect(page.getByTestId("save-status")).toHaveText("Saved in this browser");
-    await openExample(page, "Online store checkout");
-    await expect(picker(page).locator("option:checked")).toHaveText("Online store checkout");
+    await openExample(page, "Online Store Checkout");
+    await expect(currentModel(page)).toHaveText("Online Store Checkout");
     await expect(page.getByTestId("save-status")).toHaveText("Saved in this browser");
 
     // A change, then delete the model before its autosave has run.
     await page.getByRole("navigation", { name: "Element palette" }).getByRole("button", { name: "Business Capability", exact: true }).click();
     await page.getByRole("button", { name: "Manage…" }).click();
     const dialog = page.getByRole("dialog", { name: "Models in this browser" });
-    await dialog.getByRole("button", { name: "Delete Online store checkout" }).click();
+    await dialog.getByRole("button", { name: "Delete Online Store Checkout" }).click();
     // The race only exists while the change is unsaved; fail loudly rather than pass without it.
     await expect(page.getByTestId("save-status")).toHaveText("Saving…");
     await dialog.getByRole("button", { name: "Delete for good" }).click();
-    await expect(dialog.getByRole("status")).toHaveText("Deleted Online store checkout.", { timeout: 15_000 });
+    await expect(dialog.getByRole("status")).toHaveText("Deleted Online Store Checkout.", { timeout: 15_000 });
     await page.keyboard.press("Escape");
 
     await page.waitForTimeout(500);
     await page.reload();
     await expect(page.getByTestId("save-status")).toHaveText("Saved in this browser", { timeout: 15_000 });
-    await expect(picker(page).locator("option", { hasText: "Online store checkout" })).toHaveCount(0);
+    await expect(await storedModelNames(page)).not.toContain("Online Store Checkout");
   });
 
   test("switching to another model keeps a change that was still waiting to autosave", async ({ page }) => {
@@ -110,32 +109,31 @@ test.describe("managing saved models (desktop)", () => {
       const set = window.setTimeout;
       window.setTimeout = ((fn: TimerHandler, ms?: number, ...rest: unknown[]) => set(fn, ms === 300 ? 4000 : ms, ...rest)) as typeof window.setTimeout;
     });
-    const open = page.getByRole("combobox", { name: "Open model" });
     const saved = () => expect(page.getByTestId("save-status")).toHaveText("Saved in this browser", { timeout: 15_000 });
     await page.goto("/editor");
     await saved();
-    await openExample(page, "Online store checkout");
-    await expect(open.locator("option:checked")).toHaveText("Online store checkout");
+    await openExample(page, "Online Store Checkout");
+    await expect(currentModel(page)).toHaveText("Online Store Checkout");
     await saved();
-    await openExample(page, "HR self-service portal");
-    await expect(open.locator("option:checked")).toHaveText("HR self-service portal");
+    await openExample(page, "HR Self-Service Portal");
+    await expect(currentModel(page)).toHaveText("HR Self-Service Portal");
     await saved();
-    await open.selectOption({ label: "Online store checkout" });
-    await expect(open.locator("option:checked")).toHaveText("Online store checkout");
+    await openStoredModel(page, "Online Store Checkout");
+    await expect(currentModel(page)).toHaveText("Online Store Checkout");
     await saved();
 
     // A change, then switch away before its autosave has run.
     await page.getByRole("navigation", { name: "Element palette" }).getByRole("button", { name: "Business Capability", exact: true }).click();
     await expect(page.locator(".react-flow__node").filter({ hasText: "New Business Capability" })).toBeVisible();
     await expect(page.getByTestId("save-status")).toHaveText("Saving…");
-    await open.selectOption({ label: "HR self-service portal" });
-    await expect(open.locator("option:checked")).toHaveText("HR self-service portal");
+    await openStoredModel(page, "HR Self-Service Portal");
+    await expect(currentModel(page)).toHaveText("HR Self-Service Portal");
     await saved();
 
     await page.reload();
     await saved();
-    await open.selectOption({ label: "Online store checkout" });
-    await expect(open.locator("option:checked")).toHaveText("Online store checkout");
+    await openStoredModel(page, "Online Store Checkout");
+    await expect(currentModel(page)).toHaveText("Online Store Checkout");
     await expect(page.locator(".react-flow__node").filter({ hasText: "New Business Capability" })).toBeVisible();
   });
 
@@ -152,21 +150,20 @@ test.describe("managing saved models (desktop)", () => {
         return put.apply(this, args);
       };
     });
-    const open = page.getByRole("combobox", { name: "Open model" });
     const saved = () => expect(page.getByTestId("save-status")).toHaveText("Saved in this browser", { timeout: 15_000 });
     await page.goto("/editor");
     await saved();
-    await openExample(page, "Online store checkout");
-    await expect(open.locator("option:checked")).toHaveText("Online store checkout");
+    await openExample(page, "Online Store Checkout");
+    await expect(currentModel(page)).toHaveText("Online Store Checkout");
     await saved();
 
     await page.getByRole("navigation", { name: "Element palette" }).getByRole("button", { name: "Business Capability", exact: true }).click();
     await expect(page.getByTestId("save-status")).toHaveText("Saving…");
     await page.evaluate(() => ((window as unknown as { failPut?: boolean }).failPut = true));
-    await open.selectOption({ label: "Untitled model" });
+    await openStoredModel(page, "Untitled Model");
 
     await expect(page.getByRole("alert").filter({ hasText: "could not be saved" })).toBeVisible();
-    await expect(open.locator("option:checked")).toHaveText("Online store checkout");
+    await expect(currentModel(page)).toHaveText("Online Store Checkout");
     await expect(page.locator(".react-flow__node").filter({ hasText: "New Business Capability" })).toBeVisible();
     expect(errors).toEqual([]);
   });
@@ -183,13 +180,13 @@ test.describe("starting blank (desktop)", () => {
     await expect(page.getByRole("navigation", { name: "Element palette" }).getByRole("button").first()).toBeFocused();
     await expect(page.getByRole("status")).toContainText("Blank model ready");
 
-    await openExample(page, "Online store checkout");
+    await openExample(page, "Online Store Checkout");
     await expect(page.locator(".react-flow__node")).not.toHaveCount(0);
-    const before = await page.getByRole("combobox", { name: "Open model" }).locator("option").count();
+    const before = await Number(await modelButton(page).getAttribute("data-count"));
     await openExample(page, "Blank model");
-    await expect(page.getByRole("combobox", { name: "Open model" }).locator("option")).toHaveCount(before + 1);
+    await expect(modelButton(page)).toHaveAttribute("data-count", String(before + 1));
     await expect(page.locator(".react-flow__node")).toHaveCount(0);
-    await expect(page.getByRole("combobox", { name: "Open model" })).toHaveValue(/.+/);
+    await expect(modelButton(page)).toHaveAttribute("data-current", /.+/);
     await expect(page.getByRole("button", { name: "Examples", exact: true })).toHaveAttribute("aria-expanded", "false");
   });
 });

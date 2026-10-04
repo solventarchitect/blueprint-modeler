@@ -5,7 +5,7 @@ import { openExample as chooseExample } from "./examples";
 
 const node = (page: Page, name: string) => page.locator(".react-flow__node").filter({ hasText: name }).first();
 
-const openExample = async (page: Page, label = "Online store checkout") => {
+const openExample = async (page: Page, label = "Online Store Checkout") => {
   await page.goto("/editor");
   await expect(page.getByTestId("save-status")).toHaveText("Saved in this browser");
   await chooseExample(page, label);
@@ -112,7 +112,7 @@ test.describe("exports and examples", () => {
   });
 
   test("the ArchiMate example reads purely in ArchiMate; the metamodel example is CSDM 5", async ({ page }) => {
-    await openExample(page, "Claims handling (ArchiMate view)");
+    await openExample(page, "Claims Handling (ArchiMate View)");
     await expect(page.getByRole("combobox", { name: "Framework lens" })).toHaveValue("archimate-only");
     await expect(node(page, "Claims system").getByTestId("archimate-type").first()).toHaveText("Application Component");
     await expect(page.locator(".react-flow__edge-text").filter({ hasText: "Realization" }).first()).toBeVisible();
@@ -125,7 +125,7 @@ test.describe("exports and examples", () => {
       const header = page.locator(".react-flow__node [data-neighbor]").first().getByTestId("archimate-type");
       expect(await contrastOf(header), scheme).toBeGreaterThanOrEqual(4.5);
     }
-    await chooseExample(page, "CSDM 5 core metamodel");
+    await chooseExample(page, "CSDM 5 Core Metamodel");
     await expect(page.getByRole("combobox", { name: "Framework lens" })).toHaveValue("csdm");
     await expect(page.locator(".react-flow__node")).toHaveCount(19);
   });

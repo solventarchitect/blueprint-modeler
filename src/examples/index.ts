@@ -28,7 +28,7 @@ type Spec = { id: string; name: string; category: ExampleCategory; summary: stri
 const specs: Spec[] = [
   {
     id: "checkout",
-    name: "Online store checkout",
+    name: "Online Store Checkout",
     category: "application",
     summary: "A complete chain: capability → Business Application → production and test service instances → software → hosts, exposed through a Business Service Offering.",
     nodes: [
@@ -65,7 +65,7 @@ const specs: Spec[] = [
   },
   {
     id: "hr-portal",
-    name: "HR self-service portal",
+    name: "HR Self-Service Portal",
     category: "application",
     summary: "A process-led view: onboarding depends on an HR portal delivered as a service, and a planned payroll application with no deployment yet — watch the hints.",
     nodes: [
@@ -90,7 +90,7 @@ const specs: Spec[] = [
   },
   {
     id: "db-platform",
-    name: "Shared database platform",
+    name: "Shared Database Platform",
     category: "application",
     summary: "A Technology Management Service Offering shared databases: two Application Services depend on the same database software and network — one is not exposed yet.",
     nodes: [
@@ -165,7 +165,7 @@ const specs: Spec[] = [
   },
   {
     id: "enterprise-ai",
-    name: "Enterprise AI assistant",
+    name: "Enterprise AI Assistant",
     category: "application",
     summary: "An AI assistant modeled like any other application: a Business Application with its knowledge source, a production service on an AI platform offering, and the hosted language model as a CSDM 5 Data Service Instance. A planned refund agent has no deployment yet — watch the hints.",
     nodes: [
@@ -206,7 +206,7 @@ const specs: Spec[] = [
   },
   {
     id: "dmz-edge",
-    name: "Internet edge and DMZ",
+    name: "Internet Edge and DMZ",
     category: "security",
     grid: [["cap"], ["ba"], [null, "bs", "bso", "tms", "tmso"], ["svc", null, "edge"], [null, "web"], ["dmz", "h1", "fwc", "lb", "cert"], [null, "fw1", null, "fw2"]],
     summary:
@@ -249,7 +249,7 @@ const specs: Spec[] = [
   },
   {
     id: "directory",
-    name: "Directory and sign-in services",
+    name: "Directory and Sign-In Services",
     category: "security",
     grid: [[null, "cap"], [null, "ba"], ["tms2"], ["tmso2", null, "tmso", "tms"], ["hr", "dir", "files"], [null, "dc1", "dc2"], ["c1", "h1", "h2", "c2"]],
     summary:
@@ -291,7 +291,7 @@ const specs: Spec[] = [
   },
   {
     id: "remote-access",
-    name: "Remote access VPN",
+    name: "Remote Access VPN",
     category: "security",
     grid: [["bs", "bso", "tmso", "tms"], [null, "ra"], ["dc"], ["h", "vpn", "fwc"], [null, "fw1", "cert", "fw2"]],
     summary:
@@ -327,7 +327,7 @@ const specs: Spec[] = [
   },
   {
     id: "servicenow-itsm",
-    name: "ServiceNow service management",
+    name: "ServiceNow Service Management",
     category: "servicenow",
     grid: [[null, null, "proc", "cap"], [null, null, null, "ba"], ["bs", null, "tms"], ["bso1", "bso2", "tmso"], [null, null, null, "prod"]],
     summary:
@@ -358,7 +358,7 @@ const specs: Spec[] = [
   },
   {
     id: "servicenow-instances",
-    name: "ServiceNow instances and MID Servers",
+    name: "ServiceNow Instances and MID Servers",
     category: "servicenow",
     grid: [[null, "cap"], [null, "ba"], [null, null, null, "tms", "tmso"], ["prod", "test", "dev"], ["mid1", "mid2", "mid3"], ["h1", "h2", "h3"]],
     summary:
@@ -398,7 +398,7 @@ const specs: Spec[] = [
   },
   {
     id: "servicenow-integrations",
-    name: "ServiceNow integrations",
+    name: "ServiceNow Integrations",
     category: "servicenow",
     grid: [[null, "cap"], [null, "ba"], ["tms", null, null, "tms2"], ["tmso", null, null, "tmso2"], ["mon", "prod", "hr"], [null, null, null, "idp"], ["mid", "a3", "a1", "a2"], ["h"]],
     summary:
@@ -441,7 +441,7 @@ const specs: Spec[] = [
   },
   {
     id: "server-virtualization",
-    name: "Server virtualization",
+    name: "Server Virtualization",
     category: "reference",
     grid: [["tms", "tmso", "vs"], ["vc", null, null, "inv"], ["g1", "vm1", "vm2", "g2"], ["esx1", "ds", "esx2", "esx3"], ["cl", null, null, "dc"]],
     summary:
@@ -486,7 +486,7 @@ const specs: Spec[] = [
   },
   {
     id: "vdi",
-    name: "Virtual desktops (VDI)",
+    name: "Virtual Desktops (VDI)",
     category: "reference",
     grid: [["bs", "bso", "tmso", "tms"], [null, null, "svc"], ["broker", null, null, null, "dc"], ["bh", "d1", "lb", "d2", "dch"], ["bvm", "esx1", "cert", "esx2"], [null, null, "cl"]],
     summary:
@@ -534,7 +534,7 @@ const specs: Spec[] = [
   },
   {
     id: "archimate-claims",
-    name: "Claims handling (ArchiMate view)",
+    name: "Claims Handling (ArchiMate View)",
     category: "frameworks",
     summary: "A claims system read purely in ArchiMate 3.2: opens in the ArchiMate-only lens, so elements show their ArchiMate type and relationships their ArchiMate name — capability, process, product, application components, interface, system software and nodes.",
     lens: "archimate-only",
@@ -631,7 +631,7 @@ function layoutGrid(spec: Spec, grid: (string | null)[][]): Model["layout"] {
  */
 function metamodel(now: Date, id: string): Model {
   const core = classes.filter((c) => isCsdmCore(c) && !isExtended(c));
-  const model = createModel("CSDM 5 core metamodel", now, id);
+  const model = createModel("CSDM 5 Core Metamodel", now, id);
   let y = 0;
   for (const layer of LAYER_ORDER) {
     const inLayer = core.filter((c) => c.layer === layer);
@@ -665,7 +665,7 @@ export const examples: Example[] = [
   })),
   {
     id: "csdm5-metamodel",
-    name: "CSDM 5 core metamodel",
+    name: "CSDM 5 Core Metamodel",
     category: "frameworks",
     lens: "csdm",
     summary:

@@ -41,7 +41,7 @@ import { distributeEvenly } from "@/layout/distribute";
 import { autoLayout, DEFAULT_SIZE } from "@/layout/layout";
 import { createWorkerEngine } from "@/layout/worker-engine";
 import { classById, classes, isClassId, type ClassId, type Layer } from "@/metamodel";
-import { blastRadius, evaluateHints, type BlastDirection, type HintResult } from "@/model";
+import { blastRadius, evaluateHints, UNTITLED_MODEL, type BlastDirection, type HintResult } from "@/model";
 import { site } from "@/lib/site";
 import { ClassNode, SuggestContext, type ClassFlowNode } from "./ClassNode";
 import { ConnectionLine, ConnectionModelContext } from "./ConnectionLine";
@@ -55,6 +55,7 @@ import { CanvasEdge, LabelObstacles } from "./CanvasEdge";
 import { ModelManager } from "./ModelManager";
 import { ToolbarIcon } from "./ToolbarIcon";
 import { CanvasTitle } from "./CanvasTitle";
+import { ModelMenu } from "./ModelMenu";
 import { LayerOverlay, layerHandleId, type LayerHandlers } from "./LayerOverlay";
 import { DEFAULT_VIEW, readView, saveView, ViewMenu, type ViewOptions } from "./ViewMenu";
 import { HintsPanel } from "./HintsPanel";
@@ -81,8 +82,11 @@ const statusText: Record<SaveStatus, string> = {
 
 const toolbarButton =
   "inline-flex min-h-8 cursor-pointer items-center gap-1.5 border border-border-strong bg-surface-raised px-2.5 text-sm text-ink hover:border-accent hover:text-accent disabled:cursor-not-allowed disabled:opacity-60";
-/** Whole-model fits leave room above the diagram for the canvas title (see CanvasTitle). */
-const fitPadding = (p: number) => ({ x: p, bottom: p, top: "120px" }) as const;
+/**
+ * Whole-model fits leave room above the diagram for the canvas title block (see CanvasTitle):
+ * the name, plus the Artifact ID and up to three lines of description when the model has them.
+ */
+const titleRoom = (m: { artifactId?: string; description?: string }) => 120 + (m.artifactId ? 24 : 0) + (m.description ? 76 : 0);
 /**
  * Blast-radius step controls: aria-disabled rather than disabled, so the button keeps focus when the
  * last (or first) hop is reached (a disabled button drops focus to the page).
@@ -131,6 +135,12 @@ function EditorInner() {
   const { model, dispatch } = doc;
   const wide = useIsWide();
   const flow = useReactFlow();
+  // Read when a fit runs (often from a timeout after a model opens), so it follows the open model.
+  const room = useRef(titleRoom(model));
+  useEffect(() => {
+    room.current = titleRoom(model);
+  }, [model]);
+  const fitPadding = (p: number) => ({ x: p, bottom: p, top: `${room.current}px` }) as const;
   const [selectedId, setSelectedId] = useState<string | null>(null);
   const [focusName, setFocusName] = useState(0);
   const [focusConnect, setFocusConnect] = useState(0);
@@ -471,7 +481,7 @@ function EditorInner() {
     setActiveHint(null);
     await doc.createFrom(r.model);
     const warn = r.issues.length ? ` ${r.issues.length} relationship${r.issues.length === 1 ? " breaks" : "s break"} the CSDM rules; see Hints.` : "";
-    setMessage(`Imported “${r.model.name || "Untitled model"}”${r.copied ? " as a copy (a model with the same id is already here)" : ""}.${warn}`);
+    setMessage(`Imported “${r.model.name || UNTITLED_MODEL}”${r.copied ? " as a copy (a model with the same id is already here)" : ""}.${warn}`);
     setTimeout(() => void flow.fitView({ maxZoom: 1, padding: fitPadding(0.15) }), 50);
   };
 
@@ -970,7 +980,7 @@ function EditorInner() {
       {presenting && (
         <div role="region" aria-label="Presentation" className="flex flex-wrap items-center gap-2 border-b border-border px-4 py-2">
           <p className="font-mono text-xs tracking-[0.14em] text-accent uppercase">Presenting</p>
-          <h1 className="text-sm font-medium">{model.name || "Untitled model"}</h1>
+          <h1 className="text-sm font-medium">{model.name || UNTITLED_MODEL}</h1>
           <p className="text-sm text-ink-muted" aria-live="polite" data-testid="present-step">
             {steps[step]?.name} · {step + 1} of {steps.length}
           </p>
@@ -993,25 +1003,17 @@ function EditorInner() {
         <span className={groupCaption} aria-hidden="true">
           Model
         </span>
-        <label className="flex items-center gap-2 text-sm">
-          <span className="sr-only">Open model</span>
-          {/* Fixed width: a long model name must not re-wrap the toolbar after the canvas has been fitted. */}
-          <select
-            className={`${toolbarSelect} w-44`}
-            value={model.id}
-            onChange={(e) => {
-              setSelectedId(null);
-              setActiveHint(null);
-              void doc.open(e.target.value);
-            }}
-          >
-            {doc.models.map((m) => (
-              <option key={m.id} value={m.id}>
-                {m.name || "Untitled model"}
-              </option>
-            ))}
-          </select>
-        </label>
+        <ModelMenu
+          buttonClass={toolbarButton}
+          models={doc.models}
+          currentId={model.id}
+          currentName={model.name}
+          onOpen={(id) => {
+            setSelectedId(null);
+            setActiveHint(null);
+            void doc.open(id);
+          }}
+        />
         <button type="button" className={toolbarButton} onClick={() => setManaging(true)}>
           <ToolbarIcon name="manage" />
           Manage…
@@ -1287,7 +1289,7 @@ function EditorInner() {
               <Background id="major" variant={BackgroundVariant.Lines} gap={160} color="var(--canvas-grid-major)" />
               {!presenting && <Controls showInteractive={false} fitViewOptions={{ maxZoom: 1, padding: fitPadding(0.15) }} />}
               <LayerOverlay boxes={boxes} lanes={lanes} showBoxes={view.boxes || presenting} showLanes={view.lanes} handlers={canMenu ? layerHandlers : undefined} />
-              <CanvasTitle name={model.name} boxes={boxes} tabsAbove={view.boxes && !view.lanes && canMenu} decorative={presenting} />
+              <CanvasTitle name={model.name} description={model.description} artifactId={model.artifactId} boxes={boxes} tabsAbove={view.boxes && !view.lanes && canMenu} decorative={presenting} />
             </ReactFlow>
           </LabelObstacles>
           </SuggestContext.Provider>

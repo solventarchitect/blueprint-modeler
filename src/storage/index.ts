@@ -4,7 +4,8 @@ import { parseModel, serializeModel, type Model } from "@/model";
  * Where models live between visits: this browser only (CLAUDE.md rule 2). Every read goes back
  * through parseModel, so a corrupted or hand-edited record is reported, never trusted.
  */
-export type ModelSummary = { id: string; name: string; updated: string };
+/** What the Model menu shows for each stored model, without opening it. */
+export type ModelSummary = { id: string; name: string; updated: string; description?: string; artifactId?: string; nodes: number; edges: number };
 export type StoredModel = { ok: true; model: Model } | { ok: false; error: string };
 
 export interface ModelStore {
@@ -16,7 +17,21 @@ export interface ModelStore {
 
 type Row = { id: string; name: string; updated: string; json: string };
 
-const summary = (r: Row): ModelSummary => ({ id: r.id, name: r.name, updated: r.updated });
+function summary(r: Row): ModelSummary {
+  const base = { id: r.id, name: r.name, updated: r.updated };
+  try {
+    const m = JSON.parse(r.json) as Partial<Model>;
+    return {
+      ...base,
+      ...(typeof m.description === "string" && m.description ? { description: m.description } : {}),
+      ...(typeof m.artifactId === "string" && m.artifactId ? { artifactId: m.artifactId } : {}),
+      nodes: Array.isArray(m.nodes) ? m.nodes.length : 0,
+      edges: Array.isArray(m.edges) ? m.edges.length : 0,
+    };
+  } catch {
+    return { ...base, nodes: 0, edges: 0 };
+  }
+}
 const byUpdatedDesc = (a: ModelSummary, b: ModelSummary) => b.updated.localeCompare(a.updated);
 const toRow = (m: Model): Row => ({ id: m.id, name: m.name, updated: m.updated, json: serializeModel(m) });
 
