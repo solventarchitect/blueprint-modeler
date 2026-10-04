@@ -25,7 +25,7 @@ export type ClassNodeData = {
   /** Offer relationship suggestions (editing, and the element has no relationships yet). */
   suggest?: boolean;
   /** Reached by the open blast radius: the start (hop 0) or an element reached at `hop`. */
-  blast?: { hop: number; current: boolean; impact: boolean };
+  blast?: { hop: number; current: boolean; impact: boolean; /** A data flow rather than a blast radius: the flow color throughout. */ flow?: boolean };
 };
 
 /** ArchiMate-only lens: the element's fill follows its ArchiMate layer (tokens in globals.css). */
@@ -156,7 +156,7 @@ function ClassNodeView({ id, data, selected, dragging }: NodeProps<ClassFlowNode
   const ring = target
     ? "outline-2 outline-dashed outline-offset-4 outline-valid"
     : blast
-      ? `${blast.current ? "outline-[3px]" : "outline-2"} outline-offset-2 ${blast.hop > 0 ? "outline-status" : blast.impact ? "outline-invalid" : "outline-accent"} ${blast.current ? "blast-pulse" : ""}`
+      ? `${blast.current ? "outline-[3px]" : "outline-2"} outline-offset-2 ${blast.flow ? "outline-ai" : blast.hop > 0 ? "outline-status" : blast.impact ? "outline-invalid" : "outline-accent"} ${blast.current ? "blast-pulse" : ""}`
       : data.highlight
       ? "ring-2 ring-status ring-offset-2 ring-offset-surface"
       : selected
@@ -177,7 +177,8 @@ function ClassNodeView({ id, data, selected, dragging }: NodeProps<ClassFlowNode
       data-blast={blast ? (blast.hop === 0 ? "start" : "reached") : undefined}
       data-blast-hop={blast?.hop}
       data-blast-current={blast?.current || undefined}
-      style={blast?.hop === 0 ? ({ "--pulse": blast.impact ? "var(--invalid)" : "var(--accent)" } as CSSProperties) : undefined}
+      data-flow={blast?.flow || undefined}
+      style={blast ? ({ "--pulse": blast.flow ? "var(--ai)" : blast.hop === 0 ? (blast.impact ? "var(--invalid)" : "var(--accent)") : "var(--status)" } as CSSProperties) : undefined}
       onMouseEnter={() => hover(true)}
       onMouseLeave={() => hover(false)}
     >
@@ -215,10 +216,10 @@ function ClassNodeView({ id, data, selected, dragging }: NodeProps<ClassFlowNode
           aria-hidden="true"
           data-testid="blast-badge"
           className={`absolute -top-2.5 -left-2.5 flex h-5 min-w-5 items-center justify-center rounded-full px-1 font-mono text-[0.7rem] font-semibold text-accent-ink ${
-            blast.hop > 0 ? "bg-status" : blast.impact ? "bg-invalid" : "bg-accent"
+            blast.flow ? "bg-ai" : blast.hop > 0 ? "bg-status" : blast.impact ? "bg-invalid" : "bg-accent"
           }`}
         >
-          {blast.hop > 0 ? blast.hop : blast.impact ? "×" : "◎"}
+          {blast.hop > 0 ? blast.hop : blast.flow ? "▶" : blast.impact ? "×" : "◎"}
         </span>
       )}
       {data.hint && (

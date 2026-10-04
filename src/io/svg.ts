@@ -20,6 +20,8 @@ const palettes = {
  */
 export type SvgHighlight = {
   impact: boolean;
+  /** A data flow: every mark and carried line in the flow color, the source marked ▶. */
+  flow?: boolean;
   nodes: ReadonlyMap<string, { hop: number; current: boolean }>;
   edges: ReadonlyMap<string, { current: boolean }>;
   /** `reserve`: characters of width to keep for the caption, so frames with shorter captions match in size. */
@@ -174,7 +176,7 @@ export function modelToSvg(model: Model, theme: SvgTheme, opts: { lens?: Lens; h
       if (am.atFrom) shapes.add(am.atFrom);
       if (am.atTo) shapes.add(am.atTo);
     }
-    const stroke = carried ? `stroke="${p.status}" stroke-width="2.5"${carried.current ? ` stroke-dasharray="10 6"` : ""}` : `stroke="${p.line}" stroke-width="1.25"`;
+    const stroke = carried ? `stroke="${hl?.flow ? p.ai : p.status}" stroke-width="2.5"${carried.current ? ` stroke-dasharray="10 6"` : ""}` : `stroke="${p.line}" stroke-width="1.25"`;
     edges.push(
       `<path d="M${r1(s.x)} ${r1(s.y)} C${r1(c1.x)} ${r1(c1.y)} ${r1(c2.x)} ${r1(c2.y)} ${r1(t.x)} ${r1(t.y)}" fill="none" ${stroke}${ends}/>`,
       `<rect x="${r1(mid.x - lw / 2)}" y="${r1(mid.y - 8)}" width="${r1(lw)}" height="16" fill="${p.bg}"/>`,
@@ -208,8 +210,8 @@ export function modelToSvg(model: Model, theme: SvgTheme, opts: { lens?: Lens; h
       const mark = hl.nodes.get(n.id);
       if (!mark) continue;
       const b = boxes.get(n.id)!;
-      const color = mark.hop > 0 ? p.status : hl.impact ? p.invalid : p.accent;
-      const glyph = mark.hop > 0 ? String(mark.hop) : hl.impact ? "×" : "◎";
+      const color = hl.flow ? p.ai : mark.hop > 0 ? p.status : hl.impact ? p.invalid : p.accent;
+      const glyph = mark.hop > 0 ? String(mark.hop) : hl.flow ? "▶" : hl.impact ? "×" : "◎";
       nodes.push(
         `<g data-blast="${mark.hop === 0 ? "start" : "reached"}" data-blast-hop="${mark.hop}">` +
           `<rect x="${b.x - 5}" y="${b.y - 5}" width="${b.w + 10}" height="${b.h + 10}" fill="none" stroke="${color}" stroke-width="${mark.current ? 3.5 : 2.5}"/>` +
@@ -258,7 +260,7 @@ export function modelToSvg(model: Model, theme: SvgTheme, opts: { lens?: Lens; h
     `<svg xmlns="http://www.w3.org/2000/svg" viewBox="${minX} ${minY} ${width} ${height}" width="${width}" height="${height}" role="img" aria-labelledby="t d">`,
     `<title id="t">${title}</title><desc id="d">${desc}</desc>`,
     `<defs><marker id="arrow" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="8" markerHeight="8" orient="auto-start-reverse"><path d="M0 0L10 5L0 10z" fill="${p.line}"/></marker>${
-      hl ? `<marker id="arrow-blast" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="6" markerHeight="6" orient="auto-start-reverse"><path d="M0 0L10 5L0 10z" fill="${p.status}"/></marker>` : ""
+      hl ? `<marker id="arrow-blast" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="6" markerHeight="6" orient="auto-start-reverse"><path d="M0 0L10 5L0 10z" fill="${hl.flow ? p.ai : p.status}"/></marker>` : ""
     }${[...shapes]
       .sort()
       .map((shape) => markerSvg(`am-${shape}`, shape, p.line, p.bg))

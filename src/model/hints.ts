@@ -1,6 +1,9 @@
 import { acceptedTypes, allowedTypes, hints, INSTANCES, type HintDef, type HintId } from "@/metamodel";
 import type { Model } from "./schema";
 
+/** A Business Capability or Business Process: what anchors a model to the business, and where a data flow starts. */
+export const isBusinessAnchor = (cls: string) => cls === "business_capability" || cls === "business_process";
+
 /** One hint that applies to a model, and the elements it is about. */
 export type HintResult = {
   id: string;
@@ -50,7 +53,7 @@ export function evaluateHints(model: Model): HintResult[] {
     }
   }
 
-  if (model.nodes.length && !model.nodes.some((n) => n.class === "business_capability" || n.class === "business_process")) {
+  if (model.nodes.length && !model.nodes.some((n) => isBusinessAnchor(n.class))) {
     push("model-without-business-anchor", "model", "No element says what the business does.", []);
   }
 

@@ -1,7 +1,7 @@
 import { describe, expect, it } from "vitest";
 import { examples } from "@/examples";
 import { blastRadius, type Model } from "@/model";
-import { blastAnnouncement, blastProgress, blastSteps, blastView } from "./blast";
+import { blastAnnouncement, blastProgress, blastSteps, blastView, flowAnnouncement, flowProgress, flowSteps } from "./blast";
 
 const checkout = () => examples.find((e) => e.id === "checkout")!.create(new Date(0), "m");
 const idOf = (m: Model, name: string) => m.nodes.find((x) => x.name === name)!.id;
@@ -117,5 +117,40 @@ describe("blast text", () => {
     expect(list[0]).toEqual({ hop: 0, label: "Failed", names: ["db-prod-01"] });
     expect(list[4]).toEqual({ hop: 4, label: "Hop 4", names: ["Order management", "Online shopping"] });
     expect(blastSteps(blastRadius(m, idOf(m, "Checkout"), "dependencies"), nameOf(m))[0]!.label).toBe("Start");
+  });
+});
+
+describe("data flow", () => {
+  const flowFrom = (m: Model, name: string) => blastRadius(m, idOf(m, name), "dependencies");
+
+  it("runs down from a capability through everything it relies on, data travelling with the walk", () => {
+    const m = checkout();
+    const r = flowFrom(m, "Order management");
+    expect(r.reached).toBe(9);
+    const v = blastView(m, r, r.steps.length - 1, "flow");
+    // Checkout's lines are drawn from the dependent element, so data runs along each line…
+    expect(new Set([...v.edges.values()].map((e) => e.forward))).toEqual(new Set([true]));
+    // …which is the opposite of the way impact runs on the same lines.
+    expect(new Set([...blastView(m, r, r.steps.length - 1).edges.values()].map((e) => e.forward))).toEqual(new Set([false]));
+  });
+
+  it("lists the steps as Source then Step n, and words progress and announcements as data reaching elements", () => {
+    const m = checkout();
+    const r = flowFrom(m, "Order management");
+    const list = flowSteps(r, nameOf(m));
+    expect(list[0]).toEqual({ hop: 0, label: "Source", names: ["Order management"] });
+    expect(list[1]).toEqual({ hop: 1, label: "Step 1", names: ["Checkout"] });
+    expect(list[4]!.names).toEqual(["web-prod-01", "db-prod-01"]);
+    expect(flowProgress(r, 0)).toBe("Source · 0 of 9 reached");
+    expect(flowProgress(r, 2)).toBe("Step 2 of 4 · 4 of 9 reached");
+    expect(flowAnnouncement(r, 0, nameOf(m))).toBe("Data flow: from Order management, data reaches 9 elements in 4 steps.");
+    expect(flowAnnouncement(r, 2, nameOf(m))).toBe("Step 2: data reaches Customer orders, Checkout — production, Checkout — test.");
+  });
+
+  it("says plainly when nothing follows from the source", () => {
+    const m = checkout();
+    const r = flowFrom(m, "db-prod-01");
+    expect(flowProgress(r, 0)).toBe("Source · nothing reached");
+    expect(flowAnnouncement(r, 0, nameOf(m))).toBe("Data flow: nothing follows from db-prod-01. No relationship carries data from it.");
   });
 });

@@ -145,7 +145,10 @@ export default function GuidePage() {
           the Inspector. Each hop lights up in turn; Impact shows what is affected if the element fails, Dependencies
           what it needs. It changes nothing in the model. While it is open,{" "}
           <strong className="font-medium text-ink-soft">Export › Blast radius animation (GIF)</strong> saves it as an
-          animated image, one frame a hop, made in your browser; the file carries a text summary of every hop.
+          animated image, one frame a hop, made in your browser; the file carries a text summary of every hop. A Business
+          Capability or Business Process also offers <strong className="font-medium text-ink-soft">Show data flow</strong>: the
+          same walk as its dependencies, shown as data travelling from it step by step through everything it relies on,
+          with <strong className="font-medium text-ink-soft">Export › Data flow animation (GIF)</strong> to save it.
         </p>
         <div className="mt-6 overflow-x-auto border border-border" tabIndex={0} role="region" aria-label="Impact rules">
           <table className="w-full min-w-[48rem] text-left text-sm">
