@@ -310,9 +310,13 @@ function EditorInner() {
                 markerEnd: am.atTo ? markerId(am.atTo, tone) : undefined,
               }
             : {
+                // A fixed on-screen size (not scaled by the line's width), large enough to see on a curve.
                 markerEnd: {
                   type: MarkerType.ArrowClosed,
                   color: tone === "status" ? "var(--status)" : tone === "neighbor" ? "var(--neighbor)" : "var(--border-strong)",
+                  width: 32,
+                  height: 32,
+                  markerUnits: "userSpaceOnUse",
                 },
               }),
           ariaLabel: `${e.type} from ${model.nodes.find((n) => n.id === e.from)?.name} to ${model.nodes.find((n) => n.id === e.to)?.name}${carried ? " (carries impact)" : ""}`,

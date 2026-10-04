@@ -175,6 +175,18 @@
 .react-flow__edge.selected .react-flow__edge-path {
   stroke: var(--accent);
 }
+/* Connection points: hidden until an element is hovered or selected, or while a relationship is being
+   drawn (on its start and on every element it can join), so idle elements keep a clean border. Hidden
+   points are still grabbable. */
+.react-flow__node .react-flow__handle {
+  opacity: 0;
+}
+.react-flow__node:hover .react-flow__handle,
+.react-flow__node.selected .react-flow__handle,
+.react-flow__node [data-connect-target] > .react-flow__handle,
+.react-flow__node .react-flow__handle.connectingfrom {
+  opacity: 1;
+}
 .react-flow__edge-text {
   fill: var(--ink-soft);
   font-family: var(--font-mono);
