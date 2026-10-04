@@ -14,6 +14,13 @@ export type HintDef = {
 
 export const hints = [
   {
+    id: "model-without-business-anchor",
+    severity: "info",
+    title: "Model has no Business Capability or Business Process",
+    explanation: "Start from what the business does: relate the model's applications and services to at least one Business Capability or Business Process, so the diagram reads top-down from business to infrastructure.",
+    source: { id: "whitepaper", page: 31 },
+  },
+  {
     id: "ba-without-capability",
     severity: "info",
     title: "Business Application has no Business Capability",

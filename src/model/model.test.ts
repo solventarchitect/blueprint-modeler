@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { createModel, migrate, parseModel, serializeModel, UNTITLED_MODEL, type Model } from "./index";
+import { createModel, formatModelDate, migrate, modelDate, parseModel, serializeModel, UNTITLED_MODEL, type Model } from "./index";
 
 const NOW = new Date("2026-09-27T12:00:00.000Z");
 
@@ -48,6 +48,21 @@ describe("parseModel", () => {
     const r = parseModel({ ...base, description: "   ", artifactId: "  EA-1  " });
     expect(r.ok && "description" in r.model).toBe(false);
     expect(r.ok && r.model.artifactId).toBe("EA-1");
+  });
+
+  it("gives a new model today's date, keeps a date from a file, and falls back to the creation day", () => {
+    const m = createModel("A", NOW, "a");
+    expect(m.date).toBe("2026-09-27");
+    expect(Object.keys(m).slice(0, 4)).toEqual(["schema", "id", "name", "date"]);
+    const base = JSON.parse(serializeModel(sample()));
+    delete base.date;
+    const r = parseModel(base);
+    expect(r.ok && "date" in r.model).toBe(false);
+    expect(r.ok && modelDate(r.model)).toBe("2026-09-27");
+    const dated = parseModel({ ...base, date: "2026-10-04" });
+    expect(dated.ok && modelDate(dated.model)).toBe("2026-10-04");
+    expect(parseModel({ ...base, date: "yesterday" }).ok).toBe(false);
+    expect(formatModelDate("2026-10-04")).toBe("Oct 4, 2026");
   });
 
   it("names new models in Title Case", () => {

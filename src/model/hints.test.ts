@@ -19,6 +19,13 @@ describe("evaluateHints", () => {
     expect(evaluateHints(model)).toEqual([]);
   });
 
+  it("asks for a Business Capability or Business Process once a model has elements but neither", () => {
+    expect(ids(m([]))).toEqual([]);
+    expect(ids(m([["host", "host"]]))).toEqual(["model-without-business-anchor"]);
+    expect(ids(m([["host", "host"], ["proc", "business_process"]]))).toEqual([]);
+    expect(ids(m([["cap", "business_capability"]]))).toEqual([]);
+  });
+
   it("asks for a specific type on a generic Service Instance, and for every instance to be exposed", () => {
     const hints = ids(m([["si", "service_instance"], ["data", "data_service_instance"]]));
     expect(hints).toContain("generic-service-instance");
@@ -41,13 +48,13 @@ describe("evaluateHints", () => {
 
   it("flags a lone business application for capability and service, and names it", () => {
     const hints = evaluateHints(m([["ba", "business_application"]]));
-    expect(hints.map((h) => h.hint.id)).toEqual(["ba-without-capability", "ba-without-service-instance"]);
-    expect(hints[0]!.nodeIds).toEqual(["ba"]);
-    expect(hints[0]!.message).toContain("ba");
+    expect(hints.map((h) => h.hint.id)).toEqual(["model-without-business-anchor", "ba-without-capability", "ba-without-service-instance"]);
+    expect(hints[1]!.nodeIds).toEqual(["ba"]);
+    expect(hints[1]!.message).toContain("ba");
   });
 
   it("flags an application service no offering exposes", () => {
-    expect(ids(m([["svc", "application_service"]]))).toEqual(["service-not-exposed"]);
+    expect(ids(m([["svc", "application_service"]]))).toEqual(["model-without-business-anchor", "service-not-exposed"]);
   });
 
   it("puts a business application wired straight to a host first, as a warning", () => {
@@ -56,7 +63,7 @@ describe("evaluateHints", () => {
   });
 
   it("flags other relationships CSDM does not use, and legacy types", () => {
-    expect(ids(m([["h", "host"], ["n", "network"]], [["h", "n", "Uses::Used by"]]))).toEqual(["disallowed-relationship"]);
+    expect(ids(m([["h", "host"], ["n", "network"]], [["h", "n", "Uses::Used by"]]))).toEqual(["disallowed-relationship", "model-without-business-anchor"]);
     const legacy = m(
       [["ba", "business_application"], ["svc", "application_service"]],
       [["ba", "svc", "Consumes::Consumed by"]],

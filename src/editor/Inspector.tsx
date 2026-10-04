@@ -4,7 +4,7 @@ import { useEffect, useId, useRef, useState } from "react";
 import { ARCHIMATE_TRADEMARK, archimateElements, archimateRelationshipFor, archimateSources, type ElementMapping, type Lens, showsArchimate } from "@/frameworks";
 import { ArchimateGlyph } from "@/frameworks/ArchimateGlyph";
 import { allowedTypes, classById, isClassId, isCsdmCore, sources } from "@/metamodel";
-import type { Model } from "@/model";
+import { modelDate, type Model } from "@/model";
 import type { Action } from "./state";
 import { suggestionDetail, suggestionLabel, type Suggestion } from "./suggest";
 
@@ -141,6 +141,16 @@ export function Inspector({ model, selectedId, dispatch, focusName, focusConnect
     return (
       <div className="flex flex-col gap-4 p-4">
         <NameField id={model.id} value={model.name} label="Model name" onCommit={(name) => dispatch({ type: "rename-model", name })} />
+        <label className="flex flex-col gap-1 text-sm">
+          <span className="text-ink-muted">Date</span>
+          <input
+            type="date"
+            className={input}
+            value={modelDate(model)}
+            onChange={(e) => e.target.value && dispatch({ type: "model-details", date: e.target.value })}
+          />
+          <span className="text-xs text-ink-muted">The model&apos;s date, shown in the title block. Starts as the day the model was created.</span>
+        </label>
         <DescriptionField
           id={model.id}
           value={model.description ?? ""}

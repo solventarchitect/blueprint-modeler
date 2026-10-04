@@ -1,6 +1,6 @@
 import type { Lens } from "@/frameworks";
 import { allowedTypes, classById, classes, isCsdmCore, isExtended, relationships, type ClassId, type Layer } from "@/metamodel";
-import { createModel, type Model } from "@/model";
+import { createModel, withDetails, type Model } from "@/model";
 import { nextPosition, SLOT } from "@/editor/state";
 
 /**
@@ -23,7 +23,7 @@ export const exampleCategories = [
 export type ExampleCategory = (typeof exampleCategories)[number]["id"];
 
 /** `grid`: hand-placed rows (see layoutGrid); without it, each layer is one row in node order. */
-type Spec = { id: string; name: string; category: ExampleCategory; summary: string; nodes: [string, ClassId, string][]; edges: [string, string][]; lens?: Lens; grid?: (string | null)[][] };
+type Spec = { id: string; name: string; category: ExampleCategory; summary: string; description: string; nodes: [string, ClassId, string][]; edges: [string, string][]; lens?: Lens; grid?: (string | null)[][] };
 
 const specs: Spec[] = [
   {
@@ -31,6 +31,7 @@ const specs: Spec[] = [
     name: "Online Store Checkout",
     category: "application",
     summary: "A complete chain: capability → Business Application → production and test service instances → software → hosts, exposed through a Business Service Offering.",
+    description: "An online store's checkout, from the capability it serves down to the hosts it runs on, in production and test.",
     nodes: [
       ["cap", "business_capability", "Order management"],
       ["ba", "business_application", "Checkout"],
@@ -68,6 +69,7 @@ const specs: Spec[] = [
     name: "HR Self-Service Portal",
     category: "application",
     summary: "A process-led view: onboarding depends on an HR portal delivered as a service, and a planned payroll application with no deployment yet — watch the hints.",
+    description: "The HR self-service portal that onboarding depends on, with a payroll application that is planned but not yet deployed.",
     nodes: [
       ["proc", "business_process", "Onboard a new hire"],
       ["cap", "business_capability", "Workforce management"],
@@ -92,8 +94,10 @@ const specs: Spec[] = [
     id: "db-platform",
     name: "Shared Database Platform",
     category: "application",
-    summary: "A Technology Management Service Offering shared databases: two Application Services depend on the same database software and network — one is not exposed yet.",
+    summary: "A Technology Management Service Offering shared databases: two Application Services depend on the same database software and network — one is not exposed yet (watch the hints).",
+    description: "A shared PostgreSQL platform offered by the database team to the inventory and reporting services.",
     nodes: [
+      ["cap", "business_capability", "Data management"],
       ["tms", "technology_management_service", "Database hosting"],
       ["tmso", "technology_management_service_offering", "PostgreSQL — production"],
       ["a", "business_application", "Inventory"],
@@ -106,6 +110,8 @@ const specs: Spec[] = [
       ["net", "network", "Data-center network"],
     ],
     edges: [
+      ["cap", "a"],
+      ["cap", "b"],
       ["tms", "tmso"],
       ["a", "sa"],
       ["b", "sb"],
@@ -122,6 +128,7 @@ const specs: Spec[] = [
     name: "Storefront on Kubernetes",
     category: "reference",
     summary: "Containerization reference: a storefront in the CMDB's Kubernetes classes. Its service instance depends on its workloads and cluster, a Kubernetes Service fronts the catalog, and the cluster's nodes are hosted on servers — all offered by the platform team.",
+    description: "A storefront deployed on a production Kubernetes cluster, modeled in the CMDB's Kubernetes classes.",
     nodes: [
       ["cap", "business_capability", "Digital commerce"],
       ["ba", "business_application", "Storefront"],
@@ -168,6 +175,7 @@ const specs: Spec[] = [
     name: "Enterprise AI Assistant",
     category: "application",
     summary: "An AI assistant modeled like any other application: a Business Application with its knowledge source, a production service on an AI platform offering, and the hosted language model as a CSDM 5 Data Service Instance. A planned refund agent has no deployment yet — watch the hints.",
+    description: "A customer-support assistant on an AI platform, with its knowledge source and hosted language model.",
     nodes: [
       ["proc", "business_process", "Resolve a customer case"],
       ["cap", "business_capability", "Customer support"],
@@ -211,6 +219,7 @@ const specs: Spec[] = [
     grid: [["cap"], ["ba"], [null, "bs", "bso", "tms", "tmso"], ["svc", null, "edge"], [null, "web"], ["dmz", "h1", "fwc", "lb", "cert"], [null, "fw1", null, "fw2"]],
     summary:
       "A public customer portal behind the internet edge: its Application Service depends on the edge as a CSDM 5 Network Service Instance, built on a Firewall Cluster and a Load Balancer that uses the site's Unique Certificate. Show the certificate's blast radius to see what an expiry reaches.",
+    description: "The internet edge for a public customer portal: firewalls, a load balancer and its certificate in front of the DMZ.",
     nodes: [
       ["cap", "business_capability", "Customer self-service"],
       ["bs", "business_service", "Customer portal"],
@@ -254,6 +263,7 @@ const specs: Spec[] = [
     grid: [[null, "cap"], [null, "ba"], ["tms2"], ["tmso2", null, "tmso", "tms"], ["hr", "dir", "files"], [null, "dc1", "dc2"], ["c1", "h1", "h2", "c2"]],
     summary:
       "Directory services as a shared technology offering: two Active Directory Domain Controllers run on Windows servers, each server uses its certificate, and other services depend on the directory. Show the directory's blast radius to see who loses sign-in.",
+    description: "Directory services for the company: domain controllers on Windows servers that other services sign in through.",
     nodes: [
       ["cap", "business_capability", "Identity and access management"],
       ["tms", "technology_management_service", "Identity and access"],
@@ -293,10 +303,12 @@ const specs: Spec[] = [
     id: "remote-access",
     name: "Remote Access VPN",
     category: "security",
-    grid: [["bs", "bso", "tmso", "tms"], [null, "ra"], ["dc"], ["h", "vpn", "fwc"], [null, "fw1", "cert", "fw2"]],
+    grid: [["cap"], ["bs", "bso", "tmso", "tms"], [null, "ra"], ["dc"], ["h", "vpn", "fwc"], [null, "fw1", "cert", "fw2"]],
     summary:
       "Remote access as a CSDM 5 Network Service Instance offered to employees: it depends on the Virtual Private Network, a Firewall Cluster whose Firewall Devices use the gateway certificate, and an Active Directory Domain Controller for sign-in.",
+    description: "Remote access for employees over a VPN that ends on a firewall cluster, with directory sign-in.",
     nodes: [
+      ["cap", "business_capability", "Secure remote access"],
       ["bs", "business_service", "Remote work"],
       ["tms", "technology_management_service", "Network security"],
       ["bso", "business_service_offering", "Remote access — employees"],
@@ -311,6 +323,7 @@ const specs: Spec[] = [
       ["h", "host", "dc-01"],
     ],
     edges: [
+      ["cap", "bs"],
       ["bs", "bso"],
       ["bso", "ra"],
       ["tms", "tmso"],
@@ -332,6 +345,7 @@ const specs: Spec[] = [
     grid: [[null, null, "proc", "cap"], [null, null, null, "ba"], ["bs", null, "tms"], ["bso1", "bso2", "tmso"], [null, null, null, "prod"]],
     summary:
       "ServiceNow modeled as a platform in its own CMDB: a Business Application, the production instance as an Application Service, IT support offerings that depend on it, and a technology offering for the team that runs it.",
+    description: "ServiceNow as the IT service management platform, from the incident process to the production instance.",
     nodes: [
       ["proc", "business_process", "Resolve an incident"],
       ["cap", "business_capability", "IT service management"],
@@ -363,6 +377,7 @@ const specs: Spec[] = [
     grid: [[null, "cap"], [null, "ba"], [null, null, null, "tms", "tmso"], ["prod", "test", "dev"], ["mid1", "mid2", "mid3"], ["h1", "h2", "h3"]],
     summary:
       "The instance estate: production, test and development instances as Application Services under one technology offering, and MID Servers — software on hosts in your own network that the instances work through — as Applications. Show a MID Server host's blast radius.",
+    description: "The ServiceNow instance estate — production, test and development — and the MID Servers in the company's network.",
     nodes: [
       ["cap", "business_capability", "IT service management"],
       ["tms", "technology_management_service", "ServiceNow platform"],
@@ -403,6 +418,7 @@ const specs: Spec[] = [
     grid: [[null, "cap"], [null, "ba"], ["tms", null, null, "tms2"], ["tmso", null, null, "tmso2"], ["mon", "prod", "hr"], [null, null, null, "idp"], ["mid", "a3", "a1", "a2"], ["h"]],
     summary:
       "How the instance connects: it depends on the HR system for employee data and on the identity platform for account provisioning, each of which exposes an API; it exposes its own Events API, and monitoring, which sends it events, depends on it; a MID Server reaches the systems in your network.",
+    description: "How the ServiceNow instance connects to HR, identity and monitoring systems through their APIs.",
     nodes: [
       ["cap", "business_capability", "IT service management"],
       ["tms", "technology_management_service", "ServiceNow platform"],
@@ -443,10 +459,13 @@ const specs: Spec[] = [
     id: "server-virtualization",
     name: "Server Virtualization",
     category: "reference",
-    grid: [["tms", "tmso", "vs"], ["vc", null, null, "inv"], ["g1", "vm1", "vm2", "g2"], ["esx1", "ds", "esx2", "esx3"], ["cl", null, null, "dc"]],
+    grid: [[null, null, "cap"], [null, null, "ba"], ["tms", "tmso", "vs"], ["vc", null, null, "inv"], ["g1", "vm1", "vm2", "g2"], ["esx1", "ds", "esx2", "esx3"], ["cl", null, null, "dc"]],
     summary:
       "Server virtualization in the CMDB's VMware classes: a VMware vCenter Datacenter holds a VMware vCenter Cluster of three ESX Servers and a datastore; each virtual machine is registered on an ESX Server and stored on the datastore, and its guest server instantiates it and is virtualized by that ESX Server. vCenter runs on one of the guests. Show an ESX Server's blast radius.",
+    description: "A VMware estate: a datacenter with an ESX cluster, a datastore, virtual machines and their guest servers.",
     nodes: [
+      ["cap", "business_capability", "Infrastructure hosting"],
+      ["ba", "business_application", "Virtualization management"],
       ["tms", "technology_management_service", "Infrastructure hosting"],
       ["tmso", "technology_management_service_offering", "Virtual servers — production"],
       ["vs", "application_service", "Virtualization platform — production"],
@@ -464,6 +483,8 @@ const specs: Spec[] = [
       ["dc", "vcenter_datacenter", "DC-East"],
     ],
     edges: [
+      ["cap", "ba"],
+      ["ba", "vs"],
       ["tms", "tmso"],
       ["tmso", "vs"],
       ["vs", "vc"],
@@ -488,10 +509,12 @@ const specs: Spec[] = [
     id: "vdi",
     name: "Virtual Desktops (VDI)",
     category: "reference",
-    grid: [["bs", "bso", "tmso", "tms"], [null, null, "svc"], ["broker", null, null, null, "dc"], ["bh", "d1", "lb", "d2", "dch"], ["bvm", "esx1", "cert", "esx2"], [null, null, "cl"]],
+    grid: [["cap"], ["bs", "bso", "tmso", "tms"], [null, null, "svc"], ["broker", null, null, null, "dc"], ["bh", "d1", "lb", "d2", "dch"], ["bvm", "esx1", "cert", "esx2"], [null, null, "cl"]],
     summary:
       "Virtual desktops as a service: employees reach a gateway Load Balancer that uses its certificate, a desktop broker on a virtual machine hands out pooled Windows desktops on ESX Servers in a VMware vCenter Cluster, and an Active Directory Domain Controller signs people in. ServiceNow's public documentation has no desktop-delivery classes, so the broker is an Application, and each desktop pool is drawn as one Host.",
+    description: "Virtual desktops for employees: a gateway, a desktop broker and desktop pools on an ESX cluster, with directory sign-in.",
     nodes: [
+      ["cap", "business_capability", "Digital workplace"],
       ["bs", "business_service", "Workplace"],
       ["tms", "technology_management_service", "End-user computing"],
       ["bso", "business_service_offering", "Virtual desktop — employees"],
@@ -511,6 +534,7 @@ const specs: Spec[] = [
       ["cl", "vcenter_cluster", "vdi-cluster"],
     ],
     edges: [
+      ["cap", "bs"],
       ["bs", "bso"],
       ["bso", "svc"],
       ["tms", "tmso"],
@@ -537,6 +561,7 @@ const specs: Spec[] = [
     name: "Claims Handling (ArchiMate View)",
     category: "frameworks",
     summary: "A claims system read purely in ArchiMate 3.2: opens in the ArchiMate-only lens, so elements show their ArchiMate type and relationships their ArchiMate name — capability, process, product, application components, interface, system software and nodes.",
+    description: "An insurance claims system read in ArchiMate 3.2, from capability and process to application and infrastructure.",
     lens: "archimate-only",
     nodes: [
       ["cap", "business_capability", "Claims management"],
@@ -590,6 +615,9 @@ function build(spec: Spec, now: Date, id: string): Model {
 }
 
 export type Example = { id: string; name: string; category: ExampleCategory; summary: string; lens?: Lens; create: (now?: Date, id?: string) => Model };
+
+/** Example models are numbered in menu order: BM-EX-001, BM-EX-002, … */
+const exampleArtifactId = (index: number) => `BM-EX-${String(index + 1).padStart(3, "0")}`;
 
 const LAYER_ORDER: Layer[] = ["business", "design", "service", "functional", "infrastructure"];
 const PER_ROW = 4;
@@ -654,14 +682,16 @@ function metamodel(now: Date, id: string): Model {
   return model;
 }
 
+const METAMODEL_DESCRIPTION = "Every class in the CSDM 5 white paper and each relationship the metamodel allows between them: a map to read before modeling.";
+
 export const examples: Example[] = [
-  ...specs.map((s) => ({
+  ...specs.map((s, i) => ({
     id: s.id,
     name: s.name,
     category: s.category,
     summary: s.summary,
     lens: s.lens,
-    create: (now = new Date(), id = crypto.randomUUID()) => build(s, now, id),
+    create: (now = new Date(), id = crypto.randomUUID()) => withDetails(build(s, now, id), { date: now.toISOString().slice(0, 10), description: s.description, artifactId: exampleArtifactId(i) }),
   })),
   {
     id: "csdm5-metamodel",
@@ -670,6 +700,6 @@ export const examples: Example[] = [
     lens: "csdm",
     summary:
       "Every class in the CSDM 5 white paper (no extended or CMDB-only classes) and each relationship the metamodel allows between them — a map to read before modeling. CSDM 6 has not been published yet (September 2026), so this is CSDM 5.",
-    create: (now = new Date(), id = crypto.randomUUID()) => metamodel(now, id),
+    create: (now = new Date(), id = crypto.randomUUID()) => withDetails(metamodel(now, id), { date: now.toISOString().slice(0, 10), description: METAMODEL_DESCRIPTION, artifactId: exampleArtifactId(specs.length) }),
   },
 ];

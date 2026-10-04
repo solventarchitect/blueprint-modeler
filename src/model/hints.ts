@@ -50,6 +50,10 @@ export function evaluateHints(model: Model): HintResult[] {
     }
   }
 
+  if (model.nodes.length && !model.nodes.some((n) => n.class === "business_capability" || n.class === "business_process")) {
+    push("model-without-business-anchor", "model", "No element says what the business does.", []);
+  }
+
   for (const n of model.nodes) {
     if (n.class === "business_application") {
       // Drawn from the capability; older files drew it from the application.
