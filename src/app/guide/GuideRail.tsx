@@ -1,9 +1,8 @@
 "use client";
 
 import { useCallback, useEffect, useId, useRef, useState } from "react";
-import { flushSync } from "react-dom";
 import type { Layer } from "@/metamodel";
-import { itemMatches, type ClassKind, type GuideFilter } from "@/guide";
+import { decodeEnds, itemMatches, type ClassKind, type GuideFilter } from "@/guide";
 
 type Section = { id: string; label: string; total: number };
 
@@ -42,6 +41,10 @@ export function GuideRail({ sections }: { sections: Section[] }) {
   const input = useRef<HTMLInputElement>(null);
   /** A link to an entry the filter hides: the filter is cleared, then the link is followed. */
   const pendingHash = useRef<string | null>(null);
+  /** Marks the section being read; set by the scroll effect, run again after filtering. */
+  const markCurrent = useRef<() => void>(() => {});
+  const bar = useRef<HTMLElement>(null);
+  const [status, setStatus] = useState("");
   const chipsId = useId();
   const active = query.trim() !== "" || layers.size > 0 || kinds.size > 0;
 
@@ -58,14 +61,7 @@ export function GuideRail({ sections }: { sections: Section[] }) {
     for (const section of document.querySelectorAll<HTMLElement>("[data-guide-section]")) {
       let n = 0;
       for (const el of section.querySelectorAll<HTMLElement>("[data-guide-item]")) {
-        const match = itemMatches(
-          {
-            text: el.dataset.text ?? "",
-            layers: (el.dataset.layers || "").split(" ").filter(Boolean) as Layer[],
-            kinds: (el.dataset.kinds || "").split(" ").filter(Boolean) as ClassKind[],
-          },
-          f,
-        );
+        const match = itemMatches({ text: el.dataset.text ?? "", ends: decodeEnds(el.dataset.ends ?? "") }, f);
         el.hidden = !match;
         if (match) n++;
       }
@@ -84,6 +80,7 @@ export function GuideRail({ sections }: { sections: Section[] }) {
       if (location.hash === `#${id}`) document.getElementById(id)?.scrollIntoView();
       else location.hash = id;
     }
+    markCurrent.current();
   }, [query, layers, kinds]);
 
   // A link (or an address) to an entry the filter hides clears the filter first.
@@ -93,6 +90,8 @@ export function GuideRail({ sections }: { sections: Section[] }) {
       return !!el && !!el.closest("[hidden]");
     };
     const onClick = (e: MouseEvent) => {
+      // A new tab or window (modifier keys, middle button) leaves this page and its filter alone.
+      if (e.defaultPrevented || e.button !== 0 || e.metaKey || e.ctrlKey || e.shiftKey || e.altKey) return;
       const a = (e.target as Element | null)?.closest?.("a[href^='#']");
       const id = a?.getAttribute("href")?.slice(1) ?? "";
       if (!hiddenTarget(id)) return;
@@ -101,7 +100,12 @@ export function GuideRail({ sections }: { sections: Section[] }) {
       clear();
     };
     const onHash = () => {
-      const id = decodeURIComponent(location.hash.slice(1));
+      let id = location.hash.slice(1);
+      try {
+        id = decodeURIComponent(id);
+      } catch {
+        // A malformed escape: use the hash as written.
+      }
       if (!hiddenTarget(id)) return;
       pendingHash.current = id;
       clear();
@@ -113,6 +117,34 @@ export function GuideRail({ sections }: { sections: Section[] }) {
       window.removeEventListener("hashchange", onHash);
     };
   }, [clear]);
+
+  // Links, Tab and the hash jump to a point below the tools: the bar's height on narrow screens.
+  useEffect(() => {
+    const root = document.documentElement;
+    const wide = window.matchMedia("(min-width: 64rem)");
+    const set = () => {
+      const h = bar.current?.offsetHeight ?? 0;
+      root.style.scrollPaddingTop = wide.matches ? "1.5rem" : `${h + 16}px`;
+    };
+    set();
+    const observer = new ResizeObserver(set);
+    if (bar.current) observer.observe(bar.current);
+    wide.addEventListener("change", set);
+    return () => {
+      observer.disconnect();
+      wide.removeEventListener("change", set);
+      root.style.scrollPaddingTop = "";
+    };
+  }, []);
+
+  // The status line speaks once typing pauses, not on every key.
+  const total = Object.values(shown).reduce((a, b) => a + b, 0);
+  const phrase = query.trim() ? ` “${query.trim()}”` : "";
+  const message = !active ? "" : total === 0 ? `No entries match${phrase}.` : `${total} ${total === 1 ? "entry matches" : "entries match"}${phrase}.`;
+  useEffect(() => {
+    const t = setTimeout(() => setStatus(message), 500);
+    return () => clearTimeout(t);
+  }, [message]);
 
   // The section being read: the last one whose heading is in the top third of the view (below the
   // sticky bar on narrow screens, where headings land about 12rem down).
@@ -126,10 +158,12 @@ export function GuideRail({ sections }: { sections: Section[] }) {
         const h = document.getElementById(s.id);
         if (h && h.getBoundingClientRect().top <= line) at = s.id;
       }
-      // At the very bottom, the last section is the one being read even if its heading is low.
-      if (window.innerHeight + window.scrollY >= document.documentElement.scrollHeight - 2) at = sections[sections.length - 1]?.id ?? at;
+      // Scrolled to the very bottom, the last section is the one being read even if its heading is low.
+      const page = document.documentElement.scrollHeight;
+      if (window.scrollY > 0 && page > window.innerHeight && window.innerHeight + window.scrollY >= page - 2) at = sections[sections.length - 1]?.id ?? at;
       setCurrent(at);
     };
+    markCurrent.current = update;
     const onScroll = () => {
       if (!frame) frame = requestAnimationFrame(update);
     };
@@ -143,14 +177,12 @@ export function GuideRail({ sections }: { sections: Section[] }) {
     };
   }, [sections]);
 
-  const total = Object.values(shown).reduce((a, b) => a + b, 0);
-  const phrase = query.trim() ? ` “${query.trim()}”` : "";
-  const status = !active ? "" : total === 0 ? `No entries match${phrase}.` : `${total} ${total === 1 ? "entry matches" : "entries match"}${phrase}.`;
   const chip = (pressed: boolean) =>
     `inline-flex min-h-8 items-center border px-2 text-xs ${pressed ? "border-accent bg-accent text-accent-ink" : "border-border-strong text-ink-soft hover:border-accent hover:text-accent"}`;
 
   return (
     <aside
+      ref={bar}
       aria-label="Guide tools"
       className="sticky top-0 z-20 -mx-4 border-b border-border bg-surface px-4 py-3 sm:-mx-6 sm:px-6 lg:top-6 lg:mx-0 lg:max-h-[calc(100dvh-3rem)] lg:self-start lg:overflow-y-auto lg:border-b-0 lg:px-0 lg:py-0"
     >
@@ -189,17 +221,30 @@ export function GuideRail({ sections }: { sections: Section[] }) {
         </button>
       )}
       <div id={chipsId} className={`${chipsOpen ? "" : "max-lg:hidden"} mt-3 flex flex-col gap-3`}>
-        <div role="group" aria-label="Layer" className="flex flex-wrap gap-1.5">
+        <p id={`${chipsId}-layer`} className="-mb-2 font-mono text-[0.65rem] tracking-[0.1em] text-ink-muted uppercase">Layer</p>
+        <div role="group" aria-labelledby={`${chipsId}-layer`} className="flex flex-wrap gap-1.5">
           {LAYERS.map((l) => (
             <button key={l.id} type="button" aria-pressed={layers.has(l.id)} className={chip(layers.has(l.id))} onClick={() => setLayers((s) => toggle(s, l.id))}>
               {l.label}
             </button>
           ))}
         </div>
-        <div role="group" aria-label="Kind" className="flex flex-wrap gap-1.5">
+        <p id={`${chipsId}-kind`} className="-mb-2 font-mono text-[0.65rem] tracking-[0.1em] text-ink-muted uppercase">Kind</p>
+        <div role="group" aria-labelledby={`${chipsId}-kind`} className="flex flex-wrap gap-1.5">
           {KINDS.map((k) => (
-            <button key={k.id} type="button" title={k.note} aria-pressed={kinds.has(k.id)} className={chip(kinds.has(k.id))} onClick={() => setKinds((s) => toggle(s, k.id))}>
+            <button
+              key={k.id}
+              type="button"
+              title={k.note}
+              aria-describedby={`${chipsId}-${k.id}`}
+              aria-pressed={kinds.has(k.id)}
+              className={chip(kinds.has(k.id))}
+              onClick={() => setKinds((s) => toggle(s, k.id))}
+            >
               {k.label}
+              <span id={`${chipsId}-${k.id}`} hidden>
+                {k.note}
+              </span>
             </button>
           ))}
         </div>
@@ -210,8 +255,6 @@ export function GuideRail({ sections }: { sections: Section[] }) {
             <li key={s.id} className="shrink-0">
               <a
                 href={`#${s.id}`}
-                // On narrow screens, fold the chips away before the jump so the heading lands below the bar.
-                onClick={() => chipsOpen && flushSync(() => setChipsOpen(false))}
                 aria-current={current === s.id ? "location" : undefined}
                 className="flex min-h-8 items-center gap-2 whitespace-nowrap text-ink-soft hover:text-accent aria-[current=location]:font-medium aria-[current=location]:text-accent lg:border-l-2 lg:border-transparent lg:pl-3 lg:aria-[current=location]:border-accent"
               >

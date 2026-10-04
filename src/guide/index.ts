@@ -36,17 +36,31 @@ export function classLinks(id: string): { out: { to: string; types: readonly str
 export const searchText = (...parts: (string | undefined | null)[]) => parts.filter(Boolean).join(" ").toLowerCase();
 
 export type GuideFilter = { query: string; layers: ReadonlySet<Layer>; kinds: ReadonlySet<ClassKind> };
-export type GuideItem = { text: string; layers: readonly Layer[]; kinds: readonly ClassKind[] };
+/** One class an entry is about (a relationship has two): its layer and kinds. */
+export type GuideEnd = { layer: Layer; kinds: readonly ClassKind[] };
+export type GuideItem = { text: string; ends: readonly GuideEnd[] };
+
+/** The classes an entry is about, as written to `data-ends`: `design:core infrastructure:cmdb,extended`. */
+export const encodeEnds = (ends: readonly GuideEnd[]) => [...new Set(ends.map((e) => `${e.layer}:${e.kinds.join(",")}`))].join(" ");
+export function decodeEnds(value: string): GuideEnd[] {
+  return value
+    .split(" ")
+    .filter(Boolean)
+    .map((part) => {
+      const [layer, kinds = ""] = part.split(":");
+      return { layer: layer as Layer, kinds: kinds.split(",").filter(Boolean) as ClassKind[] };
+    });
+}
 
 /**
  * Whether an entry shows under a filter. Every word of the query must appear in its text (any
- * order, any case). With layer or kind chips on, an entry must share at least one of them; entries
- * without layers or kinds (hints) answer to the query alone.
+ * order, any case). With layer or kind chips on, one of the entry's classes must meet them all: a
+ * selected layer and a selected kind on the same end of a relationship. Entries about no class
+ * (hints) answer to the query alone.
  */
 export function itemMatches(item: GuideItem, f: GuideFilter): boolean {
   const words = f.query.toLowerCase().split(/\s+/).filter(Boolean);
   if (!words.every((w) => item.text.includes(w))) return false;
-  if (f.layers.size && item.layers.length && !item.layers.some((l) => f.layers.has(l))) return false;
-  if (f.kinds.size && item.kinds.length && !item.kinds.some((k) => f.kinds.has(k))) return false;
-  return true;
+  if (!item.ends.length || (!f.layers.size && !f.kinds.size)) return true;
+  return item.ends.some((e) => (!f.layers.size || f.layers.has(e.layer)) && (!f.kinds.size || e.kinds.some((k) => f.kinds.has(k))));
 }

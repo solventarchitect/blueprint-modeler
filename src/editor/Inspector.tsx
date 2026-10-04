@@ -221,7 +221,7 @@ export function Inspector({ model, selectedId, dispatch, focusName, focusConnect
           </a>
         )}
         {def && (
-          <a className="mt-1 block w-fit text-xs text-accent underline underline-offset-4" href={`/guide#${classSlug(def.id)}`}>
+          <a className="mt-2 flex min-h-6 w-fit items-center text-xs text-accent underline underline-offset-4" href={`/guide#${classSlug(def.id)}`}>
             In the guide: what {def.label} connects to
           </a>
         )}

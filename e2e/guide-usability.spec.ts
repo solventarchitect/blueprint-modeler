@@ -1,11 +1,15 @@
 import AxeBuilder from "@axe-core/playwright";
 import { expect, test, type Page } from "@playwright/test";
+import { classes, relationships } from "../src/metamodel";
 import { openExample } from "./examples";
 
 const tags = ["wcag2a", "wcag2aa", "wcag21aa", "wcag22aa"];
 const filterBox = (page: Page) => page.getByRole("searchbox", { name: "Filter the guide" });
 const visibleCards = (page: Page) => page.locator("[data-guide-section=classes] [data-guide-item]:visible");
 const visibleRelationships = (page: Page) => page.locator("[data-guide-section=relationships] [data-guide-item]:visible");
+/** What an entry is found by (its own words, not the class names folded into its "Connects to" list). */
+const texts = (items: ReturnType<Page["locator"]>) => items.evaluateAll((els) => els.map((el) => (el as HTMLElement).dataset.text ?? ""));
+const ends = (items: ReturnType<Page["locator"]>) => items.evaluateAll((els) => els.map((el) => (el as HTMLElement).dataset.ends ?? ""));
 const rail = (page: Page) => page.getByRole("navigation", { name: "On this page" });
 /** A layer or kind chip. On narrow screens the chips sit behind the Filters button. */
 async function chip(page: Page, name: string) {
@@ -19,17 +23,17 @@ test.describe("guide filter", () => {
     await page.goto("/guide");
     const allCards = await visibleCards(page).count();
     const allRels = await visibleRelationships(page).count();
-    expect(allCards).toBe(48);
-    expect(allRels).toBe(130);
+    expect(allCards).toBe(classes.length);
+    expect(allRels).toBe(relationships.length);
 
     await filterBox(page).fill("kubernetes");
     await expect(visibleCards(page)).not.toHaveCount(allCards);
-    for (const text of await visibleCards(page).allTextContents()) expect(text.toLowerCase()).toContain("kubernetes");
+    for (const text of await texts(visibleCards(page))) expect(text).toContain("kubernetes");
     await expect(visibleRelationships(page).first()).toBeVisible();
-    for (const text of await visibleRelationships(page).allTextContents()) expect(text.toLowerCase()).toContain("kubernetes");
+    for (const text of await texts(visibleRelationships(page))) expect(text).toContain("kubernetes");
     // The rail counts what is shown, and the status line says so.
     const shown = await visibleCards(page).count();
-    await expect(rail(page).getByRole("link", { name: /^Classes/ })).toContainText(`${shown} of 48`);
+    await expect(rail(page).getByRole("link", { name: /^Classes/ })).toContainText(`${shown} of ${classes.length}`);
     await expect(page.getByRole("status").filter({ hasText: /match/ })).toContainText("kubernetes");
 
     await page.getByRole("button", { name: "Clear filter" }).click();
@@ -62,10 +66,21 @@ test.describe("guide filter", () => {
 
     const cmdb = await chip(page, "CMDB");
     await cmdb.click();
-    for (const text of await visibleCards(page).allTextContents()) expect(text).toContain("CMDB");
+    for (const e of await ends(visibleCards(page))) expect(e).toMatch(/^infrastructure:.*cmdb/);
     await infra.click();
     await cmdb.click();
-    await expect(visibleCards(page)).toHaveCount(48);
+    await expect(visibleCards(page)).toHaveCount(classes.length);
+  });
+
+  test("with a layer and a kind on, a relationship stays only when one end is both", async ({ page }) => {
+    await page.goto("/guide");
+    await (await chip(page, "Infrastructure")).click();
+    await (await chip(page, "Extended")).click();
+    const rows = await ends(visibleRelationships(page));
+    expect(rows.length).toBeGreaterThan(0);
+    for (const row of rows) expect(row.split(" ").some((end) => /^infrastructure:.*extended/.test(end))).toBe(true);
+    // Host → Product Model: Host is infrastructure, Product Model is extended, neither end is both.
+    await expect(visibleRelationships(page).filter({ has: page.locator("a[href='#host']") }).filter({ has: page.locator("a[href='#product-model']") })).toHaveCount(0);
   });
 });
 
@@ -92,6 +107,14 @@ test.describe("guide rail", () => {
     // On narrow screens the tools are a bar over the page; on wide ones a column beside it.
     if (page.viewportSize()!.width < 1024) expect(heading.y).toBeGreaterThanOrEqual(tools.y + tools.height);
     await expect(page.locator("#impact")).toBeInViewport();
+
+    // A class link in a table lands its card below the tools too.
+    await page.locator("[data-guide-section=relationships] a[href='#application-service']").first().click();
+    await expect(page).toHaveURL(/#application-service$/);
+    const bar = (await page.getByRole("complementary", { name: "Guide tools" }).boundingBox())!;
+    const card = (await page.locator("#application-service").boundingBox())!;
+    if (page.viewportSize()!.width < 1024) expect(card.y).toBeGreaterThanOrEqual(bar.y + bar.height);
+    await expect(page.locator("#application-service")).toBeInViewport();
   });
 });
 
@@ -129,6 +152,21 @@ test.describe("classes and relationships link to each other", () => {
     await card.getByRole("link", { name: "Application Service", exact: true }).click();
     await expect(page.locator("#application-service")).toBeInViewport();
     await expect(filterBox(page)).toHaveValue("");
+  });
+
+  test("an address naming a class the filter hides clears the filter too", async ({ page }) => {
+    await page.goto("/guide");
+    await filterBox(page).fill("business application");
+    await expect(page.locator("#application-service")).toBeHidden();
+    await page.evaluate(() => (location.hash = "application-service"));
+    await expect(page.locator("#application-service")).toBeInViewport();
+    await expect(filterBox(page)).toHaveValue("");
+    // A malformed address is ignored without an error.
+    const errors: string[] = [];
+    page.on("pageerror", (e) => errors.push(e.message));
+    await page.evaluate(() => (location.hash = "%E0"));
+    await page.waitForTimeout(200);
+    expect(errors).toEqual([]);
   });
 });
 

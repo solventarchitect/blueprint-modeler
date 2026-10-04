@@ -3,7 +3,7 @@ import { classById, classes, hints, impactRows, isCsdmCore, isExtended, relation
 import { layerAccent } from "@/editor/layerAccent";
 import { ARCHIMATE_TRADEMARK, archimateElements, archimateRelationshipFor, archimateSources, type ElementMapping } from "@/frameworks";
 import { ArchimateGlyph } from "@/frameworks/ArchimateGlyph";
-import { classKinds, classLinks, classSlug, GUIDE_SECTIONS, searchText } from "@/guide";
+import { classKinds, classLinks, classSlug, encodeEnds, GUIDE_SECTIONS, searchText } from "@/guide";
 import { GuideRail } from "./GuideRail";
 
 export const metadata: Metadata = {
@@ -31,8 +31,12 @@ function Source({ src }: { src: SourceRef }) {
 }
 
 const label = (id: string) => classById(id)?.label ?? id;
-const layersOf = (...ids: string[]) => [...new Set(ids.map((id) => classById(id)?.layer).filter(Boolean))].join(" ");
-const kindsOf = (...ids: string[]) => [...new Set(ids.flatMap((id) => (classById(id) ? classKinds(classById(id)!) : [])))].join(" ");
+/** The classes an entry is about, for the layer and kind chips (`data-ends`). */
+const endsOf = (...ids: string[]) =>
+  encodeEnds(ids.flatMap((id) => {
+    const c = classById(id);
+    return c ? [{ layer: c.layer, kinds: classKinds(c) }] : [];
+  }));
 
 /** A class name that links to its card in the Classes section. */
 function ClassLink({ id }: { id: string }) {
@@ -59,7 +63,7 @@ const sectionTotals: Record<(typeof GUIDE_SECTIONS)[number]["id"], number> = {
   hints: hints.length,
   archimate: classes.length + relationships.length,
 };
-const h2 = "scroll-mt-48 text-2xl font-semibold tracking-tight lg:scroll-mt-6";
+const h2 = "text-2xl font-semibold tracking-tight";
 
 export default function GuidePage() {
   return (
@@ -97,9 +101,8 @@ export default function GuidePage() {
                     id={classSlug(c.id)}
                     data-guide-item
                     data-text={searchText(c.label, "table" in c ? c.table : "", c.description, !isCsdmCore(c) ? "cmdb" : "", isExtended(c) ? "extended" : "")}
-                    data-layers={c.layer}
-                    data-kinds={classKinds(c).join(" ")}
-                    className={`min-w-0 scroll-mt-48 border border-border border-l-4 bg-surface-raised p-4 target:ring-2 target:ring-accent target:ring-offset-2 target:ring-offset-surface lg:scroll-mt-6 ${layerAccent[c.layer]}`}
+                    data-ends={endsOf(c.id)}
+                    className={`min-w-0 border border-border border-l-4 bg-surface-raised p-4 target:ring-2 target:ring-accent target:ring-offset-2 target:ring-offset-surface ${layerAccent[c.layer]}`}
                   >
                     <p className="flex items-center gap-2 font-medium">
                       {c.label}
@@ -119,9 +122,9 @@ export default function GuidePage() {
                         {links.out.length > 0 && (
                           <>
                             <p className="mt-2 font-mono text-[0.65rem] tracking-[0.1em] text-ink-muted uppercase">To</p>
-                            <ul className="mt-1 space-y-0.5">
+                            <ul className="mt-1">
                               {links.out.map((l) => (
-                                <li key={l.to}>
+                                <li key={l.to} className="flex min-h-6 flex-wrap items-center gap-x-1.5">
                                   <ClassLink id={l.to} /> <span className="font-mono text-ink-muted">{l.types.join(", ")}</span>
                                 </li>
                               ))}
@@ -131,9 +134,9 @@ export default function GuidePage() {
                         {links.in.length > 0 && (
                           <>
                             <p className="mt-2 font-mono text-[0.65rem] tracking-[0.1em] text-ink-muted uppercase">From</p>
-                            <ul className="mt-1 space-y-0.5">
+                            <ul className="mt-1">
                               {links.in.map((l) => (
-                                <li key={l.from}>
+                                <li key={l.from} className="flex min-h-6 flex-wrap items-center gap-x-1.5">
                                   <ClassLink id={l.from} /> <span className="font-mono text-ink-muted">{l.types.join(", ")}</span>
                                 </li>
                               ))}
@@ -184,8 +187,7 @@ export default function GuidePage() {
                     "note" in r ? r.note : "",
                     r.typeEvidence,
                   )}
-                  data-layers={layersOf(r.from, r.to)}
-                  data-kinds={kindsOf(r.from, r.to)}
+                  data-ends={endsOf(r.from, r.to)}
                 >
                   <td className="px-3 py-2.5">
                     <ClassLink id={r.from} />
@@ -257,8 +259,7 @@ export default function GuidePage() {
                   className="border-t border-border align-top"
                   data-guide-item
                   data-text={searchText(row.type, row.effect, row.rule.why, row.rule.evidence, ...row.pairs.flatMap((p) => [label(p.from), label(p.to)]))}
-                  data-layers={layersOf(...row.pairs.flatMap((p) => [p.from, p.to]))}
-                  data-kinds={kindsOf(...row.pairs.flatMap((p) => [p.from, p.to]))}
+                  data-ends={endsOf(...row.pairs.flatMap((p) => [p.from, p.to]))}
                 >
                   <td className="px-3 py-2.5 font-mono text-xs">{row.type.replace(/^reference:/, "Reference: ")}</td>
                   <td className="px-3 py-2.5">
@@ -267,12 +268,12 @@ export default function GuidePage() {
                   </td>
                   <td className="px-3 py-2.5 text-xs">
                     <details>
-                      <summary className="cursor-pointer text-accent underline underline-offset-4">
+                      <summary className="inline-flex min-h-6 cursor-pointer items-center text-accent underline underline-offset-4">
                         {row.pairs.length === 1 ? "1 pair" : `${row.pairs.length} pairs`}
                       </summary>
-                      <ul className="mt-1 space-y-0.5">
+                      <ul className="mt-1">
                         {row.pairs.map((p) => (
-                          <li key={`${p.from}-${p.to}`}>
+                          <li key={`${p.from}-${p.to}`} className="flex min-h-6 flex-wrap items-center gap-x-1">
                             <ClassLink id={p.from} /> → <ClassLink id={p.to} />
                           </li>
                         ))}
@@ -368,8 +369,7 @@ export default function GuidePage() {
                     className="border-t border-border align-top"
                     data-guide-item
                     data-text={searchText(c.label, m.label, m.layer, m.note)}
-                    data-layers={c.layer}
-                    data-kinds={classKinds(c).join(" ")}
+                    data-ends={endsOf(c.id)}
                   >
                     <td className="px-3 py-2.5">
                       <ClassLink id={c.id} />
@@ -411,8 +411,7 @@ export default function GuidePage() {
                     className="border-t border-border align-top"
                     data-guide-item
                     data-text={searchText(label(r.from), label(r.to), m?.type, m?.reads)}
-                    data-layers={layersOf(r.from, r.to)}
-                    data-kinds={kindsOf(r.from, r.to)}
+                    data-ends={endsOf(r.from, r.to)}
                   >
                     <td className="px-3 py-2.5">
                       <ClassLink id={r.from} /> → <ClassLink id={r.to} />
