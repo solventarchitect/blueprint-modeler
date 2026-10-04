@@ -169,6 +169,39 @@ test.describe("managing saved models (desktop)", () => {
   });
 });
 
+test.describe("opening an example while a change cannot be saved (desktop)", () => {
+  test.skip(({ isMobile }) => !!isMobile, "editing is desktop-only");
+
+  test("stops, says so once, and leaves no unopened copy behind", async ({ page }) => {
+    test.slow(true, "stretched autosave pause");
+    const errors: string[] = [];
+    page.on("pageerror", (e) => errors.push(e.message));
+    await page.addInitScript(() => {
+      const set = window.setTimeout;
+      window.setTimeout = ((fn: TimerHandler, ms?: number, ...rest: unknown[]) => set(fn, ms === 300 ? 4000 : ms, ...rest)) as typeof window.setTimeout;
+      const put = IDBObjectStore.prototype.put;
+      IDBObjectStore.prototype.put = function (this: IDBObjectStore, ...args: Parameters<IDBObjectStore["put"]>) {
+        if ((window as unknown as { failPut?: boolean }).failPut) throw new DOMException("Quota exceeded", "QuotaExceededError");
+        return put.apply(this, args);
+      };
+    });
+    await page.goto("/editor");
+    await expect(page.getByTestId("save-status")).toHaveText("Saved in this browser", { timeout: 15_000 });
+    await expect(modelButton(page)).toHaveAttribute("data-count", "1");
+
+    await page.getByRole("navigation", { name: "Element palette" }).getByRole("button", { name: "Business Capability", exact: true }).click();
+    await expect(page.getByTestId("save-status")).toHaveText("Saving…");
+    await page.evaluate(() => ((window as unknown as { failPut?: boolean }).failPut = true));
+    await openExample(page, "Online Store Checkout");
+
+    await expect(page.getByRole("alert").filter({ hasText: "could not be saved" })).toBeVisible();
+    await expect(currentModel(page)).toHaveText("Untitled Model");
+    await expect(page.getByRole("status")).not.toContainText("Opened the example");
+    await expect(modelButton(page)).toHaveAttribute("data-count", "1");
+    expect(errors).toEqual([]);
+  });
+});
+
 test.describe("starting blank (desktop)", () => {
   test.skip(({ isMobile }) => !!isMobile, "editing is desktop-only");
 

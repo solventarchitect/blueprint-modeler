@@ -1,3 +1,4 @@
+import { readFileSync } from "node:fs";
 import { describe, expect, it } from "vitest";
 import { examples } from "./index";
 import { exampleFromSearch, EXAMPLE_PARAM, SHOWN_ID_MAX } from "./deepLink";
@@ -38,6 +39,20 @@ describe("exampleFromSearch", () => {
     expect(exampleFromSearch("?lens=archimate")).toBeNull();
     expect(exampleFromSearch("?example=")).toBeNull();
     expect(exampleFromSearch("?example")).toBeNull();
+    expect(exampleFromSearch("?example=%20%20")).toBeNull();
+    expect(exampleFromSearch("?example=+")).toBeNull();
+  });
+
+  it("drops control and format characters from the id it shows, so they cannot garble the message", () => {
+    const r = exampleFromSearch(`?example=${encodeURIComponent("evil\u202Etxt.exe\u0007")}`)!;
+    expect(r.id).toBe("evil\u202Etxt.exe\u0007");
+    expect(r.shown).toBe("eviltxt.exe");
+  });
+
+  it("cuts the id it shows at a whole character, never inside an emoji", () => {
+    const family = "👨‍👩‍👧";
+    const r = exampleFromSearch(`?example=${encodeURIComponent(family.repeat(80))}`)!;
+    expect(r.shown).toBe(`${family.repeat(63)}…`);
   });
 
   it("caps the id shown in a message at 64 characters, matching on the whole id", () => {
@@ -58,5 +73,11 @@ describe("example ids", () => {
       "checkout", "hr-portal", "db-platform", "kubernetes", "enterprise-ai", "dmz-edge", "directory", "remote-access",
       "servicenow-itsm", "servicenow-instances", "servicenow-integrations", "server-virtualization", "vdi", "archimate-claims", "csdm5-metamodel",
     ]);
+  });
+
+  it("match the list in the README's Examples row", () => {
+    const row = readFileSync("README.md", "utf8").split("\n").find((l) => l.startsWith("| **Examples** |"))!;
+    const listed = row.slice(row.indexOf("The ids")).match(/`([a-z0-9-]+)`/g)!.map((m) => m.slice(1, -1));
+    expect(listed).toEqual(examples.map((e) => e.id));
   });
 });
