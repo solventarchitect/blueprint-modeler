@@ -1,5 +1,6 @@
 import AxeBuilder from "@axe-core/playwright";
 import { expect, test, type Page } from "@playwright/test";
+import { openExample } from "./examples";
 import { currentModel, modelButton, storedModelNames } from "./model-menu";
 import { watchForeignRequests } from "./network";
 
@@ -21,6 +22,19 @@ async function nothingAdded(page: Page, count: string, current: string | null) {
   await expect(page.getByRole("status")).not.toContainText("Opened the example");
 }
 
+/**
+ * Init script: the request to store "Online Store Checkout" succeeds, then its transaction aborts,
+ * as Chromium does on a quota error. Nothing is written; only the transaction reports the failure.
+ */
+function abortExampleSaves() {
+  const put = IDBObjectStore.prototype.put;
+  IDBObjectStore.prototype.put = function (this: IDBObjectStore, ...args: Parameters<IDBObjectStore["put"]>) {
+    const req = put.apply(this, args);
+    if (JSON.stringify(args[0]).includes("Online Store Checkout")) req.addEventListener("success", () => this.transaction.abort());
+    return req;
+  };
+}
+
 /** `/editor?example=<id>` (M42): the links mikereams.com builds to open a shipped example. Desktop and mobile. */
 test.describe("example deep links", () => {
   test("open the example as a new model, announce it and clean the URL; a reload adds no copy", async ({ page, baseURL }) => {
@@ -30,9 +44,8 @@ test.describe("example deep links", () => {
     await expect(page.getByTestId("canvas-title")).toHaveText("Online Store Checkout");
     await expect(page.getByRole("status")).toContainText("Online Store Checkout");
     await expect(page).toHaveURL(cleanEditorUrl);
-    // A first visit opens only the example: no empty model beside it (M43). Wait out a late extra.
+    // A first visit opens only the example: no empty model beside it (M43).
     await saved(page);
-    await page.waitForTimeout(800);
     await expect(modelButton(page)).toHaveAttribute("data-count", "1");
     expect(await storedModelNames(page)).toEqual(["Online Store Checkout"]);
 
@@ -75,6 +88,7 @@ test.describe("example deep links", () => {
 
   test("a first visit with an unknown id starts as /editor does: one empty model, and the message", async ({ page }) => {
     await page.goto("/editor?example=nope");
+    await saved(page);
     await expect(currentModel(page)).toHaveText("Untitled Model");
     await nothingAdded(page, "1", null);
     expect(await storedModelNames(page)).toEqual(["Untitled Model"]);
@@ -94,15 +108,42 @@ test.describe("example deep links", () => {
       };
     });
     await page.goto("/editor?example=checkout");
-    await expect(currentModel(page)).toHaveText("Untitled Model");
     await expect(banner(page)).toContainText("could not save the example");
+    await expect(banner(page)).toHaveCount(1);
+    await expect(currentModel(page)).toHaveText("Untitled Model");
     await nothingAdded(page, "1", null);
+    expect(await storedModelNames(page)).toEqual(["Untitled Model"]);
     await expect(page).toHaveURL(cleanEditorUrl);
     expect(errors).toEqual([]);
   });
 
+  test("if the browser rolls the example's save back (a quota abort), the first load says so and opens no example", async ({ page }) => {
+    const errors: string[] = [];
+    page.on("pageerror", (e) => errors.push(e.message));
+    await page.addInitScript(abortExampleSaves);
+    await page.goto("/editor?example=checkout");
+    await expect(banner(page)).toContainText("could not save the example");
+    await expect(banner(page)).toHaveCount(1);
+    await expect(currentModel(page)).toHaveText("Untitled Model");
+    await nothingAdded(page, "1", null);
+    expect(await storedModelNames(page)).toEqual(["Untitled Model"]);
+    expect(errors).toEqual([]);
+  });
+
+  test("if the browser rolls an example's save back, the Examples menu says so and announces nothing", async ({ page, isMobile }) => {
+    test.skip(!!isMobile, "the Examples menu opens examples on desktop");
+    await page.addInitScript(abortExampleSaves);
+    await page.goto("/editor");
+    await saved(page);
+    const before = await modelButton(page).getAttribute("data-current");
+    await openExample(page, "Online Store Checkout");
+    await expect(banner(page)).toContainText("could not save the new model");
+    await nothingAdded(page, "1", before);
+  });
+
   test("an empty ?example= behaves like /editor", async ({ page }) => {
     await page.goto("/editor?example=");
+    await saved(page);
     await expect(currentModel(page)).toHaveText("Untitled Model");
     await nothingAdded(page, "1", null);
     expect(await storedModelNames(page)).toEqual(["Untitled Model"]);
@@ -115,6 +156,7 @@ test.describe("example deep links", () => {
     await page.goto("/?example=checkout");
     await expect(page.getByRole("heading", { level: 1 })).toBeVisible();
     await page.goto("/editor");
+    await saved(page);
     await expect(currentModel(page)).toHaveText("Untitled Model");
     await nothingAdded(page, "1", null);
   });

@@ -90,6 +90,18 @@ export function createMemoryStore(): ModelStore {
 const DB = "blueprint-modeler";
 const STORE = "models";
 
+/**
+ * A write is done when its transaction commits, not when its request succeeds: a quota error can
+ * abort the transaction after the request has succeeded, and then nothing was written.
+ */
+function committed(t: IDBTransaction): Promise<void> {
+  return new Promise((resolve, reject) => {
+    t.oncomplete = () => resolve();
+    t.onerror = () => reject(t.error);
+    t.onabort = () => reject(t.error ?? new DOMException("The write was rolled back.", "AbortError"));
+  });
+}
+
 function request<T>(req: IDBRequest<T>): Promise<T> {
   return new Promise((resolve, reject) => {
     req.onsuccess = () => resolve(req.result);
@@ -118,10 +130,14 @@ export function createIndexedDbStore(factory: IDBFactory = indexedDB): ModelStor
       return row ? fromRow(row) : undefined;
     },
     async put(model) {
-      await request((await tx("readwrite")).put(toRow(model)));
+      const store = await tx("readwrite");
+      store.put(toRow(model));
+      await committed(store.transaction);
     },
     async remove(id) {
-      await request((await tx("readwrite")).delete(id));
+      const store = await tx("readwrite");
+      store.delete(id);
+      await committed(store.transaction);
     },
   };
 }
