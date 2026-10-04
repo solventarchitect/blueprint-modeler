@@ -61,7 +61,6 @@ const byType: Record<string, ImpactRule> = {
   "Registered on::Has registered": conventional("from", "A virtual machine runs on the server it is registered on, so a failing server affects it.", { id: "vcenterData" }),
   "Members::Member of": conventional("from", "A cluster is made of its members, so failing members degrade the cluster.", { id: "vcenterData" }),
   "Provides storage for::Stored on": conventional("to", "What is stored on a datastore is affected when the datastore fails.", { id: "vcenterData" }),
-  "Used by::Uses": conventional("to", "The child uses the parent, so a failing parent affects the child.", { id: "vcenterData" }),
   "reference:parent": conventional("from", "A service is made up of its offerings, so a failing offering affects the service."),
 };
 
@@ -77,6 +76,9 @@ const byPair: Partial<Record<`${ClassId}>${ClassId}`, ImpactRule>> = {
   ),
   // A Kubernetes Service fronts its workload: when the workload fails the service has nothing to serve.
   "kubernetes_service>kubernetes_workload": conventional("from", "The service fronts the workload, so a failing workload leaves it with nothing to serve.", { id: "k8sDiscovery" }),
+  // An ESX Server mounts a datastore, but only the virtual machines stored on it are affected when it
+  // fails; that path is drawn by Provides storage for, so this link does not spread impact.
+  "vcenter_datastore>esx_server": NONE("The server mounts the datastore, but only virtual machines stored on it are affected; Provides storage for carries that.", { id: "vcenterData" }),
   "business_application>sdlc_component": BUILD_TIME,
   "sdlc_component>application_service": BUILD_TIME,
 };

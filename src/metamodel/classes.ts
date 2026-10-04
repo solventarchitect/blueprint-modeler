@@ -448,7 +448,7 @@ export const classes = [
     layer: "infrastructure",
     table: "cmdb_ci_firewall_device",
     extended: true,
-    description: "A network security device that monitors and controls incoming and outgoing traffic according to security policies.",
+    description: "A firewall: it inspects the traffic entering and leaving a network and allows or blocks it by rule.",
     source: { id: "firewallClasses" },
   },
   {

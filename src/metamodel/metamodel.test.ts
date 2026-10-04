@@ -181,7 +181,7 @@ describe("security", () => {
       expect(allowedTypes("network_service_instance", to), to).toEqual(["Depends on::Used by"]);
     }
     expect(allowedTypes("firewall_cluster", "firewall_device")).toEqual(["Cluster of::Cluster"]);
-    for (const r of relationships.filter((r) => SECURITY.includes(r.to) && !(r.from === "ad_controller"))) expect(r.typeEvidence, `${r.from}->${r.to}`).toBe("conventional");
+    for (const r of relationships.filter((r) => SECURITY.includes(r.to))) expect(r.typeEvidence, `${r.from}->${r.to}`).toBe("conventional");
   });
 
   it("relates certificates to the servers, software and devices that use them", () => {

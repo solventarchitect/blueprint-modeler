@@ -1,3 +1,4 @@
+import { createHash } from "node:crypto";
 import { describe, expect, it } from "vitest";
 import { allowedTypes, classes, isCsdmCore, isExtended } from "@/metamodel";
 import { blastRadius, evaluateHints, parseModel, serializeModel } from "@/model";
@@ -64,10 +65,16 @@ describe("examples", () => {
     }
   });
 
-  it("leave the existing examples exactly as they were", () => {
-    const m = examples.find((e) => e.id === "checkout")!.create(new Date("2026-09-27T00:00:00Z"), "checkout");
-    expect(m.layout.h1).toEqual({ x: 0, y: 960 });
-    expect(Math.max(...Object.values(m.layout).map((p) => p.x))).toBe(5 * SLOT); // one row per layer
+  it("leave the existing examples exactly as they were before M36", () => {
+    // SHA-256 of the seven M35 examples serialized in their original order (nodes, edges, layout).
+    const ids = ["checkout", "hr-portal", "db-platform", "kubernetes", "enterprise-ai", "archimate-claims", "csdm5-metamodel"];
+    const out = Object.fromEntries(
+      ids.map((id) => {
+        const m = examples.find((e) => e.id === id)!.create(new Date("2026-09-27T00:00:00Z"), id);
+        return [id, { nodes: m.nodes, edges: m.edges, layout: m.layout }];
+      }),
+    );
+    expect(createHash("sha256").update(JSON.stringify(out)).digest("hex")).toBe("f1e05d95bb41c62f6b39fa59ac9785d63dd62fb0ab6fdc0b8a6e880160121a74");
   });
 
   it("each belong to a listed category, and every listed category has examples", () => {

@@ -210,7 +210,7 @@ const specs: Spec[] = [
     category: "security",
     grid: [["cap"], ["ba"], [null, "bs", "bso", "tms", "tmso"], ["svc", null, "edge"], [null, "web"], ["dmz", "h1", "fwc", "lb", "cert"], [null, "fw1", null, "fw2"]],
     summary:
-      "A public customer portal behind the internet edge: its Application Service depends on the edge as a CSDM 5 Network Service Instance, built on a firewall cluster and a Load Balancer that uses the site's certificate. Show the certificate's blast radius to see what an expiry reaches.",
+      "A public customer portal behind the internet edge: its Application Service depends on the edge as a CSDM 5 Network Service Instance, built on a Firewall Cluster and a Load Balancer that uses the site's Unique Certificate. Show the certificate's blast radius to see what an expiry reaches.",
     nodes: [
       ["cap", "business_capability", "Customer self-service"],
       ["bs", "business_service", "Customer portal"],
@@ -295,7 +295,7 @@ const specs: Spec[] = [
     category: "security",
     grid: [["bs", "bso", "tmso", "tms"], [null, "ra"], ["dc"], ["h", "vpn", "fwc"], [null, "fw1", "cert", "fw2"]],
     summary:
-      "Remote access as a CSDM 5 Network Service Instance offered to employees: it depends on the VPN, a firewall cluster whose firewalls use the gateway certificate, and a domain controller for sign-in.",
+      "Remote access as a CSDM 5 Network Service Instance offered to employees: it depends on the Virtual Private Network, a Firewall Cluster whose Firewall Devices use the gateway certificate, and an Active Directory Domain Controller for sign-in.",
     nodes: [
       ["bs", "business_service", "Remote work"],
       ["tms", "technology_management_service", "Network security"],
@@ -402,7 +402,7 @@ const specs: Spec[] = [
     category: "servicenow",
     grid: [[null, "cap"], [null, "ba"], ["tms", null, null, "tms2"], ["tmso", null, null, "tmso2"], ["mon", "prod", "hr"], [null, null, null, "idp"], ["mid", "a3", "a1", "a2"], ["h"]],
     summary:
-      "How the instance connects: it depends on the HR system for employee data and on the identity platform for account provisioning, each through that system's API; monitoring sends events to the instance's own API; and a MID Server reaches the systems in your network.",
+      "How the instance connects: it depends on the HR system for employee data and on the identity platform for account provisioning, each of which exposes an API; it exposes its own Events API, and monitoring, which sends it events, depends on it; a MID Server reaches the systems in your network.",
     nodes: [
       ["cap", "business_capability", "IT service management"],
       ["tms", "technology_management_service", "ServiceNow platform"],
@@ -445,7 +445,7 @@ const specs: Spec[] = [
     category: "reference",
     grid: [["tms", "tmso", "vs"], ["vc", null, null, "inv"], ["g1", "vm1", "vm2", "g2"], ["esx1", "ds", "esx2", "esx3"], ["cl", null, null, "dc"]],
     summary:
-      "Server virtualization in the CMDB's VMware classes: a datacenter holds a three-server ESX cluster and a datastore; each virtual machine is registered on an ESX Server and stored on the datastore, and its guest server instantiates it and is virtualized by that ESX Server. vCenter runs on one of the guests. Show an ESX Server's blast radius.",
+      "Server virtualization in the CMDB's VMware classes: a VMware vCenter Datacenter holds a VMware vCenter Cluster of three ESX Servers and a datastore; each virtual machine is registered on an ESX Server and stored on the datastore, and its guest server instantiates it and is virtualized by that ESX Server. vCenter runs on one of the guests. Show an ESX Server's blast radius.",
     nodes: [
       ["tms", "technology_management_service", "Infrastructure hosting"],
       ["tmso", "technology_management_service_offering", "Virtual servers — production"],
@@ -490,7 +490,7 @@ const specs: Spec[] = [
     category: "reference",
     grid: [["bs", "bso", "tmso", "tms"], [null, null, "svc"], ["broker", null, null, null, "dc"], ["bh", "d1", "lb", "d2", "dch"], ["bvm", "esx1", "cert", "esx2"], [null, null, "cl"]],
     summary:
-      "Virtual desktops as a service: employees reach a gateway Load Balancer that uses its certificate, a desktop broker on a virtual machine hands out pooled Windows desktops on an ESX cluster, and a domain controller signs people in. ServiceNow's public documentation has no desktop-delivery classes, so the broker is an Application.",
+      "Virtual desktops as a service: employees reach a gateway Load Balancer that uses its certificate, a desktop broker on a virtual machine hands out pooled Windows desktops on ESX Servers in a VMware vCenter Cluster, and an Active Directory Domain Controller signs people in. ServiceNow's public documentation has no desktop-delivery classes, so the broker is an Application, and each desktop pool is drawn as one Host.",
     nodes: [
       ["bs", "business_service", "Workplace"],
       ["tms", "technology_management_service", "End-user computing"],
