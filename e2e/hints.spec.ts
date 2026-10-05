@@ -81,7 +81,8 @@ test.describe("class guide", () => {
   test("lists classes, relationships and hints, each with a source", async ({ page }) => {
     await page.goto("/guide");
     await expect(page.getByRole("heading", { level: 1, name: "Class guide" })).toBeVisible();
-    await expect(page.getByText("Business Application", { exact: true }).first()).toBeVisible();
+    // The card itself (class names also appear, folded away, in other cards' "Connects to" lists).
+    await expect(page.locator("#business-application").getByText("Business Application", { exact: true })).toBeVisible();
     await expect(page.getByRole("table").locator("tbody tr")).not.toHaveCount(0);
     const links = page.locator("main section:not([data-testid=archimate-section]) a[target=_blank]");
     expect(await links.count()).toBeGreaterThan(20);
