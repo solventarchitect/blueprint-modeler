@@ -20,18 +20,20 @@ export function exampleFromSearch(search: string): { id: string; shown: string; 
 }
 
 /** Control characters, and the bidi marks, embeddings, overrides and isolates that reorder text. */
-const UNSAFE = /[\p{Cc}\u200E\u200F\u202A-\u202E\u2066-\u2069]/gu;
+const UNSAFE = /[\p{Cc}\u061C\u200E\u200F\u202A-\u202E\u2066-\u2069]/gu;
 
 /** Text from a link with the characters that could garble or reorder a message removed. */
 export const withoutUnsafe = (text: string) => text.replace(UNSAFE, "");
 
 /**
- * An id from a URL, safe to show in a sentence: characters that could garble or reorder the message
- * removed (joiners stay, so an emoji keeps its shape), then cut at a whole character to
- * SHOWN_ID_MAX, ending in "…".
+ * Text from a link, safe to show in a sentence: characters that could garble or reorder the message
+ * removed (joiners stay, so an emoji keeps its shape), then cut at a whole character to `max`,
+ * ending in "…". Only the start of a very long text is looked at.
  */
-function shownId(id: string): string {
-  const clean = withoutUnsafe(id);
-  const chars = [...new Intl.Segmenter(undefined, { granularity: "grapheme" }).segment(clean)].map((g) => g.segment);
-  return chars.length > SHOWN_ID_MAX ? `${chars.slice(0, SHOWN_ID_MAX - 1).join("")}…` : clean;
+export function shownText(text: string, max: number): string {
+  const head = text.slice(0, max * 8);
+  const chars = [...new Intl.Segmenter(undefined, { granularity: "grapheme" }).segment(withoutUnsafe(head))].map((g) => g.segment);
+  return chars.length > max || head.length < text.length ? `${chars.slice(0, max - 1).join("")}…` : chars.join("");
 }
+
+const shownId = (id: string) => shownText(id, SHOWN_ID_MAX);

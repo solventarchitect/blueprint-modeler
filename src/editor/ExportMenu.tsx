@@ -20,11 +20,14 @@ const items: { kind: ExportKind; label: string; note: string }[] = [
 /** Disclosure menu: a button that shows the export actions. Escape or a click outside closes it. */
 export function ExportMenu({
   onExport,
+  onOpen,
   buttonClass,
   notes = {},
   disabled = {},
 }: {
   onExport: (k: ExportKind) => void;
+  /** Called as the menu opens, to get notes ready (the share link's size). */
+  onOpen?: () => void;
   buttonClass: string;
   /** Extra line under an item, e.g. the Lucid plan fit for the draw.io export. */
   notes?: Partial<Record<ExportKind, string>>;
@@ -57,7 +60,10 @@ export function ExportMenu({
         }
       }}
     >
-      <button ref={button} type="button" className={buttonClass} aria-expanded={open} aria-controls={listId} onClick={() => setOpen((o) => !o)}>
+      <button ref={button} type="button" className={buttonClass} aria-expanded={open} aria-controls={listId} onClick={() => {
+          if (!open) onOpen?.();
+          setOpen(!open);
+        }}>
         <ToolbarIcon name="export" />
         Export <span aria-hidden="true">▾</span>
       </button>

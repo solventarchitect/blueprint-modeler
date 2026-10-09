@@ -4,6 +4,7 @@ import localFont from "next/font/local";
 import { Analytics } from "@/components/Analytics";
 import { SiteFooter } from "@/components/SiteFooter";
 import { ThemeToggle, themeBootScript } from "@/components/ThemeToggle";
+import { shareCaptureScript } from "@/io/shareLink";
 import { site } from "@/lib/site";
 import "./globals.css";
 
@@ -45,6 +46,8 @@ export default function RootLayout({ children }: Readonly<{ children: React.Reac
     <html lang="en" className={`${sans.variable} ${mono.variable}`} suppressHydrationWarning>
       <head>
         <script dangerouslySetInnerHTML={{ __html: themeBootScript }} />
+        {/* A shared model's link (M45): off the address before any other script runs. */}
+        <script dangerouslySetInnerHTML={{ __html: shareCaptureScript }} />
       </head>
       <body className="flex min-h-dvh flex-col bg-surface text-ink">
         <a

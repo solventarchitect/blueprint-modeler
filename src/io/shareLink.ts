@@ -1,5 +1,5 @@
-import { parseModel, type Issue, type Model } from "@/model";
-import { MAX_FILE_CHARS } from "./file";
+import type { Issue, Model } from "@/model";
+import { importJson, MAX_FILE_CHARS } from "./file";
 
 /**
  * Share a model as a link (M45): `/editor#model=1.<payload>`, the payload being the compact model
@@ -17,10 +17,24 @@ export const SHARE_MAX_CHARS = 100_000;
 export type ShareResult = { ok: true; model: Model; issues: Issue[]; copied: boolean } | { ok: false; error: string };
 
 const DAMAGED = "The link is incomplete or damaged; it may have been cut short when it was copied.";
-const BASE64URL = /^[A-Za-z0-9_-]+$/;
+const UNSUPPORTED = "This browser cannot open model links; update it, or ask for the model file instead.";
+/** base64url, unpadded as made here; trailing `=` padding (RFC 4648 allows it) is accepted. */
+const BASE64URL = /^[A-Za-z0-9_-]+={0,2}$/;
 
-/** Whether this browser can make and read model links (CompressionStream: Chrome 80, Firefox 113, Safari 16.4). */
-export const shareSupported = () => typeof CompressionStream !== "undefined" && typeof DecompressionStream !== "undefined";
+/**
+ * Whether this browser can make and read model links: raw deflate in CompressionStream and
+ * DecompressionStream (Chrome 103, Firefox 113, Safari 16.4). Older browsers have the streams but
+ * not this format, so try to make one.
+ */
+export function shareSupported(): boolean {
+  try {
+    new CompressionStream("deflate-raw");
+    new DecompressionStream("deflate-raw");
+    return true;
+  } catch {
+    return false;
+  }
+}
 
 function toBase64Url(bytes: Uint8Array): string {
   let binary = "";
@@ -29,9 +43,11 @@ function toBase64Url(bytes: Uint8Array): string {
 }
 
 function fromBase64Url(text: string): Uint8Array | null {
-  if (!BASE64URL.test(text) || text.length % 4 === 1) return null;
+  if (!BASE64URL.test(text)) return null;
+  const bare = text.replace(/=+$/, "");
+  if (bare.length % 4 === 1) return null;
   try {
-    const binary = atob(text.replace(/-/g, "+").replace(/_/g, "/"));
+    const binary = atob(bare.replace(/-/g, "+").replace(/_/g, "/"));
     return Uint8Array.from(binary, (c) => c.charCodeAt(0));
   } catch {
     return null;
@@ -55,7 +71,12 @@ export function shareSize(url: string, payload: string): "ok" | "long" | "too-la
 
 /** Inflate, stopping as soon as the output passes the model-file cap (a small link can expand enormously). */
 async function inflate(bytes: Uint8Array): Promise<{ ok: true; text: string } | { ok: false; error: string }> {
-  const reader = new Blob([bytes as Uint8Array<ArrayBuffer>]).stream().pipeThrough(new DecompressionStream("deflate-raw")).getReader();
+  let reader: ReadableStreamDefaultReader<Uint8Array>;
+  try {
+    reader = new Blob([bytes as Uint8Array<ArrayBuffer>]).stream().pipeThrough(new DecompressionStream("deflate-raw")).getReader();
+  } catch {
+    return { ok: false, error: UNSUPPORTED };
+  }
   const chunks: Uint8Array[] = [];
   let total = 0;
   try {
@@ -85,12 +106,15 @@ async function inflate(bytes: Uint8Array): Promise<{ ok: true; text: string } | 
   }
 }
 
-/** The model checks speak of files; say "link" instead. */
+/** The model checks speak of files; say "link" instead. A reload opens nothing (the address is clean), so ask for the link again. */
 const forLink = (error: string) =>
-  error
-    .replace(/^The file is not a valid model/, "The link does not hold a valid model")
-    .replace(/^This is not a Blueprint Modeler file/, "The link does not hold a Blueprint Modeler model")
-    .replace(/^This file was made/, "The model in the link was made");
+  error.startsWith("The file is not JSON")
+    ? DAMAGED
+    : error
+        .replace(/^The file is not a valid model/, "The link does not hold a valid model")
+        .replace(/^This is not a Blueprint Modeler file/, "The link does not hold a Blueprint Modeler model")
+        .replace(/^This file was made/, "The model in the link was made")
+        .replace("Reload the page to update.", "Reload the page, then open the link again.");
 
 /**
  * Read the part of a link after `#model=`. The model passes the same checks as an imported file
@@ -106,38 +130,37 @@ export async function decodeShare(payload: string, existingIds: ReadonlySet<stri
   if (!/^\d{1,4}$/.test(version)) return { ok: false, error: DAMAGED };
   if (version !== SHARE_VERSION) {
     if (Number(version) <= Number(SHARE_VERSION)) return { ok: false, error: DAMAGED };
-    return { ok: false, error: `The link was made by a newer version of Blueprint Modeler (link format version ${Number(version)}). Reload the page to get the latest version.` };
+    return { ok: false, error: `The link was made by a newer version of Blueprint Modeler (link format version ${Number(version)}). Reload the page, then open the link again.` };
   }
   const bytes = fromBase64Url(payload.slice(dot + 1));
   if (!bytes) return { ok: false, error: DAMAGED };
   const inflated = await inflate(bytes);
   if (!inflated.ok) return inflated;
-  let data: unknown;
-  try {
-    data = JSON.parse(inflated.text);
-  } catch {
-    return { ok: false, error: DAMAGED };
-  }
-  const r = parseModel(data);
-  if (!r.ok) return { ok: false, error: forLink(r.error) };
-  const copied = existingIds.has(r.model.id);
-  return { ok: true, model: copied ? { ...r.model, id: newId() } : r.model, issues: r.issues, copied };
+  // Exactly what a file import does: the same checks, and a model already here arrives as a copy.
+  const r = importJson(inflated.text, existingIds, newId);
+  return r.ok ? r : { ok: false, error: forLink(r.error) };
 }
 
 declare global {
   interface Window {
-    /** The model link's payload, taken off the address by `shareCaptureScript` before the page's scripts run. */
+    /** The model link's payload, taken off the address by `shareCaptureScript`, waiting for the editor. */
     __bmShared?: string;
+    /** Set for the life of a page that arrived with a model link: the visit counter is not loaded. */
+    __bmNoBeacon?: boolean;
   }
 }
 
 const prefix = `#${SHARE_KEY}=`;
 
 /**
- * Runs while the editor page is still being parsed (an inline script): takes the model off the
- * address at once, so nothing that loads later ever sees it, and leaves it for the editor.
+ * An inline script in every page's <head>, so it runs while the page is parsed, before any other
+ * script. On /editor it takes a model link's payload off the address and leaves it for the editor,
+ * and marks the page so the visit counter is never loaded on it: the browser's navigation-timing
+ * record keeps the address the page arrived with, and a performance beacon could read it there.
+ * It also listens (first, so before any listener added later) for a link pasted into the address
+ * bar of an open editor, which changes only the fragment.
  */
-export const shareCaptureScript = `try{var h=location.hash;if(h.indexOf(${JSON.stringify(prefix)})===0){window.__bmShared=h.slice(${prefix.length});history.replaceState(null,"",location.pathname+location.search)}}catch(e){}`;
+export const shareCaptureScript = `(function(){function t(){try{var p=location.pathname;if((p==="/editor"||p==="/editor/")&&location.hash.indexOf(${JSON.stringify(prefix)})===0){window.__bmShared=location.hash.slice(${prefix.length});window.__bmNoBeacon=true;history.replaceState(null,"",location.pathname+location.search)}}catch(e){}}t();addEventListener("popstate",t,true);addEventListener("hashchange",t,true)})()`;
 
 /**
  * The model link's payload, once: from the capture script, or (after a client-side navigation or a

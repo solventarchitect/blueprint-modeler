@@ -2,7 +2,7 @@ import { describe, expect, it } from "vitest";
 import { examples } from "@/examples";
 import { serializeModel, type Model } from "@/model";
 import { MAX_FILE_CHARS } from "./file";
-import { decodeShare, encodeShare, SHARE_MAX_CHARS, SHARE_WARN_CHARS, shareSize, shareUrl } from "./shareLink";
+import { decodeShare, encodeShare, SHARE_MAX_CHARS, SHARE_WARN_CHARS, shareCaptureScript, shareSize, shareUrl } from "./shareLink";
 
 const model = () => examples.find((e) => e.id === "checkout")!.create(new Date("2026-10-09T00:00:00Z"), "m1");
 
@@ -54,6 +54,15 @@ describe("share links: encode and decode", () => {
     expect(r.model.layout).toEqual({ ba: { x: 0, y: 160 }, svc: { x: 0, y: 320 } });
   });
 
+  it("also opens a padded link (RFC 4648 base64url allows trailing =)", async () => {
+    const payload = await encodeShare(model());
+    for (const pad of ["=", "=="]) {
+      const r = await decodeShare(payload + pad, new Set());
+      expect(r.ok && r.model.name, pad).toBe("Online Store Checkout");
+    }
+    expect(await decodeShare(`${payload}===`, new Set())).toMatchObject({ ok: false, error: expect.stringContaining("incomplete or damaged") });
+  });
+
   it("opens a model whose id is already here as a copy with a new id, as file import does", async () => {
     const m = model();
     const r = await decodeShare(await encodeShare(m), new Set([m.id]), () => "m2");
@@ -81,6 +90,11 @@ describe("share links: what a link cannot be", () => {
   it("refuses a version it does not know, naming it", async () => {
     const r = await decodeShare(await pack(JSON.stringify(model()), "2"), new Set());
     expect(r).toMatchObject({ ok: false, error: expect.stringContaining("version 2") });
+    // The address is already clean, so a reload alone opens nothing: say to open the link again.
+    expect(r.ok || r.error).toContain("open the link again");
+    const newerModel = await decodeShare(await pack(JSON.stringify({ ...model(), schema: 9 })), new Set());
+    expect(newerModel.ok || newerModel.error).toContain("The model in the link was made by a newer version");
+    expect(newerModel.ok || newerModel.error).toContain("open the link again");
     // A version that is not a number is just damaged; nothing from the link is echoed back.
     expect(await decodeShare(await pack("{}", "<b>x</b>"), new Set())).toMatchObject({ ok: false, error: expect.stringContaining("incomplete or damaged") });
   });
@@ -139,5 +153,30 @@ describe("share links: size", () => {
       const url = shareUrl("https://model.mikereams.com", await encodeShare(ex.create()));
       expect(url.length, ex.id).toBeLessThan(SHARE_WARN_CHARS / 2);
     }
+  });
+});
+
+describe("share links: the capture script in every page's <head>", () => {
+  /** Runs the script against a fake page at `href`; returns what it left behind. */
+  function run(href: string) {
+    const url = new URL(href);
+    const listeners: string[] = [];
+    const win: Record<string, unknown> = {};
+    const location = { get pathname() { return url.pathname; }, get search() { return url.search; }, get hash() { return url.hash; } };
+    const history = { replaceState: (_s: unknown, _t: string, to: string) => { const next = new URL(to, url); url.hash = next.hash; url.search = next.search; } };
+    new Function("window", "location", "history", "addEventListener", shareCaptureScript)(win, location, history, (type: string) => listeners.push(type));
+    return { win, url: url.href, listeners };
+  }
+
+  it("parses, and on /editor takes the model off the address, marks the page and listens for pasted links", () => {
+    const r = run("https://model.mikereams.com/editor?x=1#model=1.abc");
+    expect(r.win).toEqual({ __bmShared: "1.abc", __bmNoBeacon: true });
+    expect(r.url).toBe("https://model.mikereams.com/editor?x=1");
+    expect(r.listeners.sort()).toEqual(["hashchange", "popstate"]);
+  });
+
+  it("leaves other pages and other fragments alone", () => {
+    expect(run("https://model.mikereams.com/guide#model=1.abc").win).toEqual({});
+    expect(run("https://model.mikereams.com/editor#classes").win).toEqual({});
   });
 });

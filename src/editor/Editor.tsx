@@ -31,7 +31,7 @@ import {
 } from "react";
 import Link from "next/link";
 import { exampleCategories, examples } from "@/examples";
-import { EXAMPLE_PARAM, exampleFromSearch, withoutUnsafe } from "@/examples/deepLink";
+import { EXAMPLE_PARAM, exampleFromSearch, shownText } from "@/examples/deepLink";
 import { archimateElements, archimateRelationshipFor, edgeNotation, lenses, readLens, saveLens, showsArchimate, type ArchimateRelationshipType, type Lens } from "@/frameworks";
 import { downloadText } from "@/io/download";
 import { exportJson, fileBase, importJson, MAX_FILE_CHARS } from "@/io/file";
@@ -165,7 +165,12 @@ function EditorInner() {
     // would leave the router holding the old query, which it may write back later).
     window.history.replaceState(null, "", `${window.location.pathname}${window.location.hash}`);
     if (payload !== null) {
-      const result = await decodeShare(payload, await storedIds());
+      let result: ShareResult;
+      try {
+        result = await decodeShare(payload, await storedIds());
+      } catch {
+        result = { ok: false, error: "This browser could not read the link." };
+      }
       deepLink.current = { kind: "share", result };
       return result.ok ? { model: result.model, unsaved: "This browser could not save the shared model, so it was not opened. Free some space, then open the link again." } : undefined;
     }
@@ -508,11 +513,12 @@ function EditorInner() {
   /** After a shared model has opened (M45): the announcement, as an import's, and a fit. */
   const sharedOpened = (r: Extract<ShareResult, { ok: true }>) => {
     const warn = r.issues.length ? ` ${r.issues.length} relationship${r.issues.length === 1 ? " breaks" : "s break"} the CSDM rules; see Hints.` : "";
-    const name = withoutUnsafe(r.model.name) || UNTITLED_MODEL;
-    setMessage(`Opened the shared model “${name}” as a new model${r.copied ? ", as a copy (a model with the same id is already here)" : ""}.${warn}`);
+    const name = shownText(r.model.name, 200) || UNTITLED_MODEL;
+    setMessage(`Opened the shared model “${name}” ${r.copied ? "as a copy (a model with the same id is already here)" : "as a new model"}.${warn}`);
     setTimeout(() => void flow.fitView({ maxZoom: 1, padding: fitPadding(0.15) }), 50);
   };
-  const shareProblem = (error: string) => setIoError(`This link does not contain a model Blueprint Modeler can open. ${withoutUnsafe(error)}`);
+  // Shown as text and cut short: a small link can carry a validation message megabytes long.
+  const shareProblem = (error: string) => setIoError(`This link does not contain a model Blueprint Modeler can open. ${shownText(error, 300)}`);
 
   // Once the first load has finished, say what a deep link did: the example or shared model it opened
   // (only when it really is the open model; a failed save has its own banner), or what was wrong with it.
@@ -537,7 +543,12 @@ function EditorInner() {
   const openSharedRef = useRef<(payload: string) => Promise<void>>(async () => {});
   openSharedRef.current = async (payload: string) => {
     setIoError(null);
-    const r = await decodeShare(payload, new Set(doc.models.map((m) => m.id)));
+    let r: ShareResult;
+    try {
+      r = await decodeShare(payload, await doc.storedIds());
+    } catch {
+      r = { ok: false, error: "This browser could not read the link." };
+    }
     if (!r.ok) {
       shareProblem(r.error);
       return;
@@ -548,12 +559,18 @@ function EditorInner() {
   };
   useEffect(() => {
     if (!doc.ready) return;
+    // The capture script in <head> heard it first and took the link off the address; pick it up.
     const onHash = () => {
       const payload = takeSharedPayload();
       if (payload !== null) void openSharedRef.current(payload);
     };
+    onHash(); // A link pasted while the editor was still loading.
+    window.addEventListener("popstate", onHash);
     window.addEventListener("hashchange", onHash);
-    return () => window.removeEventListener("hashchange", onHash);
+    return () => {
+      window.removeEventListener("popstate", onHash);
+      window.removeEventListener("hashchange", onHash);
+    };
   }, [doc.ready]);
 
   // "Blank model" closes the empty-state card for this model and moves focus to the palette.
@@ -635,7 +652,7 @@ function EditorInner() {
       setIoError("The file is too large to be a Blueprint Modeler model (over 5 MB).");
       return;
     }
-    const r = importJson(await file.text(), new Set(doc.models.map((m) => m.id)));
+    const r = importJson(await file.text(), await doc.storedIds());
     if (!r.ok) {
       setIoError(`Could not import “${file.name}”. ${r.error} Nothing was changed.`);
       return;
@@ -675,26 +692,35 @@ function EditorInner() {
     }
   };
 
-  // The model's share link (M45), kept current a moment after each change, so Copy link can write
-  // it to the clipboard straight from the click (Safari refuses a copy that waits on other work first).
+  // The model's share link (M45), made when the Export menu opens, so Copy link can usually write it
+  // to the clipboard straight from the click (Safari refuses a copy that waits on other work first).
+  const [canShare, setCanShare] = useState(true);
+  useEffect(() => setCanShare(shareSupported()), []);
   const [share, setShare] = useState<{ model: Model; url: string; size: ReturnType<typeof shareSize> } | null>(null);
+  const makeShare = async (m: Model) => {
+    const payload = await encodeShare(m);
+    const url = shareUrl(window.location.origin, payload);
+    return { model: m, url, size: shareSize(url, payload) };
+  };
+  const prepareShare = () => {
+    if (!canShare || share?.model === model) return;
+    const m = model;
+    void makeShare(m)
+      .then(setShare)
+      .catch(() => setCanShare(false));
+  };
+  // Where the link is shown for copying by hand (the clipboard refused it), and where focus returns after.
   const [linkField, setLinkField] = useState<string | null>(null);
   const linkInput = useRef<HTMLInputElement>(null);
-  useEffect(() => {
-    setLinkField(null); // A link shown for copying by hand is stale once the model changes.
-    if (!shareSupported()) return;
-    let live = true;
-    const t = setTimeout(() => {
-      void encodeShare(model).then((payload) => {
-        const url = shareUrl(window.location.origin, payload);
-        if (live) setShare({ model, url, size: shareSize(url, payload) });
-      });
-    }, 300);
-    return () => {
-      live = false;
-      clearTimeout(t);
-    };
-  }, [model]);
+  const linkRegion = useRef<HTMLDivElement>(null);
+  const linkReturn = useRef<HTMLElement | null>(null);
+  const closeLinkField = useCallback(() => {
+    const hadFocus = !!linkRegion.current?.contains(document.activeElement);
+    setLinkField(null);
+    if (hadFocus) linkReturn.current?.focus();
+  }, []);
+  // A link shown for copying by hand is stale once the model changes.
+  useEffect(() => closeLinkField(), [model, closeLinkField]);
   useEffect(() => {
     if (!linkField) return;
     linkInput.current?.focus();
@@ -702,11 +728,17 @@ function EditorInner() {
   }, [linkField]);
   const kb = (url: string) => `${(url.length / 1000).toFixed(1)} KB`;
   const copyLink = async () => {
+    linkReturn.current = document.activeElement instanceof HTMLElement ? document.activeElement : null;
     let s = share?.model === model ? share : null;
     if (!s) {
-      const payload = await encodeShare(model);
-      const url = shareUrl(window.location.origin, payload);
-      s = { model, url, size: shareSize(url, payload) };
+      try {
+        s = await makeShare(model);
+      } catch {
+        setCanShare(false);
+        setIoError("This browser cannot make model links. Use Export › Model file (JSON) instead.");
+        return;
+      }
+      setShare(s);
     }
     if (s.size === "too-large") {
       setIoError("This model is too large to share as a link. Use Export › Model file (JSON) instead.");
@@ -719,7 +751,7 @@ function EditorInner() {
       setMessage(`Link copied (${kb(s.url)}). Anyone with the link can open a copy of this model.${long}`);
     } catch {
       setLinkField(s.url);
-      setMessage(`Copy the link below (${kb(s.url)}): this browser did not allow copying it. Anyone with the link can open a copy of this model.${long}`);
+      setMessage(`Copy the link in the field above the canvas (${kb(s.url)}): this browser did not allow copying it. Anyone with the link can open a copy of this model.${long}`);
     }
   };
 
@@ -1272,12 +1304,15 @@ function EditorInner() {
         <ExportMenu
           onExport={exportAs}
           buttonClass={toolbarButton}
+          onOpen={prepareShare}
           notes={{
-            link: !shareSupported()
+            link: !canShare
               ? "This browser cannot make model links"
-              : share?.size === "too-large"
+              : share?.model !== model
+                ? undefined
+                : share.size === "too-large"
                 ? "Too large to share as a link: use Model file (JSON)"
-                : share?.size === "long"
+                : share.size === "long"
                   ? `Long link (${kb(share.url)}): some chat and email apps cut links this long`
                   : undefined,
             drawio: lucidFitNote(lucidFit(model)),
@@ -1293,7 +1328,7 @@ function EditorInner() {
                 : "Show a data flow first: right-click a Business Capability or Business Process",
           }}
           disabled={{
-            link: !shareSupported() || share?.size === "too-large",
+            link: !canShare || (share?.model === model && share.size === "too-large"),
             "blast-gif": !blast || !radius || isFlow || makingGif,
             "flow-gif": !blast || !radius || !isFlow || makingGif,
           }}
@@ -1347,7 +1382,18 @@ function EditorInner() {
       </div>
 
       {linkField && !presenting && (
-        <div role="region" aria-label="Copy the link by hand" className="flex flex-wrap items-center gap-2 border-b border-border bg-surface-raised px-4 py-2 text-sm">
+        <div
+          ref={linkRegion}
+          role="region"
+          aria-label="Copy the link by hand"
+          className="flex flex-wrap items-center gap-2 border-b border-border bg-surface-raised px-4 py-2 text-sm"
+          onKeyDown={(e) => {
+            if (e.key === "Escape") {
+              e.stopPropagation();
+              closeLinkField();
+            }
+          }}
+        >
           <label className="flex min-w-0 flex-1 items-center gap-2">
             <span className="shrink-0">Link to this model</span>
             <input
@@ -1358,7 +1404,7 @@ function EditorInner() {
               className="min-w-0 flex-1 border border-border-strong bg-surface px-2 py-1 font-mono text-xs text-ink"
             />
           </label>
-          <button type="button" className={toolbarButton} aria-label="Close link" onClick={() => setLinkField(null)}>
+          <button type="button" className={toolbarButton} aria-label="Close link" onClick={closeLinkField}>
             Close
           </button>
         </div>

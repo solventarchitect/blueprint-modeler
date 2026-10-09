@@ -24,7 +24,7 @@ export default function PrivacyPage() {
         Export › Copy link to this model makes a link you can share. A shared link contains the whole model.
         Anyone who has the link can read it, and it stays in browser history and wherever you paste it. The part after
         # is not sent to our server. Opening a shared link saves a copy of the model in the browser that opens it, as
-        importing a file does.
+        importing a file does, and the visit counter below is not loaded on a page opened from one.
       </p>
       <h2>Your settings</h2>
       <p>

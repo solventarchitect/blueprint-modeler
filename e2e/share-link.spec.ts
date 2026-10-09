@@ -4,6 +4,12 @@ import { expect, test, type Page } from "@playwright/test";
 import { currentModel, modelButton, storedModelNames } from "./model-menu";
 import { watchForeignRequests } from "./network";
 
+declare global {
+  interface Window {
+    __bmNoBeacon?: boolean;
+  }
+}
+
 const tags = ["wcag2a", "wcag2aa", "wcag21aa", "wcag22aa"];
 const saved = (page: Page) => expect(page.getByTestId("save-status")).toHaveText("Saved in this browser");
 const cleanEditorUrl = /\/editor\/?$/;
@@ -91,6 +97,13 @@ test.describe("share a model as a link (M45)", () => {
     await page.goto(linkFor(shared));
     await expect(currentModel(page)).toHaveText("Shared From A Colleague");
     expect(await page.evaluate(() => (window as unknown as { hashAtParse: string }).hashAtParse)).toBe("");
+    // The browser's navigation-timing record keeps the address the page arrived with, so such a page
+    // is marked: the production visit counter is never loaded on it.
+    expect(await page.evaluate(() => window.__bmNoBeacon)).toBe(true);
+    await page.goto("about:blank");
+    await page.goto("/editor");
+    await saved(page);
+    expect(await page.evaluate(() => window.__bmNoBeacon)).toBeUndefined();
   });
 
   test("a returning visitor gets the shared model beside their own; the same link again arrives as a copy", async ({ page }) => {
@@ -148,6 +161,11 @@ test.describe("share a model as a link (M45)", () => {
     await page.goto(linkFor({ ...shared, nodes: [{ id: "n", class: "<b>flux</b>", name: "x" }], edges: [], layout: {} }));
     await expect(banner(page)).toContainText("<b>flux</b>");
     await expect(banner(page).locator("b")).toHaveCount(0);
+    // A small link can carry a validation message megabytes long; the banner shows only its start.
+    await page.goto("about:blank");
+    await page.goto(linkFor({ ...shared, nodes: [{ id: "n", class: "business_application", name: "x", attrs: { ["k".repeat(100_000)]: "v" } }], edges: [], layout: {} }));
+    await expect(banner(page)).toContainText("does not hold a valid model");
+    expect((await banner(page).textContent())!.length).toBeLessThan(600);
     await nothingAdded(page, "1");
     expect(errors).toEqual([]);
   });
@@ -187,13 +205,20 @@ test.describe("share a model as a link (M45)", () => {
     const value = await field.inputValue();
     expect(modelIn(value).name).toBe("Shared From A Colleague");
     expect(await field.evaluate((el: HTMLInputElement) => [el.selectionStart, el.selectionEnd])).toEqual([0, value.length]);
-    await expect(page.getByRole("status")).toContainText("Copy the link below");
+    await expect(page.getByRole("status")).toContainText("Copy the link in the field above the canvas");
     for (const scheme of ["dark", "light"] as const) {
       await page.emulateMedia({ colorScheme: scheme });
       expect((await new AxeBuilder({ page }).withTags(tags).analyze()).violations).toEqual([]);
     }
     await page.getByRole("button", { name: "Close link" }).click();
     await expect(field).toBeHidden();
+    // Focus goes back where it came from; Escape closes the field too.
+    await expect(page.getByRole("button", { name: "Export" })).toBeFocused();
+    await copyLink(page);
+    await expect(field).toBeFocused();
+    await page.keyboard.press("Escape");
+    await expect(field).toBeHidden();
+    await expect(page.getByRole("button", { name: "Export" })).toBeFocused();
   });
 });
 

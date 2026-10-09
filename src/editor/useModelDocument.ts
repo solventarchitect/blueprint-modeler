@@ -42,6 +42,12 @@ export function useModelDocument(firstModel?: (storedIds: () => Promise<Readonly
   }, []);
 
   /**
+   * The ids stored in this browser, read from the store itself: the `models` list can lag behind
+   * another tab, and a model brought in (import, link) must never reuse an id already stored.
+   */
+  const storedIds = useCallback(async (): Promise<ReadonlySet<string>> => new Set(((await store.current?.list()) ?? []).map((m) => m.id)), []);
+
+  /**
    * Switching away cancels the outgoing model's autosave pause, so write a change still waiting in
    * it first (a deleted model has already been detached: loadedId is null). False when that write
    * failed: the caller stays on this model, so the unsaved change is still on screen.
@@ -93,7 +99,7 @@ export function useModelDocument(firstModel?: (storedIds: () => Promise<Readonly
       persistent.current = opened.persistent;
       let start: FirstLoad | undefined;
       try {
-        start = await first.current?.(async () => new Set((await opened.store.list()).map((m) => m.id)));
+        start = await first.current?.(storedIds);
       } catch {
         start = undefined; // A link that cannot be read is no reason not to load.
       }
@@ -116,7 +122,7 @@ export function useModelDocument(firstModel?: (storedIds: () => Promise<Readonly
     return () => {
       canceled = true;
     };
-  }, [open]);
+  }, [open, storedIds]);
 
   // Autosave the present model once it has settled. The status flips to "Saving…" before the
   // change is painted, so "Saved" never shows while a save is still pending.
@@ -226,6 +232,7 @@ export function useModelDocument(firstModel?: (storedIds: () => Promise<Readonly
     status,
     ready,
     models,
+    storedIds,
     open,
     newModel,
     read,
