@@ -22,13 +22,16 @@ export function exampleFromSearch(search: string): { id: string; shown: string; 
 /** Control characters, and the bidi marks, embeddings, overrides and isolates that reorder text. */
 const UNSAFE = /[\p{Cc}\u200E\u200F\u202A-\u202E\u2066-\u2069]/gu;
 
+/** Text from a link with the characters that could garble or reorder a message removed. */
+export const withoutUnsafe = (text: string) => text.replace(UNSAFE, "");
+
 /**
  * An id from a URL, safe to show in a sentence: characters that could garble or reorder the message
  * removed (joiners stay, so an emoji keeps its shape), then cut at a whole character to
  * SHOWN_ID_MAX, ending in "…".
  */
 function shownId(id: string): string {
-  const clean = id.replace(UNSAFE, "");
+  const clean = withoutUnsafe(id);
   const chars = [...new Intl.Segmenter(undefined, { granularity: "grapheme" }).segment(clean)].map((g) => g.segment);
   return chars.length > SHOWN_ID_MAX ? `${chars.slice(0, SHOWN_ID_MAX - 1).join("")}…` : clean;
 }

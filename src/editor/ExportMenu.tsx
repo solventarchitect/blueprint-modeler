@@ -3,10 +3,11 @@
 import { useEffect, useId, useRef, useState } from "react";
 import { ToolbarIcon } from "./ToolbarIcon";
 
-export type ExportKind = "json" | "svg-dark" | "svg-light" | "blast-gif" | "flow-gif" | "archimate" | "drawio" | "servicenow";
+export type ExportKind = "json" | "link" | "svg-dark" | "svg-light" | "blast-gif" | "flow-gif" | "archimate" | "drawio" | "servicenow";
 
 const items: { kind: ExportKind; label: string; note: string }[] = [
   { kind: "json", label: "Model file (JSON)", note: "Back up, move or version it" },
+  { kind: "link", label: "Copy link to this model", note: "Anyone with the link can open a copy" },
   { kind: "svg-dark", label: "Image, dark (SVG)", note: "For docs and slides" },
   { kind: "svg-light", label: "Image, light (SVG)", note: "For docs and slides" },
   { kind: "blast-gif", label: "Blast radius animation (GIF)", note: "The open blast radius, one frame a hop" },

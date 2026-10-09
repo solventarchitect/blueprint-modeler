@@ -10,7 +10,7 @@ export const metadata: Metadata = {
 export default function PrivacyPage() {
   return (
     <Prose eyebrow="Privacy" title="Privacy">
-      <p>Short version: your models never leave your device unless you export them, and there are no accounts or cookies.</p>
+      <p>Short version: your models never leave your device unless you export or share them, and there are no accounts or cookies.</p>
       <h2>Your models</h2>
       <p>
         Models are stored in your browser&apos;s own storage (IndexedDB) on this device. They are not sent anywhere.
@@ -18,6 +18,13 @@ export default function PrivacyPage() {
         if you want a copy. Import reads the file you
         choose inside the browser; export creates the file on your device. Auto-layout runs in a background worker on
         your device.
+      </p>
+      <h2>Shared links</h2>
+      <p>
+        Export › Copy link to this model makes a link you can share. A shared link contains the whole model.
+        Anyone who has the link can read it, and it stays in browser history and wherever you paste it. The part after
+        # is not sent to our server. Opening a shared link saves a copy of the model in the browser that opens it, as
+        importing a file does.
       </p>
       <h2>Your settings</h2>
       <p>
@@ -37,7 +44,7 @@ export default function PrivacyPage() {
         pages and keep them secure.
       </p>
       <h2>Changes</h2>
-      <p>If this changes, this page changes first. Last updated September 27, 2026.</p>
+      <p>If this changes, this page changes first. Last updated October 9, 2026.</p>
     </Prose>
   );
 }

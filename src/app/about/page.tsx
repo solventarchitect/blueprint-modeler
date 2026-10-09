@@ -44,7 +44,9 @@ export default function AboutPage() {
       <h2>No account, no server</h2>
       <p>
         The app is a static site. Your models are saved only in your browser, and import, export and auto-layout all
-        run on your device. See <a href="/privacy">Privacy</a> for the details.
+        run on your device. Export › Copy link to this model shares a model without a server: the whole model travels
+        inside the link, after the #, which browsers never send to a server, and whoever opens it gets their own copy.
+        See <a href="/privacy">Privacy</a> for the details.
       </p>
       <h2>Who built it</h2>
       <p>
