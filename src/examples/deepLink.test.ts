@@ -1,7 +1,7 @@
 import { readFileSync } from "node:fs";
 import { describe, expect, it } from "vitest";
 import { examples } from "./index";
-import { exampleFromSearch, EXAMPLE_PARAM, SHOWN_ID_MAX } from "./deepLink";
+import { exampleFromSearch, EXAMPLE_PARAM, SHOWN_ID_MAX, shownText } from "./deepLink";
 
 describe("exampleFromSearch", () => {
   it("finds a shipped example by its exact id", () => {
@@ -79,5 +79,17 @@ describe("example ids", () => {
     const row = readFileSync("README.md", "utf8").split("\n").find((l) => l.startsWith("| **Examples** |"))!;
     const listed = row.slice(row.indexOf("The ids")).match(/`([a-z0-9-]+)`/g)!.map((m) => m.slice(1, -1));
     expect(listed).toEqual(examples.map((e) => e.id));
+  });
+});
+
+describe("text from a link, shown in a message", () => {
+  it("drops controls and bidi marks (the Arabic letter mark too) and keeps joiners", () => {
+    expect(shownText("a\u061Cb\u202Ec\u0007d", 50)).toBe("abcd");
+    expect(shownText("👩🏽‍💻", 50)).toBe("👩🏽‍💻");
+  });
+
+  it("cuts long text at a whole character, looking only at its start", () => {
+    expect(shownText("x".repeat(5_000_000), 300)).toBe(`${"x".repeat(299)}…`);
+    expect(shownText("short", 300)).toBe("short");
   });
 });
