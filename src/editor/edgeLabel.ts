@@ -1,5 +1,5 @@
 import type { LayerBox } from "@/layout/bands";
-import { pointOnPath } from "@/layout/edgePath";
+import { flattenPath, pointAlong, pointOnPath } from "@/layout/edgePath";
 
 /** An axis-aligned rectangle in canvas (flow) units. */
 export type Rect = { x: number; y: number; w: number; h: number };
@@ -45,9 +45,10 @@ export function labelPoint(path: string, label: string, obstacles: Rect[], middl
   const w = label.length * CHAR + 2 * PAD;
   let best = middle;
   let least = Infinity;
+  const flat = flattenPath(path); // Once per edge, then sampled for each try.
+  if (!flat) return middle;
   for (const t of TRIES) {
-    const p = t === 0.5 ? middle : pointOnCubic(path, t);
-    if (!p) return middle;
+    const p = t === 0.5 ? middle : pointAlong(flat, t);
     const box = { x: p.x - w / 2, y: p.y - HEIGHT / 2, w, h: HEIGHT };
     const covered = obstacles.reduce((sum, o) => sum + overlap(box, o), 0);
     if (covered === 0) return p;

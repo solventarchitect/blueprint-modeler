@@ -34,20 +34,25 @@ function curved(s: End, t: End) {
 
 /**
  * Horizontal and vertical runs: out of each end by a stub, then across at the midpoint between the
- * two stubs (a Z when the ends face each other, a U otherwise), with rounded corners. The label
- * sits on the middle run.
+ * two stubs (a Z when the ends face each other, a U otherwise), with rounded corners. When the ends
+ * are closer than the two stubs, the stubs shrink so the line never doubles back. The label sits on
+ * the middle run.
  */
 function stepped(s: End, t: End) {
   const ds = dir(s.side), dt = dir(t.side);
-  const a = { x: s.x + ds.x * STUB, y: s.y + ds.y * STUB };
-  const b = { x: t.x + dt.x * STUB, y: t.y + dt.y * STUB };
+  const facing = ds.x === -dt.x && ds.y === -dt.y;
+  // Facing ends closer than two stubs along the exit axis: shorter stubs, never less than a corner.
+  const gap = facing ? (ds.x ? (t.x - s.x) * ds.x : (t.y - s.y) * ds.y) : Infinity;
+  const stub = facing && gap < 2 * STUB ? Math.max(gap / 2, RADIUS) : STUB;
+  const a = { x: s.x + ds.x * stub, y: s.y + ds.y * stub };
+  const b = { x: t.x + dt.x * stub, y: t.y + dt.y * stub };
   const pts: Point[] = [s, a];
   const vertical = ds.y !== 0;
-  if (vertical && dt.y !== 0 && ds.y !== dt.y) {
+  if (facing && vertical) {
     // Facing each other up/down: a Z through the midline between the stubs.
     const my = (a.y + b.y) / 2;
     pts.push({ x: a.x, y: my }, { x: b.x, y: my });
-  } else if (!vertical && dt.x !== 0 && ds.x !== dt.x) {
+  } else if (facing) {
     const mx = (a.x + b.x) / 2;
     pts.push({ x: mx, y: a.y }, { x: mx, y: b.y });
   } else if (vertical) {
@@ -57,16 +62,36 @@ function stepped(s: End, t: End) {
     pts.push({ x: a.x, y: b.y });
   }
   pts.push(b, t);
-  // Drop runs of zero length so corners are real corners.
-  const clean = pts.filter((p, i) => i === 0 || Math.abs(p.x - pts[i - 1]!.x) > 0.01 || Math.abs(p.y - pts[i - 1]!.y) > 0.01);
+  const clean = simplify(pts);
   const path = roundedPolyline(clean);
-  // The label on the longest middle run.
-  let best = { x: (s.x + t.x) / 2, y: (s.y + t.y) / 2 }, len = -1;
+  // The label on the longest middle run; a tie goes to the run nearest the line's midpoint.
+  const midpoint = { x: (s.x + t.x) / 2, y: (s.y + t.y) / 2 };
+  let best = midpoint, len = -1, near = Infinity;
   for (let i = 1; i < clean.length - 2; i++) {
-    const l = Math.hypot(clean[i + 1]!.x - clean[i]!.x, clean[i + 1]!.y - clean[i]!.y);
-    if (l > len) [best, len] = [{ x: (clean[i]!.x + clean[i + 1]!.x) / 2, y: (clean[i]!.y + clean[i + 1]!.y) / 2 }, l];
+    const p = clean[i]!, q = clean[i + 1]!;
+    const l = Math.hypot(q.x - p.x, q.y - p.y);
+    const c = { x: (p.x + q.x) / 2, y: (p.y + q.y) / 2 };
+    const d = Math.hypot(c.x - midpoint.x, c.y - midpoint.y);
+    if (l > len + 0.01 || (Math.abs(l - len) <= 0.01 && d < near)) [best, len, near] = [c, l, d];
   }
+  if (clean.length <= 3) best = pointOnPath(path, 0.5) ?? midpoint;
   return { path, label: best };
+}
+
+/** Drops zero-length runs and merges collinear ones, so corners are real corners. */
+function simplify(pts: Point[]): Point[] {
+  const out: Point[] = [];
+  for (const p of pts) {
+    const prev = out[out.length - 1];
+    if (prev && Math.abs(p.x - prev.x) < 0.01 && Math.abs(p.y - prev.y) < 0.01) continue;
+    const before = out[out.length - 2];
+    if (prev && before && ((Math.abs(before.x - prev.x) < 0.01 && Math.abs(prev.x - p.x) < 0.01) || (Math.abs(before.y - prev.y) < 0.01 && Math.abs(prev.y - p.y) < 0.01))) {
+      out[out.length - 1] = p; // Same direction as the last run: extend it.
+      continue;
+    }
+    out.push(p);
+  }
+  return out;
 }
 
 function roundedPolyline(pts: Point[]): string {
@@ -89,11 +114,19 @@ function roundedPolyline(pts: Point[]): string {
   return d;
 }
 
+/** A path flattened to a polyline with the running length at each point, for sampling along it. */
+export type FlatPath = { poly: Point[]; at: number[]; total: number };
+
 /**
  * The point a fraction `t` along a path made of M, L, Q and C commands (what the two styles draw),
- * by length. Null when the path cannot be read.
+ * by length. Null when the path cannot be read. Sampling many points: `flattenPath` once, then `pointAlong`.
  */
 export function pointOnPath(path: string, t: number): Point | null {
+  const flat = flattenPath(path);
+  return flat ? pointAlong(flat, t) : null;
+}
+
+export function flattenPath(path: string): FlatPath | null {
   const cmds = [...path.matchAll(/([MLQC])\s*([^MLQC]+)/g)];
   if (!cmds.length || cmds[0]![1] !== "M") return null;
   // Flatten to a polyline: curves sampled.
@@ -124,22 +157,19 @@ export function pointOnPath(path: string, t: number): Point | null {
       cur = p3;
     } else return null;
   }
-  if (poly.length < 2) return poly[0] ?? null;
-  const lens: number[] = [];
-  let total = 0;
-  for (let i = 1; i < poly.length; i++) {
-    const l = Math.hypot(poly[i]!.x - poly[i - 1]!.x, poly[i]!.y - poly[i - 1]!.y);
-    lens.push(l);
-    total += l;
-  }
-  let want = Math.min(Math.max(t, 0), 1) * total;
-  for (let i = 0; i < lens.length; i++) {
-    if (want <= lens[i]! || i === lens.length - 1) {
-      const f = lens[i]! ? want / lens[i]! : 0;
-      const p = poly[i]!, q = poly[i + 1]!;
-      return { x: p.x + (q.x - p.x) * f, y: p.y + (q.y - p.y) * f };
-    }
-    want -= lens[i]!;
-  }
-  return poly[poly.length - 1]!;
+  if (!poly.length) return null;
+  const at = [0];
+  for (let i = 1; i < poly.length; i++) at.push(at[i - 1]! + Math.hypot(poly[i]!.x - poly[i - 1]!.x, poly[i]!.y - poly[i - 1]!.y));
+  return { poly, at, total: at[at.length - 1]! };
+}
+
+export function pointAlong({ poly, at, total }: FlatPath, t: number): Point {
+  if (poly.length < 2 || total === 0) return poly[0]!;
+  const want = Math.min(Math.max(t, 0), 1) * total;
+  let i = 1;
+  while (i < at.length - 1 && at[i]! < want) i++;
+  const p = poly[i - 1]!, q = poly[i]!;
+  const seg = at[i]! - at[i - 1]!;
+  const f = seg ? (want - at[i - 1]!) / seg : 0;
+  return { x: p.x + (q.x - p.x) * f, y: p.y + (q.y - p.y) * f };
 }

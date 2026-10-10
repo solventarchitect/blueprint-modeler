@@ -283,6 +283,9 @@
 .react-flow__edge.hover.hover-reverse .react-flow__edge-path {
   animation-name: blast-flow-reverse;
 }
+.react-flow__edge.hover.hover-still .react-flow__edge-path {
+  animation: none;
+}
 @media (prefers-reduced-motion: reduce) {
   .react-flow__edge.blast-now .react-flow__edge-path,
   .react-flow__edge.blast-now.blast-reverse .react-flow__edge-path,

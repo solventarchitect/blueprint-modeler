@@ -151,6 +151,22 @@ test.describe("hover shows direct dependencies (M46)", () => {
     await expect(own).not.toHaveClass(/\bhover\b/);
   });
 
+  test("a tap on a touch screen does not start the animation, and drawing a relationship stops it", async ({ browser, baseURL }) => {
+    const ctx = await browser.newContext({ hasTouch: true, viewport: { width: 1280, height: 800 } });
+    const page = await ctx.newPage();
+    await page.addInitScript(() => {
+      const mm = window.matchMedia.bind(window);
+      window.matchMedia = (q: string) => (q === "(hover: hover)" ? ({ matches: false, media: q, addEventListener() {}, removeEventListener() {} } as unknown as MediaQueryList) : mm(q));
+    });
+    await page.goto(`${baseURL}/editor`);
+    await expect(page.getByTestId("save-status")).toHaveText("Saved in this browser");
+    await openExample(page, "Online Store Checkout");
+    await node(page, "Checkout web app").tap();
+    await page.waitForTimeout(400);
+    await expect(edgeBetween(page, "Checkout web app", "Checkout — production")).not.toHaveClass(/\bhover\b/);
+    await ctx.close();
+  });
+
   for (const scheme of ["dark", "light"] as const) {
     test(`right angles and a hovered element have no WCAG 2.2 AA violations (${scheme})`, async ({ page }) => {
       await page.emulateMedia({ colorScheme: scheme });

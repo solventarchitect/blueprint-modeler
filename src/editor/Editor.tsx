@@ -307,8 +307,12 @@ function EditorInner() {
   // dragging, and on touch (no pointer to hover with).
   const [hoveredId, setHoveredId] = useState<string | null>(null);
   const hoverTimer = useRef<ReturnType<typeof setTimeout> | undefined>(undefined);
+  /** True while a relationship is being drawn: the drop-target outlines are the highlight then. */
+  const connecting = useRef(false);
   const hoverNode = (id: string | null) => {
     clearTimeout(hoverTimer.current);
+    // A tap's synthetic mouse events would leave the dashes running: only a real pointer hovers.
+    if (id && (connecting.current || !window.matchMedia("(hover: hover)").matches)) id = null;
     hoverTimer.current = setTimeout(() => setHoveredId(id), id ? 150 : 200);
   };
   useEffect(() => () => clearTimeout(hoverTimer.current), []);
@@ -383,10 +387,12 @@ function EditorInner() {
         const b = model.layout[e.to] ?? { x: 0, y: 0 };
         const [sourceHandle, targetHandle] = edgeSides(a, b, columns);
         const hinted = !blastShown && hintedEdges.has(e.id);
-        const hovered = !blastShown && !!hoveredId && (e.from === hoveredId || e.to === hoveredId);
+        // A hinted relationship keeps its hint color; the others around the hovered element light up.
+        const hovered = !blastShown && !hinted && !!hoveredId && (e.from === hoveredId || e.to === hoveredId);
         // Dashes run the way impact travels: forward along the line when its From end is the dependency.
+        // A pair the impact rules do not cover is highlighted but still.
         const ends = hovered ? impactEnds(model, e) : null;
-        const hoverClass = hovered ? ` hover${ends && ends.dependency !== e.from ? " hover-reverse" : ""}` : "";
+        const hoverClass = hovered ? ` hover${!ends ? " hover-still" : ends.dependency !== e.from ? " hover-reverse" : ""}` : "";
         const tone: EdgeTone = carried || hinted ? "status" : hovered ? "accent" : connected ? "neighbor" : "line";
         return {
           id: e.id,
@@ -1544,6 +1550,7 @@ function EditorInner() {
               onConnect={onConnect}
               isValidConnection={(c) => connectionProblem(model, c.source, c.target) === null}
               onConnectEnd={(_, state) => {
+                connecting.current = false;
                 // Refused connections never reach onConnect, so explain them here.
                 if (state.fromNode && state.toNode && !state.isValid) setMessage(connectionProblem(model, state.fromNode.id, state.toNode.id) ?? "");
               }}
@@ -1552,6 +1559,8 @@ function EditorInner() {
               onNodeMouseLeave={() => hoverNode(null)}
               onNodeDragStart={() => hoverNode(null)}
               onConnectStart={(_, { nodeId }) => {
+                connecting.current = true;
+                hoverNode(null);
                 const from = model.nodes.find((n) => n.id === nodeId);
                 if (!from) return;
                 const count = model.nodes.filter((n) => n.id !== from.id && connectionProblem(model, from.id, n.id) === null).length;
