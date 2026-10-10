@@ -3,6 +3,7 @@ import { expect, test, type Page } from "@playwright/test";
 import { examples } from "../src/examples";
 import { impactEnds } from "../src/model";
 import { openExample } from "./examples";
+import { settled } from "./layout";
 
 const tags = ["wcag2a", "wcag2aa", "wcag21aa", "wcag22aa"];
 
@@ -11,6 +12,8 @@ async function openCheckout(page: Page) {
   await expect(page.getByTestId("save-status")).toHaveText("Saved in this browser");
   await openExample(page, "Online Store Checkout");
   await expect(page.locator(".react-flow__node")).toHaveCount(14);
+  // The fit after an example opens pans the canvas; a pointer parked on an element would slide off it.
+  await settled(page);
 }
 
 const node = (page: Page, name: string) => page.locator(".react-flow__node").filter({ hasText: name });
@@ -147,6 +150,7 @@ test.describe("hover shows direct dependencies (M46)", () => {
 
     await node(page, "Checkout web app").click({ button: "right" });
     await page.getByRole("menu", { name: "Checkout web app menu" }).getByRole("menuitem", { name: "Show blast radius" }).click();
+    await settled(page);
     await node(page, "Checkout web app").hover();
     await expect(own).not.toHaveClass(/\bhover\b/);
   });
