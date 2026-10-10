@@ -23,7 +23,7 @@ test.describe("guide filter", () => {
     // Hold the script back, as a slow connection or a busy machine would.
     let release!: () => void;
     const held = new Promise<void>((r) => (release = r));
-    await page.route(/\/_next\/static\/chunks\/.*\.js$/, async (route) => {
+    await page.route(/\/_next\/static\/chunks\/.*\.js(\?.*)?$/, async (route) => {
       await held;
       await route.continue();
     });
