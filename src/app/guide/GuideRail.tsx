@@ -49,9 +49,15 @@ export function GuideRail({ sections }: { sections: Section[] }) {
   const active = query.trim() !== "" || layers.size > 0 || kinds.size > 0;
 
   const clear = useCallback(() => {
+    if (input.current) input.current.value = "";
     setQuery("");
     setLayers(new Set());
     setKinds(new Set());
+  }, []);
+
+  // Text typed before the page's script loaded: the box is uncontrolled, so the browser kept it.
+  useEffect(() => {
+    if (input.current?.value) setQuery(input.current.value);
   }, []);
 
   // Apply the filter to the page.
@@ -192,7 +198,7 @@ export function GuideRail({ sections }: { sections: Section[] }) {
           <input
             ref={input}
             type="search"
-            value={query}
+            defaultValue=""
             onChange={(e) => setQuery(e.target.value)}
             placeholder="Filter: class, table or type"
             className="w-full border border-border-strong bg-surface-raised px-2.5 py-1.5 text-sm text-ink placeholder:text-ink-muted"
