@@ -19,8 +19,9 @@
   --grid-line: color-mix(in oklab, var(--color-primary-400) 7%, transparent);
   /* Editor canvas: recessed below the chrome so its edges read at a glance; grid is decorative. */
   --canvas: color-mix(in oklab, var(--color-neutral-950) 72%, var(--color-black));
-  --canvas-grid: color-mix(in oklab, var(--color-primary-400) 5%, transparent);
-  --canvas-grid-major: color-mix(in oklab, var(--color-primary-400) 10%, transparent);
+  --canvas-grid: color-mix(in oklab, var(--color-primary-400) 32%, transparent);
+  --canvas-grid-major: color-mix(in oklab, var(--color-primary-400) 55%, transparent);
+  --edge-width: 1.5px;
   /* Connection feedback while dragging: always paired with a ✓/✕ label, never color alone. */
   --valid: var(--color-success-400);
   --invalid: var(--color-error-300);
@@ -55,8 +56,9 @@
     --border-strong: var(--color-neutral-500);
     --grid-line: color-mix(in oklab, var(--color-primary-700) 9%, transparent);
     --canvas: var(--color-neutral-100);
-    --canvas-grid: color-mix(in oklab, var(--color-primary-700) 6%, transparent);
-    --canvas-grid-major: color-mix(in oklab, var(--color-primary-700) 12%, transparent);
+    --canvas-grid: color-mix(in oklab, var(--color-primary-700) 42%, transparent);
+    --canvas-grid-major: color-mix(in oklab, var(--color-primary-700) 68%, transparent);
+    --edge-width: 2px;
     --valid: var(--color-success-800);
     --invalid: var(--color-error-600);
     --neighbor: var(--color-primary-600);
@@ -85,8 +87,9 @@
   --border-strong: var(--color-neutral-500);
   --grid-line: color-mix(in oklab, var(--color-primary-700) 9%, transparent);
   --canvas: var(--color-neutral-100);
-  --canvas-grid: color-mix(in oklab, var(--color-primary-700) 6%, transparent);
-  --canvas-grid-major: color-mix(in oklab, var(--color-primary-700) 12%, transparent);
+  --canvas-grid: color-mix(in oklab, var(--color-primary-700) 42%, transparent);
+  --canvas-grid-major: color-mix(in oklab, var(--color-primary-700) 68%, transparent);
+  --edge-width: 2px;
   --valid: var(--color-success-800);
   --invalid: var(--color-error-600);
   --neighbor: var(--color-primary-600);
@@ -167,10 +170,15 @@
 }
 
 /* Canvas (React Flow) in Blueprint roles. base.css supplies layout only; color lives here. */
-.react-flow__edge-path,
 .react-flow__connection-path {
   stroke: var(--border-strong);
   stroke-width: 1.5;
+}
+/* Relationship lines. Two classes, so this wins over the canvas library's own `.react-flow__edge-path`
+   (light gray, 1px), which otherwise paints every plain relationship; the states below are more specific still. */
+.react-flow__edge .react-flow__edge-path {
+  stroke: var(--border-strong);
+  stroke-width: var(--edge-width);
 }
 .react-flow__edge.selected .react-flow__edge-path {
   stroke: var(--accent);

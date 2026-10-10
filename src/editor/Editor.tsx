@@ -1613,8 +1613,8 @@ function EditorInner() {
             >
               <NotationMarkers />
               <NotationLegend types={legendTypes} />
-              <Background id="minor" variant={BackgroundVariant.Lines} gap={32} color="var(--canvas-grid)" />
-              <Background id="major" variant={BackgroundVariant.Lines} gap={160} color="var(--canvas-grid-major)" />
+              <Background id="minor" variant={BackgroundVariant.Dots} gap={32} size={3} color="var(--canvas-grid)" />
+              <Background id="major" variant={BackgroundVariant.Dots} gap={160} size={5} color="var(--canvas-grid-major)" />
               {!presenting && <FitControls hasDescription={!!model.description} />}
               <LayerOverlay boxes={boxes} lanes={lanes} showBoxes={view.boxes || presenting} showLanes={view.lanes} handlers={canMenu ? layerHandlers : undefined} />
               <CanvasTitle name={model.name} date={modelDate(model)} description={model.description} artifactId={model.artifactId} boxes={boxes} tabsAbove={(view.boxes && !view.lanes && canMenu) || (view.lanes && columns)} decorative={presenting} />
