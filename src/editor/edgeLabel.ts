@@ -1,4 +1,5 @@
 import type { LayerBox } from "@/layout/bands";
+import { flattenPath, pointAlong, pointOnPath } from "@/layout/edgePath";
 
 /** An axis-aligned rectangle in canvas (flow) units. */
 export type Rect = { x: number; y: number; w: number; h: number };
@@ -26,15 +27,8 @@ export function layerTabRects(boxes: LayerBox[], zoom: number, tabsAbove: boolea
   );
 }
 
-/** A point on a path of the form `M x,y C c1x,c1y c2x,c2y x,y` (what React Flow's bezier edges draw). */
-export function pointOnCubic(path: string, t: number): Point | null {
-  const n = path.match(/-?\d+(?:\.\d+)?(?:e-?\d+)?/gi)?.map(Number);
-  if (!n || n.length < 8) return null;
-  const [x0, y0, x1, y1, x2, y2, x3, y3] = n as [number, number, number, number, number, number, number, number];
-  const u = 1 - t;
-  const a = u * u * u, b = 3 * u * u * t, c = 3 * u * t * t, d = t * t * t;
-  return { x: a * x0 + b * x1 + c * x2 + d * x3, y: a * y0 + b * y1 + c * y2 + d * y3 };
-}
+/** A point a fraction along an edge's path, whatever its style (curved or right angles). */
+export const pointOnCubic = (path: string, t: number): Point | null => pointOnPath(path, t);
 
 const overlap = (a: Rect, b: Rect) => Math.max(0, Math.min(a.x + a.w, b.x + b.w) - Math.max(a.x, b.x)) * Math.max(0, Math.min(a.y + a.h, b.y + b.h) - Math.max(a.y, b.y));
 
@@ -51,9 +45,10 @@ export function labelPoint(path: string, label: string, obstacles: Rect[], middl
   const w = label.length * CHAR + 2 * PAD;
   let best = middle;
   let least = Infinity;
+  const flat = flattenPath(path); // Once per edge, then sampled for each try.
+  if (!flat) return middle;
   for (const t of TRIES) {
-    const p = t === 0.5 ? middle : pointOnCubic(path, t);
-    if (!p) return middle;
+    const p = t === 0.5 ? middle : pointAlong(flat, t);
     const box = { x: p.x - w / 2, y: p.y - HEIGHT / 2, w, h: HEIGHT };
     const covered = obstacles.reduce((sum, o) => sum + overlap(box, o), 0);
     if (covered === 0) return p;

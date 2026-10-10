@@ -2,6 +2,7 @@ import { archimateElements, archimateFill, archimateRelationshipFor, archimateTy
 import { classById, isClassId, type Layer } from "@/metamodel";
 import { formatModelDate, modelDate, UNTITLED_MODEL, type Model } from "@/model";
 import { layoutOrientation } from "@/layout/bands";
+import { edgePath, type LineStyle } from "@/layout/edgePath";
 import { edgeSides, type Side } from "@/layout/geometry";
 import { ARTIFACT_ICON_PATH } from "./icons";
 
@@ -90,13 +91,13 @@ type Box = { x: number; y: number; w: number; h: number };
 function anchor(b: Box, side: Side) {
   switch (side) {
     case "top":
-      return { x: b.x + b.w / 2, y: b.y, dx: 0, dy: -1 };
+      return { x: b.x + b.w / 2, y: b.y };
     case "bottom":
-      return { x: b.x + b.w / 2, y: b.y + b.h, dx: 0, dy: 1 };
+      return { x: b.x + b.w / 2, y: b.y + b.h };
     case "left":
-      return { x: b.x, y: b.y + b.h / 2, dx: -1, dy: 0 };
+      return { x: b.x, y: b.y + b.h / 2 };
     case "right":
-      return { x: b.x + b.w, y: b.y + b.h / 2, dx: 1, dy: 0 };
+      return { x: b.x + b.w, y: b.y + b.h / 2 };
   }
 }
 
@@ -104,8 +105,9 @@ function anchor(b: Box, side: Side) {
  * The model as a standalone SVG in the chosen theme: same boxes, lanes and edge routing as the
  * canvas, system fonts (IBM Plex if installed), no scripts, no external references.
  */
-export function modelToSvg(model: Model, theme: SvgTheme, opts: { lens?: Lens; highlight?: SvgHighlight } = {}): string {
+export function modelToSvg(model: Model, theme: SvgTheme, opts: { lens?: Lens; highlight?: SvgHighlight; lines?: LineStyle } = {}): string {
   const lens = opts.lens ?? "csdm";
+  const lines = opts.lines ?? "curved";
   const hl = opts.highlight;
   // ArchiMate-only: the ArchiMate type heads each element (no CSDM line), fills follow the ArchiMate
   // layer, and relationships carry ArchiMate notation — as on the canvas.
@@ -161,10 +163,8 @@ export function modelToSvg(model: Model, theme: SvgTheme, opts: { lens?: Lens; h
     const [ss, ts] = edgeSides(a, b, columns);
     const s = anchor(a, ss);
     const t = anchor(b, ts);
-    const d = Math.max((s.dx ? Math.abs(t.x - s.x) : Math.abs(t.y - s.y)) / 2, 24);
-    const c1 = { x: s.x + s.dx * d, y: s.y + s.dy * d };
-    const c2 = { x: t.x + t.dx * d, y: t.y + t.dy * d };
-    const mid = { x: (s.x + 3 * c1.x + 3 * c2.x + t.x) / 8, y: (s.y + 3 * c1.y + 3 * c2.y + t.y) / 8 };
+    // The same router as the canvas, so the image matches the screen.
+    const { path: pathD, label: mid } = edgePath({ x: s.x, y: s.y, side: ss }, { x: t.x, y: t.y, side: ts }, lines);
     const am = amOnly ? edgeNotation(archimateRelationshipFor(classOf(e.from), classOf(e.to))) : undefined;
     const label = am ? am.type : e.type.startsWith("reference:") ? "reference" : (e.type.split("::")[0] ?? e.type);
     const lw = label.length * 6.6 + 8;
@@ -178,7 +178,7 @@ export function modelToSvg(model: Model, theme: SvgTheme, opts: { lens?: Lens; h
     }
     const stroke = carried ? `stroke="${hl?.flow ? p.ai : p.status}" stroke-width="2.5"${carried.current ? ` stroke-dasharray="10 6"` : ""}` : `stroke="${p.line}" stroke-width="1.25"`;
     edges.push(
-      `<path d="M${r1(s.x)} ${r1(s.y)} C${r1(c1.x)} ${r1(c1.y)} ${r1(c2.x)} ${r1(c2.y)} ${r1(t.x)} ${r1(t.y)}" fill="none" ${stroke}${ends}/>`,
+      `<path d="${pathD}" fill="none" ${stroke}${ends}/>`,
       `<rect x="${r1(mid.x - lw / 2)}" y="${r1(mid.y - 8)}" width="${r1(lw)}" height="16" fill="${p.bg}"/>`,
       `<text x="${r1(mid.x)}" y="${r1(mid.y + 4)}" text-anchor="middle" font-family="${MONO}" font-size="11" fill="${p.muted}">${esc(label)}</text>`,
     );

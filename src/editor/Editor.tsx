@@ -47,7 +47,7 @@ import { distributeEvenly } from "@/layout/distribute";
 import { autoLayout, DEFAULT_SIZE, fillSpace, type LayoutMode } from "@/layout/layout";
 import { createWorkerEngine } from "@/layout/worker-engine";
 import { classById, classes, isClassId, type ClassId, type Layer } from "@/metamodel";
-import { blastRadius, evaluateHints, formatModelDate, isBusinessAnchor as isAnchor, modelDate, UNTITLED_MODEL, type BlastDirection, type HintResult, type Model } from "@/model";
+import { blastRadius, evaluateHints, formatModelDate, impactEnds, isBusinessAnchor as isAnchor, modelDate, UNTITLED_MODEL, type BlastDirection, type HintResult, type Model } from "@/model";
 import { site } from "@/lib/site";
 import { ClassNode, SuggestContext, type ClassFlowNode } from "./ClassNode";
 import { ConnectionLine, ConnectionModelContext } from "./ConnectionLine";
@@ -57,7 +57,7 @@ import { ContextMenu, type MenuItem } from "./ContextMenu";
 import { blastAnnouncement, blastProgress, blastSteps, blastView, flowAnnouncement, flowProgress, flowSteps, type BlastKind } from "./blast";
 import { blastFrames, GIF_MAX_SIDE, gifScale } from "./blastGif";
 import { renderGif } from "@/io/gif/render";
-import { CanvasEdge, LabelObstacles } from "./CanvasEdge";
+import { CanvasEdge, LabelObstacles, LineStyleContext } from "./CanvasEdge";
 import { ModelManager } from "./ModelManager";
 import { ToolbarIcon } from "./ToolbarIcon";
 import { CanvasTitle, titleRoom } from "./CanvasTitle";
@@ -302,6 +302,24 @@ function EditorInner() {
     if (selectedId && !model.nodes.some((n) => n.id === selectedId)) setSelectedId(null);
   }, [model.nodes, selectedId]);
 
+  // The element under the pointer (M46): its own relationships run the way impact travels, so a
+  // glance shows what it depends on and what depends on it. Off while a blast radius is open, while
+  // dragging, and on touch (no pointer to hover with).
+  const [hoveredId, setHoveredId] = useState<string | null>(null);
+  const hoverTimer = useRef<ReturnType<typeof setTimeout> | undefined>(undefined);
+  /** True while a relationship is being drawn: the drop-target outlines are the highlight then. */
+  const connecting = useRef(false);
+  const hoverNode = (id: string | null) => {
+    clearTimeout(hoverTimer.current);
+    // A tap's synthetic mouse events would leave the dashes running: only a real pointer hovers.
+    if (id && (connecting.current || !window.matchMedia("(hover: hover)").matches)) id = null;
+    hoverTimer.current = setTimeout(() => setHoveredId(id), id ? 150 : 200);
+  };
+  useEffect(() => () => clearTimeout(hoverTimer.current), []);
+  useEffect(() => {
+    if (hoveredId && !model.nodes.some((n) => n.id === hoveredId)) setHoveredId(null);
+  }, [model.nodes, hoveredId]);
+
   // Elements directly connected to the selected one, highlighted with their relationships.
   const neighbors = useMemo(() => {
     const set = new Set<string>();
@@ -369,7 +387,13 @@ function EditorInner() {
         const b = model.layout[e.to] ?? { x: 0, y: 0 };
         const [sourceHandle, targetHandle] = edgeSides(a, b, columns);
         const hinted = !blastShown && hintedEdges.has(e.id);
-        const tone: EdgeTone = carried || hinted ? "status" : connected ? "neighbor" : "line";
+        // A hinted relationship keeps its hint color; the others around the hovered element light up.
+        const hovered = !blastShown && !hinted && !!hoveredId && (e.from === hoveredId || e.to === hoveredId);
+        // Dashes run the way impact travels: forward along the line when its From end is the dependency.
+        // A pair the impact rules do not cover is highlighted but still.
+        const ends = hovered ? impactEnds(model, e) : null;
+        const hoverClass = hovered ? ` hover${!ends ? " hover-still" : ends.dependency !== e.from ? " hover-reverse" : ""}` : "";
+        const tone: EdgeTone = carried || hinted ? "status" : hovered ? "accent" : connected ? "neighbor" : "line";
         return {
           id: e.id,
           type: "csdm",
@@ -378,13 +402,14 @@ function EditorInner() {
           sourceHandle,
           targetHandle,
           label: am ? am.type : e.type.startsWith("reference:") ? "reference" : e.type.split("::")[0],
-          className: carried
-            ? `blast${isFlow ? " flow" : ""}${carried.current ? " blast-now" : ""}${carried.forward ? "" : " blast-reverse"}`
-            : hinted
-              ? "hinted"
-              : connected
-                ? "connected"
-                : undefined,
+          className:
+            (carried
+              ? `blast${isFlow ? " flow" : ""}${carried.current ? " blast-now" : ""}${carried.forward ? "" : " blast-reverse"}`
+              : hinted
+                ? "hinted"
+                : connected
+                  ? "connected"
+                  : "") + hoverClass || undefined,
           ...(am
             ? {
                 // The flowing blast dash replaces the notation's dash while that hop is current.
@@ -396,7 +421,7 @@ function EditorInner() {
                 // A fixed on-screen size (not scaled by the line's width), large enough to see on a curve.
                 markerEnd: {
                   type: MarkerType.ArrowClosed,
-                  color: tone === "status" ? "var(--status)" : tone === "neighbor" ? "var(--neighbor)" : "var(--border-strong)",
+                  color: tone === "status" ? "var(--status)" : tone === "accent" ? "var(--accent)" : tone === "neighbor" ? "var(--neighbor)" : "var(--border-strong)",
                   width: 32,
                   height: 32,
                   markerUnits: "userSpaceOnUse",
@@ -405,7 +430,7 @@ function EditorInner() {
           ariaLabel: `${e.type} from ${model.nodes.find((n) => n.id === e.from)?.name} to ${model.nodes.find((n) => n.id === e.to)?.name}${carried ? (isFlow ? " (carries data)" : " (carries impact)") : ""}`,
         };
       }),
-    [model, hintedEdges, selectedId, lens, blastShown, columns, isFlow],
+    [model, hintedEdges, selectedId, lens, blastShown, columns, isFlow, hoveredId],
   );
 
   const onNodesChange = useCallback(
@@ -671,7 +696,7 @@ function EditorInner() {
   useEffect(() => () => gifAbort.current?.abort(), []);
   const exportBlastGif = async () => {
     if (!blast || !radius || !radius.steps.length || makingGif) return;
-    const frames = blastFrames(model, radius, viewedTheme(), lens, blast.kind);
+    const frames = blastFrames(model, radius, viewedTheme(), lens, blast.kind, view.lines);
     const filename = `${fileBase(model)}-${isFlow ? "data-flow" : "blast-radius"}.gif`;
     const count = `${frames.svgs.length} frame${frames.svgs.length === 1 ? "" : "s"}`;
     setMakingGif(true);
@@ -781,7 +806,7 @@ function EditorInner() {
     } else {
       const theme = kind === "svg-dark" ? "dark" : "light";
       const filename = `${fileBase(model)}-${theme}.svg`;
-      downloadText(filename, modelToSvg(model, theme, { lens }), "image/svg+xml");
+      downloadText(filename, modelToSvg(model, theme, { lens, lines: view.lines }), "image/svg+xml");
       setMessage(`Exported ${filename}.`);
     }
   };
@@ -1514,6 +1539,7 @@ function EditorInner() {
           <ConnectionModelContext.Provider value={model}>
           <SuggestContext.Provider value={suggestCtx}>
           <LabelObstacles boxes={boxes} tabsAbove={canMenu} show={(view.boxes || presenting) && !view.lanes}>
+          <LineStyleContext.Provider value={view.lines}>
             <ReactFlow<ClassFlowNode, FlowEdge>
               nodes={nodes}
               edges={edges}
@@ -1524,11 +1550,17 @@ function EditorInner() {
               onConnect={onConnect}
               isValidConnection={(c) => connectionProblem(model, c.source, c.target) === null}
               onConnectEnd={(_, state) => {
+                connecting.current = false;
                 // Refused connections never reach onConnect, so explain them here.
                 if (state.fromNode && state.toNode && !state.isValid) setMessage(connectionProblem(model, state.fromNode.id, state.toNode.id) ?? "");
               }}
               connectionLineComponent={ConnectionLine}
+              onNodeMouseEnter={(_, n) => hoverNode(n.id)}
+              onNodeMouseLeave={() => hoverNode(null)}
+              onNodeDragStart={() => hoverNode(null)}
               onConnectStart={(_, { nodeId }) => {
+                connecting.current = true;
+                hoverNode(null);
                 const from = model.nodes.find((n) => n.id === nodeId);
                 if (!from) return;
                 const count = model.nodes.filter((n) => n.id !== from.id && connectionProblem(model, from.id, n.id) === null).length;
@@ -1587,6 +1619,7 @@ function EditorInner() {
               <LayerOverlay boxes={boxes} lanes={lanes} showBoxes={view.boxes || presenting} showLanes={view.lanes} handlers={canMenu ? layerHandlers : undefined} />
               <CanvasTitle name={model.name} date={modelDate(model)} description={model.description} artifactId={model.artifactId} boxes={boxes} tabsAbove={(view.boxes && !view.lanes && canMenu) || (view.lanes && columns)} decorative={presenting} />
             </ReactFlow>
+          </LineStyleContext.Provider>
           </LabelObstacles>
           </SuggestContext.Provider>
           </ConnectionModelContext.Provider>

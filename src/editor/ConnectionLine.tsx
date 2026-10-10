@@ -1,7 +1,10 @@
 "use client";
 
-import { getBezierPath, type ConnectionLineComponentProps } from "@xyflow/react";
+import { Position, type ConnectionLineComponentProps } from "@xyflow/react";
 import { createContext, useContext } from "react";
+import { edgePath } from "@/layout/edgePath";
+import type { Side } from "@/layout/geometry";
+import { LineStyleContext } from "./CanvasEdge";
 import { allowedTypes } from "@/metamodel";
 import type { Model } from "@/model";
 import { connectionProblem } from "./state";
@@ -24,7 +27,9 @@ export function connectionVerdict(model: Model, from: string, to: string): { ok:
  */
 export function ConnectionLine({ fromX, fromY, toX, toY, fromPosition, toPosition, fromNode, toNode, connectionStatus }: ConnectionLineComponentProps) {
   const model = useContext(ConnectionModelContext);
-  const [path] = getBezierPath({ sourceX: fromX, sourceY: fromY, sourcePosition: fromPosition, targetX: toX, targetY: toY, targetPosition: toPosition });
+  const style = useContext(LineStyleContext);
+  const sideOf = (p: Position | undefined): Side => (p === Position.Top ? "top" : p === Position.Left ? "left" : p === Position.Right ? "right" : "bottom");
+  const { path } = edgePath({ x: fromX, y: fromY, side: sideOf(fromPosition) }, { x: toX, y: toY, side: sideOf(toPosition) }, style);
   const verdict = model && toNode ? connectionVerdict(model, fromNode.id, toNode.id) : null;
   const status = verdict ? (verdict.ok ? "valid" : "invalid") : (connectionStatus ?? "searching");
   const color = status === "valid" ? "var(--valid)" : status === "invalid" ? "var(--invalid)" : "var(--accent)";

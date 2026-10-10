@@ -1,3 +1,4 @@
+import type { LineStyle } from "@/layout/edgePath";
 import type { Lens } from "@/frameworks";
 import { gifPalette } from "@/io/gif/quantize";
 import { modelToSvg, svgColors, type SvgTheme } from "@/io/svg";
@@ -18,7 +19,7 @@ export const gifScale = (w: number, h: number) => Math.min(1, GIF_MAX_SIDE / Mat
  * with the step's highlights and a caption; the palette comes from the theme's colors; the summary
  * names every hop, for the file's comment and the status line.
  */
-export function blastFrames(model: Model, r: BlastRadius, theme: SvgTheme, lens: Lens, kind: BlastKind = "blast") {
+export function blastFrames(model: Model, r: BlastRadius, theme: SvgTheme, lens: Lens, kind: BlastKind = "blast", lines: LineStyle = "curved") {
   const nameOf = (id: string) => model.nodes.find((n) => n.id === id)?.name || "Untitled";
   const flow = kind === "flow";
   const impact = !flow && r.direction === "impact";
@@ -30,7 +31,7 @@ export function blastFrames(model: Model, r: BlastRadius, theme: SvgTheme, lens:
   const reserve = Math.max(0, ...captions.map((c) => c.length));
   const svgs = r.steps.map((_, k) => {
     const v = blastView(model, r, k, kind);
-    return modelToSvg(model, theme, { lens, highlight: { impact, flow, nodes: v.nodes, edges: v.edges, caption: { label: flow ? "Data flow" : "Blast radius", text: captions[k]!, reserve } } });
+    return modelToSvg(model, theme, { lens, lines, highlight: { impact, flow, nodes: v.nodes, edges: v.edges, caption: { label: flow ? "Data flow" : "Blast radius", text: captions[k]!, reserve } } });
   });
   const delaysCs = svgs.map((_, k) => (k === svgs.length - 1 ? LAST_CS : STEP_CS));
   const summary = [announce(r, 0, nameOf), ...r.steps.slice(1).map((s) => `${flow ? "Step" : "Hop"} ${s.hop}: ${s.nodeIds.map(nameOf).join(", ")}.`)].join(" ");
