@@ -19,6 +19,25 @@ async function chip(page: Page, name: string) {
 }
 
 test.describe("guide filter", () => {
+  test("text typed before the page's script has loaded is kept and applied", async ({ page }) => {
+    // Hold the script back, as a slow connection or a busy machine would.
+    let release!: () => void;
+    const held = new Promise<void>((r) => (release = r));
+    await page.route(/\/_next\/static\/chunks\/.*\.js$/, async (route) => {
+      await held;
+      await route.continue();
+    });
+    await page.goto("/guide", { waitUntil: "domcontentloaded" });
+    await filterBox(page).fill("business application");
+    release();
+    await expect(page.locator("#application-service")).toBeHidden();
+    await expect(filterBox(page)).toHaveValue("business application");
+    await expect(page.getByRole("button", { name: "Clear filter" })).toBeVisible();
+    await page.getByRole("button", { name: "Clear filter" }).click();
+    await expect(filterBox(page)).toHaveValue("");
+    await expect(page.locator("#application-service")).toBeVisible();
+  });
+
   test("narrows every section to what matches, with counts, and Clear brings everything back", async ({ page }) => {
     await page.goto("/guide");
     const allCards = await visibleCards(page).count();
