@@ -59,4 +59,27 @@ test.describe("relationship lines and the canvas grid (M47)", () => {
     for (const g of grid) expect([g.circles, g.paths]).toEqual([1, 0]);
     expect(grid[1]!.r).toBeGreaterThan(grid[0]!.r);
   });
+
+  test("a relationship that has keyboard focus is drawn in the accent color, apart from the others", async ({ page }) => {
+    for (const scheme of ["light", "dark"] as const) {
+      await page.emulateMedia({ colorScheme: scheme });
+      await openCheckout(page);
+      const look = await page.evaluate(() => {
+        const edges = [...document.querySelectorAll<SVGGElement>(".react-flow__edge.selectable")];
+        const plain = edges.find((e) => !e.matches(".selected, .connected, .hinted, .hover"))!;
+        const other = getComputedStyle(plain.querySelector(".react-flow__edge-path")!).stroke;
+        plain.focus();
+        const s = getComputedStyle(plain.querySelector(".react-flow__edge-path")!);
+        const probe = document.createElement("span");
+        probe.style.color = "var(--accent)";
+        document.body.append(probe);
+        const accent = getComputedStyle(probe).color;
+        probe.remove();
+        return { focused: s.stroke, other, accent, width: parseFloat(s.strokeWidth) };
+      });
+      expect(look.focused).toBe(look.accent);
+      expect(look.focused).not.toBe(look.other);
+      expect(look.width).toBeGreaterThanOrEqual(2.5);
+    }
+  });
 });

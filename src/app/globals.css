@@ -183,6 +183,14 @@
 .react-flow__edge.selected .react-flow__edge-path {
   stroke: var(--accent);
 }
+/* A relationship with keyboard focus (the only mark of focus: the library removes the outline). The library paints it
+   dark gray, which here is no different from the line, so it takes the accent and a heavier stroke; `.react-flow` in
+   front makes this more specific than the library's own focus rule, which comes later in the cascade. */
+.react-flow .react-flow__edge.selectable:focus .react-flow__edge-path,
+.react-flow .react-flow__edge.selectable:focus-visible .react-flow__edge-path {
+  stroke: var(--accent);
+  stroke-width: 3;
+}
 /* Connection points: hidden until an element is hovered or selected, or while a relationship is being
    drawn (on its start and on every element it can join), so idle elements keep a clean border. Hidden
    points are still grabbable. */
