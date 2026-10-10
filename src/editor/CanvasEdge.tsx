@@ -1,19 +1,30 @@
 "use client";
 
 import { createContext, useContext, useMemo, type ReactNode } from "react";
-import { BaseEdge, getBezierPath, useStore, type EdgeProps } from "@xyflow/react";
+import { BaseEdge, Position, useStore, type EdgeProps } from "@xyflow/react";
 import type { LayerBox } from "@/layout/bands";
+import { edgePath, type LineStyle } from "@/layout/edgePath";
+import type { Side } from "@/layout/geometry";
 import { labelPoint, layerTabRects, type Rect } from "./edgeLabel";
 
 /** Where the layer names sit on the canvas, so edge labels can stay clear of them. */
 export const LabelObstaclesContext = createContext<Rect[]>([]);
+/** How relationships are drawn (View › Line style). */
+export const LineStyleContext = createContext<LineStyle>("curved");
 
-/** React Flow's bezier edge, with its label moved along the line when it would cover a layer name. */
+const sideOf = (p: Position | undefined): Side => (p === Position.Top ? "top" : p === Position.Left ? "left" : p === Position.Right ? "right" : "bottom");
+
+/** A relationship in the chosen line style, with its label moved along the line when it would cover a layer name. */
 export function CanvasEdge(props: EdgeProps) {
   const obstacles = useContext(LabelObstaclesContext);
-  const [path, midX, midY] = getBezierPath(props);
+  const style = useContext(LineStyleContext);
+  const { path, label: mid } = edgePath(
+    { x: props.sourceX, y: props.sourceY, side: sideOf(props.sourcePosition) },
+    { x: props.targetX, y: props.targetY, side: sideOf(props.targetPosition) },
+    style,
+  );
   const text = typeof props.label === "string" ? props.label : "";
-  const at = labelPoint(path, text, obstacles, { x: midX, y: midY });
+  const at = labelPoint(path, text, obstacles, mid);
   return (
     <BaseEdge
       id={props.id}

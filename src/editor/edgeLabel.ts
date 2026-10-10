@@ -1,4 +1,5 @@
 import type { LayerBox } from "@/layout/bands";
+import { pointOnPath } from "@/layout/edgePath";
 
 /** An axis-aligned rectangle in canvas (flow) units. */
 export type Rect = { x: number; y: number; w: number; h: number };
@@ -26,15 +27,8 @@ export function layerTabRects(boxes: LayerBox[], zoom: number, tabsAbove: boolea
   );
 }
 
-/** A point on a path of the form `M x,y C c1x,c1y c2x,c2y x,y` (what React Flow's bezier edges draw). */
-export function pointOnCubic(path: string, t: number): Point | null {
-  const n = path.match(/-?\d+(?:\.\d+)?(?:e-?\d+)?/gi)?.map(Number);
-  if (!n || n.length < 8) return null;
-  const [x0, y0, x1, y1, x2, y2, x3, y3] = n as [number, number, number, number, number, number, number, number];
-  const u = 1 - t;
-  const a = u * u * u, b = 3 * u * u * t, c = 3 * u * t * t, d = t * t * t;
-  return { x: a * x0 + b * x1 + c * x2 + d * x3, y: a * y0 + b * y1 + c * y2 + d * y3 };
-}
+/** A point a fraction along an edge's path, whatever its style (curved or right angles). */
+export const pointOnCubic = (path: string, t: number): Point | null => pointOnPath(path, t);
 
 const overlap = (a: Rect, b: Rect) => Math.max(0, Math.min(a.x + a.w, b.x + b.w) - Math.max(a.x, b.x)) * Math.max(0, Math.min(a.y + a.h, b.y + b.h) - Math.max(a.y, b.y));
 

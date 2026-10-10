@@ -4,11 +4,11 @@ import { Panel } from "@xyflow/react";
 import { MARKER_SCALE, markerGeometry, notation, type ArchimateRelationshipType, type MarkerShape } from "@/frameworks";
 
 /** Edge tones, matching the edge classes in globals.css: plain, connected to the selection, hinted. */
-export type EdgeTone = "line" | "neighbor" | "status";
+export type EdgeTone = "line" | "neighbor" | "status" | "accent";
 type MarkerTone = EdgeTone | "legend";
-const toneColor: Record<MarkerTone, string> = { line: "var(--border-strong)", neighbor: "var(--neighbor)", status: "var(--status)", legend: "var(--border-strong)" };
+const toneColor: Record<MarkerTone, string> = { line: "var(--border-strong)", neighbor: "var(--neighbor)", status: "var(--status)", accent: "var(--accent)", legend: "var(--border-strong)" };
 /** What a hollow marker shows through: the canvas on edges, the legend's own background in the legend. */
-const groundColor: Record<MarkerTone, string> = { line: "var(--canvas)", neighbor: "var(--canvas)", status: "var(--canvas)", legend: "var(--surface-raised)" };
+const groundColor: Record<MarkerTone, string> = { line: "var(--canvas)", neighbor: "var(--canvas)", status: "var(--canvas)", accent: "var(--canvas)", legend: "var(--surface-raised)" };
 
 /** The id React Flow resolves as `url('#…')` for a marker shape in a tone. */
 export const markerId = (shape: MarkerShape, tone: MarkerTone) => `am-${shape}-${tone}`;

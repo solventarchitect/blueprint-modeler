@@ -1,16 +1,29 @@
 "use client";
 
 import { useEffect, useId, useRef, useState } from "react";
+import { LINE_STYLES, type LineStyle } from "@/layout/edgePath";
 import { ToolbarIcon } from "./ToolbarIcon";
 
-export type ViewOptions = { boxes: boolean; lanes: boolean; snap: boolean; extended: boolean };
+export type ViewOptions = { boxes: boolean; lanes: boolean; snap: boolean; extended: boolean; lines: LineStyle };
 export const VIEW_KEY = "bm-view";
-export const DEFAULT_VIEW: ViewOptions = { boxes: true, lanes: false, snap: false, extended: false };
+export const DEFAULT_VIEW: ViewOptions = { boxes: true, lanes: false, snap: false, extended: false, lines: "curved" };
+
+/** Saved options over the defaults; options saved before a key existed (or with a bad value) take the default. */
+export function mergeView(saved: unknown): ViewOptions {
+  const v = saved && typeof saved === "object" ? (saved as Record<string, unknown>) : {};
+  const bool = (k: keyof ViewOptions) => (typeof v[k] === "boolean" ? (v[k] as boolean) : (DEFAULT_VIEW[k] as boolean));
+  return {
+    boxes: bool("boxes"),
+    lanes: bool("lanes"),
+    snap: bool("snap"),
+    extended: bool("extended"),
+    lines: LINE_STYLES.includes(v.lines as LineStyle) ? (v.lines as LineStyle) : DEFAULT_VIEW.lines,
+  };
+}
 
 export function readView(): ViewOptions {
   try {
-    const v = JSON.parse(localStorage.getItem(VIEW_KEY) ?? "null") as Partial<ViewOptions> | null;
-    return { ...DEFAULT_VIEW, ...(v && typeof v === "object" ? v : {}) };
+    return mergeView(JSON.parse(localStorage.getItem(VIEW_KEY) ?? "null"));
   } catch {
     return DEFAULT_VIEW;
   }
@@ -24,7 +37,12 @@ export function saveView(v: ViewOptions) {
   }
 }
 
-const items: { key: keyof ViewOptions; label: string; note: string }[] = [
+const lineStyles: { id: LineStyle; label: string }[] = [
+  { id: "curved", label: "Curved" },
+  { id: "right-angles", label: "Right angles" },
+];
+
+const items: { key: "boxes" | "lanes" | "snap" | "extended"; label: string; note: string }[] = [
   { key: "boxes", label: "Layer boxes", note: "A box around each CSDM layer" },
   { key: "lanes", label: "Lanes", note: "Full-width bands; drops settle in their layer" },
   { key: "snap", label: "Snap to grid", note: "Positions snap to 16px" },
@@ -82,6 +100,25 @@ export function ViewMenu({ value, onChange, buttonClass }: { value: ViewOptions;
             </button>
           </li>
         ))}
+        <li className="mt-1 border-t border-border px-3 pt-2 pb-1">
+          <span id={`${listId}-lines`} className="text-sm text-ink">
+            Line style
+          </span>
+          <span className="block text-xs text-ink-muted">How relationships are drawn, here and in images</span>
+          <span role="group" aria-labelledby={`${listId}-lines`} className="mt-1.5 inline-flex">
+            {lineStyles.map((l, i) => (
+              <button
+                key={l.id}
+                type="button"
+                aria-pressed={value.lines === l.id}
+                className={`inline-flex min-h-8 cursor-pointer items-center border border-border-strong px-2.5 text-xs text-ink-soft hover:border-accent hover:text-accent aria-pressed:border-accent aria-pressed:bg-accent aria-pressed:text-accent-ink aria-pressed:hover:text-accent-ink ${i ? "-ml-px" : ""}`}
+                onClick={() => onChange({ ...value, lines: l.id })}
+              >
+                {l.label}
+              </button>
+            ))}
+          </span>
+        </li>
       </ul>
     </div>
   );

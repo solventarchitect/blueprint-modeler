@@ -272,9 +272,22 @@
     box-shadow: 0 0 0 14px transparent;
   }
 }
+/* Hovered element (M46): its own relationships run the way impact travels, in the accent color,
+ * one hop only. A blast radius replaces it. Highlight carries the meaning; motion is extra. */
+.react-flow__edge.hover .react-flow__edge-path {
+  stroke: var(--accent);
+  stroke-width: 2.5;
+  stroke-dasharray: 10 6;
+  animation: blast-flow 0.9s linear infinite;
+}
+.react-flow__edge.hover.hover-reverse .react-flow__edge-path {
+  animation-name: blast-flow-reverse;
+}
 @media (prefers-reduced-motion: reduce) {
   .react-flow__edge.blast-now .react-flow__edge-path,
   .react-flow__edge.blast-now.blast-reverse .react-flow__edge-path,
+  .react-flow__edge.hover .react-flow__edge-path,
+  .react-flow__edge.hover.hover-reverse .react-flow__edge-path,
   .blast-pulse {
     animation: none;
   }
