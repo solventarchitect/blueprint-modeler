@@ -38,7 +38,8 @@ export function ConnectionLine({ fromX, fromY, toX, toY, fromPosition, toPositio
 
   return (
     <g className="bm-connection" data-status={status}>
-      <path d={path} fill="none" stroke={color} strokeWidth={2} strokeDasharray={status === "invalid" ? "6 4" : undefined} className="react-flow__connection-path" />
+      {/* Inline style, not attributes: the canvas library's own `.react-flow__connection-path` rule would repaint the line gray, 1px. */}
+      <path d={path} fill="none" style={{ stroke: color, strokeWidth: 2 }} strokeDasharray={status === "invalid" ? "6 4" : undefined} className="react-flow__connection-path" />
       <circle cx={toX} cy={toY} r={4} fill={color} />
       {label && (
         <g transform={`translate(${toX + 12} ${toY - 26})`} data-testid="connection-verdict">
