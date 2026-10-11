@@ -17,6 +17,21 @@ async function hoverConnection(page: Page, fromName: string, toName: string) {
   await page.mouse.move(b.x, b.y, { steps: 5 });
 }
 
+/** The drawn line itself, not just its status: the canvas library's own CSS must not repaint it. */
+const drawn = (page: Page) =>
+  page.evaluate(() => {
+    const probe = (v: string) => {
+      const el = document.createElement("span");
+      el.style.color = `var(${v})`;
+      document.body.append(el);
+      const c = getComputedStyle(el).color;
+      el.remove();
+      return c;
+    };
+    const s = getComputedStyle(document.querySelector(".bm-connection path")!);
+    return { stroke: s.stroke, width: parseFloat(s.strokeWidth), dash: s.strokeDasharray, valid: probe("--valid"), invalid: probe("--invalid") };
+  });
+
 test.describe("connection feedback (desktop)", () => {
   test.skip(({ isMobile }) => !!isMobile, "editing is desktop-only");
 
@@ -33,6 +48,10 @@ test.describe("connection feedback (desktop)", () => {
     const line = page.locator(".bm-connection");
     await expect(line).toHaveAttribute("data-status", "valid");
     await expect(page.getByTestId("connection-verdict")).toContainText("✓ Uses::Used by");
+    const ok = await drawn(page);
+    expect(ok.stroke).toBe(ok.valid);
+    expect(ok.width).toBe(2);
+    expect(ok.dash).toBe("none");
     await page.mouse.up();
     await expect(page.locator(".react-flow__edge")).toHaveCount(8);
 
@@ -40,6 +59,11 @@ test.describe("connection feedback (desktop)", () => {
     await hoverConnection(page, "Payroll API", "Onboard a new hire");
     await expect(line).toHaveAttribute("data-status", "invalid");
     await expect(page.getByTestId("connection-verdict")).toContainText("✕");
+    const bad = await drawn(page);
+    expect(bad.stroke).toBe(bad.invalid);
+    expect(bad.stroke).not.toBe(ok.stroke);
+    expect(bad.width).toBe(2);
+    expect(bad.dash).not.toBe("none");
     await page.mouse.up();
     await expect(page.locator(".react-flow__edge")).toHaveCount(8);
     await expect(page.getByRole("status")).toContainText("in CSDM");

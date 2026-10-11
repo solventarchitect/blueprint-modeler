@@ -170,10 +170,6 @@
 }
 
 /* Canvas (React Flow) in Blueprint roles. base.css supplies layout only; color lives here. */
-.react-flow__connection-path {
-  stroke: var(--border-strong);
-  stroke-width: 1.5;
-}
 /* Relationship lines. Two classes, so this wins over the canvas library's own `.react-flow__edge-path`
    (light gray, 1px), which otherwise paints every plain relationship; the states below are more specific still. */
 .react-flow__edge .react-flow__edge-path {
