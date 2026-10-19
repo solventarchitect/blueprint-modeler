@@ -10,4 +10,10 @@ describe("view options", () => {
     expect(mergeView({ lines: "zigzag" }).lines).toBe("curved");
     expect(mergeView(null).boxes).toBe(true);
   });
+
+  it("show the minimap by default, also for options saved before it existed (M49)", () => {
+    expect(DEFAULT_VIEW.minimap).toBe(true);
+    expect(mergeView({ boxes: false }).minimap).toBe(true);
+    expect(mergeView({ minimap: false }).minimap).toBe(false);
+  });
 });

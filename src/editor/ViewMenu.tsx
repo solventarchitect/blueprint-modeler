@@ -4,9 +4,9 @@ import { useEffect, useId, useRef, useState } from "react";
 import { LINE_STYLES, type LineStyle } from "@/layout/edgePath";
 import { ToolbarIcon } from "./ToolbarIcon";
 
-export type ViewOptions = { boxes: boolean; lanes: boolean; snap: boolean; extended: boolean; lines: LineStyle };
+export type ViewOptions = { boxes: boolean; lanes: boolean; snap: boolean; extended: boolean; minimap: boolean; lines: LineStyle };
 export const VIEW_KEY = "bm-view";
-export const DEFAULT_VIEW: ViewOptions = { boxes: true, lanes: false, snap: false, extended: false, lines: "curved" };
+export const DEFAULT_VIEW: ViewOptions = { boxes: true, lanes: false, snap: false, extended: false, minimap: true, lines: "curved" };
 
 /** Saved options over the defaults; options saved before a key existed (or with a bad value) take the default. */
 export function mergeView(saved: unknown): ViewOptions {
@@ -17,6 +17,7 @@ export function mergeView(saved: unknown): ViewOptions {
     lanes: bool("lanes"),
     snap: bool("snap"),
     extended: bool("extended"),
+    minimap: bool("minimap"),
     lines: LINE_STYLES.includes(v.lines as LineStyle) ? (v.lines as LineStyle) : DEFAULT_VIEW.lines,
   };
 }
@@ -42,10 +43,11 @@ const lineStyles: { id: LineStyle; label: string }[] = [
   { id: "right-angles", label: "Right angles" },
 ];
 
-const items: { key: "boxes" | "lanes" | "snap" | "extended"; label: string; note: string }[] = [
+const items: { key: "boxes" | "lanes" | "snap" | "extended" | "minimap"; label: string; note: string }[] = [
   { key: "boxes", label: "Layer boxes", note: "A box around each CSDM layer" },
   { key: "lanes", label: "Lanes", note: "Full-width bands; drops settle in their layer" },
   { key: "snap", label: "Snap to grid", note: "Positions snap to 16px" },
+  { key: "minimap", label: "Minimap", note: "An overview in the corner; drag it to pan" },
   { key: "extended", label: "Extended classes", note: "Strategy, value streams, SDLC, product models, AI, virtualization and security in the palette" },
 ];
 

@@ -9,6 +9,7 @@ const paths = {
   layout: "M6.5 2h3v3h-3zM2.5 11h3v3h-3zM10.5 11h3v3h-3zM8 5v3M4 11V8h8v3",
   view: "M1.5 8S4 3.5 8 3.5 14.5 8 14.5 8 12 12.5 8 12.5 1.5 8 1.5 8ZM8 10a2 2 0 1 0 0-4 2 2 0 0 0 0 4Z",
   present: "M5 3.5v9l7-4.5z",
+  zoom: "M7 11.5a4.5 4.5 0 1 0 0-9 4.5 4.5 0 0 0 0 9ZM10.5 10.5 14 14M5 7h4M7 5v4",
 } as const;
 
 export type ToolbarIconName = keyof typeof paths;
