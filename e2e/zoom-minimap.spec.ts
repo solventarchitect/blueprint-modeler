@@ -102,6 +102,9 @@ test.describe("minimap and zoom commands (M49, desktop)", () => {
     const menu = page.getByTestId("zoom-menu");
     const node = page.locator(".react-flow__node").filter({ hasText: "Customer orders" });
     await node.click();
+    // The shortcut reads the committed selection; wait for it (the menu's item enables with it) before pressing.
+    await expect(node).toHaveClass(/selected/);
+    await expect(page.getByRole("complementary", { name: "Inspector" }).getByLabel("Name", { exact: true })).toHaveValue("Customer orders");
     await page.keyboard.press("Shift+Digit2");
     await expect(menu).toHaveAccessibleName("Zoom, 125%");
     await page.keyboard.press("Shift+Digit0");
