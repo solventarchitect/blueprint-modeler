@@ -32,10 +32,11 @@ const overlaps = (page: Page) =>
       return t ? [{ text: t.textContent ?? "", box: t.getBoundingClientRect(), line: e.querySelector("path.react-flow__edge-path")!.getBoundingClientRect() }] : [];
     });
     const nodes = [...document.querySelectorAll(".react-flow__node")].map((n) => ({ text: (n.textContent ?? "").slice(0, 24), box: n.getBoundingClientRect() }));
+    const show = (r: DOMRect) => `[${[r.left, r.top, r.right, r.bottom].map((v) => v.toFixed(1)).join(" ")}]`;
     const out: string[] = [];
     labels.forEach((a, i) => {
-      labels.slice(i + 1).forEach((b) => hit(a.box, b.box) && out.push(`${a.text} × ${b.text}`));
-      nodes.forEach((n) => hit(a.box, n.box) && !hit(a.line, n.box) && out.push(`${a.text} × element ${n.text}`));
+      labels.slice(i + 1).forEach((b) => hit(a.box, b.box) && out.push(`${a.text}${show(a.box)} line${show(a.line)} × ${b.text}${show(b.box)} line${show(b.line)}`));
+      nodes.forEach((n) => hit(a.box, n.box) && !hit(a.line, n.box) && out.push(`${a.text}${show(a.box)} line${show(a.line)} × element ${n.text}${show(n.box)}`));
     });
     return out;
   });
