@@ -222,6 +222,15 @@
   color: var(--accent);
   fill: var(--accent);
 }
+/* Minimap (M49): a bordered overview; the mask dims what lies outside the viewport. */
+.react-flow__minimap {
+  border: 1px solid var(--border-strong);
+  --minimap-mask: color-mix(in oklab, var(--canvas) 70%, transparent);
+}
+.react-flow__minimap:focus-visible {
+  outline: 2px solid var(--accent);
+  outline-offset: 2px;
+}
 .react-flow {
   --xy-attribution-background-color: transparent;
   --xy-attribution-background-color-default: transparent;

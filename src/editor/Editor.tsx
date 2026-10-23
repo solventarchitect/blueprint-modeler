@@ -7,6 +7,7 @@ import {
   ConnectionMode,
   Controls,
   MarkerType,
+  MiniMap,
   ReactFlow,
   ReactFlowProvider,
   useReactFlow,
@@ -65,6 +66,7 @@ import { LayoutMenu, type LayoutChoice } from "./LayoutMenu";
 import { ModelMenu } from "./ModelMenu";
 import { LayerOverlay, layerHandleId, type LayerHandlers } from "./LayerOverlay";
 import { DEFAULT_VIEW, readView, saveView, ViewMenu, type ViewOptions } from "./ViewMenu";
+import { ZoomMenu, type ZoomCommand } from "./ZoomMenu";
 import { HintsPanel } from "./HintsPanel";
 import { markerId, NotationLegend, NotationMarkers, type EdgeTone } from "./Notation";
 import { ReadPanel } from "./ReadPanel";
@@ -108,6 +110,14 @@ const toolbarGroup = "flex flex-wrap items-center gap-1.5";
 const groupCaption = "mr-0.5 hidden font-mono text-[0.65rem] tracking-[0.14em] text-ink-muted uppercase min-[1840px]:inline";
 const toolbarDivider = "h-6 w-px bg-border-strong/50";
 const toolbarSelect = "min-h-8 max-w-60 border border-border-strong bg-surface-raised px-2 text-sm text-ink";
+/** Minimap node fill per CSDM layer: the same tokens as the nodes' left borders (layerAccent). */
+const minimapColor: Record<Layer, string> = {
+  business: "var(--status)",
+  design: "var(--accent)",
+  service: "var(--ai)",
+  functional: "var(--ink-muted)",
+  infrastructure: "var(--border-strong)",
+};
 
 function useIsWide() {
   const [wide, setWide] = useState(true);
@@ -205,6 +215,22 @@ function EditorInner() {
   // The first fit, before any model is measured: the room at zoom 1 is the most ever needed.
   const firstFitOptions = { maxZoom: 1, padding: { x: FIT_PAD, bottom: FIT_PAD, top: `${titleRoom(!!model.description, 1)}px` } } as const;
   const [selectedId, setSelectedId] = useState<string | null>(null);
+  /** The selection as the zoom shortcuts see it: their listener is bound once, so it reads a ref. */
+  const selectedRef = useRef<string | null>(null);
+  useEffect(() => {
+    selectedRef.current = selectedId;
+  }, [selectedId]);
+  /** Zoom menu and Shift+1/2/0 (M49): fit, the selected element, or a preset level around the center. */
+  const zoomCommand = useCallback(
+    (c: ZoomCommand) => {
+      const duration = prefersStill() ? 0 : 300;
+      if (c === "fit") void flow.fitView({ maxZoom: 1, padding: fitPadding(0.15), duration });
+      else if (c === "selection") {
+        if (selectedRef.current) void flow.fitView({ nodes: [{ id: selectedRef.current }], padding: 0.3, maxZoom: 1.25, duration });
+      } else void flow.zoomTo(c, { duration });
+    },
+    [flow, fitPadding],
+  );
   const [focusName, setFocusName] = useState(0);
   const [focusConnect, setFocusConnect] = useState(0);
   const [selectedLayer, setSelectedLayer] = useState<Layer | null>(null);
@@ -284,6 +310,12 @@ function EditorInner() {
       const el = e.target as HTMLElement | null;
       if (el && (el.tagName === "INPUT" || el.tagName === "TEXTAREA" || el.tagName === "SELECT" || el.isContentEditable)) return;
       const mod = e.ctrlKey || e.metaKey;
+      // Shift+1 fit, Shift+2 zoom to selection, Shift+0 100% (by key position: Shift+1 types "!" on US layouts).
+      if (!mod && e.shiftKey && !e.altKey && (e.code === "Digit1" || e.code === "Digit2" || e.code === "Digit0")) {
+        e.preventDefault();
+        zoomCommand(e.code === "Digit1" ? "fit" : e.code === "Digit2" ? "selection" : 1);
+        return;
+      }
       if (!mod) return;
       const k = e.key.toLowerCase();
       if (k === "z" && !e.shiftKey) {
@@ -296,7 +328,7 @@ function EditorInner() {
     };
     window.addEventListener("keydown", onKey);
     return () => window.removeEventListener("keydown", onKey);
-  }, [dispatch]);
+  }, [dispatch, zoomCommand]);
 
   useEffect(() => {
     if (selectedId && !model.nodes.some((n) => n.id === selectedId)) setSelectedId(null);
@@ -1057,7 +1089,8 @@ function EditorInner() {
     { kind: "item", label: "Undo", disabled: !doc.canUndo, onSelect: () => dispatch({ type: "undo" }) },
     { kind: "item", label: "Redo", disabled: !doc.canRedo, onSelect: () => dispatch({ type: "redo" }) },
     { kind: "separator" },
-    { kind: "item", label: "Fit view", onSelect: () => void flow.fitView({ maxZoom: 1, padding: fitPadding(0.15), duration: 300 }) },
+    { kind: "item", label: "Fit view", onSelect: () => zoomCommand("fit") },
+    { kind: "item", label: "Zoom to selection", disabled: !selectedId, onSelect: () => zoomCommand("selection") },
     { kind: "item", label: "Auto-layout", disabled: model.nodes.length === 0 || layingOut, onSelect: () => void runLayout() },
     { kind: "separator" },
     { kind: "check", label: "Layer boxes", checked: view.boxes, onSelect: () => setView({ ...view, boxes: !view.boxes }) },
@@ -1383,6 +1416,7 @@ function EditorInner() {
           </span>
           {wide && <LayoutMenu busy={layingOut} disabled={model.nodes.length === 0} onChoose={chooseLayout} buttonClass={toolbarButton} />}
           <ViewMenu value={view} onChange={setView} buttonClass={toolbarButton} />
+          <ZoomMenu onCommand={zoomCommand} canZoomToSelection={!!selectedId} buttonClass={toolbarButton} />
         </div>
         <span className={toolbarDivider} aria-hidden="true" />
         <div role="group" aria-label="Lens" className={toolbarGroup}>
@@ -1616,6 +1650,21 @@ function EditorInner() {
               <Background id="minor" variant={BackgroundVariant.Dots} gap={32} size={3} color="var(--canvas-grid)" />
               <Background id="major" variant={BackgroundVariant.Dots} gap={160} size={5} color="var(--canvas-grid-major)" />
               {!presenting && <FitControls hasDescription={!!model.description} />}
+              {wide && !presenting && view.minimap && (
+                <MiniMap<ClassFlowNode>
+                  pannable
+                  zoomable
+                  position="bottom-right"
+                  ariaLabel="Model overview: drag to pan, scroll to zoom"
+                  bgColor="var(--surface-raised)"
+                  maskColor="var(--minimap-mask)"
+                  maskStrokeColor="var(--accent)"
+                  maskStrokeWidth={2}
+                  nodeStrokeWidth={0}
+                  nodeBorderRadius={0}
+                  nodeColor={(n) => minimapColor[classById(n.data.cls)?.layer ?? "design"]}
+                />
+              )}
               <LayerOverlay boxes={boxes} lanes={lanes} showBoxes={view.boxes || presenting} showLanes={view.lanes} handlers={canMenu ? layerHandlers : undefined} />
               <CanvasTitle name={model.name} date={modelDate(model)} description={model.description} artifactId={model.artifactId} boxes={boxes} tabsAbove={(view.boxes && !view.lanes && canMenu) || (view.lanes && columns)} decorative={presenting} />
             </ReactFlow>
