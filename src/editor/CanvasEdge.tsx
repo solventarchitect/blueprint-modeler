@@ -5,18 +5,21 @@ import { BaseEdge, Position, useStore, type EdgeProps } from "@xyflow/react";
 import type { LayerBox } from "@/layout/bands";
 import { edgePath, type LineStyle } from "@/layout/edgePath";
 import type { Side } from "@/layout/geometry";
-import { labelPoint, layerTabRects, type Rect } from "./edgeLabel";
+import { LABEL_WEIGHT, labelPoint, layerTabRects, overlaps, type Rect } from "@/layout/edgeLabel";
 
 /** Where the layer names sit on the canvas, so edge labels can stay clear of them. */
 export const LabelObstaclesContext = createContext<Rect[]>([]);
+/** Element boxes and where each edge's label is planned to sit, shortest line first (M50; see Editor). */
+export const EdgeObstaclesContext = createContext<{ nodes: Rect[]; labels: { id: string; at: { x: number; y: number }; box: Rect }[] }>({ nodes: [], labels: [] });
 /** How relationships are drawn (View › Line style). */
 export const LineStyleContext = createContext<LineStyle>("curved");
 
 const sideOf = (p: Position | undefined): Side => (p === Position.Top ? "top" : p === Position.Left ? "left" : p === Position.Right ? "right" : "bottom");
 
-/** A relationship in the chosen line style, with its label moved along the line when it would cover a layer name. */
+/** A relationship in the chosen line style, with its label moved along the line when it would cover a layer name, an element or another label. */
 export function CanvasEdge(props: EdgeProps) {
-  const obstacles = useContext(LabelObstaclesContext);
+  const tabs = useContext(LabelObstaclesContext);
+  const { nodes, labels } = useContext(EdgeObstaclesContext);
   const style = useContext(LineStyleContext);
   const { path, label: mid } = edgePath(
     { x: props.sourceX, y: props.sourceY, side: sideOf(props.sourcePosition) },
@@ -24,7 +27,12 @@ export function CanvasEdge(props: EdgeProps) {
     style,
   );
   const text = typeof props.label === "string" ? props.label : "";
-  const at = labelPoint(path, text, obstacles, mid);
+  // The planned spot (clear of elements and of the labels planned before it) unless it would cover a
+  // layer name tab; then this edge places its label itself, with the plan's boxes as obstacles.
+  const planned = labels.findIndex((l) => l.id === props.id);
+  const plan = planned < 0 ? undefined : labels[planned]!;
+  const onTab = !!plan && tabs.some((t) => overlaps(plan.box, t));
+  const at = plan && !onTab ? plan.at : labelPoint(path, text, text ? [...tabs, ...nodes, ...labels.slice(0, planned < 0 ? labels.length : planned).map((l) => ({ ...l.box, weight: LABEL_WEIGHT }))] : tabs, mid);
   return (
     <BaseEdge
       id={props.id}

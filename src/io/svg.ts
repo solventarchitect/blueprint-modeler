@@ -2,6 +2,7 @@ import { archimateElements, archimateFill, archimateRelationshipFor, archimateTy
 import { classById, isClassId, type Layer } from "@/metamodel";
 import { formatModelDate, modelDate, UNTITLED_MODEL, type Model } from "@/model";
 import { layoutOrientation } from "@/layout/bands";
+import { planLabels } from "@/layout/edgeLabel";
 import { edgePath, type LineStyle } from "@/layout/edgePath";
 import { edgeSides, type Side } from "@/layout/geometry";
 import { ARTIFACT_ICON_PATH } from "./icons";
@@ -105,9 +106,10 @@ function anchor(b: Box, side: Side) {
  * The model as a standalone SVG in the chosen theme: same boxes, lanes and edge routing as the
  * canvas, system fonts (IBM Plex if installed), no scripts, no external references.
  */
-export function modelToSvg(model: Model, theme: SvgTheme, opts: { lens?: Lens; highlight?: SvgHighlight; lines?: LineStyle } = {}): string {
+export function modelToSvg(model: Model, theme: SvgTheme, opts: { lens?: Lens; highlight?: SvgHighlight; lines?: LineStyle; labels?: boolean } = {}): string {
   const lens = opts.lens ?? "csdm";
   const lines = opts.lines ?? "curved";
+  const showLabels = opts.labels ?? true;
   const hl = opts.highlight;
   // ArchiMate-only: the ArchiMate type heads each element (no CSDM line), fills follow the ArchiMate
   // layer, and relationships carry ArchiMate notation — as on the canvas.
@@ -156,10 +158,10 @@ export function modelToSvg(model: Model, theme: SvgTheme, opts: { lens?: Lens; h
   const edges: string[] = [];
   // Relationships that carried impact are drawn last, over the others.
   const order = hl ? [...model.edges.filter((e) => !hl.edges.has(e.id)), ...model.edges.filter((e) => hl.edges.has(e.id))] : model.edges;
-  for (const e of order) {
+  const routed = model.edges.flatMap((e) => {
     const a = boxes.get(e.from);
     const b = boxes.get(e.to);
-    if (!a || !b) continue;
+    if (!a || !b) return [];
     const [ss, ts] = edgeSides(a, b, columns);
     const s = anchor(a, ss);
     const t = anchor(b, ts);
@@ -167,6 +169,15 @@ export function modelToSvg(model: Model, theme: SvgTheme, opts: { lens?: Lens; h
     const { path: pathD, label: mid } = edgePath({ x: s.x, y: s.y, side: ss }, { x: t.x, y: t.y, side: ts }, lines);
     const am = amOnly ? edgeNotation(archimateRelationshipFor(classOf(e.from), classOf(e.to))) : undefined;
     const label = am ? am.type : e.type.startsWith("reference:") ? "reference" : (e.type.split("::")[0] ?? e.type);
+    return [{ e, pathD, mid, am, label, span: Math.hypot(t.x - s.x, t.y - s.y) }];
+  });
+  // Labels keep clear of element boxes and of each other, as on the canvas (M50).
+  const planned = new Map(planLabels(routed.map((r) => ({ id: r.e.id, path: r.pathD, label: showLabels ? r.label : "", middle: r.mid, span: r.span })), all).map((l) => [l.id, l.at]));
+  for (const e of order) {
+    const r = routed.find((x) => x.e.id === e.id);
+    if (!r) continue;
+    const { pathD, am, label } = r;
+    const mid = planned.get(e.id) ?? r.mid;
     const lw = label.length * 6.6 + 8;
     const carried = hl?.edges.get(e.id);
     let ends = ` marker-end="url(#${carried ? "arrow-blast" : "arrow"})"`;
@@ -177,11 +188,12 @@ export function modelToSvg(model: Model, theme: SvgTheme, opts: { lens?: Lens; h
       if (am.atTo) shapes.add(am.atTo);
     }
     const stroke = carried ? `stroke="${hl?.flow ? p.ai : p.status}" stroke-width="2.5"${carried.current ? ` stroke-dasharray="10 6"` : ""}` : `stroke="${p.line}" stroke-width="1.25"`;
-    edges.push(
-      `<path d="${pathD}" fill="none" ${stroke}${ends}/>`,
-      `<rect x="${r1(mid.x - lw / 2)}" y="${r1(mid.y - 8)}" width="${r1(lw)}" height="16" fill="${p.bg}"/>`,
-      `<text x="${r1(mid.x)}" y="${r1(mid.y + 4)}" text-anchor="middle" font-family="${MONO}" font-size="11" fill="${p.muted}">${esc(label)}</text>`,
-    );
+    edges.push(`<path d="${pathD}" fill="none" ${stroke}${ends}/>`);
+    if (showLabels)
+      edges.push(
+        `<rect x="${r1(mid.x - lw / 2)}" y="${r1(mid.y - 8)}" width="${r1(lw)}" height="16" fill="${p.bg}"/>`,
+        `<text x="${r1(mid.x)}" y="${r1(mid.y + 4)}" text-anchor="middle" font-family="${MONO}" font-size="11" fill="${p.muted}">${esc(label)}</text>`,
+      );
   }
 
   const nodes: string[] = [];
