@@ -22,7 +22,9 @@ async function toggleLabels(page: Page) {
 
 /**
  * Pairs of labels whose boxes overlap on screen (never allowed), and labels over an element whose
- * line does not run through that element (a clear spot exists, so the label must take it).
+ * line does not run through or end at that element (a clear spot exists, so the label must take it).
+ * A line ends a pixel or two short of its element (the arrowhead), so the element is widened by 2px
+ * for that test; a label wider than a short line between two elements is allowed to touch them.
  */
 const overlaps = (page: Page) =>
   page.evaluate(() => {
@@ -36,7 +38,10 @@ const overlaps = (page: Page) =>
     const out: string[] = [];
     labels.forEach((a, i) => {
       labels.slice(i + 1).forEach((b) => hit(a.box, b.box) && out.push(`${a.text}${show(a.box)} line${show(a.line)} × ${b.text}${show(b.box)} line${show(b.line)}`));
-      nodes.forEach((n) => hit(a.box, n.box) && !hit(a.line, n.box) && out.push(`${a.text}${show(a.box)} line${show(a.line)} × element ${n.text}${show(n.box)}`));
+      nodes.forEach((n) => {
+        const near = new DOMRect(n.box.left - 2, n.box.top - 2, n.box.width + 4, n.box.height + 4);
+        if (hit(a.box, n.box) && !hit(a.line, near)) out.push(`${a.text}${show(a.box)} line${show(a.line)} × element ${n.text}${show(n.box)}`);
+      });
     });
     return out;
   });

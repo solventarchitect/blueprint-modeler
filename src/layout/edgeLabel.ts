@@ -49,8 +49,9 @@ const overlap = (a: Rect, b: Rect) => Math.max(0, Math.min(a.x + a.w, b.x + b.w)
  * sits inside an element's layer box, clear of tabs.
  */
 const TRIES = [0.5, ...Array.from({ length: 11 }, (_, i) => 0.04 * (i + 1)).flatMap((d) => [0.5 - d, 0.5 + d])];
-/** How far a planned label keeps from an element box, in canvas units. */
+/** How far a planned label keeps from an element box, and from another label, in canvas units. */
 const GAP = 4;
+const LABEL_GAP = 2;
 /** Positions along the line for the beside-the-line fallback. */
 const BESIDE = [0.5, 0.3, 0.7];
 
@@ -111,7 +112,9 @@ export function planLabels(items: { id: string; path: string; label: string; mid
   // Short lines first: they have the fewest places to go, so a long line sharing their middle moves instead.
   const order = items.map((it, i) => ({ it, i })).sort((a, b) => a.it.span - b.it.span || a.i - b.i);
   for (const { it } of order) {
-    const at = it.label ? labelPoint(it.path, it.label, [...padded, ...placed.filter((p) => p.box.w > 0).map((p) => ({ ...p.box, weight: LABEL_WEIGHT }))], it.middle) : it.middle;
+    // Earlier labels, with a small gap, so two never touch (touching boxes overlap by a hair at some zooms).
+    const others = placed.filter((p) => p.box.w > 0).map((p) => ({ x: p.box.x - LABEL_GAP, y: p.box.y - LABEL_GAP, w: p.box.w + 2 * LABEL_GAP, h: p.box.h + 2 * LABEL_GAP, weight: LABEL_WEIGHT }));
+    const at = it.label ? labelPoint(it.path, it.label, [...padded, ...others], it.middle) : it.middle;
     // No label: nothing occupies the spot.
     placed.push({ id: it.id, at, box: it.label ? labelBox(at, it.label) : { x: at.x, y: at.y, w: 0, h: 0 } });
   }
