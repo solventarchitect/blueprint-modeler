@@ -59,8 +59,8 @@ import { ContextMenu, type MenuItem } from "./ContextMenu";
 import { blastAnnouncement, blastProgress, blastSteps, blastView, flowAnnouncement, flowProgress, flowSteps, type BlastKind } from "./blast";
 import { blastFrames, GIF_MAX_SIDE, gifScale } from "./blastGif";
 import { renderGif } from "@/io/gif/render";
-import { CanvasEdge, EdgeObstaclesContext, LabelObstacles, LineStyleContext } from "./CanvasEdge";
-import { planLabels, type Rect } from "@/layout/edgeLabel";
+import { CanvasEdge, LabelObstacles, LineStyleContext, type LabelPlanInput } from "./CanvasEdge";
+import type { Rect } from "@/layout/edgeLabel";
 import { ModelManager } from "./ModelManager";
 import { ToolbarIcon } from "./ToolbarIcon";
 import { CanvasTitle, titleRoom } from "./CanvasTitle";
@@ -418,13 +418,13 @@ function EditorInner() {
     [model.nodes, lens],
   );
   /**
-   * Where each label will sit (M50): the same geometry as the SVG export (element boxes from the layout
-   * and measured sizes, the same sides and router), shortest line first, so a label keeps clear of
-   * element boxes and of the labels planned before it. Each edge draws its label there (CanvasEdge),
-   * so the canvas and the exported image agree.
+   * What the label plan works from (M50): the same geometry as the SVG export (element boxes from the
+   * layout and measured sizes, the same sides and router). LabelObstacles runs the plan (it follows the
+   * zoom, for the layer name tabs) and every edge draws its label at the planned spot, so the canvas
+   * and the exported image agree.
    */
-  const edgeObstacles = useMemo(() => {
-    if (!view.labels) return { nodes: [] as Rect[], labels: [] as { id: string; at: { x: number; y: number }; box: Rect }[] };
+  const labelPlan = useMemo((): LabelPlanInput => {
+    if (!view.labels) return { items: [], nodes: [] };
     const box = (id: string): Rect | undefined => {
       const pos = model.layout[id];
       if (!pos) return undefined;
@@ -443,7 +443,7 @@ function EditorInner() {
       const { path, label: middle } = edgePath({ x: s.x, y: s.y, side: ss }, { x: t.x, y: t.y, side: ts }, view.lines);
       return [{ id: e.id, path, label: edgeLabelOf(e), middle, span: Math.hypot(t.x - s.x, t.y - s.y) }];
     });
-    return { nodes, labels: planLabels(items, nodes) };
+    return { items, nodes };
     // eslint-disable-next-line react-hooks/exhaustive-deps -- measured is a ref; dragTick re-runs this
   }, [model, columns, view.lines, view.labels, edgeLabelOf, dragTick]);
   const edges: FlowEdge[] = useMemo(
@@ -1613,9 +1613,8 @@ function EditorInner() {
         <div className="relative min-w-0 flex-1 bg-canvas" aria-label="Model canvas" role="region" onKeyDown={onCanvasKeyDown}>
           <ConnectionModelContext.Provider value={model}>
           <SuggestContext.Provider value={suggestCtx}>
-          <LabelObstacles boxes={boxes} tabsAbove={canMenu} show={(view.boxes || presenting) && !view.lanes}>
+          <LabelObstacles boxes={boxes} tabsAbove={canMenu} show={(view.boxes || presenting) && !view.lanes} plan={labelPlan}>
           <LineStyleContext.Provider value={view.lines}>
-          <EdgeObstaclesContext.Provider value={edgeObstacles}>
             <ReactFlow<ClassFlowNode, FlowEdge>
               nodes={nodes}
               edges={edges}
@@ -1710,7 +1709,6 @@ function EditorInner() {
               <LayerOverlay boxes={boxes} lanes={lanes} showBoxes={view.boxes || presenting} showLanes={view.lanes} handlers={canMenu ? layerHandlers : undefined} />
               <CanvasTitle name={model.name} date={modelDate(model)} description={model.description} artifactId={model.artifactId} boxes={boxes} tabsAbove={(view.boxes && !view.lanes && canMenu) || (view.lanes && columns)} decorative={presenting} />
             </ReactFlow>
-          </EdgeObstaclesContext.Provider>
           </LineStyleContext.Provider>
           </LabelObstacles>
           </SuggestContext.Provider>

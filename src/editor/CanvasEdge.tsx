@@ -5,21 +5,23 @@ import { BaseEdge, Position, useStore, type EdgeProps } from "@xyflow/react";
 import type { LayerBox } from "@/layout/bands";
 import { edgePath, type LineStyle } from "@/layout/edgePath";
 import type { Side } from "@/layout/geometry";
-import { LABEL_WEIGHT, labelPoint, layerTabRects, overlaps, type Rect } from "@/layout/edgeLabel";
+import { labelPoint, layerTabRects, planLabels, type Rect } from "@/layout/edgeLabel";
 
 /** Where the layer names sit on the canvas, so edge labels can stay clear of them. */
 export const LabelObstaclesContext = createContext<Rect[]>([]);
-/** Element boxes and where each edge's label is planned to sit, shortest line first (M50; see Editor). */
-export const EdgeObstaclesContext = createContext<{ nodes: Rect[]; labels: { id: string; at: { x: number; y: number }; box: Rect }[] }>({ nodes: [], labels: [] });
+/** What the label plan needs from the editor (M50): each edge's line and label, and the element boxes. */
+export type LabelPlanInput = { items: { id: string; path: string; label: string; middle: { x: number; y: number }; span: number }[]; nodes: Rect[] };
+/** Where each edge's label is planned to sit, shortest line first, clear of elements, layer names and earlier labels (M50). */
+export const LabelPlanContext = createContext<{ id: string; at: { x: number; y: number }; box: Rect }[]>([]);
 /** How relationships are drawn (View › Line style). */
 export const LineStyleContext = createContext<LineStyle>("curved");
 
 const sideOf = (p: Position | undefined): Side => (p === Position.Top ? "top" : p === Position.Left ? "left" : p === Position.Right ? "right" : "bottom");
 
-/** A relationship in the chosen line style, with its label moved along the line when it would cover a layer name, an element or another label. */
+/** A relationship in the chosen line style, with its label at the planned spot (clear of layer names, elements and other labels). */
 export function CanvasEdge(props: EdgeProps) {
   const tabs = useContext(LabelObstaclesContext);
-  const { nodes, labels } = useContext(EdgeObstaclesContext);
+  const plan = useContext(LabelPlanContext);
   const style = useContext(LineStyleContext);
   const { path, label: mid } = edgePath(
     { x: props.sourceX, y: props.sourceY, side: sideOf(props.sourcePosition) },
@@ -27,12 +29,8 @@ export function CanvasEdge(props: EdgeProps) {
     style,
   );
   const text = typeof props.label === "string" ? props.label : "";
-  // The planned spot (clear of elements and of the labels planned before it) unless it would cover a
-  // layer name tab; then this edge places its label itself, with the plan's boxes as obstacles.
-  const planned = labels.findIndex((l) => l.id === props.id);
-  const plan = planned < 0 ? undefined : labels[planned]!;
-  const onTab = !!plan && tabs.some((t) => overlaps(plan.box, t));
-  const at = plan && !onTab ? plan.at : labelPoint(path, text, text ? [...tabs, ...nodes, ...labels.slice(0, planned < 0 ? labels.length : planned).map((l) => ({ ...l.box, weight: LABEL_WEIGHT }))] : tabs, mid);
+  // The planned spot; an edge the plan does not know (none while labels are off) keeps off the layer names itself.
+  const at = plan.find((l) => l.id === props.id)?.at ?? labelPoint(path, text, tabs, mid);
   return (
     <BaseEdge
       id={props.id}
@@ -54,11 +52,18 @@ export function CanvasEdge(props: EdgeProps) {
 }
 
 /**
- * Provides the layer name positions to the edges. Only this provider follows the zoom (tabs keep a
- * constant on-screen size), so zooming re-renders the edges, not the whole editor.
+ * Provides the layer name positions and the label plan to the edges. Only this provider follows the
+ * zoom (tabs keep a constant on-screen size), so zooming re-plans and re-renders the edges, not the
+ * whole editor. The plan runs here so it can keep labels off the tabs too, and every edge then draws
+ * exactly the planned spot (M50): no edge places its label on its own, so none can land on another.
  */
-export function LabelObstacles({ boxes, tabsAbove, show, children }: { boxes: LayerBox[]; tabsAbove: boolean; show: boolean; children: ReactNode }) {
+export function LabelObstacles({ boxes, tabsAbove, show, plan, children }: { boxes: LayerBox[]; tabsAbove: boolean; show: boolean; plan: LabelPlanInput; children: ReactNode }) {
   const zoom = useStore((s) => s.transform[2]);
   const rects = useMemo(() => (show ? layerTabRects(boxes, zoom, tabsAbove) : []), [show, boxes, zoom, tabsAbove]);
-  return <LabelObstaclesContext.Provider value={rects}>{children}</LabelObstaclesContext.Provider>;
+  const planned = useMemo(() => (plan.items.length ? planLabels(plan.items, [...plan.nodes, ...rects]) : []), [plan, rects]);
+  return (
+    <LabelObstaclesContext.Provider value={rects}>
+      <LabelPlanContext.Provider value={planned}>{children}</LabelPlanContext.Provider>
+    </LabelObstaclesContext.Provider>
+  );
 }
