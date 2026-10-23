@@ -43,7 +43,8 @@ import { lucidFit, lucidFitMessage, lucidFitNote } from "@/io/lucid";
 import { modelToServiceNowXlsx } from "@/io/servicenow";
 import { modelToSvg } from "@/io/svg";
 import { LAYERS, layerBoxes, layerLanes, layoutOrientation, settleIntoLane } from "@/layout/bands";
-import { edgeSides } from "@/layout/geometry";
+import { edgePath } from "@/layout/edgePath";
+import { edgeSides, type Side } from "@/layout/geometry";
 import { distributeEvenly } from "@/layout/distribute";
 import { autoLayout, DEFAULT_SIZE, fillSpace, type LayoutMode } from "@/layout/layout";
 import { createWorkerEngine } from "@/layout/worker-engine";
@@ -58,7 +59,8 @@ import { ContextMenu, type MenuItem } from "./ContextMenu";
 import { blastAnnouncement, blastProgress, blastSteps, blastView, flowAnnouncement, flowProgress, flowSteps, type BlastKind } from "./blast";
 import { blastFrames, GIF_MAX_SIDE, gifScale } from "./blastGif";
 import { renderGif } from "@/io/gif/render";
-import { CanvasEdge, LabelObstacles, LineStyleContext } from "./CanvasEdge";
+import { CanvasEdge, LabelObstacles, LineStyleContext, type LabelPlanInput } from "./CanvasEdge";
+import type { Rect } from "@/layout/edgeLabel";
 import { ModelManager } from "./ModelManager";
 import { ToolbarIcon } from "./ToolbarIcon";
 import { CanvasTitle, titleRoom } from "./CanvasTitle";
@@ -406,6 +408,44 @@ function EditorInner() {
     [model, dragTick],
   );
   const hintedEdges = useMemo(() => new Set([...(activeHint?.edgeIds ?? []), ...(readEdge ? [readEdge.id] : [])]), [activeHint, readEdge]);
+  /** What a relationship's line says: the ArchiMate relationship in the ArchiMate-only lens, else the CSDM type's first half. */
+  const edgeLabelOf = useCallback(
+    (e: Model["edges"][number]) => {
+      const classOf = (id: string) => model.nodes.find((n) => n.id === id)?.class ?? "";
+      const am = lens === "archimate-only" ? edgeNotation(archimateRelationshipFor(classOf(e.from), classOf(e.to))) : undefined;
+      return am ? am.type : e.type.startsWith("reference:") ? "reference" : (e.type.split("::")[0] ?? e.type);
+    },
+    [model.nodes, lens],
+  );
+  /**
+   * What the label plan works from (M50): the same geometry as the SVG export (element boxes from the
+   * layout and measured sizes, the same sides and router). LabelObstacles runs the plan (it follows the
+   * zoom, for the layer name tabs) and every edge draws its label at the planned spot, so the canvas
+   * and the exported image agree.
+   */
+  const labelPlan = useMemo((): LabelPlanInput => {
+    if (!view.labels) return { items: [], nodes: [] };
+    const box = (id: string): Rect | undefined => {
+      const pos = model.layout[id];
+      if (!pos) return undefined;
+      const m = measured.current[id];
+      return { x: pos.x, y: pos.y, w: m?.width ?? 224, h: m?.height ?? 76 };
+    };
+    const anchor = (b: Rect, side: Side) => (side === "top" ? { x: b.x + b.w / 2, y: b.y } : side === "bottom" ? { x: b.x + b.w / 2, y: b.y + b.h } : side === "left" ? { x: b.x, y: b.y + b.h / 2 } : { x: b.x + b.w, y: b.y + b.h / 2 });
+    const nodes = model.nodes.map((n) => box(n.id)).filter((b): b is Rect => !!b);
+    const items = model.edges.flatMap((e) => {
+      const a = box(e.from);
+      const b = box(e.to);
+      if (!a || !b) return [];
+      const [ss, ts] = edgeSides(a, b, columns);
+      const s = anchor(a, ss);
+      const t = anchor(b, ts);
+      const { path, label: middle } = edgePath({ x: s.x, y: s.y, side: ss }, { x: t.x, y: t.y, side: ts }, view.lines);
+      return [{ id: e.id, path, label: edgeLabelOf(e), middle, span: Math.hypot(t.x - s.x, t.y - s.y) }];
+    });
+    return { items, nodes };
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- measured is a ref; dragTick re-runs this
+  }, [model, columns, view.lines, view.labels, edgeLabelOf, dragTick]);
   const edges: FlowEdge[] = useMemo(
     () =>
       model.edges.map((e) => {
@@ -433,7 +473,7 @@ function EditorInner() {
           target: e.to,
           sourceHandle,
           targetHandle,
-          label: am ? am.type : e.type.startsWith("reference:") ? "reference" : e.type.split("::")[0],
+          label: view.labels ? edgeLabelOf(e) : undefined,
           className:
             (carried
               ? `blast${isFlow ? " flow" : ""}${carried.current ? " blast-now" : ""}${carried.forward ? "" : " blast-reverse"}`
@@ -462,7 +502,7 @@ function EditorInner() {
           ariaLabel: `${e.type} from ${model.nodes.find((n) => n.id === e.from)?.name} to ${model.nodes.find((n) => n.id === e.to)?.name}${carried ? (isFlow ? " (carries data)" : " (carries impact)") : ""}`,
         };
       }),
-    [model, hintedEdges, selectedId, lens, blastShown, columns, isFlow, hoveredId],
+    [model, hintedEdges, selectedId, lens, blastShown, columns, isFlow, hoveredId, view.labels, edgeLabelOf],
   );
 
   const onNodesChange = useCallback(
@@ -728,7 +768,7 @@ function EditorInner() {
   useEffect(() => () => gifAbort.current?.abort(), []);
   const exportBlastGif = async () => {
     if (!blast || !radius || !radius.steps.length || makingGif) return;
-    const frames = blastFrames(model, radius, viewedTheme(), lens, blast.kind, view.lines);
+    const frames = blastFrames(model, radius, viewedTheme(), lens, blast.kind, view.lines, view.labels);
     const filename = `${fileBase(model)}-${isFlow ? "data-flow" : "blast-radius"}.gif`;
     const count = `${frames.svgs.length} frame${frames.svgs.length === 1 ? "" : "s"}`;
     setMakingGif(true);
@@ -838,7 +878,7 @@ function EditorInner() {
     } else {
       const theme = kind === "svg-dark" ? "dark" : "light";
       const filename = `${fileBase(model)}-${theme}.svg`;
-      downloadText(filename, modelToSvg(model, theme, { lens, lines: view.lines }), "image/svg+xml");
+      downloadText(filename, modelToSvg(model, theme, { lens, lines: view.lines, labels: view.labels }), "image/svg+xml");
       setMessage(`Exported ${filename}.`);
     }
   };
@@ -1096,6 +1136,7 @@ function EditorInner() {
     { kind: "check", label: "Layer boxes", checked: view.boxes, onSelect: () => setView({ ...view, boxes: !view.boxes }) },
     { kind: "check", label: "Lanes", checked: view.lanes, onSelect: () => setView({ ...view, lanes: !view.lanes }) },
     { kind: "check", label: "Snap to grid", checked: view.snap, onSelect: () => setView({ ...view, snap: !view.snap }) },
+    { kind: "check", label: "Relationship labels", checked: view.labels, onSelect: () => setView({ ...view, labels: !view.labels }) },
   ];
   const canMenu = wide && !presenting;
   const labelOf = (id: string) => {
@@ -1572,7 +1613,7 @@ function EditorInner() {
         <div className="relative min-w-0 flex-1 bg-canvas" aria-label="Model canvas" role="region" onKeyDown={onCanvasKeyDown}>
           <ConnectionModelContext.Provider value={model}>
           <SuggestContext.Provider value={suggestCtx}>
-          <LabelObstacles boxes={boxes} tabsAbove={canMenu} show={(view.boxes || presenting) && !view.lanes}>
+          <LabelObstacles boxes={boxes} tabsAbove={canMenu} show={(view.boxes || presenting) && !view.lanes} plan={labelPlan}>
           <LineStyleContext.Provider value={view.lines}>
             <ReactFlow<ClassFlowNode, FlowEdge>
               nodes={nodes}

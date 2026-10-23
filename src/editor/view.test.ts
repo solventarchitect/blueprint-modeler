@@ -11,6 +11,12 @@ describe("view options", () => {
     expect(mergeView(null).boxes).toBe(true);
   });
 
+  it("show relationship labels by default, also for options saved before the toggle existed (M50)", () => {
+    expect(DEFAULT_VIEW.labels).toBe(true);
+    expect(mergeView({ minimap: false }).labels).toBe(true);
+    expect(mergeView({ labels: false }).labels).toBe(false);
+  });
+
   it("show the minimap by default, also for options saved before it existed (M49)", () => {
     expect(DEFAULT_VIEW.minimap).toBe(true);
     expect(mergeView({ boxes: false }).minimap).toBe(true);
