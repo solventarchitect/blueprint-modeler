@@ -57,7 +57,7 @@ test.describe("import, export and layout (desktop)", () => {
   for (const theme of ["dark", "light"] as const) {
     test(`exports a standalone SVG (${theme})`, async ({ page }) => {
       await openExample(page, "Shared Database Platform");
-      const file = await exportFile(page, new RegExp(`Image, ${theme}`));
+      const file = await exportFile(page, new RegExp(`Image, ${theme} \\(SVG\\)`));
       expect(file.name).toBe(`shared-database-platform-${theme}.svg`);
       expect(file.text).toContain("<svg");
       expect(file.text).toContain("PostgreSQL cluster");
