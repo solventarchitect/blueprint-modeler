@@ -49,6 +49,8 @@ const overlap = (a: Rect, b: Rect) => Math.max(0, Math.min(a.x + a.w, b.x + b.w)
  * sits inside an element's layer box, clear of tabs.
  */
 const TRIES = [0.5, ...Array.from({ length: 11 }, (_, i) => 0.04 * (i + 1)).flatMap((d) => [0.5 - d, 0.5 + d])];
+/** How far a planned label keeps from an element box, in canvas units. */
+const GAP = 4;
 /** Positions along the line for the beside-the-line fallback. */
 const BESIDE = [0.5, 0.3, 0.7];
 
@@ -103,10 +105,13 @@ export function labelPoint(path: string, label: string, obstacles: Rect[], middl
  */
 export function planLabels(items: { id: string; path: string; label: string; middle: Point; span: number }[], fixed: Rect[]): { id: string; at: Point; box: Rect }[] {
   const placed: { id: string; at: Point; box: Rect }[] = [];
+  // A visible gap from the fixed obstacles, so a label "just clear" of an element box stays clear
+  // when the browser renders the box a fraction larger (sub-pixel differences between machines).
+  const padded = fixed.map((r) => ({ ...r, x: r.x - GAP, y: r.y - GAP, w: r.w + 2 * GAP, h: r.h + 2 * GAP }));
   // Short lines first: they have the fewest places to go, so a long line sharing their middle moves instead.
   const order = items.map((it, i) => ({ it, i })).sort((a, b) => a.it.span - b.it.span || a.i - b.i);
   for (const { it } of order) {
-    const at = it.label ? labelPoint(it.path, it.label, [...fixed, ...placed.filter((p) => p.box.w > 0).map((p) => ({ ...p.box, weight: LABEL_WEIGHT }))], it.middle) : it.middle;
+    const at = it.label ? labelPoint(it.path, it.label, [...padded, ...placed.filter((p) => p.box.w > 0).map((p) => ({ ...p.box, weight: LABEL_WEIGHT }))], it.middle) : it.middle;
     // No label: nothing occupies the spot.
     placed.push({ id: it.id, at, box: it.label ? labelBox(at, it.label) : { x: at.x, y: at.y, w: 0, h: 0 } });
   }
