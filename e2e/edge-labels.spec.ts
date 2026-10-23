@@ -10,7 +10,7 @@ async function openEditor(page: Page) {
 
 async function exportSvg(page: Page) {
   await page.getByRole("button", { name: "Export" }).click();
-  const [download] = await Promise.all([page.waitForEvent("download"), page.getByRole("button", { name: /Image, dark/ }).click()]);
+  const [download] = await Promise.all([page.waitForEvent("download"), page.getByRole("button", { name: /Image, dark \(SVG\)/ }).click()]);
   return readFile((await download.path())!, "utf8");
 }
 

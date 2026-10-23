@@ -84,7 +84,7 @@ test.describe("model details (desktop)", () => {
     await page.keyboard.press("Escape");
 
     await page.getByRole("button", { name: "Export" }).click();
-    const [download] = await Promise.all([page.waitForEvent("download"), page.getByRole("button", { name: /^Image, light/ }).click()]);
+    const [download] = await Promise.all([page.waitForEvent("download"), page.getByRole("button", { name: /^Image, light \(SVG\)/ }).click()]);
     const svg = await readFile((await download.path())!, "utf8");
     expect(svg).toMatch(/data-title="name"[^>]*>Online Store Checkout</);
     expect(svg).toContain(">EA-0042<");

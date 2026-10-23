@@ -573,3 +573,24 @@
     animation: none;
   }
 }
+
+/* Print (M51): while #bm-print is in the page, print only the image; on screen it never shows. */
+#bm-print {
+  display: none;
+}
+@media print {
+  @page {
+    margin: 12mm;
+  }
+  body:has(> #bm-print) > :not(#bm-print) {
+    display: none !important;
+  }
+  #bm-print {
+    display: block;
+  }
+  #bm-print svg {
+    width: 100%;
+    height: auto;
+    max-height: 100vh;
+  }
+}
