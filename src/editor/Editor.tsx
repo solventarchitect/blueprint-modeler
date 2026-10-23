@@ -35,6 +35,8 @@ import { exampleCategories, examples } from "@/examples";
 import { EXAMPLE_PARAM, exampleFromSearch, shownText } from "@/examples/deepLink";
 import { archimateElements, archimateRelationshipFor, edgeNotation, lenses, readLens, saveLens, showsArchimate, type ArchimateRelationshipType, type Lens } from "@/frameworks";
 import { downloadText } from "@/io/download";
+import { pngScale, svgToPng } from "@/io/png";
+import { printSvg } from "@/io/print";
 import { exportJson, fileBase, importJson, MAX_FILE_CHARS } from "@/io/file";
 import { decodeShare, encodeShare, shareSize, shareSupported, shareUrl, takeSharedPayload, type ShareResult } from "@/io/shareLink";
 import { modelToArchimateXml } from "@/io/archimate";
@@ -875,6 +877,20 @@ function EditorInner() {
         downloadText(filename, text, "application/vnd.jgraph.mxfile");
         setMessage(`Exported ${filename}. In Lucidchart: Import › draw.io. ${lucidFitMessage(lucidFit(model))}`);
       });
+    } else if (kind === "png-dark" || kind === "png-light") {
+      const theme = kind === "png-dark" ? "dark" : "light";
+      const filename = `${fileBase(model)}-${theme}.png`;
+      const svg = modelToSvg(model, theme, { lens, lines: view.lines, labels: view.labels });
+      const size = /width="([\d.]+)" height="([\d.]+)"/.exec(svg);
+      setMessage(`Making ${filename}…`);
+      void svgToPng(svg, size ? pngScale(Number(size[1]), Number(size[2])) : 2)
+        .then(({ blob, width, height }) => blob.arrayBuffer().then((buf) => {
+          downloadText(filename, new Uint8Array(buf), "image/png");
+          setMessage(`Exported ${filename} (${width} × ${height} px).`);
+        }))
+        .catch(() => setMessage("Could not make the PNG in this browser. Nothing was saved."));
+    } else if (kind === "print") {
+      printSvg(modelToSvg(model, "light", { lens, lines: view.lines, labels: view.labels }), fileBase(model));
     } else {
       const theme = kind === "svg-dark" ? "dark" : "light";
       const filename = `${fileBase(model)}-${theme}.svg`;
