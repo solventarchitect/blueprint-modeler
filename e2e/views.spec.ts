@@ -102,7 +102,7 @@ test.describe("saved views, filters and color by (M54, desktop)", () => {
     await dialog(page).getByRole("button", { name: "Close" }).click();
     await expect(faded(page)).toHaveCount(12);
     await expect(page.locator(".react-flow__edge.faded").first()).toBeAttached();
-    await expect(viewsButton(page)).toContainText("Views: Unsaved");
+    await expect(viewsButton(page)).toHaveAccessibleName("Views: Unsaved");
     // Coloring never relies on color alone: every element has a marker, and the legend names each value.
     await expect(page.getByTestId("slot-marker")).toHaveCount(14);
     await expect(node(page, "db-prod-01").locator("[data-slot]")).toHaveAttribute("data-slot", "0");
@@ -155,13 +155,14 @@ test.describe("saved views, filters and color by (M54, desktop)", () => {
     await start(page);
     await productionView(page);
     await saveAs(page, "Production estate");
-    await expect(viewsButton(page)).toContainText("Views: Production estate");
+    await expect(viewsButton(page)).toHaveAccessibleName("Views: Production estate");
     // Changing the view in use marks it edited until it is updated or another view is chosen.
     await openDialog(page);
     await colorBy(page, "Layer");
-    await expect(viewsButton(page)).toContainText("Views: Production estate (edited)");
+    await expect(viewsButton(page)).toHaveAccessibleName("Views: Production estate (edited)");
+    await expect(legend(page)).toContainText("View: Production estate (edited)");
     await colorBy(page, "Environment");
-    await expect(viewsButton(page)).not.toContainText("(edited)");
+    await expect(viewsButton(page)).toHaveAccessibleName("Views: Production estate");
     await dialog(page).getByRole("button", { name: "Close" }).click();
     await viewsButton(page).click();
     await expect(viewsMenu(page).getByRole("button", { name: /Production estate/ })).toHaveAttribute("aria-pressed", "true");
@@ -179,17 +180,17 @@ test.describe("saved views, filters and color by (M54, desktop)", () => {
     await openDialog(page);
     await dialog(page).getByLabel("View name").fill("Prod");
     await dialog(page).getByRole("button", { name: "Update “Production estate”" }).click();
-    await expect(viewsButton(page)).toContainText("Views: Prod");
+    await expect(viewsButton(page)).toHaveAccessibleName("Views: Prod");
     await dialog(page).getByRole("button", { name: "Close" }).click();
     await page.getByRole("button", { name: "Undo" }).click();
-    await expect(viewsButton(page)).toContainText("Views: Production estate");
+    await expect(viewsButton(page)).toHaveAccessibleName("Views: Production estate");
 
     // Delete it: its filter stays on screen, unsaved; undo brings the view back.
     await openDialog(page);
     await dialog(page).getByRole("button", { name: "Delete view" }).click();
     await expect(page.getByRole("status")).toContainText("Deleted the view “Production estate”.");
     await dialog(page).getByRole("button", { name: "Close" }).click();
-    await expect(viewsButton(page)).toContainText("Views: Unsaved");
+    await expect(viewsButton(page)).toHaveAccessibleName("Views: Unsaved");
     await expect(faded(page)).toHaveCount(12);
     await page.getByRole("button", { name: "Undo" }).click();
     await viewsButton(page).click();
@@ -233,11 +234,28 @@ test.describe("saved views, filters and color by (M54, desktop)", () => {
     // Importing the file brings the view back, ready in the Views menu.
     await page.getByTestId("import-file").setInputFiles({ name: "estate.json", mimeType: "application/json", buffer: Buffer.from(JSON.stringify(json)) });
     await expect(page.getByRole("status")).toContainText("as a copy");
-    await expect(viewsButton(page)).toHaveText(/^Views\s*▾$/);
+    await expect(viewsButton(page)).toHaveAccessibleName("Views");
     await viewsButton(page).click();
     await viewsMenu(page).getByRole("button", { name: /Production estate/ }).click();
     await expect(faded(page)).toHaveCount(12);
   });
+
+  for (const width of [1280, 1366]) {
+    test(`the Views button keeps its width, so the toolbar doesn't reflow when a view is chosen (${width}px)`, async ({ page }) => {
+      await page.setViewportSize({ width, height: 800 });
+      await start(page);
+      const row = () => page.getByRole("button", { name: /^Layout/ }).evaluate((b) => Math.round(b.getBoundingClientRect().top));
+      const modelRow = await page.getByRole("button", { name: "Manage…" }).evaluate((b) => Math.round(b.getBoundingClientRect().top));
+      // The Arrange group shares the first row with the Model group, as before Views was added.
+      expect(await row()).toBe(modelRow);
+      const width0 = (await viewsButton(page).boundingBox())!.width;
+      await productionView(page);
+      await saveAs(page, "A view with a long name that would push the toolbar");
+      await expect(page.getByTestId("views-active")).toBeVisible();
+      expect(await row()).toBe(modelRow);
+      expect((await viewsButton(page).boundingBox())!.width).toBeLessThanOrEqual(width0 + 12);
+    });
+  }
 
   for (const scheme of ["dark", "light"] as const) {
     test(`axe passes with the dialog open and with the legend showing (${scheme})`, async ({ page }) => {

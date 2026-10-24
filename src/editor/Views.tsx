@@ -10,6 +10,12 @@ import { useDismiss } from "./useDismiss";
 /** The view in use: a saved view's id (or null for an unsaved one), its filter and its coloring. */
 export type ShownView = { id: string | null; filter: ViewFilter; colorBy: ColorBy };
 
+/** A saved view in use whose filter or coloring was changed since: said so, so the screen never claims the saved one. */
+function isEdited(model: Model, shown: ShownView) {
+  const saved = model.views?.find((v) => v.id === shown.id);
+  return !!saved && JSON.stringify([saved.filter, saved.colorBy]) !== JSON.stringify([shown.filter, shown.colorBy]);
+}
+
 
 /** A value's marker, in its slot color. */
 export function SlotMarker({ entry, size = 10 }: { entry: Pick<LegendEntry, "slot">; size?: number }) {
@@ -32,9 +38,9 @@ export function ViewsMenu({ model, shown, onShow, onEdit, buttonClass }: { model
   const close = useCallback(() => setOpen(false), []);
   useDismiss(open, close, root, button);
   const all = shown.id === null && !filterActive(shown.filter) && shown.colorBy === "layer";
-  // A saved view whose filter or coloring was changed since: say so, so the screen never claims the saved one.
   const saved = model.views?.find((v) => v.id === shown.id);
-  const edited = !!saved && JSON.stringify([saved.filter, saved.colorBy]) !== JSON.stringify([shown.filter, shown.colorBy]);
+  const edited = isEdited(model, shown);
+  const label = all ? "Views" : `Views: ${saved ? `${saved.name}${edited ? " (edited)" : ""}` : "Unsaved"}`;
   const pick = (run: () => void) => {
     setOpen(false);
     button.current?.focus();
@@ -54,12 +60,27 @@ export function ViewsMenu({ model, shown, onShow, onEdit, buttonClass }: { model
         if (open && e.relatedTarget && !root.current?.contains(e.relatedTarget as Node)) setOpen(false);
       }}
     >
-      <button ref={button} id="views-button" type="button" className={buttonClass} aria-expanded={open} aria-controls={panelId} onClick={() => setOpen((o) => !o)}>
+      {/*
+        A fixed width, so choosing a view never reflows the toolbar: a dot marks a view in use, and its name
+        is in the button's name and tooltip (and the canvas legend). Icon only from 1180 to 1319px, where
+        the word would push the Arrange group onto a second row.
+      */}
+      <button
+        ref={button}
+        id="views-button"
+        type="button"
+        className={buttonClass}
+        aria-label={label}
+        title={label}
+        aria-expanded={open}
+        aria-controls={panelId}
+        onClick={() => setOpen((o) => !o)}
+      >
         <ToolbarIcon name="views" />
-        {/* The view in use when it is not All elements, so a filtered canvas never looks unfiltered. */}
-        <span className="flex min-w-0">
-          Views{!all && <span className="max-w-32 truncate text-ink-muted">: {saved ? `${saved.name}${edited ? " (edited)" : ""}` : "Unsaved"}</span>}
-        </span>{" "}
+        <span aria-hidden="true" className="min-[1180px]:max-[1319px]:hidden">
+          Views
+        </span>
+        {!all && <span aria-hidden="true" data-testid="views-active" className="size-1.5 rounded-full bg-accent" />}
         <span aria-hidden="true">▾</span>
       </button>
       <div id={panelId} hidden={!open} data-testid="views-menu" role="group" aria-label="Views" className="absolute left-0 z-20 mt-1 w-72 border border-border-strong bg-surface-raised py-1">
@@ -258,7 +279,7 @@ export function ViewLegend({ model, shown, onEdit, onShowAll }: { model: Model; 
   const name = model.views?.find((v) => v.id === shown.id)?.name;
   return (
     <figure className="max-w-64 border border-border bg-surface-raised px-3 py-2" data-testid="view-legend">
-      <figcaption className="font-mono text-[0.65rem] tracking-[0.12em] text-ink-muted uppercase">{name ? `View: ${name}` : "View"}</figcaption>
+      <figcaption className="font-mono text-[0.65rem] tracking-[0.12em] text-ink-muted uppercase">{name ? `View: ${name}${isEdited(model, shown) ? " (edited)" : ""}` : "View"}</figcaption>
       {shown.colorBy !== "layer" && (
         <>
           <p className="mt-1 text-xs text-ink-soft">Colored by {COLOR_BY_LABEL[shown.colorBy].toLowerCase()}</p>
