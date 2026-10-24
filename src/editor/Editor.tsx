@@ -50,12 +50,15 @@ import { edgeSides, type Side } from "@/layout/geometry";
 import { distributeEvenly } from "@/layout/distribute";
 import { autoLayout, DEFAULT_SIZE, fillSpace, type LayoutMode } from "@/layout/layout";
 import { createWorkerEngine } from "@/layout/worker-engine";
-import { classById, classes, isClassId, type ClassId, type Layer } from "@/metamodel";
+import { classById, classes, isClassId, isExtended, type ClassId, type Layer } from "@/metamodel";
 import { blastRadius, evaluateHints, formatModelDate, impactEnds, isBusinessAnchor as isAnchor, modelDate, UNTITLED_MODEL, type BlastDirection, type HintResult, type Model } from "@/model";
 import { site } from "@/lib/site";
 import { ClassNode, SuggestContext, type ClassFlowNode } from "./ClassNode";
 import { ConnectionLine, ConnectionModelContext } from "./ConnectionLine";
-import { ExportMenu, type ExportKind } from "./ExportMenu";
+import { exportItems, ExportMenu, type ExportKind } from "./ExportMenu";
+import { CommandPalette } from "./CommandPalette";
+import type { Command } from "./commands";
+import { ShortcutMap } from "./ShortcutMap";
 import { ExamplesMenu } from "./ExamplesMenu";
 import { ContextMenu, type MenuItem } from "./ContextMenu";
 import { blastAnnouncement, blastProgress, blastSteps, blastView, flowAnnouncement, flowProgress, flowSteps, type BlastKind } from "./blast";
@@ -66,11 +69,11 @@ import type { Rect } from "@/layout/edgeLabel";
 import { ModelManager } from "./ModelManager";
 import { ToolbarIcon } from "./ToolbarIcon";
 import { CanvasTitle, titleRoom } from "./CanvasTitle";
-import { LayoutMenu, type LayoutChoice } from "./LayoutMenu";
+import { layoutChoices, LayoutMenu, type LayoutChoice } from "./LayoutMenu";
 import { ModelMenu } from "./ModelMenu";
 import { LayerOverlay, layerHandleId, type LayerHandlers } from "./LayerOverlay";
-import { DEFAULT_VIEW, readView, saveView, ViewMenu, type ViewOptions } from "./ViewMenu";
-import { ZoomMenu, type ZoomCommand } from "./ZoomMenu";
+import { DEFAULT_VIEW, lineStyles, readView, saveView, viewItems, ViewMenu, type ViewOptions } from "./ViewMenu";
+import { ZOOM_PRESETS, ZoomMenu, type ZoomCommand } from "./ZoomMenu";
 import { HintsPanel } from "./HintsPanel";
 import { markerId, NotationLegend, NotationMarkers, type EdgeTone } from "./Notation";
 import { ReadPanel } from "./ReadPanel";
@@ -252,6 +255,10 @@ function EditorInner() {
     saveView(v);
   };
   const [managing, setManaging] = useState(false);
+  // Command palette and shortcut map (M52): modal dialogs, mounted while open; focus goes back where they were opened.
+  const [palette, setPalette] = useState(false);
+  const [shortcuts, setShortcuts] = useState(false);
+  const dialogReturn = useRef<HTMLElement | null>(null);
   const [presenting, setPresenting] = useState(false);
   const [step, setStep] = useState(0);
   const presentButton = useRef<HTMLButtonElement>(null);
@@ -312,8 +319,25 @@ function EditorInner() {
   useEffect(() => {
     const onKey = (e: KeyboardEvent) => {
       const el = e.target as HTMLElement | null;
-      if (el && (el.tagName === "INPUT" || el.tagName === "TEXTAREA" || el.tagName === "SELECT" || el.isContentEditable)) return;
       const mod = e.ctrlKey || e.metaKey;
+      // Ctrl/⌘K opens the command palette from anywhere, text fields included; ? the shortcut map (M52).
+      // Neither while presenting or while a dialog is open (read from the page: state lags a fast second key).
+      const free = !presenting && !document.querySelector("dialog[open]");
+      if (mod && !e.shiftKey && !e.altKey && (e.code === "KeyK" || e.key.toLowerCase() === "k")) {
+        if (!free) return;
+        e.preventDefault();
+        dialogReturn.current = document.activeElement instanceof HTMLElement ? document.activeElement : null;
+        setPalette(true);
+        return;
+      }
+      if (el && (el.tagName === "INPUT" || el.tagName === "TEXTAREA" || el.tagName === "SELECT" || el.isContentEditable)) return;
+      if (e.key === "?" && !mod && !e.altKey) {
+        if (!free) return;
+        e.preventDefault();
+        dialogReturn.current = document.activeElement instanceof HTMLElement ? document.activeElement : null;
+        setShortcuts(true);
+        return;
+      }
       // Shift+1 fit, Shift+2 zoom to selection, Shift+0 100% (by key position: Shift+1 types "!" on US layouts).
       if (!mod && e.shiftKey && !e.altKey && (e.code === "Digit1" || e.code === "Digit2" || e.code === "Digit0")) {
         e.preventDefault();
@@ -332,7 +356,7 @@ function EditorInner() {
     };
     window.addEventListener("keydown", onKey);
     return () => window.removeEventListener("keydown", onKey);
-  }, [dispatch, zoomCommand]);
+  }, [dispatch, zoomCommand, presenting]);
 
   useEffect(() => {
     if (selectedId && !model.nodes.some((n) => n.id === selectedId)) setSelectedId(null);
@@ -1236,7 +1260,7 @@ function EditorInner() {
   }, [blast, radius]); // eslint-disable-line react-hooks/exhaustive-deps -- nameOf reads the same model as radius
   // Escape closes it, unless a menu, dialog or text field has the key.
   useEffect(() => {
-    if (!blast || menu || managing) return;
+    if (!blast || menu || managing || palette || shortcuts) return;
     const onKey = (e: KeyboardEvent) => {
       const el = e.target as HTMLElement | null;
       if (e.key !== "Escape" || e.defaultPrevented) return;
@@ -1246,7 +1270,7 @@ function EditorInner() {
     };
     window.addEventListener("keydown", onKey);
     return () => window.removeEventListener("keydown", onKey);
-  }, [blast, menu, managing, closeBlast]);
+  }, [blast, menu, managing, palette, shortcuts, closeBlast]);
 
   // Present mode: the canvas alone, full screen, stepping through the model layer by layer.
   const steps = useMemo(() => [{ name: "Overview", nodeIds: [] as string[] }, ...boxes.map((b) => ({ name: b.name, nodeIds: b.nodeIds }))], [boxes]);
@@ -1336,6 +1360,124 @@ function EditorInner() {
     }
   };
 
+  // Export menu notes and availability, shared with the command palette.
+  const exportNotes: Partial<Record<ExportKind, string>> = {
+            link: !canShare
+              ? "This browser cannot make model links"
+              : share?.model !== model
+                ? undefined
+                : share.size === "too-large"
+                ? "Too large to share as a link: use Model file (JSON)"
+                : share.size === "long"
+                  ? `Long link (${kb(share.url)}): some chat and email apps cut links this long`
+                  : undefined,
+            drawio: lucidFitNote(lucidFit(model)),
+            "blast-gif": makingGif
+              ? "Making the GIF…"
+              : blast && radius && !isFlow
+                ? `${radius.steps.length} frame${radius.steps.length === 1 ? "" : "s"}, up to ${GIF_MAX_SIDE} px, in the theme you are viewing`
+                : "Show a blast radius first: right-click an element",
+            "flow-gif": makingGif
+              ? "Making the GIF…"
+              : blast && radius && isFlow
+                ? `${radius.steps.length} frame${radius.steps.length === 1 ? "" : "s"}, up to ${GIF_MAX_SIDE} px, in the theme you are viewing`
+                : "Show a data flow first: right-click a Business Capability or Business Process",
+          };
+  const exportDisabled: Partial<Record<ExportKind, boolean>> = {
+            link: !canShare || (share?.model === model && share.size === "too-large"),
+            "blast-gif": !blast || !radius || isFlow || makingGif,
+            "flow-gif": !blast || !radius || !isFlow || makingGif,
+          };
+
+  const openDialog = (open: (v: boolean) => void) => {
+    dialogReturn.current = document.activeElement instanceof HTMLElement ? document.activeElement : null;
+    open(true);
+  };
+  /** A dialog closed: focus back where it was opened, then the command chosen, so a command that moves focus wins. */
+  const dialogClosed = (close: (v: boolean) => void, chosen?: Command) => {
+    close(false);
+    const el = dialogReturn.current;
+    dialogReturn.current = null;
+    if (el?.isConnected) el.focus();
+    chosen?.run();
+  };
+  const openBlank = () => {
+    setSelectedId(null);
+    setActiveHint(null);
+    void doc.newModel().then(() => setMessage("Opened a new blank model."));
+  };
+
+  /**
+   * Everything the command palette lists (M52), built while it is open: the toolbar's actions in
+   * toolbar order, then every element by name. Edit-only commands follow the toolbar: not below 768px.
+   */
+  const paletteCommands = (): Command[] => {
+    const empty = model.nodes.length === 0 ? "The model has no elements yet" : undefined;
+    const list: Command[] = [
+      { id: "new", group: "Model", label: "New model", keywords: "blank create", run: () => void doc.newModel() },
+      { id: "manage", group: "Model", label: "Manage models…", keywords: "delete download saved", run: () => setManaging(true) },
+      ...doc.models
+        .filter((m) => m.id !== model.id)
+        .map((m): Command => ({ id: `open-${m.id}`, group: "Model", label: `Open “${m.name || UNTITLED_MODEL}”`, keywords: m.artifactId, run: () => {
+          setSelectedId(null);
+          setActiveHint(null);
+          void doc.open(m.id);
+        } })),
+      { id: "example-blank", group: "Examples", label: "Blank model", keywords: "example new", run: openBlank },
+      ...examples.map((ex): Command => ({ id: `example-${ex.id}`, group: "Examples", label: `Example: ${ex.name}`, run: () => void loadExample(ex.id) })),
+      ...(wide ? [{ id: "import", group: "Model", label: "Import…", keywords: "open file json", run: () => fileInput.current?.click() }] : []),
+      ...exportItems.map((it): Command => ({
+        id: `export-${it.kind}`,
+        group: "Export",
+        label: it.kind === "link" || it.kind === "print" ? it.label : `Export ${it.label}`,
+        keywords: "export download save",
+        disabled: exportDisabled[it.kind] ? exportNotes[it.kind] : undefined,
+        run: () => exportAs(it.kind),
+      })),
+      { id: "undo", group: "Edit", label: "Undo", keys: "Ctrl+Z", disabled: doc.canUndo ? undefined : "Nothing to undo", run: () => dispatch({ type: "undo" }) },
+      { id: "redo", group: "Edit", label: "Redo", keys: "Ctrl+Shift+Z", disabled: doc.canRedo ? undefined : "Nothing to redo", run: () => dispatch({ type: "redo" }) },
+      ...(wide
+        ? classes
+            .filter((c) => view.extended || !isExtended(c))
+            .map((c): Command => ({ id: `add-${c.id}`, group: "Add", label: `Add ${c.label}`, keywords: "new element", run: () => addNode(c.id) }))
+        : []),
+      ...(wide
+        ? layoutChoices.map((c): Command => ({ id: `layout-${c.id}`, group: "Layout", label: c.id === "auto" ? c.label : `Layout: ${c.label}`, keywords: "arrange", disabled: empty ?? (layingOut ? "A layout is running" : undefined), run: () => chooseLayout(c.id) }))
+        : []),
+      ...viewItems.map((it): Command => ({
+        id: `view-${it.key}`,
+        group: "View",
+        label: `${view[it.key] ? "Hide" : "Show"} ${it.label.toLowerCase()}`,
+        keywords: it.note,
+        run: () => setView({ ...view, [it.key]: !view[it.key] }),
+      })),
+      ...lineStyles
+        .filter((l) => l.id !== view.lines)
+        .map((l): Command => ({ id: `lines-${l.id}`, group: "View", label: `Line style: ${l.label}`, keywords: "relationship", run: () => setView({ ...view, lines: l.id }) })),
+      { id: "zoom-fit", group: "Zoom", label: "Fit view", keys: "Shift+1", keywords: "whole model", run: () => zoomCommand("fit") },
+      { id: "zoom-selection", group: "Zoom", label: "Zoom to selection", keys: "Shift+2", disabled: selectedId ? undefined : "Select an element first", run: () => zoomCommand("selection") },
+      ...ZOOM_PRESETS.map((z): Command => ({ id: `zoom-${z}`, group: "Zoom", label: `Zoom to ${z * 100}%`, keys: z === 1 ? "Shift+0" : undefined, run: () => zoomCommand(z) })),
+      ...lenses
+        .filter((l) => l.id !== lens)
+        .map((l): Command => ({ id: `lens-${l.id}`, group: "Lens", label: `Lens: ${l.label}`, keywords: "framework", run: () => setLens(l.id) })),
+      { id: "present", group: "Present", label: "Present", keywords: "slides full screen", disabled: empty, run: startPresenting },
+      { id: "shortcuts", group: "Help", label: "Keyboard shortcuts", keys: "?", keywords: "keys help", run: () => openDialog(setShortcuts) },
+    ];
+    const className = (id: string) => classById(model.nodes.find((n) => n.id === id)?.class ?? "")?.label ?? "";
+    const goTo = model.nodes.map((n): Command => ({
+      id: `go-${n.id}`,
+      group: "Go to",
+      label: `${n.name || "Untitled"}`,
+      keywords: `${className(n.id)} element select find`,
+      run: () => {
+        selectNode(n.id);
+        void flow.fitView({ nodes: [{ id: n.id }], padding: 0.3, maxZoom: 1.25, duration: prefersStill() ? 0 : 300 });
+        setMessage(`Selected ${className(n.id)} “${n.name || "Untitled"}”.`);
+      },
+    }));
+    return [...list, ...goTo];
+  };
+
   return (
     <div className={presenting ? "fixed inset-0 z-50 flex flex-col bg-surface" : "flex h-[calc(100dvh-3.5rem)] min-h-[34rem] flex-col bg-surface"}>
       {presenting && (
@@ -1390,11 +1532,7 @@ function EditorInner() {
         <ExamplesMenu
           buttonClass={toolbarButton}
           onPick={(id) => void loadExample(id)}
-          onBlank={() => {
-            setSelectedId(null);
-            setActiveHint(null);
-            void doc.newModel().then(() => setMessage("Opened a new blank model."));
-          }}
+          onBlank={openBlank}
         />
         {wide && (
           <>
@@ -1420,33 +1558,8 @@ function EditorInner() {
           onExport={exportAs}
           buttonClass={toolbarButton}
           onOpen={prepareShare}
-          notes={{
-            link: !canShare
-              ? "This browser cannot make model links"
-              : share?.model !== model
-                ? undefined
-                : share.size === "too-large"
-                ? "Too large to share as a link: use Model file (JSON)"
-                : share.size === "long"
-                  ? `Long link (${kb(share.url)}): some chat and email apps cut links this long`
-                  : undefined,
-            drawio: lucidFitNote(lucidFit(model)),
-            "blast-gif": makingGif
-              ? "Making the GIF…"
-              : blast && radius && !isFlow
-                ? `${radius.steps.length} frame${radius.steps.length === 1 ? "" : "s"}, up to ${GIF_MAX_SIDE} px, in the theme you are viewing`
-                : "Show a blast radius first: right-click an element",
-            "flow-gif": makingGif
-              ? "Making the GIF…"
-              : blast && radius && isFlow
-                ? `${radius.steps.length} frame${radius.steps.length === 1 ? "" : "s"}, up to ${GIF_MAX_SIDE} px, in the theme you are viewing`
-                : "Show a data flow first: right-click a Business Capability or Business Process",
-          }}
-          disabled={{
-            link: !canShare || (share?.model === model && share.size === "too-large"),
-            "blast-gif": !blast || !radius || isFlow || makingGif,
-            "flow-gif": !blast || !radius || !isFlow || makingGif,
-          }}
+          notes={exportNotes}
+          disabled={exportDisabled}
         />
         </div>
         <span className={toolbarDivider} aria-hidden="true" />
@@ -1491,6 +1604,13 @@ function EditorInner() {
             </select>
           </label>
         </div>
+        {/* Icon only from 1536 to 1599px: there the word would push Present onto a second row (narrower, the toolbar has two rows anyway). */}
+        <button type="button" className={toolbarButton} onClick={() => openDialog(setPalette)} aria-label="Commands" title="Commands (Ctrl+K or ⌘K)" aria-keyshortcuts="Control+K Meta+K">
+          <ToolbarIcon name="commands" />
+          <span aria-hidden="true" className="min-[1536px]:max-[1599px]:hidden">
+            Commands
+          </span>
+        </button>
         <button ref={presentButton} type="button" className={primaryButton} disabled={model.nodes.length === 0} onClick={startPresenting}>
           <ToolbarIcon name="present" />
           Present
@@ -1846,6 +1966,8 @@ function EditorInner() {
           setMessage(`Deleted ${ids.length} model${ids.length === 1 ? "" : "s"} from this browser.`);
         }}
       />
+      {palette && <CommandPalette commands={paletteCommands()} onClose={(chosen) => dialogClosed(setPalette, chosen)} />}
+      {shortcuts && <ShortcutMap onClose={() => dialogClosed(setShortcuts)} />}
       {menu && <ContextMenu x={menu.x} y={menu.y} label={menu.label} items={menu.items} onClose={closeMenu} />}
       <div className={`${presenting ? "hidden" : "flex"} flex-wrap items-center justify-between gap-2 border-t border-border px-4 py-1.5 text-xs text-ink-muted`}>
         <p role="status" aria-live="polite">
