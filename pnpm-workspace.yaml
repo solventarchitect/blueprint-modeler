@@ -3,3 +3,10 @@
 allowBuilds:
   esbuild: true
   unrs-resolver: true
+
+# Security (Dependabot, 2026-10-24): vite 7.0–7.3.6 (dev server, via vitest) has GHSA-587h-7wmj-h5pm,
+# GHSA-698v-4r3x-3vcv, GHSA-r825-w8mm-5pxw, GHSA-rq7h-c2jc-7f22, GHSA-9jrq-w75r-8gcw. Dev and test only; nothing
+# ships. vitest accepts any vite 6–8, but the lockfile kept 7.3.6: pin the patched 7.3 line. Drop when vitest's
+# own range starts above 7.3.6.
+overrides:
+  vite: ^7.3.7
