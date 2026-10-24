@@ -5,7 +5,7 @@ import { ToolbarIcon } from "./ToolbarIcon";
 
 export type ExportKind = "json" | "link" | "svg-dark" | "svg-light" | "png-dark" | "png-light" | "print" | "blast-gif" | "flow-gif" | "archimate" | "drawio" | "servicenow";
 
-const items: { kind: ExportKind; label: string; note: string }[] = [
+export const exportItems: { kind: ExportKind; label: string; note: string }[] = [
   { kind: "json", label: "Model file (JSON)", note: "Back up, move or version it" },
   { kind: "link", label: "Copy link to this model", note: "Anyone with the link can open a copy" },
   { kind: "svg-dark", label: "Image, dark (SVG)", note: "For docs and slides" },
@@ -71,7 +71,7 @@ export function ExportMenu({
         Export <span aria-hidden="true">▾</span>
       </button>
       <ul id={listId} hidden={!open} className="absolute left-0 z-20 mt-1 w-60 border border-border-strong bg-surface-raised py-1">
-        {items.map((it) => (
+        {exportItems.map((it) => (
           <li key={it.kind}>
             <button
               type="button"

@@ -7,7 +7,7 @@ import { useDismiss } from "./useDismiss";
 
 export type LayoutChoice = LayoutMode | "fill";
 
-const choices: { id: LayoutChoice; label: string; note: string }[] = [
+export const layoutChoices: { id: LayoutChoice; label: string; note: string }[] = [
   { id: "auto", label: "Auto-layout", note: "Places each element freely within its layer" },
   { id: "rows", label: "Top to bottom", note: "One row per layer, Business at the top" },
   { id: "columns", label: "Left to right", note: "One column per layer, Business on the left" },
@@ -56,7 +56,7 @@ export function LayoutMenu({ busy, disabled, onChoose, buttonClass }: { busy: bo
           Arrange by CSDM layer
         </p>
         <ul>
-          {choices.map((c) => (
+          {layoutChoices.map((c) => (
             <li key={c.id}>
               <button
                 type="button"

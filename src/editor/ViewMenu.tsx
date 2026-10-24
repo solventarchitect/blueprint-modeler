@@ -39,12 +39,12 @@ export function saveView(v: ViewOptions) {
   }
 }
 
-const lineStyles: { id: LineStyle; label: string }[] = [
+export const lineStyles: { id: LineStyle; label: string }[] = [
   { id: "curved", label: "Curved" },
   { id: "right-angles", label: "Right angles" },
 ];
 
-const items: { key: "boxes" | "lanes" | "snap" | "extended" | "minimap" | "labels"; label: string; note: string }[] = [
+export const viewItems: { key: "boxes" | "lanes" | "snap" | "extended" | "minimap" | "labels"; label: string; note: string }[] = [
   { key: "boxes", label: "Layer boxes", note: "A box around each CSDM layer" },
   { key: "lanes", label: "Lanes", note: "Full-width bands; drops settle in their layer" },
   { key: "snap", label: "Snap to grid", note: "Positions snap to 16px" },
@@ -86,7 +86,7 @@ export function ViewMenu({ value, onChange, buttonClass }: { value: ViewOptions;
         View <span aria-hidden="true">▾</span>
       </button>
       <ul id={listId} hidden={!open} className="absolute left-0 z-20 mt-1 w-64 border border-border-strong bg-surface-raised py-1">
-        {items.map((it) => (
+        {viewItems.map((it) => (
           <li key={it.key}>
             <button
               type="button"
