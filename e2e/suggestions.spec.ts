@@ -1,6 +1,7 @@
 import AxeBuilder from "@axe-core/playwright";
 import { expect, test, type Page } from "@playwright/test";
 import { contrastOf } from "./contrast";
+import { settled } from "./layout";
 
 const tags = ["wcag2a", "wcag2aa", "wcag21aa", "wcag22aa"];
 const palette = (page: Page) => page.getByRole("navigation", { name: "Element palette" });
@@ -84,6 +85,7 @@ test.describe("relationship suggestions (desktop)", () => {
     await add(page, "Host", "web-01");
     await page.locator(".react-flow__pane").click({ position: { x: 5, y: 5 } });
     await page.getByRole("button", { name: "Fit View" }).click();
+    await settled(page); // the fit must stop moving the picture before the handle is grabbed
     const h = (await node(page, "Checkout prod").locator(".react-flow__handle-bottom").boundingBox())!;
     await page.mouse.move(h.x + h.width / 2, h.y + h.height / 2);
     await page.mouse.down();
