@@ -119,6 +119,16 @@ describe("editor state", () => {
     expect(reduce(s, { type: "update-edge", id: "e1", from: "ba", to: "cap", edgeType: "Provides::Provided by" }, now)).toBe(s);
   });
 
+  it("adds a related element where it was dropped, when given a position (M53)", () => {
+    const model = createModel("T", new Date("2026-09-27T00:00:00Z"), "t");
+    model.nodes = [{ id: "ba", class: "business_application", name: "Checkout" }];
+    model.layout = { ba: { x: 0, y: 240 } };
+    const h = reduce(initialHistory(model), { type: "add-related", id: "n", class: "application_service", name: "New", edgeId: "e", relatedTo: "ba", outgoing: true, edgeType: "Uses::Used by", at: { x: 512, y: 800 } });
+    expect(h.present.layout.n).toEqual({ x: 512, y: 800 });
+    expect(h.present.edges).toEqual([{ id: "e", from: "ba", to: "n", type: "Uses::Used by" }]);
+    expect(h.past).toHaveLength(1);
+  });
+
   it("stamps updated on change", () => {
     const s = run(base);
     expect(s.present.updated).toBe(T);

@@ -26,6 +26,7 @@ export const SHORTCUTS: { area: string; keys: { keys: string[]; does: string }[]
       { keys: ["Arrow keys"], does: "Move the selected element (with Shift: 4× as far)" },
       { keys: ["Space"], does: "Hold and drag to pan" },
       { keys: ["Shift+F10", "Menu"], does: "Menu for the focused element, relationship, layer or canvas" },
+      { keys: ["Shift+A"], does: "Add a new element related to the focused or selected one" },
       { keys: ["Delete", "Backspace"], does: "Delete the selected element or relationship" },
       { keys: ["Arrow keys"], does: "Move a focused layer label 16 px (with Shift: 64 px)" },
       { keys: ["Esc"], does: "Unselect a layer label, or hide suggested relationships" },
