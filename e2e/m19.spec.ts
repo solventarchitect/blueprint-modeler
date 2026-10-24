@@ -1,16 +1,19 @@
 import { readFile } from "node:fs/promises";
 import { expect, test, type Page } from "@playwright/test";
 import { contrastOf } from "./contrast";
-import { openExample as chooseExample } from "./examples";
+import { openExample as chooseExample, openExampleFitted } from "./examples";
+import { settled } from "./layout";
 
 const node = (page: Page, name: string) => page.locator(".react-flow__node").filter({ hasText: name }).first();
 
 const openExample = async (page: Page, label = "Online Store Checkout") => {
   await page.goto("/editor");
   await expect(page.getByTestId("save-status")).toHaveText("Saved in this browser");
-  await chooseExample(page, label);
-  await expect(page.locator(".react-flow__node").first()).toBeVisible();
+  // openExampleFitted waits out the example's delayed fit (a setTimeout) before the manual fit, so an
+  // early geometry or edge-label read does not race it. The manual fit keeps these tests' zoom.
+  await openExampleFitted(page, label);
   await page.getByRole("button", { name: "Fit View" }).click();
+  await settled(page);
 };
 
 test.describe("selection, hover and layers (desktop)", () => {
