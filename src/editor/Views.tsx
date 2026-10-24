@@ -54,7 +54,10 @@ export function ViewsMenu({ model, shown, onShow, onEdit, buttonClass }: { model
       <button ref={button} type="button" className={buttonClass} aria-expanded={open} aria-controls={panelId} onClick={() => setOpen((o) => !o)}>
         <ToolbarIcon name="views" />
         {/* The view in use when it is not All elements, so a filtered canvas never looks unfiltered. */}
-        Views{!all && <span className="max-w-32 truncate text-ink-muted">: {shown.id ? (model.views?.find((v) => v.id === shown.id)?.name ?? "") : "Unsaved"}</span>} <span aria-hidden="true">▾</span>
+        <span className="flex min-w-0">
+          Views{!all && <span className="max-w-32 truncate text-ink-muted">: {shown.id ? (model.views?.find((v) => v.id === shown.id)?.name ?? "") : "Unsaved"}</span>}
+        </span>{" "}
+        <span aria-hidden="true">▾</span>
       </button>
       <div id={panelId} hidden={!open} data-testid="views-menu" role="group" aria-label="Views" className="absolute left-0 z-20 mt-1 w-72 border border-border-strong bg-surface-raised py-1">
         <ul>
@@ -165,7 +168,7 @@ export function ViewDialog({
           <legend className="text-sm font-medium">Color by</legend>
           <div className="mt-1.5 flex flex-wrap gap-x-4 gap-y-1">
             {COLOR_BY.map((c) => (
-              <label key={c} className="flex items-center gap-1.5 text-sm">
+              <label key={c} className="flex min-h-6 items-center gap-1.5 text-sm">
                 <input type="radio" name="view-color-by" checked={shown.colorBy === c} onChange={() => onChange({ ...shown, colorBy: c })} />
                 {COLOR_BY_LABEL[c]}
               </label>
@@ -181,10 +184,11 @@ export function ViewDialog({
               .map((g) => (
                 <fieldset key={g.key}>
                   <legend className="font-mono text-[0.65rem] tracking-[0.14em] text-ink-muted uppercase">{g.label}</legend>
-                  <ul className="mt-1 flex max-h-40 flex-col gap-0.5 overflow-y-auto">
+                  {/* Rows 24px tall, so every checkbox has a 24px target (WCAG 2.5.8). */}
+                  <ul className="mt-1 flex max-h-40 flex-col overflow-y-auto">
                     {g.values.map((v) => (
                       <li key={v || "(not set)"}>
-                        <label className="flex items-center gap-1.5 text-sm">
+                        <label className="flex min-h-6 items-center gap-1.5 text-sm">
                           <input type="checkbox" checked={shown.filter[g.key]?.includes(v) ?? false} onChange={() => toggle(g.key, v)} />
                           <span className={v ? "" : "text-ink-muted"}>{g.text(v)}</span>
                         </label>

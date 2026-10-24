@@ -628,9 +628,22 @@
   }
 }
 
-/* M54: elements a view filters out stay in place, faded and out of reach; so do their relationships. */
-.react-flow__node.bm-faded {
-  opacity: 0.28;
+/*
+ * M54: elements a view filters out stay in place, faded and out of reach; so do their relationships.
+ * The fade is a ghost, not transparency: no fill, a dashed gray outline and bar, and text in the muted
+ * ink, which still meets 4.5:1 on the canvas (WCAG 1.4.3), so a faded element stays readable.
+ */
+.react-flow__node.bm-faded > div {
+  background: transparent;
+  border-style: dashed;
+  border-color: var(--border-strong);
+  border-left-color: var(--border-strong) !important;
+}
+.react-flow__node.bm-faded > div :is(p, span) {
+  color: var(--ink-muted);
+}
+.react-flow__node.bm-faded [data-testid="slot-marker"] {
+  opacity: 0.4;
 }
 .react-flow__edge.faded {
   opacity: 0.2;
