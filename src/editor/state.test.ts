@@ -129,6 +129,35 @@ describe("editor state", () => {
     expect(h.past).toHaveLength(1);
   });
 
+  it("sets, trims and clears an element's life cycle, environment and owner, one undo step each (M54)", () => {
+    const model = createModel("T", new Date("2026-09-27T00:00:00Z"), "t");
+    model.nodes = [{ id: "ba", class: "business_application", name: "Checkout", attrs: { description: "Sells" } }];
+    model.layout = { ba: { x: 0, y: 0 } };
+    let h = reduce(initialHistory(model), { type: "set-attr", id: "ba", key: "lifecycle", value: "Operational" });
+    h = reduce(h, { type: "set-attr", id: "ba", key: "owner", value: "  Ann  " });
+    expect(h.present.nodes[0]!.attrs).toEqual({ description: "Sells", lifecycle: "Operational", owner: "Ann" });
+    expect(h.past).toHaveLength(2);
+    // Same value again: no new step.
+    expect(reduce(h, { type: "set-attr", id: "ba", key: "owner", value: "Ann" }).past).toHaveLength(2);
+    h = reduce(h, { type: "set-attr", id: "ba", key: "lifecycle", value: "" });
+    expect(h.present.nodes[0]!.attrs).toEqual({ description: "Sells", owner: "Ann" });
+  });
+
+  it("saves, replaces and deletes views, one undo step each, keeping the list order (M54)", () => {
+    const model = createModel("T", new Date("2026-09-27T00:00:00Z"), "t");
+    const v = (id: string, name: string) => ({ id, name, filter: { layers: ["business"] }, colorBy: "layer" as const });
+    let h = reduce(initialHistory(model), { type: "save-view", view: v("a", "First") });
+    h = reduce(h, { type: "save-view", view: v("b", "Second") });
+    h = reduce(h, { type: "save-view", view: { ...v("a", "First, renamed"), colorBy: "owner" } });
+    expect(h.present.views!.map((x) => [x.id, x.name, x.colorBy])).toEqual([["a", "First, renamed", "owner"], ["b", "Second", "layer"]]);
+    h = reduce(h, { type: "delete-view", id: "a" });
+    expect(h.present.views!.map((x) => x.id)).toEqual(["b"]);
+    h = reduce(h, { type: "delete-view", id: "b" });
+    expect(h.present.views).toBeUndefined();
+    expect(h.past).toHaveLength(5);
+    expect(reduce(h, { type: "delete-view", id: "nope" }).past).toHaveLength(5);
+  });
+
   it("stamps updated on change", () => {
     const s = run(base);
     expect(s.present.updated).toBe(T);

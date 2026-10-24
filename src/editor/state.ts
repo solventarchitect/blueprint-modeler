@@ -1,5 +1,5 @@
 import { acceptedTypes, allowedTypes, classById, relationshipsBetween, type ClassId, type Layer } from "@/metamodel";
-import { edgeKey, withDetails, type Edge, type Model, type Node } from "@/model";
+import { edgeKey, withDetails, type Edge, type Model, type Node, type View } from "@/model";
 
 /**
  * Editor state: the model plus undo/redo history. Pure functions only, so every rule the
@@ -14,6 +14,9 @@ export type Action =
   | { type: "add-node"; id: string; class: ClassId; name: string }
   | { type: "rename-node"; id: string; name: string }
   | { type: "describe-node"; id: string; description: string }
+  | { type: "set-attr"; id: string; key: "lifecycle" | "environment" | "owner"; value: string }
+  | { type: "save-view"; view: View }
+  | { type: "delete-view"; id: string }
   | { type: "move-node"; id: string; x: number; y: number }
   | { type: "delete-node"; id: string }
   | { type: "delete-nodes"; ids: string[] }
@@ -113,6 +116,31 @@ function apply(model: Model, action: Action): Model | null {
       const node = model.nodes.find((n) => n.id === action.id);
       if (!node || node.name === action.name) return null;
       return { ...model, nodes: model.nodes.map((n) => (n.id === action.id ? { ...n, name: action.name } : n)) };
+    }
+    case "set-attr": {
+      // Life cycle, environment, owner (M54): trimmed; empty removes the key, and empty attrs go away.
+      const node = model.nodes.find((n) => n.id === action.id);
+      const value = action.value.trim();
+      if (!node || (node.attrs?.[action.key] ?? "") === value) return null;
+      const attrs = Object.fromEntries(Object.entries(node.attrs ?? {}).filter(([k]) => k !== action.key));
+      if (value) attrs[action.key] = value;
+      return { ...model, nodes: model.nodes.map((n) => (n.id === action.id ? { ...n, attrs: Object.keys(attrs).length ? attrs : undefined } : n)) };
+    }
+    case "save-view": {
+      // Add, or replace in place a view with the same id (rename, new filter or coloring).
+      const views = model.views ?? [];
+      const i = views.findIndex((v) => v.id === action.view.id);
+      if (i >= 0 && JSON.stringify(views[i]) === JSON.stringify(action.view)) return null;
+      const next = i >= 0 ? views.map((v, k) => (k === i ? action.view : v)) : [...views, action.view];
+      return { ...model, views: next };
+    }
+    case "delete-view": {
+      const views = model.views ?? [];
+      if (!views.some((v) => v.id === action.id)) return null;
+      const rest = views.filter((v) => v.id !== action.id);
+      const { views: _gone, ...without } = model;
+      void _gone;
+      return rest.length ? { ...model, views: rest } : without;
     }
     case "describe-node": {
       const node = model.nodes.find((n) => n.id === action.id);

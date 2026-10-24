@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { createModel, formatModelDate, localDay, migrate, modelDate, parseModel, serializeModel, UNTITLED_MODEL, type Model } from "./index";
+import { createModel, formatModelDate, localDay, migrate, modelDate, modelSchema, parseModel, serializeModel, UNTITLED_MODEL, type Model } from "./index";
 
 const NOW = new Date("2026-09-27T12:00:00.000Z");
 
@@ -143,5 +143,51 @@ describe("migrate", () => {
   it("passes the current version through unchanged", () => {
     const m = sample();
     expect(migrate(m)).toEqual({ ok: true, value: m });
+  });
+});
+
+describe("saved views in the model file (M54, still format 1)", () => {
+  const withViews = (): Model => ({
+    ...sample(),
+    views: [
+      { id: "v1", name: "Production only", filter: { environment: ["production"] }, colorBy: "lifecycle" },
+      { id: "v2", name: "Business layer", filter: { layers: ["business"] }, colorBy: "layer" },
+    ],
+  });
+
+  it("round-trips views exactly, written after the layout", () => {
+    const m = withViews();
+    const r = roundTrip(m);
+    expect(r.ok && r.model).toEqual(m);
+    const keys = Object.keys(JSON.parse(serializeModel(r.ok ? r.model : m)));
+    expect(keys.slice(-2)).toEqual(["layout", "views"]);
+  });
+
+  it("leaves views out of the file when there are none, so older files stay byte-identical", () => {
+    const m = { ...sample(), views: [] };
+    const r = roundTrip(m);
+    expect(r.ok && "views" in r.model).toBe(false);
+    expect(serializeModel(r.ok ? r.model : m)).toBe(serializeModel(sample()));
+  });
+
+  it("opens a file without views as before", () => {
+    const r = roundTrip(sample());
+    expect(r.ok && r.model.views).toBeUndefined();
+  });
+
+  it("is ignored, not refused, by 1.8.0's reader: the same format with views stripped", () => {
+    // 1.8.0's schema is today's without `views`; zod drops keys it does not know.
+    const older = modelSchema.omit({ views: true });
+    const parsed = older.safeParse(JSON.parse(serializeModel(withViews())));
+    expect(parsed.success).toBe(true);
+    expect(parsed.success && "views" in parsed.data).toBe(false);
+  });
+
+  it("refuses a view with an unknown coloring, an empty name, or too many views", () => {
+    const bad = (views: unknown) => parseModel({ ...JSON.parse(serializeModel(sample())), views });
+    expect(bad([{ id: "v", name: "x", filter: {}, colorBy: "price" }]).ok).toBe(false);
+    expect(bad([{ id: "v", name: "", filter: {}, colorBy: "layer" }]).ok).toBe(false);
+    expect(bad(Array.from({ length: 21 }, (_, i) => ({ id: `v${i}`, name: `V${i}`, filter: {}, colorBy: "layer" }))).ok).toBe(false);
+    expect(bad([{ id: "v", name: "x", filter: {}, colorBy: "layer" }, { id: "v", name: "y", filter: {}, colorBy: "layer" }]).ok).toBe(false);
   });
 });

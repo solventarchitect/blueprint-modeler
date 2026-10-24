@@ -10,13 +10,13 @@ export const UNTITLED_MODEL = "Untitled Model";
 
 /**
  * The model with its optional details set: trimmed, absent when empty, and placed right after the
- * name, so an exported file reads name, description, Artifact ID, then the rest.
+ * name, so an exported file reads name, description, Artifact ID, then the rest (saved views last).
  */
 export function withDetails(model: Model, details: { date?: string; description?: string; artifactId?: string }): Model {
   const date = details.date?.trim() ?? "";
   const description = details.description?.trim() ?? "";
   const artifactId = details.artifactId?.trim() ?? "";
-  const { schema, id, name, created, updated, nodes, edges, layout } = model;
+  const { schema, id, name, created, updated, nodes, edges, layout, views } = model;
   return {
     schema,
     id,
@@ -29,6 +29,8 @@ export function withDetails(model: Model, details: { date?: string; description?
     nodes,
     edges,
     layout,
+    // Saved views (M54) last, and only when there are some, so files without them are unchanged.
+    ...(views?.length ? { views } : {}),
   };
 }
 
