@@ -5,6 +5,7 @@ import { createContext, memo, useContext, useEffect, useRef, useState, type CSSP
 import { ArchimateGlyph } from "@/frameworks/ArchimateGlyph";
 import type { ArchimateElementType, ArchimateLayer } from "@/frameworks";
 import { classById } from "@/metamodel";
+import { slotMarker, type Slot } from "@/model";
 import { ConnectionModelContext } from "./ConnectionLine";
 import { layerAccent } from "./layerAccent";
 import { connectionProblem } from "./state";
@@ -24,6 +25,10 @@ export type ClassNodeData = {
   archimateOnly?: boolean;
   /** Offer relationship suggestions (editing, and the element has no relationships yet). */
   suggest?: boolean;
+  /** M54 color by: the element's palette slot (absent when coloring by layer). */
+  slot?: Slot;
+  /** M54: filtered out of the view in use (drawn faded, out of reach). */
+  faded?: boolean;
   /** Reached by the open blast radius: the start (hop 0) or an element reached at `hop`. */
   blast?: { hop: number; current: boolean; impact: boolean; /** A data flow rather than a blast radius: the flow color throughout. */ flow?: boolean };
 };
@@ -178,12 +183,23 @@ function ClassNodeView({ id, data, selected, dragging }: NodeProps<ClassFlowNode
       data-blast-hop={blast?.hop}
       data-blast-current={blast?.current || undefined}
       data-flow={blast?.flow || undefined}
-      style={blast ? ({ "--pulse": blast.flow ? "var(--ai)" : blast.hop === 0 ? (blast.impact ? "var(--invalid)" : "var(--accent)") : "var(--status)" } as CSSProperties) : undefined}
+      data-slot={data.slot}
+      style={{
+        ...(blast ? ({ "--pulse": blast.flow ? "var(--ai)" : blast.hop === 0 ? (blast.impact ? "var(--invalid)" : "var(--accent)") : "var(--status)" } as CSSProperties) : {}),
+        // Color by (M54): the left bar takes the value's color instead of the layer's.
+        ...(data.slot !== undefined ? { borderLeftColor: `var(--slot-${data.slot})` } : {}),
+      }}
       onMouseEnter={() => hover(true)}
       onMouseLeave={() => hover(false)}
     >
       {data.suggest && <Suggestions id={id} name={data.name || "Untitled"} visible={(selected || hovered) && !fromId && !dragging} onHover={hover} />}
       <Handle id="top" type="source" position={Position.Top} className="!size-2.5 !rounded-full !border-accent !bg-surface" />
+      {data.slot !== undefined && (
+        // The value's marker shape, so the coloring never rests on color alone (the value is in the element's name for screen readers).
+        <svg aria-hidden="true" data-testid="slot-marker" viewBox="0 0 10 10" className="absolute top-2 right-2 size-2.5" style={{ fill: `var(--slot-${data.slot})` }}>
+          <path d={slotMarker(data.slot)} fillRule="evenodd" />
+        </svg>
+      )}
       {data.archimateOnly && data.alt ? (
         // On a layer fill the type takes --am-ink (the purple AI ink falls below 4.5:1 on dark fills).
         <p

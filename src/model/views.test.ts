@@ -91,3 +91,16 @@ describe("palette contrast (WCAG 1.4.11: 3:1 against the element's own surface)"
     }
   });
 });
+
+describe("canvas tokens match the export palette", () => {
+  it("defines --slot-* in globals.css with the same hex as PALETTE, dark and light (both light blocks)", async () => {
+    const { readFileSync } = await import("node:fs");
+    const css = readFileSync(new URL("../app/globals.css", import.meta.url), "utf8");
+    const blocks = css.split(/\/\* Color by \(M54\)/).slice(1).map((b) => Object.fromEntries([...b.matchAll(/--slot-(\w+): (#[0-9a-f]{6});/g)].map((m) => [m[1], m[2]])));
+    expect(blocks).toHaveLength(3);
+    const want = (t: "dark" | "light") => ({ ...Object.fromEntries(PALETTE[t].map((c, i) => [String(i), c])), other: PALETTE.other[t], none: PALETTE.none[t] });
+    expect(blocks[0]).toEqual(want("dark"));
+    expect(blocks[1]).toEqual(want("light"));
+    expect(blocks[2]).toEqual(want("light"));
+  });
+});
