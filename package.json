@@ -25,7 +25,7 @@
     "next": "16.4.2",
     "react": "19.1.0",
     "react-dom": "19.1.0",
-    "zod": "4.6.5"
+    "zod": "4.6.6"
   },
   "devDependencies": {
     "@axe-core/playwright": "4.13.0",
@@ -38,6 +38,6 @@
     "eslint-config-next": "16.4.2",
     "tailwindcss": "4.3.3",
     "typescript": "5.9.3",
-    "vitest": "4.1.11"
+    "vitest": "4.1.12"
   }
 }
