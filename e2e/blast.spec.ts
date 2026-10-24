@@ -148,7 +148,7 @@ test.describe("blast radius (desktop)", () => {
     await target.focus();
     await page.keyboard.press("Shift+F10");
     const menu = page.getByRole("menu", { name: "web-prod-01 menu" });
-    await expect(menu.getByRole("menuitem")).toHaveText(["Rename", "Add a relationship…", "Duplicate", "No hints", "Show blast radius", "Select the Infrastructure layer", "Delete"]);
+    await expect(menu.getByRole("menuitem")).toHaveText(["Rename", "Add a relationship…", "Add a related element…", "Duplicate", "No hints", "Show blast radius", "Select the Infrastructure layer", "Delete"]);
     await menu.getByRole("menuitem", { name: "Show blast radius" }).focus();
     await page.keyboard.press("Enter");
     await expect(strip(page).getByRole("button", { name: "Pause" })).toBeFocused();
