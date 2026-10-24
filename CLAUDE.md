@@ -20,7 +20,7 @@
    documentation, and every metamodel class, relationship and conformance hint in `src/metamodel/` cites its public
    source URL. No ServiceNow connectivity of any kind (no instance, no Table API, no OAuth). A paid tier, or any
    ServiceNow connection, requires Mike's employment-agreement check first — stop and ask.
-4. **Framework lock:** Next.js 15 App Router + TypeScript strict, static export. Canvas = `@xyflow/react` behind a
+4. **Framework lock:** Next.js 16 App Router (Turbopack build) + TypeScript strict, static export. Moved from 15 on Mike's approval 2026-10-23. Canvas = `@xyflow/react` behind a
    `CanvasRenderer` interface; ELK layout in a Web Worker. No second canvas library, no CSS-in-JS.
 5. **No new runtime dependency, paid service, or storage provider without Mike's explicit approval.** Approved set
    (2026-09-26): `@xyflow/react`, `zod` (MIT) and `elkjs` (EPL-2.0, used unmodified), added when first used. Cloudflare Web Analytics (cookieless, $0)
@@ -32,7 +32,7 @@
 
 | Concern | Convention |
 |---|---|
-| Web | Next.js 15 static export · TypeScript strict · Tailwind v4 + tokens copied from `../../tokens/mikereams/` (Blueprint) |
+| Web | Next.js 16 static export (Turbopack) · TypeScript strict · Tailwind v4 + tokens copied from `../../tokens/mikereams/` (Blueprint) |
 | Mobile | none (responsive web; canvas editing ≥ md, read-only view below) |
 | Backend | none |
 | Storage | IndexedDB via a small in-repo wrapper; import/export = JSON model file (versioned schema), SVG |
