@@ -44,7 +44,7 @@ test.describe("quick-add (M53, desktop)", () => {
   test("a line dropped on empty canvas offers new related elements; one choice adds both, where dropped, in one undo step", async ({ page }) => {
     await openWithCheckout(page);
     await expect(nodes(page)).toHaveCount(1);
-    const drop = await dragFromCheckout(page, 160, 220);
+    const drop = await dragFromCheckout(page, -160, 140);
     const menu = quickMenu(page);
     await expect(menu).toBeVisible();
     // The menu opens at the pointer, its first entry focused.
@@ -52,8 +52,9 @@ test.describe("quick-add (M53, desktop)", () => {
     expect(Math.abs(box.x - drop.x)).toBeLessThan(8);
     await expect(menu.getByRole("menuitem").first()).toBeFocused();
     // Every entry is a new element with its relationship type.
-    const service = menu.getByRole("menuitem", { name: /^New Application Service/ });
-    await expect(service).toContainText("Uses::Used by");
+    // Name and relationship type read as two parts, not run together.
+    const service = menu.getByRole("menuitem", { name: "New Application Service, Uses::Used by", exact: true });
+    await expect(service).toBeVisible();
     await expect(menu.getByRole("menuitem", { name: /^New Service Instance/ })).toHaveCount(0);
 
     await service.click();
@@ -81,12 +82,45 @@ test.describe("quick-add (M53, desktop)", () => {
     await page.locator(".react-flow__pane").click({ position: { x: 5, y: 5 } });
     await expect(page.getByRole("menu")).toHaveCount(0);
 
-    await dragFromCheckout(page, 160, 220);
+    await dragFromCheckout(page, -160, 140);
     await expect(quickMenu(page)).toBeVisible();
     await page.keyboard.press("Escape");
     await expect(quickMenu(page)).toHaveCount(0);
     await expect(nodes(page)).toHaveCount(1);
     await expect(node(page, "Checkout")).toBeFocused();
+  });
+
+  test("a line dropped on an element's body, the minimap, or off the canvas opens nothing and adds nothing", async ({ page }) => {
+    await openWithCheckout(page);
+    // A second element, then the line dropped in the middle of it (far from its handles).
+    await page.getByRole("navigation", { name: "Element palette" }).getByRole("button", { name: "Host", exact: true }).click();
+    await expect(inspector(page).getByLabel("Name", { exact: true })).toBeFocused();
+    await page.locator(".react-flow__pane").click({ position: { x: 5, y: 5 } });
+    await page.getByRole("button", { name: "Fit View" }).click();
+    await settled(page);
+    const h = (await node(page, "Checkout").locator(".react-flow__handle-bottom").boundingBox())!;
+    const drop = async (x: number, y: number) => {
+      await page.mouse.move(h.x + h.width / 2, h.y + h.height / 2);
+      await page.mouse.down();
+      await page.mouse.move(x, y, { steps: 8 });
+      await page.mouse.up();
+    };
+    const host = (await node(page, "New Host").boundingBox())!;
+    await drop(host.x + host.width / 2, host.y + host.height / 2);
+    await expect(page.getByRole("menu")).toHaveCount(0);
+    // Its own body.
+    const own = (await node(page, "Checkout").boundingBox())!;
+    await drop(own.x + own.width * 0.3, own.y + own.height / 2);
+    await expect(page.getByRole("menu")).toHaveCount(0);
+    // Over the minimap (a panel on the canvas).
+    const map = (await page.getByRole("img", { name: /^Model overview/ }).boundingBox())!;
+    await drop(map.x + map.width / 2, map.y + map.height / 2);
+    await expect(page.getByRole("menu")).toHaveCount(0);
+    // Off the canvas, over the side panel.
+    const panel = (await inspector(page).boundingBox())!;
+    await drop(panel.x + panel.width / 2, panel.y + 200);
+    await expect(page.getByRole("menu")).toHaveCount(0);
+    await expect(nodes(page)).toHaveCount(2);
   });
 
   test("with lanes on, the new element goes to its own layer, as a drag would", async ({ page }) => {
@@ -140,7 +174,31 @@ test.describe("quick-add (M53, desktop)", () => {
     await expect(quickMenu(page).getByRole("menuitem").first()).toBeFocused();
   });
 
-  test("Shift+A in a text field types a capital A", async ({ page }) => {
+  test("from the palette, a selected element panned out of view is brought into view first", async ({ page }) => {
+    await openWithCheckout(page);
+    await node(page, "Checkout").click();
+    // Pan the picture until Checkout is off the canvas.
+    const canvas = (await page.getByRole("region", { name: "Model canvas" }).boundingBox())!;
+    const start = { x: canvas.x + canvas.width - 60, y: canvas.y + 40 };
+    await page.mouse.move(start.x, start.y);
+    await page.mouse.down();
+    await page.mouse.move(start.x - canvas.width, start.y, { steps: 10 });
+    await page.mouse.up();
+    const offscreen = (await node(page, "Checkout").boundingBox())!;
+    expect(offscreen.x + offscreen.width).toBeLessThan(canvas.x);
+    await page.keyboard.press(`${mod}+k`);
+    await page.getByRole("dialog", { name: "Commands" }).getByRole("combobox").fill("related element");
+    await page.keyboard.press("Enter");
+    await expect(quickMenu(page)).toBeVisible();
+    const b = (await node(page, "Checkout").boundingBox())!;
+    expect(b.x).toBeGreaterThanOrEqual(canvas.x);
+    expect(b.x + b.width).toBeLessThanOrEqual(canvas.x + canvas.width);
+    // The menu sits just under the element.
+    const m = (await quickMenu(page).boundingBox())!;
+    expect(Math.abs(m.y - (b.y + b.height))).toBeLessThan(12);
+  });
+
+  test("Shift+A typed outside the canvas, in a text field, just types", async ({ page }) => {
     await openWithCheckout(page);
     await node(page, "Checkout").click();
     const field = inspector(page).getByLabel("Name", { exact: true });
@@ -155,7 +213,7 @@ test.describe("quick-add (M53, desktop)", () => {
     test(`the quick-add menu has no WCAG 2.2 AA violations (${scheme})`, async ({ page }) => {
       await page.emulateMedia({ colorScheme: scheme });
       await openWithCheckout(page);
-      await dragFromCheckout(page, 160, 220);
+      await dragFromCheckout(page, -160, 140);
       await expect(quickMenu(page)).toBeVisible();
       expect((await new AxeBuilder({ page }).withTags(tags).analyze()).violations).toEqual([]);
     });

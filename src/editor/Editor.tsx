@@ -1095,11 +1095,18 @@ function EditorInner() {
     setMessage(`Choose a new element to relate to ${name}.`);
     openMenu(x, y, `Add related to ${name}`, items, returnTo);
   };
-  /** Quick-add for an element, the menu just below it. */
+  /** Quick-add for an element, the menu just below it; an element out of view is brought into view first. */
   const quickAddAt = (nodeId: string) => {
-    const el = nodeEl(nodeId);
-    const r = el?.getBoundingClientRect();
-    openQuickAdd(nodeId, (r?.left ?? 0) + 8, (r?.bottom ?? 0) + 4, el);
+    const open = () => {
+      const el = nodeEl(nodeId);
+      const r = el?.getBoundingClientRect();
+      openQuickAdd(nodeId, (r?.left ?? 0) + 8, (r?.bottom ?? 0) + 4, el);
+    };
+    const r = nodeEl(nodeId)?.getBoundingClientRect();
+    const c = document.querySelector(".react-flow")?.getBoundingClientRect();
+    const inView = r && c && r.left >= c.left && r.right <= c.right && r.top >= c.top && r.bottom <= c.bottom;
+    if (inView) open();
+    else void flow.fitView({ nodes: [{ id: nodeId }], padding: 0.3, maxZoom: 1.25, duration: 0 }).then(open);
   };
   // Where a drawn line started, so a click on a handle (no drag) does not open the menu.
   const connectStart = useRef<{ x: number; y: number } | null>(null);
@@ -1228,9 +1235,9 @@ function EditorInner() {
   };
   const onCanvasKeyDown = (e: ReactKeyboardEvent<HTMLDivElement>) => {
     // Shift+A: quick-add to the focused element, else the selected one (M53).
-    if (canMenu && e.shiftKey && !e.ctrlKey && !e.metaKey && !e.altKey && e.code === "KeyA") {
+    if (canMenu && e.shiftKey && !e.ctrlKey && !e.metaKey && !e.altKey && e.key.toLowerCase() === "a") {
       const t = e.target as HTMLElement;
-      if (t.closest("input, textarea, select, [contenteditable=true]")) return;
+      if (t.isContentEditable || t.closest("input, textarea, select")) return;
       const id = t.closest<HTMLElement>(".react-flow__node")?.dataset.id ?? selectedId;
       if (!id) return;
       e.preventDefault();
@@ -1827,6 +1834,10 @@ function EditorInner() {
                 const start = connectStart.current;
                 connectStart.current = null;
                 if (!canMenu || !state.fromNode || state.toNode || !p || !start || Math.hypot(p.x - start.x, p.y - start.y) < 24) return;
+                // React Flow reports no target unless the drop is near a handle, so check what is under the
+                // pointer: empty canvas only — not an element's body, a panel, or outside the canvas.
+                const under = document.elementsFromPoint(p.x, p.y);
+                if (!under.some((el) => el.closest(".react-flow")) || under.some((el) => el.closest(".react-flow__node, .react-flow__panel, .react-flow__node-toolbar"))) return;
                 const f = flow.screenToFlowPosition(p);
                 const snap = (v: number) => (view.snap ? Math.round(v / 16) * 16 : Math.round(v));
                 // Centered on the drop point; with lanes on it goes to its own layer instead, as a drag would.

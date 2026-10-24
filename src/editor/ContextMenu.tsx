@@ -99,6 +99,8 @@ export function ContextMenu({
             role={it.kind === "check" ? "menuitemcheckbox" : "menuitem"}
             aria-checked={it.kind === "check" ? it.checked : undefined}
             aria-disabled={it.kind === "item" && it.disabled ? true : undefined}
+            // A second line reads as its own part of the name ("New Host, Runs on::Runs").
+            aria-label={it.kind === "item" && it.note ? `${it.label}, ${it.note}` : undefined}
             tabIndex={-1}
             className={`${itemClass} ${it.kind === "item" && it.danger ? "text-status" : "text-ink"}`}
             onClick={() => {

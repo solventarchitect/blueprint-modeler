@@ -53,10 +53,40 @@ describe("relatedClasses (M53 quick-add)", () => {
   it("lists every class that can be added related to the element, not just the first five, in build order", () => {
     const all = relatedClasses(m([["svc", "application_service"]]), "svc");
     expect(all.length).toBeGreaterThan(5);
-    // The same leading order as the suggestion card, which caps it.
-    const capped = suggestions(m([["svc", "application_service"]]), "svc").filter((x) => x.kind === "new").map((x) => (x as { cls: string }).cls);
-    expect(all.slice(0, capped.length).map((x) => x.cls)).toEqual(capped);
     expect(new Set(all.map((x) => x.cls)).size).toBe(all.length);
+  });
+
+  it("keeps the suggestion card exactly as it was before quick-add (pinned from main, 2026-10-24)", () => {
+    const pinned: Record<string, [string, boolean, string][]> = {
+      application_service: [
+        ["business_application", false, "Uses::Used by"],
+        ["business_service_offering", false, "Depends on::Used by"],
+        ["technology_management_service_offering", false, "Contains::Contained by"],
+        ["application", true, "Depends on::Used by"],
+        ["host", true, "Depends on::Used by"],
+      ],
+      business_application: [
+        ["business_capability", false, "Provided by::Provides"],
+        ["application_service", true, "Uses::Used by"],
+        ["information_object", true, "Uses::Used by"],
+        ["business_process", false, "Depends on::Used by"],
+      ],
+      host: [
+        ["application_service", false, "Depends on::Used by"],
+        ["application", false, "Runs on::Runs"],
+      ],
+      kubernetes_workload: [
+        ["application_service", false, "Depends on::Used by"],
+        ["kubernetes_cluster", true, "Hosted on::Hosts"],
+        ["kubernetes_service", false, "Provides::Provided by"],
+      ],
+    };
+    for (const [cls, want] of Object.entries(pinned)) {
+      const card = suggestions(m([["x", cls]]), "x").flatMap((s) => (s.kind === "new" ? [[s.cls, s.outgoing, s.type]] : []));
+      expect(card, cls).toEqual(want);
+      // Quick-add lists the same classes first, then the rest.
+      expect(relatedClasses(m([["x", cls]]), "x").slice(0, want.length).map((s) => [s.cls, s.outgoing, s.type]), cls).toEqual(want);
+    }
   });
 
   it("every entry is an allowed relationship in its direction, and adding it is one undo step", () => {
