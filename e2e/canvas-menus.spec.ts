@@ -1,25 +1,16 @@
 import AxeBuilder from "@axe-core/playwright";
 import { expect, test, type Page } from "@playwright/test";
 import { contrastOf } from "./contrast";
-import { openExample } from "./examples";
-import { settled } from "./layout";
+import { openExampleFitted } from "./examples";
 
 const tags = ["wcag2a", "wcag2aa", "wcag21aa", "wcag22aa"];
 const node = (page: Page, name: string) => page.locator(".react-flow__node").filter({ hasText: name });
 
-/**
- * Opens the checkout example and waits for its fit: the editor fits a new example a moment after it
- * appears, so a drag aimed before then lands where the label used to be (seen on Mike's PC under load).
- */
 async function openCheckout(page: Page) {
   await page.goto("/editor");
   await expect(page.getByTestId("save-status")).toHaveText("Saved in this browser");
-  const viewport = () => page.locator(".react-flow__viewport").evaluate((el) => (el as HTMLElement).style.transform);
-  const blank = await viewport();
-  await openExample(page, "Online Store Checkout");
+  await openExampleFitted(page, "Online Store Checkout");
   await expect(page.locator(".react-flow__node")).toHaveCount(14);
-  await expect.poll(viewport).not.toBe(blank);
-  await settled(page);
 }
 
 /** A node's canvas position, read from its transform. */

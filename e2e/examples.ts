@@ -1,4 +1,5 @@
 import { expect, type Page } from "@playwright/test";
+import { settled } from "./layout";
 
 /** The Examples mega menu: its toolbar button and its panel. */
 export const examplesButton = (page: Page) => page.getByRole("button", { name: "Examples", exact: true });
@@ -9,6 +10,18 @@ export async function openExample(page: Page, name: string) {
   await examplesButton(page).click();
   await examplesMenu(page).getByRole("button", { name, exact: true }).click();
   await expect(examplesMenu(page)).toBeHidden();
+}
+
+/**
+ * Opens an example and waits for its fit: the editor fits a new example a moment after it appears,
+ * so a pointer aimed, or a zoom made, before then is undone by it (seen on Mike's PC under load).
+ */
+export async function openExampleFitted(page: Page, name: string) {
+  const viewport = () => page.locator(".react-flow__viewport").evaluate((el) => (el as HTMLElement).style.transform);
+  const before = await viewport();
+  await openExample(page, name);
+  await expect.poll(viewport).not.toBe(before);
+  await settled(page);
 }
 
 /** Every example's name, in menu order (Blank model left out). */
