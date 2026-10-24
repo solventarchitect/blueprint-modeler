@@ -2,7 +2,8 @@ import { describe, expect, it } from "vitest";
 import { classById } from "@/metamodel";
 import { createModel, type Model } from "@/model";
 import { initialHistory, reduce, SLOT } from "./state";
-import { suggestions } from "./suggest";
+import { relatedClasses, suggestions } from "./suggest";
+import { allowedTypes, classes, isExtended } from "@/metamodel";
 
 function m(nodes: [string, string][], edges: [string, string, string][] = []): Model {
   const model = createModel("T", new Date("2026-09-27T00:00:00Z"), "t");
@@ -45,5 +46,71 @@ describe("suggestions", () => {
       // Same column as the element when its lane has room there; beside it when they share a lane.
       expect(h.present.layout.n!.x, s.cls).toBe(classById(s.cls)!.layer === "design" ? SLOT : 0);
     }
+  });
+});
+
+describe("relatedClasses (M53 quick-add)", () => {
+  it("lists every class that can be added related to the element, not just the first five, in build order", () => {
+    const all = relatedClasses(m([["svc", "application_service"]]), "svc");
+    expect(all.length).toBeGreaterThan(5);
+    expect(new Set(all.map((x) => x.cls)).size).toBe(all.length);
+  });
+
+  it("keeps the suggestion card exactly as it was before quick-add (pinned from main, 2026-10-24)", () => {
+    const pinned: Record<string, [string, boolean, string][]> = {
+      application_service: [
+        ["business_application", false, "Uses::Used by"],
+        ["business_service_offering", false, "Depends on::Used by"],
+        ["technology_management_service_offering", false, "Contains::Contained by"],
+        ["application", true, "Depends on::Used by"],
+        ["host", true, "Depends on::Used by"],
+      ],
+      business_application: [
+        ["business_capability", false, "Provided by::Provides"],
+        ["application_service", true, "Uses::Used by"],
+        ["information_object", true, "Uses::Used by"],
+        ["business_process", false, "Depends on::Used by"],
+      ],
+      host: [
+        ["application_service", false, "Depends on::Used by"],
+        ["application", false, "Runs on::Runs"],
+      ],
+      kubernetes_workload: [
+        ["application_service", false, "Depends on::Used by"],
+        ["kubernetes_cluster", true, "Hosted on::Hosts"],
+        ["kubernetes_service", false, "Provides::Provided by"],
+      ],
+    };
+    for (const [cls, want] of Object.entries(pinned)) {
+      const card = suggestions(m([["x", cls]]), "x").flatMap((s) => (s.kind === "new" ? [[s.cls, s.outgoing, s.type]] : []));
+      expect(card, cls).toEqual(want);
+      // Quick-add lists the same classes first, then the rest.
+      expect(relatedClasses(m([["x", cls]]), "x").slice(0, want.length).map((s) => [s.cls, s.outgoing, s.type]), cls).toEqual(want);
+    }
+  });
+
+  it("every entry is an allowed relationship in its direction, and adding it is one undo step", () => {
+    const model = m([["svc", "application_service"]]);
+    for (const s of relatedClasses(model, "svc")) {
+      const [from, to] = s.outgoing ? ["application_service", s.cls] : [s.cls, "application_service"];
+      expect(allowedTypes(from, to), s.cls).toContain(s.type);
+      const h = reduce(initialHistory(model), { type: "add-related", id: "n", class: s.cls, name: "New", edgeId: "e", relatedTo: "svc", outgoing: s.outgoing, edgeType: s.type });
+      expect(h.present.edges, s.cls).toHaveLength(1);
+      expect(h.past, s.cls).toHaveLength(1);
+    }
+  });
+
+  it("leaves out the generic Service Instance; extended classes only when asked for or the element is one", () => {
+    const core = relatedClasses(m([["ba", "business_application"]]), "ba");
+    expect(core.some((x) => x.cls === "service_instance")).toBe(false);
+    const extendedIds = new Set<string>(classes.filter(isExtended).map((c) => c.id));
+    expect(core.some((x) => extendedIds.has(x.cls))).toBe(false);
+    const withExtended = relatedClasses(m([["ba", "business_application"]]), "ba", { extended: true });
+    expect(withExtended.some((x) => extendedIds.has(x.cls))).toBe(true);
+    expect(withExtended.length).toBeGreaterThan(core.length);
+  });
+
+  it("is empty for an unknown element", () => {
+    expect(relatedClasses(m([["ba", "business_application"]]), "nope")).toEqual([]);
   });
 });
