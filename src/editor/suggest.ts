@@ -31,6 +31,41 @@ const PRIORITY: string[] = [
 const MAX_EXISTING = 3;
 const MAX_NEW = 5;
 
+type NewSuggestion = Extract<Suggestion, { kind: "new" }>;
+
+/** Build-order rank of a class beside `cls` (the same class last), and the allowed pairing with it. */
+function relate(cls: string) {
+  const rank = (other: string) => (other === cls ? 900 : PRIORITY.includes(other) ? PRIORITY.indexOf(other) : 500);
+  const pair = (other: string) => {
+    const out = allowedTypes(cls, other)[0];
+    if (out) return { outgoing: true, type: out };
+    const inn = allowedTypes(other, cls)[0];
+    return inn ? { outgoing: false, type: inn } : null;
+  };
+  return { rank, pair };
+}
+
+/**
+ * Every class a new element could have, related to `nodeId` (M53 quick-add), in build order, each
+ * with the direction and preferred type the metamodel requires — so adding one always gives an
+ * allowed relationship. The generic Service Instance is never offered (pick a type); CMDB extension
+ * classes only for elements outside the CSDM core; extended classes when the element is one, or
+ * when `extended` is on (the palette shows them).
+ */
+export function relatedClasses(model: Model, nodeId: string, { extended = false }: { extended?: boolean } = {}): NewSuggestion[] {
+  const node = model.nodes.find((n) => n.id === nodeId);
+  const def = node && classById(node.class);
+  if (!node || !def) return [];
+  const { rank, pair } = relate(node.class);
+  return classes
+    .filter((c) => c.id !== "service_instance" && (isCsdmCore(c) || !isCsdmCore(def)) && (!isExtended(c) || extended || isExtended(def)))
+    .flatMap((c) => {
+      const p = pair(c.id);
+      return p ? [{ kind: "new" as const, cls: c.id, outgoing: p.outgoing, type: p.type, classLabel: c.label }] : [];
+    })
+    .sort((a, b) => rank(a.cls) - rank(b.cls));
+}
+
 /**
  * Relationships to offer for `nodeId`: elements already on the canvas it can relate to (nearest
  * first in the build order), then new elements to add. Each carries the direction and preferred
@@ -40,13 +75,7 @@ export function suggestions(model: Model, nodeId: string): Suggestion[] {
   const node = model.nodes.find((n) => n.id === nodeId);
   const def = node && classById(node.class);
   if (!node || !def) return [];
-  const rank = (cls: string) => (cls === node.class ? 900 : PRIORITY.includes(cls) ? PRIORITY.indexOf(cls) : 500);
-  const pair = (other: string) => {
-    const out = allowedTypes(node.class, other)[0];
-    if (out) return { outgoing: true, type: out };
-    const inn = allowedTypes(other, node.class)[0];
-    return inn ? { outgoing: false, type: inn } : null;
-  };
+  const { rank, pair } = relate(node.class);
 
   const related = new Set(model.edges.flatMap((e) => (e.from === nodeId ? [e.to] : e.to === nodeId ? [e.from] : [])));
   const existing: Suggestion[] = model.nodes
@@ -69,18 +98,7 @@ export function suggestions(model: Model, nodeId: string): Suggestion[] {
     .slice(0, MAX_EXISTING)
     .map((x) => x.s);
 
-  // New elements: the generic Service Instance is never suggested (pick a type); CMDB extension
-  // classes only for elements outside the CSDM core, and extended classes only for extended ones.
-  const fresh: Suggestion[] = classes
-    .filter((c) => c.id !== "service_instance" && (isCsdmCore(c) || !isCsdmCore(def)) && (!isExtended(c) || isExtended(def)))
-    .flatMap((c) => {
-      const p = pair(c.id);
-      return p ? [{ kind: "new" as const, cls: c.id, outgoing: p.outgoing, type: p.type, classLabel: c.label }] : [];
-    })
-    .sort((a, b) => rank(a.cls) - rank(b.cls))
-    .slice(0, MAX_NEW);
-
-  return [...existing, ...fresh];
+  return [...existing, ...relatedClasses(model, nodeId).slice(0, MAX_NEW)];
 }
 
 /** Accessible name and visible label of one suggestion. */

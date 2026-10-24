@@ -3,7 +3,7 @@
 import { useEffect, useLayoutEffect, useRef, useState } from "react";
 
 export type MenuItem =
-  | { kind: "item"; label: string; onSelect: () => void; disabled?: boolean; danger?: boolean }
+  | { kind: "item"; label: string; onSelect: () => void; disabled?: boolean; danger?: boolean; /** A second line, e.g. the relationship type (M53). */ note?: string }
   | { kind: "check"; label: string; checked: boolean; onSelect: () => void }
   | { kind: "separator" };
 
@@ -84,7 +84,7 @@ export function ContextMenu({
       role="menu"
       aria-label={label}
       data-testid="context-menu"
-      className="fixed z-50 min-w-56 border border-border-strong bg-surface-raised py-1 shadow-lg"
+      className="fixed z-50 max-h-[min(70vh,32rem)] min-w-56 overflow-y-auto border border-border-strong bg-surface-raised py-1 shadow-lg"
       style={pos}
       onKeyDown={onKeyDown}
       onContextMenu={(e) => e.preventDefault()}
@@ -112,7 +112,14 @@ export function ContextMenu({
                 {it.checked ? "✓" : ""}
               </span>
             )}
-            {it.label}
+            {it.kind === "item" && it.note ? (
+              <span className="flex flex-col">
+                <span>{it.label}</span>
+                <span className="font-mono text-[0.65rem] text-ink-muted">{it.note}</span>
+              </span>
+            ) : (
+              it.label
+            )}
           </button>
         ),
       )}

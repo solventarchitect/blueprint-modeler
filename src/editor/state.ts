@@ -18,7 +18,7 @@ export type Action =
   | { type: "delete-node"; id: string }
   | { type: "delete-nodes"; ids: string[] }
   | { type: "add-edge"; id: string; from: string; to: string; edgeType?: string }
-  | { type: "add-related"; id: string; class: ClassId; name: string; edgeId: string; relatedTo: string; outgoing: boolean; edgeType: string }
+  | { type: "add-related"; id: string; class: ClassId; name: string; edgeId: string; relatedTo: string; outgoing: boolean; edgeType: string; at?: { x: number; y: number } }
   | { type: "delete-edge"; id: string }
   | { type: "update-edge"; id: string; from: string; to: string; edgeType: string }
   | { type: "set-layout"; layout: Model["layout"] }
@@ -159,7 +159,8 @@ function apply(model: Model, action: Action): Model | null {
       const withNode = {
         ...model,
         nodes: [...model.nodes, node],
-        layout: { ...model.layout, [action.id]: placeNear(model, action.class, model.layout[anchor.id]?.x ?? 0) },
+        // Where it was dropped (M53), else in its layer near the element it relates to.
+        layout: { ...model.layout, [action.id]: action.at ?? placeNear(model, action.class, model.layout[anchor.id]?.x ?? 0) },
       };
       const [from, to] = action.outgoing ? [anchor.id, action.id] : [action.id, anchor.id];
       if (connectionProblem(withNode, from, to, action.edgeType)) return null;

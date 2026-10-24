@@ -81,7 +81,7 @@ import { readModel, type Sentence } from "./reading";
 import { Inspector } from "./Inspector";
 import { Palette } from "./Palette";
 import { connectionProblem, modernEdge, SLOT } from "./state";
-import { suggestions, type Suggestion } from "./suggest";
+import { relatedClasses, suggestionDetail, suggestions, type Suggestion } from "./suggest";
 import { useModelDocument, type SaveStatus } from "./useModelDocument";
 
 const nodeTypes = { csdm: ClassNode };
@@ -243,7 +243,9 @@ function EditorInner() {
   const [selectedLayer, setSelectedLayer] = useState<Layer | null>(null);
   const [dismissed, setDismissed] = useState<Set<string>>(() => new Set());
   const [reveal, setReveal] = useState<string | null>(null);
-  const [menu, setMenu] = useState<{ x: number; y: number; label: string; items: MenuItem[] } | null>(null);
+  // n: a fresh menu each opening, so one menu opening another (Add a related element…) moves focus again.
+  const [menu, setMenu] = useState<{ x: number; y: number; label: string; items: MenuItem[]; n: number } | null>(null);
+  const menuCount = useRef(0);
   const menuReturn = useRef<HTMLElement | null>(null);
   const layerDrag = useRef<{ layer: Layer; x: number; y: number; zoom: number; origin: Record<string, { x: number; y: number }>; moved: boolean } | null>(null);
   const [message, setMessage] = useState("");
@@ -1050,7 +1052,7 @@ function EditorInner() {
   }, [boxes, selectedLayer]);
 
   // Suggestions for an element with no relationships: on the canvas beside it, and in the Inspector.
-  const pickSuggestion = (nodeId: string, s: Suggestion) => {
+  const pickSuggestion = (nodeId: string, s: Suggestion, at?: { x: number; y: number }) => {
     const anchor = model.nodes.find((n) => n.id === nodeId);
     if (!anchor) return;
     const anchorName = anchor.name || "Untitled";
@@ -1060,7 +1062,7 @@ function EditorInner() {
       return;
     }
     const id = newId();
-    dispatch({ type: "add-related", id, class: s.cls, name: `New ${s.classLabel}`, edgeId: newId(), relatedTo: nodeId, outgoing: s.outgoing, edgeType: s.type });
+    dispatch({ type: "add-related", id, class: s.cls, name: `New ${s.classLabel}`, edgeId: newId(), relatedTo: nodeId, outgoing: s.outgoing, edgeType: s.type, at });
     selectNode(id);
     setReveal(id);
     setFocusName((k) => k + 1);
@@ -1072,10 +1074,44 @@ function EditorInner() {
     dismiss: (nodeId: string) => setDismissed((d) => new Set(d).add(nodeId)),
   };
 
+  // Quick-add (M53): a menu of every class that can be added related to an element, opened by
+  // dropping a line on empty canvas (placed where it was dropped) or by Shift+A, the element's menu
+  // or the palette (placed in its layer near the element). One choice = element + relationship, one undo step.
+  const nodeEl = (id: string) => document.querySelector<HTMLElement>(`.react-flow__node[data-id="${CSS.escape(id)}"]`);
+  const openQuickAdd = (nodeId: string, x: number, y: number, returnTo: HTMLElement | null, at?: { x: number; y: number }) => {
+    const n = model.nodes.find((x) => x.id === nodeId);
+    if (!n) return;
+    const name = n.name || "Untitled";
+    const items: MenuItem[] = relatedClasses(model, nodeId, { extended: view.extended }).map((s) => ({
+      kind: "item",
+      label: `New ${s.classLabel}`,
+      note: suggestionDetail(s),
+      onSelect: () => pickSuggestion(nodeId, s, at),
+    }));
+    if (items.length === 0) {
+      setMessage(`Nothing can be added related to ${name} in CSDM.`);
+      return;
+    }
+    setMessage(`Choose a new element to relate to ${name}.`);
+    openMenu(x, y, `Add related to ${name}`, items, returnTo);
+  };
+  /** Quick-add for an element, the menu just below it. */
+  const quickAddAt = (nodeId: string) => {
+    const el = nodeEl(nodeId);
+    const r = el?.getBoundingClientRect();
+    openQuickAdd(nodeId, (r?.left ?? 0) + 8, (r?.bottom ?? 0) + 4, el);
+  };
+  // Where a drawn line started, so a click on a handle (no drag) does not open the menu.
+  const connectStart = useRef<{ x: number; y: number } | null>(null);
+  const clientPoint = (e: MouseEvent | TouchEvent) => {
+    const t = "changedTouches" in e ? e.changedTouches[0] : e;
+    return t ? { x: t.clientX, y: t.clientY } : null;
+  };
+
   // Right-click menus, built for what was clicked.
   const openMenu = (x: number, y: number, label: string, items: MenuItem[], returnTo: HTMLElement | null) => {
     menuReturn.current = returnTo;
-    setMenu({ x, y, label, items });
+    setMenu({ x, y, label, items, n: ++menuCount.current });
   };
   const closeMenu = useCallback((restoreFocus: boolean) => {
     setMenu(null);
@@ -1096,6 +1132,7 @@ function EditorInner() {
     return [
       { kind: "item", label: "Rename", onSelect: () => (selectNode(id), setFocusName((k) => k + 1)) },
       { kind: "item", label: "Add a relationship…", onSelect: () => (selectNode(id), setFocusConnect((k) => k + 1)) },
+      { kind: "item", label: "Add a related element…", onSelect: () => quickAddAt(id) },
       {
         kind: "item",
         label: "Duplicate",
@@ -1190,6 +1227,17 @@ function EditorInner() {
     return `${n?.name || "Untitled"} menu`;
   };
   const onCanvasKeyDown = (e: ReactKeyboardEvent<HTMLDivElement>) => {
+    // Shift+A: quick-add to the focused element, else the selected one (M53).
+    if (canMenu && e.shiftKey && !e.ctrlKey && !e.metaKey && !e.altKey && e.code === "KeyA") {
+      const t = e.target as HTMLElement;
+      if (t.closest("input, textarea, select, [contenteditable=true]")) return;
+      const id = t.closest<HTMLElement>(".react-flow__node")?.dataset.id ?? selectedId;
+      if (!id) return;
+      e.preventDefault();
+      selectNode(id);
+      quickAddAt(id);
+      return;
+    }
     if (!canMenu || !(e.key === "ContextMenu" || (e.shiftKey && e.key === "F10"))) return;
     const t = e.target as HTMLElement;
     e.preventDefault();
@@ -1446,6 +1494,9 @@ function EditorInner() {
         ? classes
             .filter((c) => view.extended || !isExtended(c))
             .map((c): Command => ({ id: `add-${c.id}`, group: "Add", label: `Add ${c.label}`, keywords: "new element", run: () => addNode(c.id) }))
+        : []),
+      ...(wide
+        ? [{ id: "quick-add", group: "Add", label: "Add a related element…", keys: "Shift+A", keywords: "connect new relationship", disabled: selectedId ? undefined : "Select an element first", run: () => selectedId && quickAddAt(selectedId) }]
         : []),
       ...(wide
         ? layoutChoices.map((c): Command => ({ id: `layout-${c.id}`, group: "Layout", label: c.id === "auto" ? c.label : `Layout: ${c.label}`, keywords: "arrange", disabled: empty ?? (layingOut ? "A layout is running" : undefined), run: () => chooseLayout(c.id) }))
@@ -1767,25 +1818,36 @@ function EditorInner() {
               onEdgesChange={onEdgesChange}
               onConnect={onConnect}
               isValidConnection={(c) => connectionProblem(model, c.source, c.target) === null}
-              onConnectEnd={(_, state) => {
+              onConnectEnd={(event, state) => {
                 connecting.current = false;
                 // Refused connections never reach onConnect, so explain them here.
                 if (state.fromNode && state.toNode && !state.isValid) setMessage(connectionProblem(model, state.fromNode.id, state.toNode.id) ?? "");
+                // Dropped on empty canvas after a real drag: offer a new element there (M53).
+                const p = clientPoint(event);
+                const start = connectStart.current;
+                connectStart.current = null;
+                if (!canMenu || !state.fromNode || state.toNode || !p || !start || Math.hypot(p.x - start.x, p.y - start.y) < 24) return;
+                const f = flow.screenToFlowPosition(p);
+                const snap = (v: number) => (view.snap ? Math.round(v / 16) * 16 : Math.round(v));
+                // Centered on the drop point; with lanes on it goes to its own layer instead, as a drag would.
+                const at = view.lanes ? undefined : { x: snap(f.x - DEFAULT_SIZE.width / 2), y: snap(f.y - DEFAULT_SIZE.height / 2) };
+                openQuickAdd(state.fromNode.id, p.x, p.y, nodeEl(state.fromNode.id), at);
               }}
               connectionLineComponent={ConnectionLine}
               onNodeMouseEnter={(_, n) => hoverNode(n.id)}
               onNodeMouseLeave={() => hoverNode(null)}
               onNodeDragStart={() => hoverNode(null)}
-              onConnectStart={(_, { nodeId }) => {
+              onConnectStart={(event, { nodeId }) => {
                 connecting.current = true;
+                connectStart.current = clientPoint(event);
                 hoverNode(null);
                 const from = model.nodes.find((n) => n.id === nodeId);
                 if (!from) return;
                 const count = model.nodes.filter((n) => n.id !== from.id && connectionProblem(model, from.id, n.id) === null).length;
                 setMessage(
                   count
-                    ? `Drop on an outlined element: ${count} can take a relationship from ${from.name || "this element"}.`
-                    : `Nothing on the canvas can take a relationship drawn from ${from.name || "this element"}. Try drawing it from the other element, or add one from the palette.`,
+                    ? `Drop on an outlined element: ${count} can take a relationship from ${from.name || "this element"}. Or drop on empty canvas to add a new one.`
+                    : `Nothing on the canvas can take a relationship drawn from ${from.name || "this element"}. Drop on empty canvas to add a new related element, or try drawing it from the other element.`,
                 );
               }}
               onPaneClick={() => {
@@ -1975,7 +2037,7 @@ function EditorInner() {
       />
       {palette && <CommandPalette commands={paletteCommands()} onClose={(chosen) => dialogClosed(setPalette, chosen)} />}
       {shortcuts && <ShortcutMap onClose={() => dialogClosed(setShortcuts)} />}
-      {menu && <ContextMenu x={menu.x} y={menu.y} label={menu.label} items={menu.items} onClose={closeMenu} />}
+      {menu && <ContextMenu key={menu.n} x={menu.x} y={menu.y} label={menu.label} items={menu.items} onClose={closeMenu} />}
       <div className={`${presenting ? "hidden" : "flex"} flex-wrap items-center justify-between gap-2 border-t border-border px-4 py-1.5 text-xs text-ink-muted`}>
         <p role="status" aria-live="polite">
           {message}
