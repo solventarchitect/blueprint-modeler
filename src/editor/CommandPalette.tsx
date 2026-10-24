@@ -96,6 +96,8 @@ export function CommandPalette({ commands, onClose }: { commands: Command[]; onC
             aria-selected={c === current}
             aria-disabled={c.disabled ? true : undefined}
             onPointerMove={() => c !== current && setActive(i)}
+            // Keep focus in the search box, so typing goes on working after a click.
+            onMouseDown={(e) => e.preventDefault()}
             onClick={() => choose(c)}
             className={`flex cursor-pointer items-center gap-3 px-3 py-1.5 text-sm ${c === current ? "bg-surface-raised" : ""} ${c.disabled ? "cursor-not-allowed" : ""}`}
           >

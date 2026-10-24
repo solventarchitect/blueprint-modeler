@@ -123,11 +123,19 @@ test.describe("command palette and shortcut map (M52, desktop)", () => {
     await expect(minimap).toBeVisible();
     await run(page, "minimap", "Hide minimap");
     await expect(minimap).toHaveCount(0);
-    await run(page, "minimap", "Show minimap");
+    // By mouse this time.
+    await openPalette(page);
+    await search(page).fill("minimap");
+    await palette(page).getByRole("option", { name: /^Show minimap/ }).click();
+    await expect(palette(page)).toHaveCount(0);
     await expect(minimap).toBeVisible();
+    // Snapping is turned on, not shown.
+    await openPalette(page);
+    await search(page).fill("snap");
+    await expect(options(page).first()).toHaveText(/^Turn on snap to grid/);
   });
 
-  test("Escape in the palette leaves an open blast radius open", async ({ page }) => {
+  test("Escape in the palette or the shortcut map leaves an open blast radius open", async ({ page }) => {
     await openCheckout(page);
     await page.locator(".react-flow__node").filter({ hasText: "Orders database" }).click({ button: "right" });
     await page.getByRole("menuitem", { name: /blast radius/i }).click();
@@ -137,6 +145,53 @@ test.describe("command palette and shortcut map (M52, desktop)", () => {
     await page.keyboard.press("Escape");
     await expect(palette(page)).toHaveCount(0);
     await expect(region).toBeVisible();
+    // The shortcut map has no text field to hold the key: its own guard is what keeps the view open.
+    await page.keyboard.press("?");
+    await expect(page.getByRole("dialog", { name: "Keyboard shortcuts" })).toBeVisible();
+    await page.keyboard.press("Escape");
+    await expect(page.getByRole("dialog", { name: "Keyboard shortcuts" })).toHaveCount(0);
+    await expect(region).toBeVisible();
+  });
+
+  test("editing keys do nothing to the canvas behind an open palette or shortcut map", async ({ page }) => {
+    await openCheckout(page);
+    await page.locator(".react-flow__node").filter({ hasText: "Orders database" }).click();
+    await expect(page.locator(".react-flow__node.selected")).toHaveCount(1);
+    const zoom = async () => Number(/scale\(([\d.]+)\)/.exec(await page.locator(".react-flow__viewport").evaluate((el) => (el as HTMLElement).style.transform))![1]);
+    const before = await zoom();
+    expect(before).toBeLessThan(0.9);
+    await page.keyboard.press("?");
+    const map = page.getByRole("dialog", { name: "Keyboard shortcuts" });
+    await expect(map).toBeVisible();
+    await page.keyboard.press("Delete");
+    await page.keyboard.press("Backspace");
+    await page.waitForTimeout(200);
+    await expect(page.locator(".react-flow__node")).toHaveCount(14);
+    await page.keyboard.press("Shift+0");
+    await page.waitForTimeout(400); // a zoom would animate for 300 ms
+    expect(await zoom()).toBeCloseTo(before, 2);
+    await page.keyboard.press("Escape");
+
+    // A click on an entry keeps focus in the search box, so typing goes on working.
+    await openPalette(page);
+    await search(page).fill("redo");
+    await palette(page).getByRole("option", { name: /^Redo/ }).click({ force: true }); // aria-disabled: Playwright would wait for it to enable
+    await expect(search(page)).toBeFocused();
+    await expect(palette(page).locator("[aria-live]")).toHaveText("Redo: Nothing to redo");
+    // With focus off the box anyway, editing keys still stay away from the canvas.
+    await search(page).evaluate((el) => (el as HTMLElement).blur());
+    await expect(search(page)).not.toBeFocused();
+    await page.keyboard.press("Delete");
+    await page.keyboard.press(`${mod}+z`);
+    await expect(palette(page)).toBeVisible();
+    await expect(page.locator(".react-flow__node")).toHaveCount(14);
+    // Ctrl/⌘K inside the open palette is kept from the browser (its own search-bar shortcut).
+    const prevented = await page.evaluate(() => {
+      const ev = new KeyboardEvent("keydown", { key: "k", code: "KeyK", ctrlKey: true, metaKey: navigator.platform.includes("Mac"), bubbles: true, cancelable: true });
+      document.querySelector("[role=combobox]")!.dispatchEvent(ev);
+      return ev.defaultPrevented;
+    });
+    expect(prevented).toBe(true);
   });
 
   test("Ctrl/⌘K works from a text field; ? does not; neither works while presenting", async ({ page }) => {
@@ -167,7 +222,7 @@ test.describe("command palette and shortcut map (M52, desktop)", () => {
     await button.focus();
     await page.keyboard.press("?");
     await expect(map).toBeVisible();
-    for (const area of ["Anywhere in the editor", "Canvas", "Details", "Presenting"]) await expect(map.getByRole("heading", { name: area })).toBeVisible();
+    for (const area of ["Anywhere in the editor", "Canvas", "Side panel", "Presenting"]) await expect(map.getByRole("heading", { name: area })).toBeVisible();
     await expect(map).toContainText("Zoom to selection");
     await page.keyboard.press("Escape");
     await expect(map).toHaveCount(0);

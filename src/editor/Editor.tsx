@@ -321,18 +321,20 @@ function EditorInner() {
       const el = e.target as HTMLElement | null;
       const mod = e.ctrlKey || e.metaKey;
       // Ctrl/⌘K opens the command palette from anywhere, text fields included; ? the shortcut map (M52).
-      // Neither while presenting or while a dialog is open (read from the page: state lags a fast second key).
-      const free = !presenting && !document.querySelector("dialog[open]");
-      if (mod && !e.shiftKey && !e.altKey && (e.code === "KeyK" || e.key.toLowerCase() === "k")) {
-        if (!free) return;
-        e.preventDefault();
+      // Ctrl/⌘K never reaches the browser (its search-bar shortcut). While a dialog is open (read from the
+      // page: state lags a fast second key) no editor shortcut acts on the canvas behind it.
+      const isK = mod && !e.shiftKey && !e.altKey && (e.code === "KeyK" || e.key.toLowerCase() === "k");
+      if (isK) e.preventDefault();
+      if (document.querySelector("dialog[open]")) return;
+      if (isK) {
+        if (presenting) return;
         dialogReturn.current = document.activeElement instanceof HTMLElement ? document.activeElement : null;
         setPalette(true);
         return;
       }
       if (el && (el.tagName === "INPUT" || el.tagName === "TEXTAREA" || el.tagName === "SELECT" || el.isContentEditable)) return;
       if (e.key === "?" && !mod && !e.altKey) {
-        if (!free) return;
+        if (presenting) return;
         e.preventDefault();
         dialogReturn.current = document.activeElement instanceof HTMLElement ? document.activeElement : null;
         setShortcuts(true);
@@ -832,6 +834,10 @@ function EditorInner() {
       .then(setShare)
       .catch(() => setCanShare(false));
   };
+  // The palette lists Copy link too: make the link as it opens, as the Export menu does.
+  useEffect(() => {
+    if (palette) prepareShare();
+  }, [palette]); // eslint-disable-line react-hooks/exhaustive-deps -- once per opening, for the model open then
   // Where the link is shown for copying by hand (the clipboard refused it), and where focus returns after.
   const [linkField, setLinkField] = useState<string | null>(null);
   const linkInput = useRef<HTMLInputElement>(null);
@@ -1447,7 +1453,8 @@ function EditorInner() {
       ...viewItems.map((it): Command => ({
         id: `view-${it.key}`,
         group: "View",
-        label: `${view[it.key] ? "Hide" : "Show"} ${it.label.toLowerCase()}`,
+        // Snapping is turned on, the rest are shown.
+        label: it.key === "snap" ? `Turn ${view.snap ? "off" : "on"} snap to grid` : `${view[it.key] ? "Hide" : "Show"} ${it.label.toLowerCase()}`,
         keywords: it.note,
         run: () => setView({ ...view, [it.key]: !view[it.key] }),
       })),
@@ -1815,7 +1822,7 @@ function EditorInner() {
               nodesDraggable={wide && !presenting}
               nodesConnectable={wide && !presenting}
               elementsSelectable={!presenting}
-              deleteKeyCode={wide && !presenting ? ["Delete", "Backspace"] : null}
+              deleteKeyCode={wide && !presenting && !palette && !shortcuts && !managing ? ["Delete", "Backspace"] : null}
               snapToGrid={view.snap}
               snapGrid={[16, 16]}
               fitView
