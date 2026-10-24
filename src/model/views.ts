@@ -53,7 +53,8 @@ export const MARKERS = {
 } as const;
 
 export type Slot = number | "other" | "none";
-export type LegendEntry = { value: string; label: string; count: number; slot: Slot };
+/** `key`: unique per row (the value, "" for Not set, or "(other)" for the values past the palette, gathered in one row). */
+export type LegendEntry = { key: string; value: string; label: string; count: number; slot: Slot };
 
 /** Every life cycle stage once, in the order the white paper's processes give them. */
 const STAGE_ORDER = [...new Set(Object.values(LIFE_CYCLE).flatMap((p) => p.stages))];
@@ -81,21 +82,28 @@ function slots(model: Model, by: Exclude<ColorBy, "layer">): { value: string; sl
 /** The legend for a coloring: each value with its slot and how many elements in the view carry it. */
 export function legend(model: Model, by: ColorBy, filter: ViewFilter): LegendEntry[] {
   if (by === "layer") return [];
-  const shown = model.nodes.filter((n) => inView(n, filter));
-  return slots(model, by).map(({ value, slot }) => ({
-    value,
-    label: value || "Not set",
-    slot,
-    count: shown.filter((n) => valueOf(n, by) === value).length,
-  }));
+  const counts = new Map<string, number>();
+  for (const n of model.nodes) if (inView(n, filter)) counts.set(valueOf(n, by), (counts.get(valueOf(n, by)) ?? 0) + 1);
+  const all = slots(model, by);
+  const count = (value: string) => counts.get(value) ?? 0;
+  // Values past the palette share one color and marker, so they share one row too.
+  const others = all.filter((s) => s.slot === "other");
+  return [
+    ...all.filter((s) => typeof s.slot === "number").map(({ value, slot }) => ({ key: value, value, label: value, slot, count: count(value) })),
+    ...(others.length ? [{ key: "(other)", value: "", label: `Other (${others.length} values)`, slot: "other" as const, count: others.reduce((a, s) => a + count(s.value), 0) }] : []),
+    ...all.filter((s) => s.slot === "none").map(() => ({ key: "", value: "", label: "Not set", slot: "none" as const, count: count("") })),
+  ];
 }
 
-/** An element's slot under a coloring (null when coloring by layer). */
-export function slotOf(model: Model, by: ColorBy, n: Node): Slot | null {
+/** The slot of every element under a coloring, worked out once for the whole model (null when coloring by layer). */
+export function slotMap(model: Model, by: ColorBy): ((n: Node) => Slot) | null {
   if (by === "layer") return null;
-  const v = valueOf(n, by);
-  return slots(model, by).find((s) => s.value === v)?.slot ?? "none";
+  const map = new Map(slots(model, by).map((s) => [s.value, s.slot]));
+  return (n) => map.get(valueOf(n, by)) ?? "none";
 }
+
+/** An element's slot under a coloring (null when coloring by layer). For many elements, use `slotMap`. */
+export const slotOf = (model: Model, by: ColorBy, n: Node): Slot | null => slotMap(model, by)?.(n) ?? null;
 
 /** A slot's color in a theme. */
 export const slotColor = (slot: Slot, theme: "dark" | "light") => (typeof slot === "number" ? PALETTE[theme][slot]! : PALETTE[slot][theme]);

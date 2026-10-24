@@ -63,7 +63,9 @@ describe("legend and color slots (M54)", () => {
     big.nodes = Array.from({ length: PALETTE.dark.length + 2 }, (_, i) => ({ id: `n${i}`, class: "host", name: `h${i}`, attrs: { owner: `Owner ${String(i).padStart(2, "0")}` } }));
     const slots = legend(big, "owner", {}).map((e) => e.slot);
     expect(slots.slice(0, PALETTE.dark.length)).toEqual(PALETTE.dark.map((_, i) => i));
-    expect(slots.slice(PALETTE.dark.length)).toEqual(["other", "other"]);
+    expect(slots.slice(PALETTE.dark.length)).toEqual(["other"]);
+    // The values past the palette look alike, so the legend gives them one row.
+    expect(legend(big, "owner", {}).at(-1)).toMatchObject({ key: "(other)", label: "Other (2 values)", count: 2 });
   });
 
   it("has nothing to list when coloring by layer", () => {

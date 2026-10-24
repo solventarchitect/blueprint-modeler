@@ -24,7 +24,8 @@ export const positionSchema = z.object({ x: z.number().finite(), y: z.number().f
 
 /** What a view can color elements by (M54). */
 export const COLOR_BY = ["layer", "lifecycle", "environment", "owner"] as const;
-const values = (max: number) => z.array(z.string().max(200)).max(max).optional();
+// Values as long as an element property can be (attrs strings), so any value in a model can be filtered on.
+const values = (max: number) => z.array(z.string().max(2000)).max(max).optional();
 /** A view's filter: within one dimension any value matches; every dimension given must match. "" = not set. */
 export const viewFilterSchema = z.object({
   layers: values(10),
@@ -33,6 +34,8 @@ export const viewFilterSchema = z.object({
   environment: values(200),
   owner: values(200),
 });
+/** How many views a model can hold. */
+export const MAX_VIEWS = 20;
 /** A saved view (M54): a named filter and coloring. Optional and additive in format 1. */
 export const viewSchema = z.object({
   id,
@@ -60,7 +63,7 @@ export const modelSchema = z.object({
   /** Saved views (M54); absent when there are none. Older versions ignore it. */
   views: z
     .array(viewSchema)
-    .max(20)
+    .max(MAX_VIEWS)
     .refine((vs) => new Set(vs.map((v) => v.id)).size === vs.length, "Two views share an id")
     .optional(),
 });

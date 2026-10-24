@@ -1,6 +1,6 @@
 import { archimateElements, archimateFill, archimateRelationshipFor, archimateTypeInk, edgeNotation, markerSvg, type Lens, type MarkerShape, showsArchimate } from "@/frameworks";
 import { classById, isClassId, type Layer } from "@/metamodel";
-import { COLOR_BY_LABEL, filterActive, formatModelDate, inView, legend, modelDate, PALETTE, slotColor, slotMarker, slotOf, UNTITLED_MODEL, type ColorBy, type Model, type ViewFilter } from "@/model";
+import { COLOR_BY_LABEL, filterActive, formatModelDate, inView, legend, modelDate, PALETTE, slotColor, slotMap, slotMarker, UNTITLED_MODEL, type ColorBy, type Model, type ViewFilter } from "@/model";
 import { layoutOrientation } from "@/layout/bands";
 import { planLabels } from "@/layout/edgeLabel";
 import { edgePath, type LineStyle } from "@/layout/edgePath";
@@ -117,6 +117,7 @@ export function modelToSvg(model: Model, theme: SvgTheme, opts: { lens?: Lens; h
   // "All elements" colored by layer draws exactly as without a view.
   const view = opts.view && (filterActive(opts.view.filter) || opts.view.colorBy !== "layer") ? opts.view : undefined;
   const faded = new Set(view ? model.nodes.filter((n) => !inView(n, view.filter)).map((n) => n.id) : []);
+  const slotFor = view ? slotMap(model, view.colorBy) : null;
   const lines = opts.lines ?? "curved";
   const showLabels = opts.labels ?? true;
   const hl = opts.highlight;
@@ -223,16 +224,15 @@ export function modelToSvg(model: Model, theme: SvgTheme, opts: { lens?: Lens; h
       if (am.atTo) shapes.add(am.atTo);
     }
     const stroke = carried ? `stroke="${hl?.flow ? p.ai : p.status}" stroke-width="2.5"${carried.current ? ` stroke-dasharray="10 6"` : ""}` : `stroke="${p.line}" stroke-width="1.25"`;
-    // A relationship to a faded element fades with it, as on the canvas.
+    // A relationship to a faded element fades with it, as on the canvas: the line only, so its label
+    // (muted ink on the background) stays readable.
     const fade = faded.has(e.from) || faded.has(e.to);
-    if (fade) edges.push(`<g opacity="0.2" data-faded="">`);
-    edges.push(`<path d="${pathD}" fill="none" ${stroke}${ends}/>`);
+    edges.push(`<path d="${pathD}" fill="none" ${stroke}${ends}${fade ? ` opacity="0.2" data-faded=""` : ""}/>`);
     if (showLabels)
       edges.push(
         `<rect x="${r1(mid.x - lw / 2)}" y="${r1(mid.y - 8)}" width="${r1(lw)}" height="16" fill="${p.bg}"/>`,
         `<text x="${r1(mid.x)}" y="${r1(mid.y + 4)}" text-anchor="middle" font-family="${MONO}" font-size="11" fill="${p.muted}">${esc(label)}</text>`,
       );
-    if (fade) edges.push(`</g>`);
   }
 
   const nodes: string[] = [];
@@ -240,19 +240,22 @@ export function modelToSvg(model: Model, theme: SvgTheme, opts: { lens?: Lens; h
     const b = boxes.get(n.id)!;
     const layer = classById(n.class)?.layer ?? "design";
     const alt = altOf(n.class);
+    // Faded by the view (M54): a ghost, as on the canvas: no fill, a dashed outline and bar, and text in
+    // the muted ink, which keeps 4.5:1 on the background, so the element stays readable.
+    const ghost = faded.has(n.id);
     const cls = b.lines
-      .map((l, i) => `<text x="${b.x + 14}" y="${b.y + 22 + i * 14}" font-family="${MONO}" font-size="10" letter-spacing="1.2" fill="${amOnly ? (fillOf(n.class) ? archimateTypeInk[theme] : p.ai) : p.muted}">${esc(l)}</text>`)
+      .map((l, i) => `<text x="${b.x + 14}" y="${b.y + 22 + i * 14}" font-family="${MONO}" font-size="10" letter-spacing="1.2" fill="${ghost ? p.muted : amOnly ? (fillOf(n.class) ? archimateTypeInk[theme] : p.ai) : p.muted}">${esc(l)}</text>`)
       .join("");
-    const slot = view ? slotOf(model, view.colorBy, n) : null;
+    const slot = slotFor?.(n) ?? null;
     nodes.push(
-      `<g${faded.has(n.id) ? ` opacity="0.28" data-faded=""` : ""}><rect x="${b.x}" y="${b.y}" width="${b.w}" height="${b.h}" fill="${fillOf(n.class) ?? p.node}" stroke="${p.line}"/>` +
-        `<rect x="${b.x}" y="${b.y}" width="4" height="${b.h}" fill="${slot === null ? layerColor(p, layer) : slotColor(slot, theme)}"/>` +
-        (slot === null ? "" : `<path data-slot="${slot}" d="${slotMarker(slot)}" transform="translate(${b.x + b.w - 18} ${b.y + 8})" fill="${slotColor(slot, theme)}" fill-rule="evenodd"/>`) +
+      `<g${ghost ? ` data-faded=""` : ""}><rect x="${b.x}" y="${b.y}" width="${b.w}" height="${b.h}" fill="${ghost ? p.bg : (fillOf(n.class) ?? p.node)}" stroke="${p.line}"${ghost ? ` stroke-dasharray="4 3"` : ""}/>` +
+        `<rect x="${b.x}" y="${b.y}" width="4" height="${b.h}" fill="${ghost ? p.line : slot === null ? layerColor(p, layer) : slotColor(slot, theme)}"/>` +
+        (slot === null ? "" : `<path data-slot="${slot}" d="${slotMarker(slot)}" transform="translate(${b.x + b.w - 18} ${b.y + 8})" fill="${slotColor(slot, theme)}" fill-rule="evenodd"${ghost ? ` opacity="0.4"` : ""}/>`) +
         cls +
-        `<text x="${b.x + 14}" y="${b.y + b.h - 14 - (alt ? 20 : 0)}" font-family="${SANS}" font-size="14" font-weight="500" fill="${p.ink}">${esc(clip(n.name || "Untitled", NAME_CHARS))}</text>` +
+        `<text x="${b.x + 14}" y="${b.y + b.h - 14 - (alt ? 20 : 0)}" font-family="${SANS}" font-size="14" font-weight="500" fill="${ghost ? p.muted : p.ink}">${esc(clip(n.name || "Untitled", NAME_CHARS))}</text>` +
         (alt
           ? `<line x1="${b.x + 14}" y1="${b.y + b.h - 26}" x2="${b.x + b.w - 10}" y2="${b.y + b.h - 26}" stroke="${p.line}" stroke-opacity="0.4"/>` +
-            `<text x="${b.x + 14}" y="${b.y + b.h - 10}" font-family="${MONO}" font-size="10" fill="${p.ai}">ArchiMate · ${esc(alt)}</text>`
+            `<text x="${b.x + 14}" y="${b.y + b.h - 10}" font-family="${MONO}" font-size="10" fill="${ghost ? p.muted : p.ai}">ArchiMate · ${esc(alt)}</text>`
           : "") +
         `</g>`,
     );

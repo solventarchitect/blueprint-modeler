@@ -3,7 +3,7 @@
 import { useCallback, useEffect, useId, useRef, useState } from "react";
 import { classById, LIFE_CYCLE } from "@/metamodel";
 import { LAYERS } from "@/layout/bands";
-import { attrValue, COLOR_BY, COLOR_BY_LABEL, filterActive, inView, legend, slotMarker, type ColorBy, type LegendEntry, type Model, type ViewFilter } from "@/model";
+import { attrValue, COLOR_BY, COLOR_BY_LABEL, filterActive, inView, legend, MAX_VIEWS, slotMarker, type ColorBy, type LegendEntry, type Model, type ViewFilter } from "@/model";
 import { ToolbarIcon } from "./ToolbarIcon";
 import { useDismiss } from "./useDismiss";
 
@@ -32,6 +32,9 @@ export function ViewsMenu({ model, shown, onShow, onEdit, buttonClass }: { model
   const close = useCallback(() => setOpen(false), []);
   useDismiss(open, close, root, button);
   const all = shown.id === null && !filterActive(shown.filter) && shown.colorBy === "layer";
+  // A saved view whose filter or coloring was changed since: say so, so the screen never claims the saved one.
+  const saved = model.views?.find((v) => v.id === shown.id);
+  const edited = !!saved && JSON.stringify([saved.filter, saved.colorBy]) !== JSON.stringify([shown.filter, shown.colorBy]);
   const pick = (run: () => void) => {
     setOpen(false);
     button.current?.focus();
@@ -51,11 +54,11 @@ export function ViewsMenu({ model, shown, onShow, onEdit, buttonClass }: { model
         if (open && e.relatedTarget && !root.current?.contains(e.relatedTarget as Node)) setOpen(false);
       }}
     >
-      <button ref={button} type="button" className={buttonClass} aria-expanded={open} aria-controls={panelId} onClick={() => setOpen((o) => !o)}>
+      <button ref={button} id="views-button" type="button" className={buttonClass} aria-expanded={open} aria-controls={panelId} onClick={() => setOpen((o) => !o)}>
         <ToolbarIcon name="views" />
         {/* The view in use when it is not All elements, so a filtered canvas never looks unfiltered. */}
         <span className="flex min-w-0">
-          Views{!all && <span className="max-w-32 truncate text-ink-muted">: {shown.id ? (model.views?.find((v) => v.id === shown.id)?.name ?? "") : "Unsaved"}</span>}
+          Views{!all && <span className="max-w-32 truncate text-ink-muted">: {saved ? `${saved.name}${edited ? " (edited)" : ""}` : "Unsaved"}</span>}
         </span>{" "}
         <span aria-hidden="true">▾</span>
       </button>
@@ -147,6 +150,7 @@ export function ViewDialog({
   ];
   const btn = "inline-flex min-h-8 cursor-pointer items-center border border-border-strong bg-surface-raised px-2.5 text-sm text-ink hover:border-accent hover:text-accent disabled:cursor-not-allowed disabled:opacity-50";
   const trimmed = name.trim();
+  const full = (model.views?.length ?? 0) >= MAX_VIEWS;
   return (
     <dialog
       ref={dialog}
@@ -215,7 +219,7 @@ export function ViewDialog({
               if (e.key === "Enter" && trimmed) {
                 e.preventDefault();
                 if (saved) onUpdate(trimmed);
-                else onSave(trimmed);
+                else if (!full) onSave(trimmed);
               }
             }}
           />
@@ -225,7 +229,7 @@ export function ViewDialog({
             Update “{saved.name}”
           </button>
         )}
-        <button type="button" className={btn} disabled={!trimmed || (model.views?.length ?? 0) >= 20} onClick={() => onSave(trimmed)}>
+        <button type="button" className={btn} disabled={!trimmed || full} onClick={() => onSave(trimmed)}>
           Save as new view
         </button>
         {saved && (
@@ -236,6 +240,7 @@ export function ViewDialog({
         <button type="button" className={btn} onClick={() => dialog.current?.close()}>
           Close
         </button>
+        {full && <p className="basis-full text-xs text-ink-muted">A model holds up to {MAX_VIEWS} views: delete one to save another.</p>}
       </div>
     </dialog>
   );
@@ -259,9 +264,9 @@ export function ViewLegend({ model, shown, onEdit, onShowAll }: { model: Model; 
           <p className="mt-1 text-xs text-ink-soft">Colored by {COLOR_BY_LABEL[shown.colorBy].toLowerCase()}</p>
           <ul className="mt-1 flex flex-col gap-0.5">
             {entries.map((e) => (
-              <li key={e.value || "(not set)"} className="flex items-center gap-2 text-xs text-ink-soft">
+              <li key={e.key} className="flex items-center gap-2 text-xs text-ink-soft">
                 <SlotMarker entry={e} />
-                <span className={`min-w-0 flex-1 truncate ${e.value ? "" : "text-ink-muted"}`}>{e.label}</span>
+                <span className={`min-w-0 flex-1 truncate ${e.slot === "none" ? "text-ink-muted" : ""}`}>{e.label}</span>
                 <span className="font-mono text-ink-muted">{e.count}</span>
               </li>
             ))}

@@ -120,11 +120,47 @@ test.describe("saved views, filters and color by (M54, desktop)", () => {
     await expect(page.getByTestId("slot-marker")).toHaveCount(0);
   });
 
+  test("a selected element the view fades is let go and can't be deleted; Go to lifts the filter; Show all keeps focus", async ({ page }) => {
+    await start(page);
+    await setProps(page, "db-prod-01", { environment: "Production" });
+    await node(page, "Checkout web app").click();
+    await expect(inspector(page).getByLabel("Name", { exact: true })).toHaveValue("Checkout web app");
+    await openDialog(page);
+    await tick(page, "Environment", "Production");
+    await dialog(page).getByRole("button", { name: "Close" }).click();
+    // Faded, so no longer selected: Delete removes nothing.
+    await expect(node(page, "Checkout web app")).toHaveClass(/bm-faded/);
+    await expect(inspector(page).getByLabel("Name", { exact: true })).not.toHaveValue("Checkout web app");
+    await page.locator(".react-flow__pane").click({ position: { x: 5, y: 5 } });
+    await page.keyboard.press("Delete");
+    await expect(page.locator(".react-flow__node")).toHaveCount(14);
+    // Go to a faded element: the filter lifts (the coloring stays) and it is selected.
+    await page.keyboard.press(`${mod}+k`);
+    await page.getByRole("combobox", { name: "Search commands" }).fill("Checkout web app");
+    await page.keyboard.press("Enter");
+    await expect(faded(page)).toHaveCount(0);
+    await expect(inspector(page).getByLabel("Name", { exact: true })).toHaveValue("Checkout web app");
+    // Show all in the legend: the legend goes, and focus moves to the Views button.
+    await openDialog(page);
+    await colorBy(page, "Environment");
+    await dialog(page).getByRole("button", { name: "Close" }).click();
+    await legend(page).getByRole("button", { name: "Show all" }).click();
+    await expect(legend(page)).toHaveCount(0);
+    await expect(viewsButton(page)).toBeFocused();
+  });
+
   test("save, switch, rename and delete a view, each change one undo step; the palette switches views", async ({ page }) => {
     await start(page);
     await productionView(page);
     await saveAs(page, "Production estate");
     await expect(viewsButton(page)).toContainText("Views: Production estate");
+    // Changing the view in use marks it edited until it is updated or another view is chosen.
+    await openDialog(page);
+    await colorBy(page, "Layer");
+    await expect(viewsButton(page)).toContainText("Views: Production estate (edited)");
+    await colorBy(page, "Environment");
+    await expect(viewsButton(page)).not.toContainText("(edited)");
+    await dialog(page).getByRole("button", { name: "Close" }).click();
     await viewsButton(page).click();
     await expect(viewsMenu(page).getByRole("button", { name: /Production estate/ })).toHaveAttribute("aria-pressed", "true");
     await viewsMenu(page).getByRole("button", { name: /All elements/ }).click();
@@ -187,7 +223,8 @@ test.describe("saved views, filters and color by (M54, desktop)", () => {
     for (const theme of ["dark", "light"] as const) {
       const svg = (await exportFile(page, new RegExp(`Image, ${theme} \\(SVG\\)`))).text;
       expect(svg).toMatch(/data-title="view"[^>]*>View: Production estate · colored by environment · showing 2 of 14 elements</);
-      expect(svg.match(/<g opacity="0.28" data-faded="">/g) ?? []).toHaveLength(12);
+      expect(svg.match(/<g data-faded="">/g) ?? []).toHaveLength(12);
+      expect(svg).not.toContain('opacity="0.28"');
       expect(svg).toContain(">Production (2)<");
     }
 

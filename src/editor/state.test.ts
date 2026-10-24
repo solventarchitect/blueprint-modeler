@@ -158,6 +158,22 @@ describe("editor state", () => {
     expect(reduce(h, { type: "delete-view", id: "nope" }).past).toHaveLength(5);
   });
 
+  it("never stores a view the model file would refuse: a 21st view, or an invalid one", () => {
+    const model = createModel("T", new Date("2026-09-27T00:00:00Z"), "t");
+    let h = initialHistory(model);
+    for (let i = 0; i < 20; i++) h = reduce(h, { type: "save-view", view: { id: `v${i}`, name: `View ${i}`, filter: {}, colorBy: "owner" } });
+    expect(h.present.views).toHaveLength(20);
+    const full = reduce(h, { type: "save-view", view: { id: "v20", name: "One too many", filter: {}, colorBy: "owner" } });
+    expect(full).toBe(h);
+    // Renaming one of the twenty still works.
+    expect(reduce(h, { type: "save-view", view: { id: "v0", name: "Renamed", filter: {}, colorBy: "owner" } }).present.views![0]!.name).toBe("Renamed");
+    const bad = reduce(initialHistory(model), { type: "save-view", view: { id: "x", name: "   ", filter: {}, colorBy: "owner" } });
+    expect(bad.present.views).toBeUndefined();
+    // Store what you can filter on: a value as long as an element property may be is fine.
+    const long = reduce(initialHistory(model), { type: "save-view", view: { id: "y", name: "Long", filter: { owner: ["x".repeat(2000)] }, colorBy: "owner" } });
+    expect(long.present.views).toHaveLength(1);
+  });
+
   it("stamps updated on change", () => {
     const s = run(base);
     expect(s.present.updated).toBe(T);

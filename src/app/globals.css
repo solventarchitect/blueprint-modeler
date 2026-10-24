@@ -645,6 +645,7 @@
 .react-flow__node.bm-faded [data-testid="slot-marker"] {
   opacity: 0.4;
 }
-.react-flow__edge.faded {
+/* The line and its arrowhead fade; the label keeps its contrast. */
+.react-flow__edge.faded .react-flow__edge-path {
   opacity: 0.2;
 }

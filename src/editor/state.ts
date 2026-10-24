@@ -1,5 +1,5 @@
 import { acceptedTypes, allowedTypes, classById, relationshipsBetween, type ClassId, type Layer } from "@/metamodel";
-import { edgeKey, withDetails, type Edge, type Model, type Node, type View } from "@/model";
+import { edgeKey, MAX_VIEWS, viewSchema, withDetails, type Edge, type Model, type Node, type View } from "@/model";
 
 /**
  * Editor state: the model plus undo/redo history. Pure functions only, so every rule the
@@ -131,6 +131,8 @@ function apply(model: Model, action: Action): Model | null {
       const views = model.views ?? [];
       const i = views.findIndex((v) => v.id === action.view.id);
       if (i >= 0 && JSON.stringify(views[i]) === JSON.stringify(action.view)) return null;
+      // Never store what the model file would refuse: a view the schema rejects, or a 21st view.
+      if (!viewSchema.safeParse(action.view).success || (i < 0 && views.length >= MAX_VIEWS)) return null;
       const next = i >= 0 ? views.map((v, k) => (k === i ? action.view : v)) : [...views, action.view];
       return { ...model, views: next };
     }

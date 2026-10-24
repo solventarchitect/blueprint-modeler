@@ -97,7 +97,17 @@ const PROCESS_LABEL = { product: "product", tangible: "tangible / physical", log
  */
 function LifecycleField({ cls, value, onCommit }: { cls: string; value: string; onCommit: (v: string) => void }) {
   const lc = lifecycleFor(cls);
-  if (!lc) return null;
+  // No CSDM life cycle for this class: nothing to set, but a value from a file can still be seen and cleared.
+  if (!lc)
+    return value ? (
+      <label className="flex flex-col gap-1 text-sm">
+        <span className="text-ink-muted">Life cycle stage</span>
+        <select className={input} value={value} onChange={(e) => onCommit(e.target.value)}>
+          <option value="">Not set</option>
+          <option value={value}>{value} (no life cycle for this class)</option>
+        </select>
+      </label>
+    ) : null;
   const pages = lc.process === "tangible-or-logical" ? `pp. ${LIFE_CYCLE.tangible.source.page}, ${LIFE_CYCLE.logical.source.page}` : `p. ${LIFE_CYCLE[lc.process].source.page}`;
   return (
     <label className="flex flex-col gap-1 text-sm">

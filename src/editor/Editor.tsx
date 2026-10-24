@@ -52,7 +52,7 @@ import { distributeEvenly } from "@/layout/distribute";
 import { autoLayout, DEFAULT_SIZE, fillSpace, type LayoutMode } from "@/layout/layout";
 import { createWorkerEngine } from "@/layout/worker-engine";
 import { classById, classes, isClassId, isExtended, type ClassId, type Layer } from "@/metamodel";
-import { ALL_ELEMENTS, attrValue, blastRadius, COLOR_BY_LABEL, evaluateHints, filterActive, formatModelDate, impactEnds, inView, isBusinessAnchor as isAnchor, modelDate, slotOf, UNTITLED_MODEL, type BlastDirection, type ColorBy, type HintResult, type Model, type ViewFilter } from "@/model";
+import { ALL_ELEMENTS, attrValue, blastRadius, COLOR_BY_LABEL, evaluateHints, filterActive, formatModelDate, impactEnds, inView, isBusinessAnchor as isAnchor, modelDate, slotMap, UNTITLED_MODEL, type BlastDirection, type ColorBy, type HintResult, type Model, type ViewFilter } from "@/model";
 import { site } from "@/lib/site";
 import { ClassNode, SuggestContext, type ClassFlowNode } from "./ClassNode";
 import { ConnectionLine, ConnectionModelContext } from "./ConnectionLine";
@@ -368,9 +368,6 @@ function EditorInner() {
     return () => window.removeEventListener("keydown", onKey);
   }, [dispatch, zoomCommand, presenting]);
 
-  useEffect(() => {
-    if (selectedId && !model.nodes.some((n) => n.id === selectedId)) setSelectedId(null);
-  }, [model.nodes, selectedId]);
 
   // The element under the pointer (M46): its own relationships run the way impact travels, so a
   // glance shows what it depends on and what depends on it. Off while a blast radius is open, while
@@ -422,6 +419,11 @@ function EditorInner() {
     setMessage(name ? `View “${name}”: ${kept} of ${model.nodes.length} elements, ${COLOR_BY_LABEL[v.colorBy].toLowerCase()} colors.` : "Showing all elements, in layer colors.");
   };
   const fadedIds = useMemo(() => new Set(filterActive(shown.filter) ? model.nodes.filter((n) => !inView(n, shown.filter)).map((n) => n.id) : []), [model.nodes, shown.filter]);
+  // A deleted element, or one the view now fades, is no longer selected (a faded element is out of reach).
+  useEffect(() => {
+    if (selectedId && (!model.nodes.some((n) => n.id === selectedId) || fadedIds.has(selectedId))) setSelectedId(null);
+  }, [model.nodes, selectedId, fadedIds]);
+  const slotFor = useMemo(() => slotMap(model, shown.colorBy), [model, shown.colorBy]);
   const nodes: ClassFlowNode[] = useMemo(
     () =>
       model.nodes.map((n) => ({
@@ -442,16 +444,16 @@ function EditorInner() {
           archimateOnly: lens === "archimate-only",
           suggest: wide && !presenting && !blastShown && !fadedIds.has(n.id) && !dismissed.has(n.id) && !model.edges.some((e) => e.from === n.id || e.to === n.id),
           // M54: the view's coloring (a palette slot; none when coloring by layer) and whether it filters this out.
-          slot: slotOf(model, shown.colorBy, n) ?? undefined,
+          slot: slotFor?.(n),
           faded: fadedIds.has(n.id) || undefined,
         },
         selected: n.id === selectedId,
         // Filtered out: in place and faded, but out of reach (no select, drag, connect or Tab stop).
-        ...(fadedIds.has(n.id) ? { selectable: false, draggable: false, connectable: false, focusable: false, className: "bm-faded" } : {}),
+        ...(fadedIds.has(n.id) ? { selectable: false, draggable: false, connectable: false, focusable: false, deletable: false, className: "bm-faded" } : {}),
         ariaLabel: `${classById(n.class)?.label ?? n.class}: ${n.name || "Untitled"}${shown.colorBy !== "layer" ? `, ${COLOR_BY_LABEL[shown.colorBy]}: ${attrValue(n, shown.colorBy) || "Not set"}` : ""}${!blastShown && hintLevel.get(n.id) ? " (has hints)" : ""}${!blastShown && neighbors.has(n.id) ? " (connected to the selected element)" : ""}${blastLabel(n.id)}`,
       })),
     // eslint-disable-next-line react-hooks/exhaustive-deps -- drag and measured are refs; dragTick re-runs this
-    [model, selectedId, dragTick, hintLevel, highlighted, lens, wide, presenting, dismissed, neighbors, blastShown, fadedIds, shown.colorBy],
+    [model, selectedId, dragTick, hintLevel, highlighted, lens, wide, presenting, dismissed, neighbors, blastShown, fadedIds, shown.colorBy, slotFor],
   );
 
   // Layers as columns (a left-to-right layout): relationships then run sideways between layers.
@@ -1569,6 +1571,8 @@ function EditorInner() {
       label: `${n.name || "Untitled"}`,
       keywords: `${className(n.id)} element select find`,
       run: () => {
+        // A faded element is out of reach: lift the filter (keeping the coloring) to go to it.
+        if (fadedIds.has(n.id)) showView({ id: null, filter: {}, colorBy: shown.colorBy });
         selectNode(n.id);
         void flow.fitView({ nodes: [{ id: n.id }], padding: 0.3, maxZoom: 1.25, duration: prefersStill() ? 0 : 300 });
         setMessage(`Selected ${className(n.id)} “${n.name || "Untitled"}”.`);
@@ -1947,7 +1951,15 @@ function EditorInner() {
                   model={model}
                   shown={shown}
                   onEdit={presenting ? undefined : () => openDialog(setViewDialog)}
-                  onShowAll={presenting ? undefined : () => pickView({ id: null, filter: {}, colorBy: "layer" })}
+                  onShowAll={
+                    presenting
+                      ? undefined
+                      : () => {
+                          pickView({ id: null, filter: {}, colorBy: "layer" });
+                          // The legend (and this button) goes away: keep focus on the Views button.
+                          document.getElementById("views-button")?.focus();
+                        }
+                  }
                 />
               </Panel>
               <Background id="minor" variant={BackgroundVariant.Dots} gap={32} size={3} color="var(--canvas-grid)" />

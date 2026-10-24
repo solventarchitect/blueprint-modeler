@@ -125,10 +125,17 @@ describe("SVG of a view (M54)", () => {
   it("fades the elements outside the filter and the relationships that touch them", () => {
     const m = withProps();
     const svg = modelToSvg(m, "light", { view: { filter: { environment: ["Production"] }, colorBy: "layer", name: "Prod" } });
-    const fadedNodes = svg.match(/<g opacity="0.28" data-faded="">/g) ?? [];
+    const fadedNodes = svg.match(/<g data-faded="">/g) ?? [];
     expect(fadedNodes).toHaveLength(m.nodes.length - 1);
+    // A ghost, not transparency: dashed outline, text in the muted ink (4.5:1 or better on the background).
+    const db = svg.split("<g").find((g) => g.includes(">db-prod-01<"))!;
+    expect(db).not.toContain("data-faded");
+    const ghost = svg.split("<g").find((g) => g.startsWith(' data-faded=""><rect'))!;
+    expect(ghost).toContain('stroke-dasharray="4 3"');
+    expect(ghost).toMatch(/font-size="14" font-weight="500" fill="#406996"/);
+    expect(ghost).not.toContain("opacity");
     // Only one element is in view, so every relationship has a faded end.
-    expect((svg.match(/<g opacity="0.2" data-faded="">/g) ?? []).length).toBe(m.edges.length);
+    expect((svg.match(/<path [^>]*opacity="0.2" data-faded=""/g) ?? []).length).toBe(m.edges.length);
     expect(svg).toMatch(new RegExp(`data-title="view"[^>]*>View: Prod · showing 1 of ${m.nodes.length} elements<`));
     // No color-by legend rows when coloring by layer.
     expect(svg).not.toContain("data-legend=");
