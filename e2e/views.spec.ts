@@ -111,7 +111,8 @@ test.describe("saved views, filters and color by (M54, desktop)", () => {
     await expect(legend(page)).toContainText("Showing 2 of 14 elements; the rest are faded.");
     // A faded element is out of reach: clicking it selects nothing.
     await node(page, "Checkout web app").click({ force: true });
-    await expect(inspector(page).getByLabel("Name", { exact: true })).not.toHaveValue("Checkout web app");
+    // Nothing is selected: the Inspector shows no element.
+    await expect(inspector(page).getByLabel("Name", { exact: true })).toHaveCount(0);
     await expect(node(page, "Checkout web app")).toHaveAttribute("aria-label", /Environment: Not set/);
     // Show all brings everything back in layer colors.
     await legend(page).getByRole("button", { name: "Show all" }).click();
@@ -130,7 +131,8 @@ test.describe("saved views, filters and color by (M54, desktop)", () => {
     await dialog(page).getByRole("button", { name: "Close" }).click();
     // Faded, so no longer selected: Delete removes nothing.
     await expect(node(page, "Checkout web app")).toHaveClass(/bm-faded/);
-    await expect(inspector(page).getByLabel("Name", { exact: true })).not.toHaveValue("Checkout web app");
+    // Nothing is selected: the Inspector shows no element.
+    await expect(inspector(page).getByLabel("Name", { exact: true })).toHaveCount(0);
     await page.locator(".react-flow__pane").click({ position: { x: 5, y: 5 } });
     await page.keyboard.press("Delete");
     await expect(page.locator(".react-flow__node")).toHaveCount(14);
