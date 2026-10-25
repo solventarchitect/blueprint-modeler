@@ -81,17 +81,17 @@ function ArchimateEnd({ from, to, i }: { from: ClassId; to: ClassId; i: number }
  * shortcut from the Business Application straight to the Host, the line the editor refuses; FIG.03
  * reads the same elements in ArchiMate 3.2. Every element stays where it is and changes in place,
  * cascading down the chain behind the accent signal; the parent's `data-fig` picks the figure
- * (see `.hero-sheet` in globals.css). Decorative to assistive tech: HeroFigures names and describes
- * the current figure in text.
+ * (see `.hero-sheet` in globals.css). Decorative to assistive tech: its figure card (heroFigures)
+ * names and describes the figure in text. `id` keeps the mask's id unique when several copies share a page.
  */
-export function HeroDiagram() {
+export function HeroDiagram({ id = "hero" }: { id?: string }) {
   const yA = nodeY(1) + NODE_H / 2;
   const yH = nodeY(4) + NODE_H / 2;
   const shortcut = `M${NODE_X + NODE_W + 1} ${yA} C${NODE_X + NODE_W + 40} ${yA} ${NODE_X + NODE_W + 40} ${yH} ${NODE_X + NODE_W + 16} ${yH}`;
   return (
     <svg viewBox={`0 0 440 ${HEIGHT}`} aria-hidden="true" focusable="false" className="h-auto w-full font-mono">
       <defs>
-        <mask id="hero-shortcut-mask" maskUnits="userSpaceOnUse">
+        <mask id={`${id}-shortcut-mask`} maskUnits="userSpaceOnUse">
           <path d={shortcut} pathLength={100} className="hero-reveal" fill="none" stroke="white" strokeWidth="8" />
         </mask>
       </defs>
@@ -141,7 +141,7 @@ export function HeroDiagram() {
 
       {/* FIG.02: the shortcut the editor refuses, drawn in, marked ✕, then the route it should take. */}
       <g data-show="1" style={{ "--d": "0.2s" } as CSSProperties}>
-        <path d={shortcut} mask="url(#hero-shortcut-mask)" fill="none" strokeWidth="1.75" strokeDasharray="5 4" style={{ stroke: "var(--invalid)" }} />
+        <path d={shortcut} mask={`url(#${id}-shortcut-mask)`} fill="none" strokeWidth="1.75" strokeDasharray="5 4" style={{ stroke: "var(--invalid)" }} />
       </g>
       <g data-show="1" style={{ "--d": "1.2s" } as CSSProperties}>
         <circle cx={NODE_X + NODE_W + 16} cy={yH} r="7" style={{ fill: "var(--invalid)" }} />

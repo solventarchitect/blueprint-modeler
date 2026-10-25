@@ -159,7 +159,7 @@ test.describe("editor status bar", () => {
 test.describe("landing page", () => {
   test("hero figure is described, and each layer card names its CMDB table", async ({ page }) => {
     await page.goto("/");
-    await expect(page.getByRole("img", { name: "Figure 1: the realization chain" })).toBeVisible();
+    await expect(page.getByRole("img", { name: "The realization chain, stacked in isometric" })).toBeVisible();
     const cards = page.locator(".layer-card");
     await expect(cards).toHaveCount(4);
     for (const table of ["cmdb_ci_business_capability", "cmdb_ci_business_app", "cmdb_ci_service_discovered", "cmdb_ci_appl"]) {
@@ -176,11 +176,11 @@ test.describe("landing page", () => {
     await expect.poll(() => table.evaluate((e) => e.scrollWidth - e.getBoundingClientRect().width)).toBeLessThanOrEqual(1);
   });
 
-  test("with reduced motion the hero signal is off and card names show at once", async ({ page, isMobile }) => {
+  test("with reduced motion the figure signals are off and card names show at once", async ({ page, isMobile }) => {
     test.skip(!!isMobile, "hover effect");
     await page.emulateMedia({ reducedMotion: "reduce" });
     await page.goto("/");
-    await expect(page.locator(".hero-signal")).toBeHidden();
+    for (const s of await page.locator(".hero-signal").all()) await expect(s).toBeHidden();
     await page.locator(".layer-card").nth(2).hover();
     const table = page.locator(".layer-card-table").nth(2);
     // "At once" is a style fact (no delay, a 0.01 ms typing animation), checked as such rather than

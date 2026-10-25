@@ -607,6 +607,268 @@
   }
 }
 
+/*
+ * Landing hero: the realization chain in isometric (the Motion + Isometric design system). Sizes are
+ * design px times --s, so the figure scales with its column (432 px wide at full size). Only transform
+ * animates: layers settle bottom-up (extrude, 60 ms apart), float (the page's one ambient loop) and
+ * explode; packets rise between the layers.
+ */
+.iso-stage {
+  container-type: inline-size;
+  position: relative;
+  width: 100%;
+  aspect-ratio: 432 / 500;
+}
+.iso-scene {
+  --s: calc(100cqw / 432);
+  --gap: calc(var(--s) * 50);
+  --ease-extrude: cubic-bezier(0.34, 1.32, 0.64, 1);
+  position: absolute;
+  left: 50%;
+  top: calc(var(--s) * 375);
+  width: calc(var(--s) * 220);
+  height: calc(var(--s) * 220);
+  margin: calc(var(--s) * -110) 0 0 calc(var(--s) * -110);
+  transform-style: preserve-3d;
+  transform: rotateX(54.7356deg) rotateZ(-45deg);
+}
+.iso-stage[data-exploded] .iso-scene {
+  --gap: calc(var(--s) * 72);
+}
+.iso-shadow {
+  position: absolute;
+  inset: calc(var(--s) * -24);
+  border: 1px dashed color-mix(in oklab, var(--accent) 40%, transparent);
+  transform: translateZ(calc(var(--s) * -16));
+}
+.iso-layer {
+  position: absolute;
+  inset: 0;
+  transform-style: preserve-3d;
+  transform: translateZ(calc(var(--i) * var(--gap)));
+  transition: transform 600ms var(--ease-extrude);
+}
+.iso-enter,
+.iso-float {
+  position: absolute;
+  inset: 0;
+  transform-style: preserve-3d;
+}
+.iso-enter {
+  animation: iso-settle 600ms var(--ease-extrude) both;
+  animation-delay: calc(var(--i) * 60ms + 150ms);
+}
+.iso-float {
+  animation: iso-float 6s cubic-bezier(0.45, 0, 0.55, 1) infinite alternate;
+  animation-delay: calc(var(--i) * -0.6s);
+}
+.iso-blk {
+  position: absolute;
+  transform-style: preserve-3d;
+}
+.iso-blk > span {
+  position: absolute;
+  box-sizing: border-box;
+  display: block;
+  border: 1px solid color-mix(in oklab, var(--c) 75%, transparent);
+}
+.iso-blk > .t {
+  inset: 0;
+  transform: translateZ(var(--h));
+  background: color-mix(in oklab, var(--c) 18%, var(--surface));
+}
+.iso-blk > .s {
+  left: 0;
+  top: 100%;
+  width: 100%;
+  height: var(--h);
+  transform-origin: 0 0;
+  transform: rotateX(90deg);
+  background: color-mix(in oklab, var(--c) 10%, var(--surface));
+}
+.iso-blk > .w {
+  left: 0;
+  top: 0;
+  width: var(--h);
+  height: 100%;
+  transform-origin: 0 0;
+  transform: rotateY(-90deg);
+  background: color-mix(in oklab, var(--c) 5%, var(--surface));
+}
+.iso-slab {
+  --h: calc(var(--s) * 8);
+  inset: 0;
+}
+.iso-el {
+  left: calc(var(--s) * 14);
+  top: calc(var(--s) * 18);
+  width: calc(var(--s) * var(--w));
+  height: calc(var(--s) * var(--dp));
+  transform: translateZ(calc(var(--s) * 8));
+}
+.iso-el > .t {
+  background: color-mix(in oklab, var(--c) 32%, var(--surface));
+}
+.iso-plate {
+  position: absolute;
+  left: calc(var(--s) * 12);
+  bottom: calc(var(--s) * 6);
+  display: flex;
+  flex-direction: column;
+  gap: calc(var(--s) * 2);
+  white-space: nowrap;
+}
+.iso-plate-layer {
+  font: 500 calc(var(--s) * 8.5) / 1 var(--font-mono);
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+}
+.iso-plate-name {
+  font: 500 calc(var(--s) * 11) / 1.1 var(--font-sans);
+  color: var(--ink);
+}
+.iso-riser {
+  position: absolute;
+  width: calc(var(--s) * 2);
+  height: var(--gap);
+  transform-origin: 0 0;
+  transform: translateZ(calc(var(--s) * 8)) rotateX(90deg);
+  background: color-mix(in oklab, var(--accent) 45%, transparent);
+  transition: height 600ms var(--ease-extrude);
+}
+.iso-packet {
+  position: absolute;
+  left: calc(var(--s) * -2);
+  top: 0;
+  width: calc(var(--s) * 6);
+  height: calc(var(--s) * 12);
+  background: var(--status);
+  animation: iso-rise 2.4s linear infinite;
+  animation-delay: var(--d, 0s);
+}
+@keyframes iso-settle {
+  from {
+    transform: translateZ(calc(var(--s) * 64));
+  }
+}
+@keyframes iso-float {
+  to {
+    transform: translateZ(calc(var(--s) * 6));
+  }
+}
+@keyframes iso-rise {
+  from {
+    transform: translateY(0);
+  }
+  to {
+    transform: translateY(calc(var(--gap) - var(--s) * 12));
+  }
+}
+
+/* Calls to action: the primary presses into its base (extrude); the secondary's frame is traced by a dash on hover. */
+.cta-extrude {
+  display: inline-flex;
+  margin: 6px 0 0 6px;
+  background: color-mix(in oklab, var(--accent) 30%, var(--surface));
+}
+.cta-extrude > span {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.5rem;
+  min-height: 2.75rem;
+  padding: 0 1.25rem;
+  background: var(--accent);
+  color: var(--accent-ink);
+  font-weight: 500;
+  transform: translate(-6px, -6px);
+  transition: transform 150ms cubic-bezier(0.34, 1.32, 0.64, 1);
+}
+.cta-extrude:hover > span {
+  transform: translate(-8px, -8px);
+}
+.cta-extrude:active > span {
+  transform: none;
+  transition-duration: 75ms;
+}
+.cta-trace {
+  position: relative;
+}
+.cta-trace > svg {
+  position: absolute;
+  inset: -1px;
+  width: calc(100% + 2px);
+  height: calc(100% + 2px);
+  overflow: visible;
+  pointer-events: none;
+}
+.cta-trace rect {
+  opacity: 0;
+}
+.cta-trace:hover rect,
+.cta-trace:focus-visible rect {
+  opacity: 1;
+  animation: cta-trace 2.4s linear infinite;
+}
+@keyframes cta-trace {
+  to {
+    stroke-dashoffset: -100;
+  }
+}
+
+/* Figure cards: one hero figure each, still; on hover or focus the cover tilts into isometric and its signal runs. */
+.fig-card {
+  transition:
+    transform 150ms cubic-bezier(0.2, 0, 0, 1),
+    border-color 150ms cubic-bezier(0.2, 0, 0, 1);
+}
+.fig-card:hover,
+.fig-card:focus-visible {
+  transform: translateY(-2px);
+  border-color: var(--border-strong);
+}
+.fig-tilt {
+  transition: transform 600ms cubic-bezier(0.34, 1.32, 0.64, 1);
+}
+.fig-card:hover .fig-tilt,
+.fig-card:focus-visible .fig-tilt {
+  transform: translateY(4%) rotateX(60deg) rotateZ(-45deg) scale(0.72);
+}
+/* As specific as the per-figure signal rules (.hero-sheet[data-fig] .hero-signal), whose shorthand would restart it. */
+.fig-card .hero-sheet[data-fig] .hero-signal {
+  opacity: 0;
+  animation-play-state: paused;
+}
+.fig-card:hover .hero-sheet[data-fig] .hero-signal,
+.fig-card:focus-visible .hero-sheet[data-fig] .hero-signal {
+  opacity: 1;
+  animation-play-state: running;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .iso-enter,
+  .iso-float {
+    animation: none;
+  }
+  .iso-packet {
+    display: none;
+  }
+  .iso-layer,
+  .iso-riser,
+  .cta-extrude > span,
+  .fig-card,
+  .fig-tilt {
+    transition: none;
+  }
+  .cta-trace:hover rect,
+  .cta-trace:focus-visible rect {
+    animation: none;
+  }
+  .fig-card:hover .fig-tilt,
+  .fig-card:focus-visible .fig-tilt {
+    transform: none;
+  }
+}
+
 /* Print (M51): while #bm-print is in the page, print only the image; on screen it never shows. */
 #bm-print {
   display: none;
