@@ -156,6 +156,29 @@ describe("editor state", () => {
     expect(h.present.nodes[0]!.attrs).toEqual({ description: "Sells", owner: "Ann" });
   });
 
+  it("sets, or clears, one property on several elements in one undo step (M63)", () => {
+    const model = createModel("T", new Date("2026-09-27T00:00:00Z"), "t");
+    model.nodes = [
+      { id: "a", class: "host", name: "web-1", attrs: { environment: "Test" } },
+      { id: "b", class: "host", name: "web-2" },
+      { id: "c", class: "host", name: "db-1", attrs: { environment: "Production", owner: "DBA" } },
+    ];
+    model.layout = { a: { x: 0, y: 0 }, b: { x: 300, y: 0 }, c: { x: 600, y: 0 } };
+    let h = reduce(initialHistory(model), { type: "set-attrs", ids: ["a", "b", "c"], key: "environment", value: "  Production " });
+    expect(h.present.nodes.map((n) => n.attrs?.environment)).toEqual(["Production", "Production", "Production"]);
+    expect(h.past).toHaveLength(1);
+    // Already so on every one: no new step.
+    expect(reduce(h, { type: "set-attrs", ids: ["a", "b", "c"], key: "environment", value: "Production" }).past).toHaveLength(1);
+    h = reduce(h, { type: "set-attrs", ids: ["a", "c"], key: "owner", value: "" });
+    expect(h.present.nodes.map((n) => n.attrs)).toEqual([{ environment: "Production" }, { environment: "Production" }, { environment: "Production" }]);
+    expect(h.past).toHaveLength(2);
+    h = reduce(h, { type: "undo" });
+    h = reduce(h, { type: "undo" });
+    expect(h.present.nodes.map((n) => n.attrs)).toEqual(model.nodes.map((n) => n.attrs));
+    // Unknown ids change nothing.
+    expect(reduce(h, { type: "set-attrs", ids: ["zz"], key: "owner", value: "x" }).past).toHaveLength(0);
+  });
+
   it("saves, replaces and deletes views, one undo step each, keeping the list order (M54)", () => {
     const model = createModel("T", new Date("2026-09-27T00:00:00Z"), "t");
     const v = (id: string, name: string) => ({ id, name, filter: { layers: ["business"] }, colorBy: "layer" as const });

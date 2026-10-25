@@ -55,7 +55,7 @@ import { distributeEvenly } from "@/layout/distribute";
 import { arrangeByGroups, groupFrames, ownGroups, type Frame } from "@/layout/groupLayout";
 import { autoLayout, DEFAULT_SIZE, fillSpace, type LayoutMode } from "@/layout/layout";
 import { createWorkerEngine } from "@/layout/worker-engine";
-import { classById, classes, isClassId, isExtended, type ClassId, type Layer } from "@/metamodel";
+import { classById, classes, ENVIRONMENT_EXAMPLES, isClassId, isExtended, lifecycleFor, type ClassId, type Layer } from "@/metamodel";
 import { ALL_ELEMENTS, FIELD_LABEL, GROUP_BY_LABEL, groupsOf, primaryGroup, SIDES, attrValue, compareModels, parseModel, blastRadius, COLOR_BY_LABEL, evaluateHints, filterActive, formatModelDate, impactEnds, inView, isBusinessAnchor as isAnchor, modelDate, slotMap, UNTITLED_MODEL, type BlastDirection, type Edge, type HintResult, type Model } from "@/model";
 import { site } from "@/lib/site";
 import { ClassNode, SuggestContext, type ClassFlowNode } from "./ClassNode";
@@ -65,7 +65,7 @@ import { CommandPalette } from "./CommandPalette";
 import type { Command } from "./commands";
 import { ShortcutMap } from "./ShortcutMap";
 import { CompareBar, CompareDialog, compareSummary } from "./Compare";
-import { ARRANGE, SelectionPanel, type ArrangeKind } from "./SelectionPanel";
+import { ARRANGE, SelectionPanel, type ArrangeKind, type BatchKey } from "./SelectionPanel";
 import { ViewDialog, ViewLegend, ViewsMenu, type ShownView } from "./Views";
 import { ExamplesMenu } from "./ExamplesMenu";
 import { ContextMenu, type MenuItem } from "./ContextMenu";
@@ -163,6 +163,7 @@ const BLAST_STEP_MS = 1500;
 const GUIDE_SNAP_PX = 6;
 /** Keys that add a clicked element to the selection (M57); one array, so React Flow keeps its key listener. */
 const MULTI_KEYS = ["Shift", "Meta", "Control"];
+const BATCH_LABEL: Record<BatchKey, string> = { lifecycle: "life cycle stage", environment: "environment", owner: "owner" };
 const NO_IDS: ReadonlySet<string> = new Set();
 /** Distribute vertically: the closest the tops of selected elements come (an element's height and a gap). */
 const ROW_PITCH = 128;
@@ -512,6 +513,11 @@ function EditorInner() {
     else setSelectedId(kept[0] ?? null);
   }, [model.nodes, multi, fadedIds, setSelectedId]);
   const slotFor = useMemo(() => slotMap(model, shown.colorBy), [model, shown.colorBy]);
+  // Suggestions for setting a property on several elements (M63), as the Inspector offers for one.
+  const batchSuggestions = useMemo(() => {
+    const used = (k: "environment" | "owner") => model.nodes.map((n) => n.attrs?.[k]?.trim() ?? "").filter(Boolean);
+    return { environment: [...new Set([...ENVIRONMENT_EXAMPLES.values, ...used("environment")])], owner: [...new Set(used("owner"))] };
+  }, [model.nodes]);
   // Group by (M56): frames around what belongs together, worked out from the model; a group can
   // collapse into one block (on screen only, for this model and grouping).
   const groupBy = shown.groupBy;
@@ -1450,6 +1456,17 @@ function EditorInner() {
     dispatch({ type: "set-layout", layout: settle(layout).positions });
     setMessage(`Arranged ${groups.length} ${GROUP_BY_LABEL[groupBy]} group${groups.length === 1 ? "" : "s"} side by side.`);
     setTimeout(() => zoomCommand("fit"), 50);
+  };
+  /** Set a property on every selected element at once (M63), one undo step. */
+  const setAttrForAll = (key: BatchKey, raw: string) => {
+    const value = raw.trim();
+    // Life cycle: only the elements whose class has one (the panel offers the stages they all share).
+    const ids = multi.filter((id) => key !== "lifecycle" || lifecycleFor(model.nodes.find((n) => n.id === id)?.class ?? ""));
+    const label = BATCH_LABEL[key];
+    if (!ids.length) return setMessage(`None of these elements has a ${label}.`);
+    if (ids.every((id) => (model.nodes.find((n) => n.id === id)?.attrs?.[key] ?? "") === value)) return setMessage(value ? `All ${ids.length} already have ${label} “${value}”.` : `None of them has a ${label} set.`);
+    dispatch({ type: "set-attrs", ids, key, value });
+    setMessage(value ? `Set ${label} “${value}” on ${ids.length} elements.` : `Cleared the ${label} of ${ids.length} elements.`);
   };
   // The side panel's buttons go with the selection: focus moves on to the Details tab.
   const focusDetails = () => setTimeout(() => document.getElementById("tab-details")?.focus(), 0);
@@ -2632,7 +2649,15 @@ function EditorInner() {
             </div>
             <div id={`panel-${tab}`} role="tabpanel" aria-labelledby={`tab-${tab}`} className="min-h-0 flex-1 overflow-y-auto">
               {tab === "details" && multi.length > 1 ? (
-                <SelectionPanel names={multi.map(nameOf)} onArrange={arrange} onDelete={deleteSelection} onClear={() => clearSelection(true)} />
+                <SelectionPanel
+                  names={multi.map(nameOf)}
+                  nodes={model.nodes.filter((n) => multiSet.has(n.id))}
+                  suggestions={batchSuggestions}
+                  onArrange={arrange}
+                  onSetAttr={setAttrForAll}
+                  onDelete={deleteSelection}
+                  onClear={() => clearSelection(true)}
+                />
               ) : tab === "details" ? (
                 <Inspector
                   model={model}
