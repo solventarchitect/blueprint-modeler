@@ -1564,7 +1564,6 @@ function EditorInner() {
     const items = st.nodeIds.map((id) => outline.flatMap((l) => l.items).find((i) => i.id === id)).filter((i) => !!i);
     return { count: `${count(items.length)}.`, list: `The ${st.name} layer: ${items.map((i) => `${i.name} (${i.kind})`).join(", ")}.` };
   };
-  const shownStep = stepContents(steps[step]);
   const startPresenting = () => {
     setBlast(null);
     setSelectedId(null);
@@ -1797,6 +1796,8 @@ function EditorInner() {
     return [...list, ...goTo];
   };
 
+  // After `outline` is declared: the step's words read it.
+  const shownStep = stepContents(steps[step]);
   return (
     <div className={presenting ? "fixed inset-0 z-50 flex flex-col bg-surface" : "flex h-[calc(100dvh-3.5rem)] min-h-[34rem] flex-col bg-surface"}>
       {presenting && (
