@@ -973,3 +973,18 @@
   stroke-width: 1.5;
   stroke-dasharray: 2 2;
 }
+
+/*
+ * M58: compare. Relationships added since the compared model are drawn thicker in the "valid"
+ * color; one whose type changed, dashed in the status color. The change list and each element's
+ * name say the same in words, so the line style is extra.
+ */
+.react-flow__edge.diff-added .react-flow__edge-path {
+  stroke: var(--valid);
+  stroke-width: 3;
+}
+.react-flow__edge.diff-changed .react-flow__edge-path {
+  stroke: var(--status);
+  stroke-width: 2.5;
+  stroke-dasharray: 8 5;
+}

@@ -20,12 +20,15 @@ export function ModelMenu({
   currentId,
   currentName,
   onOpen,
+  onCompare,
   buttonClass,
 }: {
   models: ModelSummary[];
   currentId: string;
   currentName: string;
   onOpen: (id: string) => void;
+  /** M58: compare the open model with another saved model or a file. */
+  onCompare?: () => void;
   buttonClass: string;
 }) {
   const [open, setOpen] = useState(false);
@@ -119,6 +122,18 @@ export function ModelMenu({
             );
           })}
         </ul>
+        {onCompare && (
+          <button
+            type="button"
+            className="mt-3 cursor-pointer border border-border-strong px-2.5 py-1.5 text-sm text-ink hover:border-accent hover:text-accent"
+            onClick={() => {
+              setOpen(false);
+              onCompare();
+            }}
+          >
+            Compare this model with…
+          </button>
+        )}
       </div>
     </div>
   );
