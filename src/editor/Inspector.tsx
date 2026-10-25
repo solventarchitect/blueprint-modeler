@@ -5,7 +5,7 @@ import { ARCHIMATE_TRADEMARK, archimateElements, archimateRelationshipFor, archi
 import { ArchimateGlyph } from "@/frameworks/ArchimateGlyph";
 import { classSlug } from "@/guide";
 import { allowedTypes, classById, ENVIRONMENT_EXAMPLES, isClassId, isCsdmCore, LIFE_CYCLE, lifecycleFor, sources } from "@/metamodel";
-import { modelDate, type Model } from "@/model";
+import { isWebUrl, MAX_LINKS, modelDate, type Link, type Model } from "@/model";
 import type { Action } from "./state";
 import { suggestionDetail, suggestionLabel, type Suggestion } from "./suggest";
 
@@ -177,6 +177,103 @@ function DescriptionField({
 }
 
 /** Reads a CSDM edge in ArchiMate terms, e.g. "Serving — the node serves the instance". */
+/**
+ * An element's links (M65): each opens in a new tab and can be removed; up to five, added with a
+ * title and an http(s) address. Saved at once, one undo step each.
+ */
+function LinksField({ id, links, onChange }: { id: string; links: Link[]; onChange: (links: Link[]) => void }) {
+  const [title, setTitle] = useState("");
+  const [url, setUrl] = useState("");
+  const [error, setError] = useState("");
+  // Another element: start the form again.
+  const [formFor, setFormFor] = useState(id);
+  if (formFor !== id) {
+    setFormFor(id);
+    setTitle("");
+    setUrl("");
+    setError("");
+  }
+  const uid = useId();
+  const titleRef = useRef<HTMLInputElement>(null);
+  const full = links.length >= MAX_LINKS;
+  const add = () => {
+    const t = title.trim();
+    const u = url.trim();
+    // An address typed without its scheme is taken as https.
+    const address = u && !/^[a-z][a-z0-9+.-]*:/i.test(u) ? `https://${u}` : u;
+    if (!t) return setError("Give the link a title.");
+    if (!isWebUrl(address)) return setError("Enter a web address that starts with http:// or https://.");
+    setError("");
+    setTitle("");
+    setUrl("");
+    onChange([...links, { title: t, url: address }]);
+    titleRef.current?.focus();
+  };
+  const onEnter = (e: React.KeyboardEvent) => {
+    if (e.key === "Enter") {
+      e.preventDefault();
+      add();
+    }
+  };
+  return (
+    <section aria-labelledby={`${uid}-head`} className="flex flex-col gap-2">
+      <h2 id={`${uid}-head`} className="text-sm font-medium">
+        Links
+      </h2>
+      {links.length ? (
+        <ul className="flex flex-col gap-1">
+          {links.map((l, i) => (
+            <li key={`${i}:${l.url}`} className="flex items-center justify-between gap-2 text-sm">
+              <a className="min-w-0 truncate text-accent underline underline-offset-4" href={l.url} target="_blank" rel="noopener noreferrer" title={l.url}>
+                {l.title}
+                <span className="sr-only"> (opens in a new tab)</span>
+              </a>
+              <button type="button" className={`${button} shrink-0 px-2 py-0.5 text-xs`} aria-label={`Remove link ${l.title}`} onClick={() => onChange(links.filter((_, k) => k !== i))}>
+                Remove
+              </button>
+            </li>
+          ))}
+        </ul>
+      ) : (
+        <p className="text-xs text-ink-muted">No links yet: add a runbook, a design page or a record.</p>
+      )}
+      {full ? (
+        <p className="text-xs text-ink-muted">An element holds up to {MAX_LINKS} links: remove one to add another.</p>
+      ) : (
+        <div className="flex flex-col gap-1">
+          <label className="flex flex-col gap-1 text-sm">
+            <span className="text-ink-muted">Link title</span>
+            <input ref={titleRef} className={input} value={title} maxLength={100} onChange={(e) => setTitle(e.target.value)} onKeyDown={onEnter} />
+          </label>
+          <label className="flex flex-col gap-1 text-sm">
+            <span className="text-ink-muted">Web address</span>
+            <input
+              className={input}
+              type="url"
+              inputMode="url"
+              value={url}
+              maxLength={2000}
+              placeholder="https://"
+              aria-invalid={error ? true : undefined}
+              aria-describedby={error ? `${uid}-error` : undefined}
+              onChange={(e) => setUrl(e.target.value)}
+              onKeyDown={onEnter}
+            />
+          </label>
+          {error && (
+            <p id={`${uid}-error`} role="alert" className="text-xs text-invalid">
+              {error}
+            </p>
+          )}
+          <button type="button" className={`${button} self-start`} onClick={add}>
+            Add link
+          </button>
+        </div>
+      )}
+    </section>
+  );
+}
+
 function archimateRelFor(model: Model) {
   const classOf = new Map(model.nodes.map((n) => [n.id, n.class]));
   return (from: string, to: string) => {
@@ -319,6 +416,16 @@ export function Inspector({ model, selectedId, dispatch, focusName, focusConnect
         onCommit={(value) => dispatch({ type: "set-attr", id: node.id, key: "environment", value })}
       />
       <NameField id={node.id} value={node.attrs?.owner ?? ""} label="Owner" optional list="bm-owner-options" help="A person, team or group." onCommit={(value) => dispatch({ type: "set-attr", id: node.id, key: "owner", value })} />
+      <NameField
+        id={node.id}
+        value={node.attrs?.ref ?? ""}
+        label="Record number"
+        optional
+        maxLength={40}
+        help="For example APM0001234. Text only: the modeler never connects to ServiceNow."
+        onCommit={(value) => dispatch({ type: "set-attr", id: node.id, key: "ref", value })}
+      />
+      <LinksField id={node.id} links={node.links ?? []} onChange={(links) => dispatch({ type: "set-links", id: node.id, links })} />
       {/* Suggestions: the white paper's environment examples and every value already used in this model. */}
       <datalist id="bm-environment-options">
         {[...new Set([...ENVIRONMENT_EXAMPLES.values, ...model.nodes.map((n) => n.attrs?.environment?.trim() ?? "").filter(Boolean)])].map((v) => (

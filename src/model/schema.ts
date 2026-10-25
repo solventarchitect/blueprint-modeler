@@ -6,11 +6,44 @@ export const CURRENT_SCHEMA = 1 as const;
 const id = z.string().min(1).max(64);
 const name = z.string().max(200);
 
+/** How many links an element can carry (M65). */
+export const MAX_LINKS = 5;
+/** A web address a link may open: http or https only, never a script or another scheme. */
+export const isWebUrl = (url: string) => {
+  try {
+    const u = new URL(url);
+    return u.protocol === "https:" || u.protocol === "http:";
+  } catch {
+    return false;
+  }
+};
+export const linkSchema = z.object({
+  title: z.string().trim().min(1).max(100),
+  url: z.string().trim().max(2000).refine(isWebUrl),
+});
+export type Link = z.infer<typeof linkSchema>;
+
 export const nodeSchema = z.object({
   id,
   class: z.string().min(1).max(64),
   name,
+  // M54: lifecycle, environment, owner; M65: ref, a record number such as APM0001234 (text only).
   attrs: z.record(z.string().max(64), z.string().max(2000)).optional(),
+  /**
+   * M65: links to pages about the element (runbooks, records). Optional and additive in format 1:
+   * older versions ignore it. A link that is not a titled http(s) address is dropped, not the file.
+   */
+  links: z
+    .array(z.unknown())
+    .max(50)
+    .transform((list) =>
+      list
+        .map((x) => linkSchema.safeParse(x))
+        .filter((r) => r.success)
+        .map((r) => r.data!)
+        .slice(0, MAX_LINKS),
+    )
+    .optional(),
 });
 
 /** The sides of an element a relationship can leave or reach. */

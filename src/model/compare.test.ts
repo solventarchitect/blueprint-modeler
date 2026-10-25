@@ -86,3 +86,19 @@ describe("compareModels with the same relationship twice (M58)", () => {
     expect(c.edgesRemoved).toEqual([]);
   });
 });
+
+describe("compareModels with links and record numbers (M65)", () => {
+  it("reports a changed record number and changed links", () => {
+    const base = checkout();
+    const now = checkout();
+    const id = by(now, "Checkout").id;
+    now.nodes = now.nodes.map((n) => (n.id === id ? { ...n, attrs: { ...n.attrs, ref: "APM0001234" }, links: [{ title: "Runbook", url: "https://example.com/rb" }] } : n));
+    const c = compareModels(now, base);
+    expect(c.changed.map((x) => x.changes.map((f) => [f.field, f.before, f.after]))).toEqual([
+      [
+        ["ref", "", "APM0001234"],
+        ["links", "", "Runbook (https://example.com/rb)"],
+      ],
+    ]);
+  });
+});

@@ -223,3 +223,48 @@ describe("connection points in the file (M61)", () => {
     expect(parsed.success && "ports" in parsed.data.edges[0]!).toBe(false);
   });
 });
+
+describe("links and a record number in the file (M65)", () => {
+  const withLinks = (links: unknown, ref?: string) => {
+    const m = JSON.parse(serializeModel(sample()));
+    m.nodes[0].links = links;
+    if (ref !== undefined) m.nodes[0].attrs = { ...(m.nodes[0].attrs ?? {}), ref };
+    return m;
+  };
+
+  it("round-trips links and a record number", () => {
+    const links = [{ title: "Runbook", url: "https://example.com/runbook" }, { title: "Status page", url: "http://status.example.com/" }];
+    const r = parseModel(withLinks(links, "APM0001234"));
+    expect(r.ok && r.model.nodes[0]!.links).toEqual(links);
+    expect(r.ok && r.model.nodes[0]!.attrs?.ref).toBe("APM0001234");
+    expect(r.ok && serializeModel(r.model)).toContain('"links"');
+  });
+
+  it("keeps a model with a bad link, dropping only that link: never a script or another scheme", () => {
+    const r = parseModel(
+      withLinks([
+        { title: "Fine", url: "https://example.com/a" },
+        { title: "Script", url: "javascript:alert(1)" },
+        { title: "Data", url: "data:text/html,hi" },
+        { title: "", url: "https://example.com/untitled" },
+        { title: "Not a URL", url: "example dot com" },
+        "nonsense",
+      ]),
+    );
+    expect(r.ok).toBe(true);
+    expect(r.ok && r.model.nodes[0]!.links).toEqual([{ title: "Fine", url: "https://example.com/a" }]);
+  });
+
+  it("keeps at most five links", () => {
+    const many = Array.from({ length: 8 }, (_, i) => ({ title: `L${i}`, url: `https://example.com/${i}` }));
+    const r = parseModel(withLinks(many));
+    expect(r.ok && r.model.nodes[0]!.links?.map((l) => l.title)).toEqual(["L0", "L1", "L2", "L3", "L4"]);
+  });
+
+  it("is ignored, not refused, by 1.12.0's reader: the same format without links", () => {
+    const older = modelSchema.extend({ nodes: modelSchema.shape.nodes.element.omit({ links: true }).array() });
+    const parsed = older.safeParse(withLinks([{ title: "Runbook", url: "https://example.com/" }]));
+    expect(parsed.success).toBe(true);
+    expect(parsed.success && "links" in parsed.data.nodes[0]!).toBe(false);
+  });
+});

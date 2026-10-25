@@ -11,7 +11,7 @@ import { classById } from "@/metamodel";
 import { attrValue } from "./views";
 import type { Edge, Model, Node } from "./schema";
 
-export type CompareField = "name" | "class" | "description" | "lifecycle" | "environment" | "owner";
+export type CompareField = "name" | "class" | "description" | "lifecycle" | "environment" | "owner" | "ref" | "links";
 export type FieldChange = { field: CompareField; before: string; after: string };
 export type ElementRef = { id: string; name: string; kind: string };
 export type EdgeRef = { id: string; from: string; to: string; type: string };
@@ -38,6 +38,8 @@ export const FIELD_LABEL: Record<CompareField, string> = {
   lifecycle: "Life cycle stage",
   environment: "Environment",
   owner: "Owner",
+  ref: "Record number",
+  links: "Links",
 };
 
 const kindOf = (n: Node) => classById(n.class)?.label ?? n.class;
@@ -52,6 +54,9 @@ function fields(n: Node): Record<CompareField, string> {
     lifecycle: attrValue(n, "lifecycle"),
     environment: attrValue(n, "environment"),
     owner: attrValue(n, "owner"),
+    // M65: the record number, and the links by title and address (titles shown when they differ).
+    ref: (n.attrs?.ref ?? "").trim(),
+    links: (n.links ?? []).map((l) => `${l.title} (${l.url})`).join(", "),
   };
 }
 
