@@ -16,6 +16,7 @@ export type Action =
   | { type: "rename-node"; id: string; name: string }
   | { type: "describe-node"; id: string; description: string }
   | { type: "set-attr"; id: string; key: "lifecycle" | "environment" | "owner"; value: string }
+  | { type: "set-attrs"; ids: string[]; key: "lifecycle" | "environment" | "owner"; value: string }
   | { type: "save-view"; view: View }
   | { type: "delete-view"; id: string }
   | { type: "move-node"; id: string; x: number; y: number }
@@ -120,14 +121,23 @@ function apply(model: Model, action: Action): Model | null {
       if (!node || node.name === action.name) return null;
       return { ...model, nodes: model.nodes.map((n) => (n.id === action.id ? { ...n, name: action.name } : n)) };
     }
-    case "set-attr": {
-      // Life cycle, environment, owner (M54): trimmed; empty removes the key, and empty attrs go away.
-      const node = model.nodes.find((n) => n.id === action.id);
+    case "set-attr":
+    case "set-attrs": {
+      // Life cycle, environment, owner (M54), on one element or several at once (M63): trimmed; empty
+      // removes the key, and empty attrs go away. One undo step, or none when nothing changes.
+      const ids = new Set(action.type === "set-attr" ? [action.id] : action.ids);
       const value = action.value.trim();
-      if (!node || (node.attrs?.[action.key] ?? "") === value) return null;
-      const attrs = Object.fromEntries(Object.entries(node.attrs ?? {}).filter(([k]) => k !== action.key));
-      if (value) attrs[action.key] = value;
-      return { ...model, nodes: model.nodes.map((n) => (n.id === action.id ? { ...n, attrs: Object.keys(attrs).length ? attrs : undefined } : n)) };
+      const changes = (n: Node) => ids.has(n.id) && (n.attrs?.[action.key] ?? "") !== value;
+      if (!model.nodes.some(changes)) return null;
+      return {
+        ...model,
+        nodes: model.nodes.map((n) => {
+          if (!changes(n)) return n;
+          const attrs = Object.fromEntries(Object.entries(n.attrs ?? {}).filter(([k]) => k !== action.key));
+          if (value) attrs[action.key] = value;
+          return { ...n, attrs: Object.keys(attrs).length ? attrs : undefined };
+        }),
+      };
     }
     case "save-view": {
       // Add, or replace in place a view with the same id (rename, new filter or coloring).
