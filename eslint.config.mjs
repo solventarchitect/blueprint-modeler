@@ -7,12 +7,11 @@ const eslintConfig = defineConfig([
   ...nextTs,
   {
     rules: {
-      // eslint-plugin-react-hooks 7 (with Next 16) flags every setState inside an effect. Ours are the
-      // deliberate "read browser-only state after hydration" kind (theme, saved view options, the guide
-      // filter's pre-hydration text, inspector fields following the selection), which must not run
-      // during the static render. Kept visible as warnings; refactor one at a time, each with its own
-      // test (Next.js 16 move, 2026-10-23).
-      "react-hooks/set-state-in-effect": "warn",
+      // eslint-plugin-react-hooks 7 (with Next 16) flags every setState inside an effect. The seven
+      // found at the Next.js 16 move were refactored (M62, 2026-10-25): browser-only state is read
+      // with useSyncExternalStore, a field following its prop is adjusted while rendering, and the
+      // guide's counts are worked out from its markup. New ones fail the build.
+      "react-hooks/set-state-in-effect": "error",
     },
   },
   globalIgnores(["node_modules/**", ".next/**", "out/**", "build/**", "next-env.d.ts", "playwright-report/**", "test-results/**"]),

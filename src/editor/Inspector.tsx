@@ -59,7 +59,12 @@ function NameField({
 }) {
   const [draft, setDraft] = useState(value);
   const ref = useRef<HTMLInputElement>(null);
-  useEffect(() => setDraft(value), [value, id]);
+  // A new value, or another element: start again from it (adjusted while rendering, not in an effect).
+  const [from, setFrom] = useState({ value, id });
+  if (from.value !== value || from.id !== id) {
+    setFrom({ value, id });
+    setDraft(value);
+  }
   useEffect(() => {
     if (focusToken) {
       ref.current?.focus();
@@ -145,7 +150,11 @@ function DescriptionField({
   help?: string;
 }) {
   const [draft, setDraft] = useState(value);
-  useEffect(() => setDraft(value), [value, id]);
+  const [from, setFrom] = useState({ value, id });
+  if (from.value !== value || from.id !== id) {
+    setFrom({ value, id });
+    setDraft(value);
+  }
   const commit = () => draft.trim() !== value && onCommit(draft);
   return (
     <label className="flex flex-col gap-1 text-sm">
@@ -186,7 +195,12 @@ export function Inspector({ model, selectedId, dispatch, focusName, focusConnect
   const connectId = useId();
   const archimateRel = archimateRelFor(model);
   const [target, setTarget] = useState("");
-  useEffect(() => setTarget(""), [selectedId]);
+  // Another element: no relationship target picked yet.
+  const [targetFor, setTargetFor] = useState(selectedId);
+  if (targetFor !== selectedId) {
+    setTargetFor(selectedId);
+    setTarget("");
+  }
 
   if (!node) {
     return (
