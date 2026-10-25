@@ -95,14 +95,14 @@ test.describe("view options and present mode (desktop)", () => {
     await expect(page.getByTestId("layer-box")).toHaveCount(5);
 
     const step = page.getByTestId("present-step");
-    await expect(step).toHaveText("Overview · 1 of 6");
+    await expect(step).toHaveText(/^Overview · 1 of 6\. /);
     await page.keyboard.press("ArrowRight");
-    await expect(step).toHaveText("Business · 2 of 6");
+    await expect(step).toHaveText(/^Business · 2 of 6\. /);
     for (let i = 0; i < 4; i++) await page.keyboard.press("ArrowRight");
-    await expect(step).toHaveText("Infrastructure · 6 of 6");
+    await expect(step).toHaveText(/^Infrastructure · 6 of 6\. /);
     await expect(bar.getByRole("button", { name: "Next" })).toBeDisabled();
     await page.keyboard.press("Home");
-    await expect(step).toHaveText("Overview · 1 of 6");
+    await expect(step).toHaveText(/^Overview · 1 of 6\. /);
 
     await page.keyboard.press("Escape");
     await expect(bar).toBeHidden();

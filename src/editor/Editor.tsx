@@ -85,8 +85,8 @@ import { isoToSvg } from "@/iso/svg";
 import type { IsoMode } from "@/iso/scene";
 import { HintsPanel } from "./HintsPanel";
 import { markerId, NotationLegend, NotationMarkers, type EdgeTone } from "./Notation";
-import { ReadPanel } from "./ReadPanel";
-import { readModel, type Sentence } from "./reading";
+import { ReadPanel, type ReadMode } from "./ReadPanel";
+import { outlineModel, readModel, type Sentence } from "./reading";
 import { Inspector } from "./Inspector";
 import { Palette } from "./Palette";
 import { connectionProblem, modernEdge, SLOT } from "./state";
@@ -342,6 +342,8 @@ function EditorInner() {
   }, [hints]);
   // The relationship chosen in the Read tab: highlighted like a hint's elements and relationships.
   const [readEdgeId, setReadEdgeId] = useState<string | null>(null);
+  /** The Read tab as sentences or as an outline of every element (M55). */
+  const [readMode, setReadMode] = useState<ReadMode>("sentences");
   const readEdge = model.edges.find((e) => e.id === readEdgeId);
   const highlighted = useMemo(
     () => new Set([...(activeHint?.nodeIds ?? []), ...(readEdge ? [readEdge.from, readEdge.to] : [])]),
@@ -1547,6 +1549,14 @@ function EditorInner() {
     },
     [steps, flow, fitPadding],
   );
+  /** What a present step shows, in words (M55): the overview counts the layers; a layer step names its elements. */
+  const stepContents = (st: (typeof steps)[number] | undefined) => {
+    if (!st) return "";
+    const count = (n: number) => `${n} element${n === 1 ? "" : "s"}`;
+    if (!st.layer) return `${count(model.nodes.length)} in ${steps.length - 1} layer${steps.length === 2 ? "" : "s"}. Next shows each layer in turn.`;
+    const items = outline.find((l) => l.layer === st.layer)?.items ?? [];
+    return `${count(items.length)}: ${items.map((i) => `${i.name} (${i.kind})`).join(", ")}.`;
+  };
   const startPresenting = () => {
     setBlast(null);
     setSelectedId(null);
@@ -1604,9 +1614,25 @@ function EditorInner() {
   }, [presenting, step, goTo, stopPresenting]);
 
   const selected = model.nodes.find((n) => n.id === selectedId);
+  /**
+   * Select an element and bring it into view, from the palette's Go to or the outline (M55). A faded
+   * element is out of reach: the filter lifts (keeping the coloring) first. The outline keeps its tab.
+   */
+  const goToElement = (id: string, keepTab = false) => {
+    const n = model.nodes.find((x) => x.id === id);
+    if (!n) return;
+    if (fadedIds.has(id)) showView({ id: null, filter: {}, colorBy: shown.colorBy });
+    if (keepTab) setSelectedId(id);
+    else selectNode(id);
+    // The isometric picture zooms to the selection once it has been drawn with it.
+    if (isoRef.current) setTimeout(() => isoRef.current?.zoom("selection"), 0);
+    else void flow.fitView({ nodes: [{ id }], padding: 0.3, maxZoom: 1.25, duration: prefersStill() ? 0 : 300 });
+    setMessage(`Selected ${classById(n.class)?.label ?? n.class} “${n.name || "Untitled"}”.`);
+  };
   const scopedHints = selected ? hints.filter((h) => h.nodeIds.includes(selected.id)) : hints;
   const scopedWarnings = scopedHints.filter((h) => h.hint.severity === "warning").length;
   const reading = useMemo(() => readModel(model, lens, selectedId), [model, lens, selectedId]);
+  const outline = useMemo(() => outlineModel(model, lens), [model, lens]);
   // ArchiMate-only lens: the relationship types on the canvas, for the notation legend.
   const legendTypes = useMemo(() => {
     const types = new Set<ArchimateRelationshipType>();
@@ -1758,13 +1784,7 @@ function EditorInner() {
       group: "Go to",
       label: `${n.name || "Untitled"}`,
       keywords: `${className(n.id)} element select find`,
-      run: () => {
-        // A faded element is out of reach: lift the filter (keeping the coloring) to go to it.
-        if (fadedIds.has(n.id)) showView({ id: null, filter: {}, colorBy: shown.colorBy });
-        selectNode(n.id);
-        void flow.fitView({ nodes: [{ id: n.id }], padding: 0.3, maxZoom: 1.25, duration: prefersStill() ? 0 : 300 });
-        setMessage(`Selected ${className(n.id)} “${n.name || "Untitled"}”.`);
-      },
+      run: () => goToElement(n.id),
     }));
     return [...list, ...goTo];
   };
@@ -1781,6 +1801,11 @@ function EditorInner() {
           {model.description && <p className="sr-only">{model.description}</p>}
           <p className="text-sm text-ink-muted" aria-live="polite" data-testid="present-step">
             {steps[step]?.name} · {step + 1} of {steps.length}
+            {/* M55: what the step shows, for screen readers (the canvas is a picture to them). */}
+            <span className="sr-only" data-testid="present-contents">
+              {". "}
+              {stepContents(steps[step])}
+            </span>
           </p>
           <span className="ml-auto flex gap-2">
             <button type="button" className={toolbarButton} disabled={step === 0} onClick={() => goTo(step - 1)} aria-keyshortcuts="ArrowLeft">
@@ -2324,7 +2349,18 @@ function EditorInner() {
                   onFlow={selected && isAnchor(selected.class) ? (from) => selectedId && openBlast(selectedId, from, "dependencies", true, "flow") : undefined}
                 />
               ) : tab === "read" ? (
-                <ReadPanel reading={reading} activeEdgeId={readEdge?.id ?? null} onFocus={focusRead} scopeName={selected?.name} />
+                <ReadPanel
+                  reading={reading}
+                  activeEdgeId={readEdge?.id ?? null}
+                  onFocus={focusRead}
+                  scopeName={selected?.name}
+                  mode={readMode}
+                  onMode={setReadMode}
+                  outline={outline}
+                  onGo={(id) => goToElement(id, true)}
+                  selectedIds={selection}
+                  faded={fadedIds}
+                />
               ) : (
                 <HintsPanel results={scopedHints} activeId={activeHint?.id ?? null} onFocus={focusHint} scopeName={selected?.name} />
               )}

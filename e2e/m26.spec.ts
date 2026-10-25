@@ -70,7 +70,8 @@ test.describe("M26: ArchiMate notation, layer colors and the Read tab (desktop)"
     await expect(readTab).toBeFocused();
 
     const panel = page.getByTestId("read-panel");
-    const sentences = panel.getByRole("button");
+    // The sentences, not the Sentences / Outline switch (M55).
+    const sentences = panel.getByRole("listitem").getByRole("button");
     await expect(sentences).toHaveCount(13);
     await expect(panel).toContainText("Business Capability “Order management” is provided by Business Application “Checkout”.");
 

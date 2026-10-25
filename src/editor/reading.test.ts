@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 import { examples } from "@/examples";
-import { csdmVerb, readModel } from "./reading";
+import { csdmVerb, outlineModel, readModel } from "./reading";
 
 const checkout = () => examples.find((e) => e.id === "checkout")!.create(new Date("2026-09-27T00:00:00Z"), "m1");
 const all = (r: ReturnType<typeof readModel>) => r.groups.flatMap((g) => g.sentences.map((s) => s.text));
@@ -53,5 +53,34 @@ describe("reading a model", () => {
     const bs = m.edges.find((e) => e.from === "bs")!;
     const r = readModel({ ...m, edges: [{ ...bs, type: "reference:parent" }] }, "csdm", "bs");
     expect(all(r)[0]).toMatch(/references .+ through its “parent” field\.$/);
+  });
+});
+
+describe("the outline (M55)", () => {
+  it("lists every element once, under its layer in canvas order, by name, with its relationship count", () => {
+    const m = checkout();
+    const o = outlineModel(m, "csdm");
+    expect(o.map((l) => l.name)).toEqual(["Business", "Design", "Service", "Functional", "Infrastructure"]);
+    expect(o.flatMap((l) => l.items)).toHaveLength(m.nodes.length);
+    for (const l of o) expect(l.items.map((i) => i.name)).toEqual([...l.items.map((i) => i.name)].sort((a, b) => a.localeCompare(b)));
+    const cap = o[0]!.items[0]!;
+    expect(cap).toMatchObject({ name: "Order management", kind: "Business Capability", links: 1, details: [] });
+    // Each relationship counts once at each end.
+    expect(o.flatMap((l) => l.items).reduce((n, i) => n + i.links, 0)).toBe(m.edges.length * 2);
+  });
+
+  it("shows life cycle stage, environment and owner where set, and the ArchiMate term in that lens", () => {
+    const m = checkout();
+    const id = m.nodes.find((n) => n.name === "Order management")!.id;
+    const withAttrs = { ...m, nodes: m.nodes.map((n) => (n.id === id ? { ...n, attrs: { lifecycle: "Operational", owner: "Ana" } } : n)) };
+    expect(outlineModel(withAttrs, "csdm")[0]!.items[0]!.details).toEqual(["Operational", "Owner: Ana"]);
+    expect(outlineModel(withAttrs, "archimate-only")[0]!.items[0]!.kind).toBe("Capability");
+  });
+
+  it("leaves out empty layers and counts an unconnected element as 0", () => {
+    const m = checkout();
+    const host = m.nodes.find((n) => n.name === "Order management")!;
+    const lone = { ...m, nodes: [host], edges: [] };
+    expect(outlineModel(lone, "csdm")).toEqual([{ layer: "business", name: "Business", items: [expect.objectContaining({ links: 0 })] }]);
   });
 });
