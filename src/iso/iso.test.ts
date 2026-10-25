@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 import { examples } from "@/examples";
-import { behind, isoScene, drawOrder, paintOrder, pipeRoute, project, depth, HEIGHT, STEP, SLAB, type Rect } from "./scene";
+import { behind, bridgeRoute, BRIDGE_CLEAR, isoScene, drawOrder, paintOrder, pipeRoute, project, depth, HEIGHT, STEP, SLAB, type Rect } from "./scene";
 import { isoToSvg, mix } from "./svg";
 
 const checkout = () => examples.find((e) => e.id === "checkout")!.create(new Date("2026-09-27T00:00:00Z"), "m1");
@@ -49,18 +49,38 @@ describe("isometric scene (M59)", () => {
     }
   });
 
-  it("joins layers with a straight line from top to top", () => {
-    const s = isoScene(checkout(), "iso");
-    const lines = s.edges.filter((e) => e.across);
-    expect(lines.length).toBeGreaterThan(0);
-    for (const e of lines) {
-      const a = s.blocks.find((b) => b.id === e.from)!;
-      const b = s.blocks.find((x) => x.id === e.to)!;
-      expect(e.points).toEqual([
-        { x: a.rect.x + a.rect.w / 2, y: a.rect.y + a.rect.d / 2, z: a.z + a.h },
-        { x: b.rect.x + b.rect.w / 2, y: b.rect.y + b.rect.d / 2, z: b.z + b.h },
-      ]);
+  it("joins layers with a bridge along the axes only: up from the lower top, back, along the higher lane, down onto its top (M60)", () => {
+    for (const mode of ["iso", "exploded"] as const) {
+      const s = isoScene(checkout(), mode);
+      const lines = s.edges.filter((e) => e.across);
+      expect(lines.length).toBeGreaterThan(0);
+      for (const e of lines) {
+        const a = s.blocks.find((b) => b.id === e.from)!;
+        const b = s.blocks.find((x) => x.id === e.to)!;
+        const top = (k: typeof a) => ({ x: k.rect.x + k.rect.w / 2, y: k.rect.y + k.rect.d / 2, z: k.z + k.h });
+        // From the `from` block's top to the `to` block's top, whichever way is up.
+        expect(e.points[0]).toEqual(top(a));
+        expect(e.points.at(-1)).toEqual(top(b));
+        // Every segment runs along exactly one axis, so on screen it takes one of the pipes' angles.
+        for (let i = 1; i < e.points.length; i++) {
+          const [p, q] = [e.points[i - 1]!, e.points[i]!];
+          expect([p.x !== q.x, p.y !== q.y, p.z !== q.z].filter(Boolean)).toHaveLength(1);
+        }
+        // The runs between the layers are just above the higher layer's tops: above every layer they pass.
+        const high = a.z > b.z ? a : b;
+        expect(e.points.slice(1, -1).every((p) => p.z === high.z + high.h + BRIDGE_CLEAR)).toBe(true);
+      }
     }
+  });
+
+  it("drops zero-length legs of a bridge", () => {
+    const s = isoScene(checkout(), "iso");
+    const [a, b] = [s.blocks[0]!, s.blocks.find((x) => x.layer !== s.blocks[0]!.layer)!];
+    // Put b straight behind a: the bridge is up, back and down, with no sideways leg.
+    const aligned = { ...b, rect: { ...b.rect, x: a.rect.x, w: a.rect.w } };
+    expect(bridgeRoute(a, aligned)).toHaveLength(4);
+    const offset = { ...b, rect: { ...b.rect, x: a.rect.x + 400 } };
+    expect(bridgeRoute(a, offset)).toHaveLength(5);
   });
 
   it("draws the farthest layers first", () => {
