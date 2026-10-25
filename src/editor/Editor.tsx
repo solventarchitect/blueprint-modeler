@@ -39,7 +39,8 @@ import { EXAMPLE_PARAM, exampleFromSearch, shownText } from "@/examples/deepLink
 import { archimateElements, archimateRelationshipFor, edgeNotation, lenses, readLens, saveLens, showsArchimate, type ArchimateRelationshipType, type Lens } from "@/frameworks";
 import { downloadText } from "@/io/download";
 import { pngScale, svgToPng } from "@/io/png";
-import { printSvg } from "@/io/print";
+import { printNode, printSvg } from "@/io/print";
+import { reportSheet, reportSummary } from "@/io/report";
 import { exportJson, fileBase, importJson, MAX_FILE_CHARS } from "@/io/file";
 import { decodeShare, encodeShare, shareSize, shareSupported, shareUrl, takeSharedPayload, type ShareResult } from "@/io/shareLink";
 import { modelToArchimateXml } from "@/io/archimate";
@@ -56,7 +57,7 @@ import { arrangeByGroups, groupFrames, ownGroups, type Frame } from "@/layout/gr
 import { autoLayout, DEFAULT_SIZE, fillSpace, type LayoutMode } from "@/layout/layout";
 import { createWorkerEngine } from "@/layout/worker-engine";
 import { classById, classes, ENVIRONMENT_EXAMPLES, isClassId, isExtended, type ClassId, type Layer } from "@/metamodel";
-import { ALL_ELEMENTS, FIELD_LABEL, GROUP_BY_LABEL, groupsOf, primaryGroup, SIDES, attrValue, compareModels, parseModel, blastRadius, COLOR_BY_LABEL, evaluateHints, filterActive, formatModelDate, impactEnds, inView, isBusinessAnchor as isAnchor, modelDate, slotMap, UNTITLED_MODEL, type BlastDirection, type Edge, type HintResult, type Model } from "@/model";
+import { ALL_ELEMENTS, FIELD_LABEL, healthReport, localDay, GROUP_BY_LABEL, groupsOf, primaryGroup, SIDES, attrValue, compareModels, parseModel, blastRadius, COLOR_BY_LABEL, evaluateHints, filterActive, formatModelDate, impactEnds, inView, isBusinessAnchor as isAnchor, modelDate, slotMap, UNTITLED_MODEL, type BlastDirection, type Edge, type HintResult, type Model } from "@/model";
 import { site } from "@/lib/site";
 import { ClassNode, SuggestContext, type ClassFlowNode } from "./ClassNode";
 import { ConnectionLine, ConnectionModelContext, ReconnectingContext } from "./ConnectionLine";
@@ -1216,6 +1217,11 @@ function EditorInner() {
         .catch(() => setMessage("Could not make the PNG in this browser. Nothing was saved."));
     } else if (kind === "print") {
       printSvg(picture("light"), fileBase(model));
+    } else if (kind === "report") {
+      // M64: a page on the model's hints and missing details, always the whole model.
+      const report = healthReport(model);
+      printNode(reportSheet(model, report, localDay(new Date())), `${fileBase(model)}-health-report`);
+      setMessage(`Health report: ${reportSummary(report)}`);
     } else {
       const theme = kind === "svg-dark" ? "dark" : "light";
       const filename = `${fileBase(model)}${projection === "plan" ? "" : `-${projection}`}-${theme}.svg`;
@@ -1988,7 +1994,7 @@ function EditorInner() {
       ...exportItems.map((it): Command => ({
         id: `export-${it.kind}`,
         group: "Export",
-        label: it.kind === "link" || it.kind === "print" ? it.label : `Export ${it.label}`,
+        label: it.kind === "link" || it.kind === "print" || it.kind === "report" ? it.label : `Export ${it.label}`,
         keywords: "export download save",
         disabled: exportDisabled[it.kind] ? exportNotes[it.kind] : undefined,
         run: () => exportAs(it.kind),
