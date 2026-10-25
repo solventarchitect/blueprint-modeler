@@ -174,7 +174,9 @@ function ClassNodeView({ id, data, selected, dragging }: NodeProps<ClassFlowNode
   return (
     <div
       ref={box}
-      className={`relative w-56 border border-border-strong border-l-4 px-3 py-2.5 text-left ${data.neighbor && !selected ? "bg-neighbor-tint" : data.archimateOnly && data.alt ? archimateBg[data.alt.layer] : "bg-surface-raised"} ${layerAccent[def?.layer ?? "design"]} ${ring} ${focus ? "shadow-lg" : ""}`}
+      // nokey: Shift+press on an element is a Shift+click (add to the selection), never the start of a
+      // Shift+drag box selection, which React Flow would otherwise begin on any pointer jitter (M57).
+      className={`nokey relative w-56 border border-border-strong border-l-4 px-3 py-2.5 text-left ${data.neighbor && !selected ? "bg-neighbor-tint" : data.archimateOnly && data.alt ? archimateBg[data.alt.layer] : "bg-surface-raised"} ${layerAccent[def?.layer ?? "design"]} ${ring} ${focus ? "shadow-lg" : ""}`}
       data-connect-target={target || undefined}
       data-neighbor={data.neighbor || undefined}
       data-archimate-layer={data.archimateOnly ? data.alt?.layer : undefined}

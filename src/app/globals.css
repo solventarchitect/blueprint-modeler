@@ -952,3 +952,14 @@
 .react-flow__edge.faded .react-flow__edge-path {
   opacity: 0.2;
 }
+
+/*
+ * M57: smart guides while dragging, one screen pixel wide (sized in Editor), over every element (a
+ * dragged element is raised above 1000), in the status color so they don't read as relationships.
+ */
+.bm-guide {
+  position: absolute;
+  background: var(--status);
+  pointer-events: none;
+  z-index: 3000;
+}

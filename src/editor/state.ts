@@ -19,7 +19,7 @@ export type Action =
   | { type: "delete-view"; id: string }
   | { type: "move-node"; id: string; x: number; y: number }
   | { type: "delete-node"; id: string }
-  | { type: "delete-nodes"; ids: string[] }
+  | { type: "delete-nodes"; ids: string[]; edgeIds?: string[] }
   | { type: "add-edge"; id: string; from: string; to: string; edgeType?: string }
   | { type: "add-related"; id: string; class: ClassId; name: string; edgeId: string; relatedTo: string; outgoing: boolean; edgeType: string; at?: { x: number; y: number } }
   | { type: "delete-edge"; id: string }
@@ -197,15 +197,17 @@ function apply(model: Model, action: Action): Model | null {
       return { ...withNode, edges: [...withNode.edges, { id: action.edgeId, from, to, type: action.edgeType }] };
     }
     case "delete-nodes": {
-      // A whole layer at once, as one undo step.
+      // A whole layer or selection at once, with their relationships and any other selected
+      // relationships (edgeIds), as one undo step.
       const ids = new Set(action.ids.filter((id) => model.nodes.some((n) => n.id === id)));
-      if (ids.size === 0) return null;
+      const lines = new Set(action.edgeIds ?? []);
+      if (ids.size === 0 && !model.edges.some((e) => lines.has(e.id))) return null;
       const layout = { ...model.layout };
       for (const id of ids) delete layout[id];
       return {
         ...model,
         nodes: model.nodes.filter((n) => !ids.has(n.id)),
-        edges: model.edges.filter((e) => !ids.has(e.from) && !ids.has(e.to)),
+        edges: model.edges.filter((e) => !ids.has(e.from) && !ids.has(e.to) && !lines.has(e.id)),
         layout,
       };
     }

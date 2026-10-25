@@ -105,6 +105,19 @@ describe("editor state", () => {
     expect(reduce(s, { type: "delete-nodes", ids: ["ghost"] }, now)).toBe(s);
   });
 
+  it("delete-nodes also removes other selected relationships, in the same undo step (M57)", () => {
+    const s = run([
+      ...base,
+      { type: "add-edge", id: "e1", from: "ba", to: "svc" },
+      { type: "delete-nodes", ids: [], edgeIds: ["e1"] },
+    ]);
+    expect(s.present.edges).toEqual([]);
+    expect(s.present.nodes).toHaveLength(3);
+    const back = reduce(s, { type: "undo" }, now);
+    expect(back.present.edges.map((e) => e.id)).toEqual(["e1"]);
+    expect(reduce(back, { type: "delete-nodes", ids: [], edgeIds: ["nope"] }, now)).toBe(back);
+  });
+
   it("brings a legacy edge to its CSDM 5 type and direction in one step", () => {
     const start = run([
       { type: "add-node", id: "cap", class: "business_capability", name: "Orders" },
