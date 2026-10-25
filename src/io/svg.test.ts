@@ -179,3 +179,20 @@ describe("SVG connection points (M61)", () => {
     expect(modelToSvg(withPorts({ from: "left", to: "right" }), "light")).not.toBe(before);
   });
 });
+
+describe("group frames in the image (M56)", () => {
+  it("draws a frame and a named tab for each group, inside the image, and says how it is grouped", () => {
+    const m = checkout();
+    const svg = modelToSvg(m, "light", { view: { filter: {}, colorBy: "layer", groupBy: "business_application" } });
+    expect(svg.match(/data-group-frame=/g)).toHaveLength(1);
+    expect(svg).toContain("Checkout · 9");
+    expect(svg).toContain("grouped by Business Application");
+    const [vx, vy, vw, vh] = svg.match(/viewBox="([^"]+)"/)![1]!.split(" ").map(Number) as [number, number, number, number];
+    const [, x, y, w, h] = svg.match(/data-group-frame="[^"]+"><rect x="([-\d.]+)" y="([-\d.]+)" width="([\d.]+)" height="([\d.]+)"/)!.map(Number) as number[];
+    expect(x! >= vx && y! - 18 >= vy && x! + w! <= vx + vw && y! + h! <= vy + vh).toBe(true);
+  });
+
+  it("draws no frames without a grouping", () => {
+    expect(modelToSvg(checkout(), "light", { view: { filter: {}, colorBy: "layer" } })).not.toContain("data-group-frame");
+  });
+});

@@ -3,17 +3,17 @@
 import { useCallback, useEffect, useId, useRef, useState } from "react";
 import { classById, LIFE_CYCLE } from "@/metamodel";
 import { LAYERS } from "@/layout/bands";
-import { attrValue, COLOR_BY, COLOR_BY_LABEL, filterActive, inView, legend, MAX_VIEWS, slotMarker, type ColorBy, type LegendEntry, type Model, type ViewFilter } from "@/model";
+import { attrValue, COLOR_BY, COLOR_BY_LABEL, filterActive, GROUP_BY, GROUP_BY_LABEL, type GroupBy, inView, legend, MAX_VIEWS, slotMarker, type ColorBy, type LegendEntry, type Model, type ViewFilter } from "@/model";
 import { ToolbarIcon } from "./ToolbarIcon";
 import { useDismiss } from "./useDismiss";
 
-/** The view in use: a saved view's id (or null for an unsaved one), its filter and its coloring. */
-export type ShownView = { id: string | null; filter: ViewFilter; colorBy: ColorBy };
+/** The view in use: a saved view's id (or null for an unsaved one), its filter, its coloring and its grouping (M56). */
+export type ShownView = { id: string | null; filter: ViewFilter; colorBy: ColorBy; groupBy?: GroupBy };
 
 /** A saved view in use whose filter or coloring was changed since: said so, so the screen never claims the saved one. */
 function isEdited(model: Model, shown: ShownView) {
   const saved = model.views?.find((v) => v.id === shown.id);
-  return !!saved && JSON.stringify([saved.filter, saved.colorBy]) !== JSON.stringify([shown.filter, shown.colorBy]);
+  return !!saved && JSON.stringify([saved.filter, saved.colorBy, saved.groupBy ?? null]) !== JSON.stringify([shown.filter, shown.colorBy, shown.groupBy ?? null]);
 }
 
 
@@ -37,7 +37,7 @@ export function ViewsMenu({ model, shown, onShow, onEdit, buttonClass }: { model
   const panelId = useId();
   const close = useCallback(() => setOpen(false), []);
   useDismiss(open, close, root, button);
-  const all = shown.id === null && !filterActive(shown.filter) && shown.colorBy === "layer";
+  const all = shown.id === null && !filterActive(shown.filter) && shown.colorBy === "layer" && !shown.groupBy;
   const saved = model.views?.find((v) => v.id === shown.id);
   const edited = isEdited(model, shown);
   const label = all ? "Views" : `Views: ${saved ? `${saved.name}${edited ? " (edited)" : ""}` : "Unsaved"}`;
@@ -96,12 +96,13 @@ export function ViewsMenu({ model, shown, onShow, onEdit, buttonClass }: { model
           </li>
           {(model.views ?? []).map((v) => (
             <li key={v.id}>
-              <button type="button" aria-pressed={shown.id === v.id} className={item} onClick={() => pick(() => onShow({ id: v.id, filter: v.filter, colorBy: v.colorBy }))}>
+              <button type="button" aria-pressed={shown.id === v.id} className={item} onClick={() => pick(() => onShow({ id: v.id, filter: v.filter, colorBy: v.colorBy, groupBy: v.groupBy }))}>
                 {check(shown.id === v.id)}
                 <span className="flex min-w-0 flex-col">
                   <span className="truncate">{v.name}</span>
                   <span className="text-xs text-ink-muted">
                     {model.nodes.filter((n) => inView(n, v.filter)).length} of {model.nodes.length} elements · {COLOR_BY_LABEL[v.colorBy]} colors
+                    {v.groupBy ? ` · by ${GROUP_BY_LABEL[v.groupBy]}` : ""}
                   </span>
                 </span>
               </button>
@@ -200,6 +201,18 @@ export function ViewDialog({
             ))}
           </div>
         </fieldset>
+        <fieldset>
+          <legend className="text-sm font-medium">Group by</legend>
+          <div className="mt-1.5 flex flex-wrap gap-x-4 gap-y-1">
+            {([undefined, ...GROUP_BY] as (GroupBy | undefined)[]).map((g) => (
+              <label key={g ?? "none"} className="flex min-h-6 items-center gap-1.5 text-sm">
+                <input type="radio" name="view-group-by" checked={shown.groupBy === g} onChange={() => onChange({ ...shown, groupBy: g })} />
+                {g ? GROUP_BY_LABEL[g] : "None"}
+              </label>
+            ))}
+          </div>
+          <p className="mt-1 text-xs text-ink-muted">A frame around each group: a Business Application or Service Offering with everything it reaches, or the elements in one environment. Worked out from the model, nothing is stored on the elements.</p>
+        </fieldset>
         <div>
           <p className="text-sm font-medium">Show only</p>
           <p className="text-xs text-ink-muted">Within a group any ticked value matches; every group with ticks must match. A group with no ticks keeps everything. The others stay in place, faded.</p>
@@ -271,9 +284,9 @@ export function ViewDialog({
  * The legend (M54), top right of the canvas while a view colors by a property or filters: each value
  * with its marker, color and count in the view, and how many elements the filter keeps.
  */
-export function ViewLegend({ model, shown, onEdit, onShowAll }: { model: Model; shown: ShownView; onEdit?: () => void; onShowAll?: () => void }) {
+export function ViewLegend({ model, shown, onEdit, onShowAll, groups, onArrange }: { model: Model; shown: ShownView; onEdit?: () => void; onShowAll?: () => void; groups?: number; onArrange?: () => void }) {
   const active = filterActive(shown.filter);
-  if (!active && shown.colorBy === "layer") return null;
+  if (!active && shown.colorBy === "layer" && !shown.groupBy) return null;
   const entries = legend(model, shown.colorBy, shown.filter);
   const kept = model.nodes.filter((n) => inView(n, shown.filter)).length;
   const name = model.views?.find((v) => v.id === shown.id)?.name;
@@ -293,6 +306,19 @@ export function ViewLegend({ model, shown, onEdit, onShowAll }: { model: Model; 
             ))}
           </ul>
         </>
+      )}
+      {shown.groupBy && (
+        <p className="mt-1 text-xs text-ink-soft">
+          Grouped by {GROUP_BY_LABEL[shown.groupBy]}: {groups ? `${groups} group${groups === 1 ? "" : "s"}` : "no groups in this model"}
+          {onArrange && !!groups && (
+            <>
+              {" "}
+              <button type="button" className="cursor-pointer text-accent underline underline-offset-4" onClick={onArrange}>
+                Arrange by group
+              </button>
+            </>
+          )}
+        </p>
       )}
       {active && <p className="mt-1 text-xs text-ink-soft">Showing {kept} of {model.nodes.length} elements; the rest are faded.</p>}
       {(onEdit || onShowAll) && (

@@ -988,3 +988,36 @@
   stroke-width: 2.5;
   stroke-dasharray: 8 5;
 }
+
+/*
+ * M56: group frames, a solid outline with a light wash, distinct from the layer boxes' tint; a tab on
+ * the top edge names the group (and collapses it). A collapsed group is a block with a double edge.
+ */
+.bm-group-frame {
+  border: 1.5px solid var(--ink-soft);
+  border-radius: 10px;
+  background: color-mix(in oklab, var(--ink-soft) 4%, transparent);
+}
+.bm-group-tab {
+  margin-top: -2px;
+  padding: 2px 8px;
+  border: 1.5px solid var(--ink-soft);
+  border-bottom: 0;
+  border-radius: 6px 6px 0 0;
+  background: var(--surface-raised);
+  color: var(--ink);
+  font-size: 12px;
+}
+.bm-group-tab:hover,
+.bm-group-tab:focus-visible {
+  border-color: var(--accent);
+  color: var(--accent);
+}
+.bm-group-node {
+  border: 3px double var(--ink-soft);
+  border-radius: 10px;
+  background: var(--surface-raised);
+}
+.react-flow__edge.group-edge .react-flow__edge-path {
+  stroke-dasharray: 6 4;
+}

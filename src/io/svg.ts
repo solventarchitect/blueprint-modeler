@@ -1,7 +1,8 @@
 import { archimateElements, archimateFill, archimateRelationshipFor, archimateTypeInk, edgeNotation, markerSvg, type Lens, type MarkerShape, showsArchimate } from "@/frameworks";
 import { classById, isClassId, type Layer } from "@/metamodel";
-import { COLOR_BY_LABEL, filterActive, formatModelDate, inView, legend, modelDate, PALETTE, slotColor, slotMap, slotMarker, UNTITLED_MODEL, type ColorBy, type Model, type ViewFilter } from "@/model";
+import { COLOR_BY_LABEL, filterActive, GROUP_BY_LABEL, groupsOf, type GroupBy, formatModelDate, inView, legend, modelDate, PALETTE, slotColor, slotMap, slotMarker, UNTITLED_MODEL, type ColorBy, type Model, type ViewFilter } from "@/model";
 import { layoutOrientation } from "@/layout/bands";
+import { groupFrames } from "@/layout/groupLayout";
 import { planLabels } from "@/layout/edgeLabel";
 import { edgePath, type LineStyle } from "@/layout/edgePath";
 import { edgeEnds, type Side } from "@/layout/geometry";
@@ -32,7 +33,9 @@ export type SvgHighlight = {
 };
 
 /** A view (M54) drawn into the picture: elements outside the filter fade; color by puts a colored bar and a marker on each element, with a legend in the title block. */
-export type SvgView = { filter: ViewFilter; colorBy: ColorBy; name?: string };
+export type SvgView = { filter: ViewFilter; colorBy: ColorBy; groupBy?: GroupBy; name?: string };
+/** A group frame's name tab (M56), on the frame's top edge. */
+const GROUP_TAB_H = 18;
 
 /** Every color a picture in this theme and lens can use: large fills, then lines and text; with `view`, the color-by colors too. */
 export function svgColors(theme: SvgTheme, lens: Lens, view?: SvgView): { surfaces: string[]; inks: string[] } {
@@ -124,7 +127,7 @@ export function svgTitleBlock(model: Model, theme: SvgTheme, view: SvgView | und
   const aboutLines = about ? wrapText(about, aboutChars, 3) : [];
   // The view legend: entries wrap into rows as wide as the diagram (at least 480px).
   const legendHead = view
-    ? [view.name ? `View: ${view.name}` : "View", view.colorBy !== "layer" ? `colored by ${COLOR_BY_LABEL[view.colorBy].toLowerCase()}` : "", `showing ${shownCount} of ${model.nodes.length} elements`].filter(Boolean).join(" · ")
+    ? [view.name ? `View: ${view.name}` : "View", view.colorBy !== "layer" ? `colored by ${COLOR_BY_LABEL[view.colorBy].toLowerCase()}` : "", view.groupBy ? `grouped by ${GROUP_BY_LABEL[view.groupBy]}` : "", `showing ${shownCount} of ${model.nodes.length} elements`].filter(Boolean).join(" · ")
     : "";
   const legendRows: { label: string; slot: Parameters<typeof slotColor>[0]; w: number }[][] = [];
   if (view) {
@@ -204,7 +207,7 @@ export function svgTitleBlock(model: Model, theme: SvgTheme, view: SvgView | und
 export function modelToSvg(model: Model, theme: SvgTheme, opts: { lens?: Lens; highlight?: SvgHighlight; lines?: LineStyle; labels?: boolean; view?: SvgView } = {}): string {
   const lens = opts.lens ?? "csdm";
   // "All elements" colored by layer draws exactly as without a view.
-  const view = opts.view && (filterActive(opts.view.filter) || opts.view.colorBy !== "layer") ? opts.view : undefined;
+  const view = opts.view && (filterActive(opts.view.filter) || opts.view.colorBy !== "layer" || opts.view.groupBy) ? opts.view : undefined;
   const faded = new Set(view ? model.nodes.filter((n) => !inView(n, view.filter)).map((n) => n.id) : []);
   const slotFor = view ? slotMap(model, view.colorBy) : null;
   const lines = opts.lines ?? "curved";
@@ -225,10 +228,16 @@ export function modelToSvg(model: Model, theme: SvgTheme, opts: { lens?: Lens; h
   }
 
   const all = [...boxes.values()];
+  // Group frames (M56), every group open: collapsing is for the screen only.
+  const frames = view?.groupBy ? groupFrames(groupsOf(model, view.groupBy), model.layout, Object.fromEntries([...boxes].map(([id, b]) => [id, { width: b.w, height: b.h }]))) : [];
+  const tabText = (f: (typeof frames)[number]) => `${f.label} · ${f.count}`;
+  const tabW = (f: (typeof frames)[number]) => tabText(f).length * 6.6 + 16;
+  // What the image has to hold: the elements, and the frames with their tabs.
+  const extent = [...all, ...frames.map((f) => ({ x: f.x, y: f.y - GROUP_TAB_H, w: Math.max(f.w, tabW(f)), h: f.h + GROUP_TAB_H }))];
   const columns = layoutOrientation(model, Object.fromEntries([...boxes].map(([id, b]) => [id, { width: b.w, height: b.h }]))) === "columns";
-  const minX = all.length ? Math.min(...all.map((b) => b.x)) - PAD : 0;
+  const minX = all.length ? Math.min(...extent.map((b) => b.x)) - PAD : 0;
   const name = model.name || UNTITLED_MODEL;
-  const diagramMaxX = all.length ? Math.max(...all.map((b) => b.x + b.w)) + PAD : 2 * PAD;
+  const diagramMaxX = all.length ? Math.max(...extent.map((b) => b.x + b.w)) + PAD : 2 * PAD;
   const tb = svgTitleBlock(model, theme, view, model.nodes.length - faded.size, diagramMaxX - minX - 2 * PAD);
   const titleWidth = tb.width;
   const maxX = Math.max(
@@ -237,8 +246,8 @@ export function modelToSvg(model: Model, theme: SvgTheme, opts: { lens?: Lens; h
     minX + 2 * PAD + titleWidth,
   );
   const titleH = tb.height;
-  const minY = (all.length ? Math.min(...all.map((b) => b.y)) - PAD : 0) - titleH - (hl?.caption ? CAPTION_H : 0);
-  const maxY = all.length ? Math.max(...all.map((b) => b.y + b.h)) + PAD : 2 * PAD;
+  const minY = (all.length ? Math.min(...extent.map((b) => b.y)) - PAD : 0) - titleH - (hl?.caption ? CAPTION_H : 0);
+  const maxY = all.length ? Math.max(...extent.map((b) => b.y + b.h)) + PAD : 2 * PAD;
   const width = hl?.caption ? Math.ceil(maxX - minX) : maxX - minX;
   const height = maxY - minY;
 
@@ -356,6 +365,12 @@ export function modelToSvg(model: Model, theme: SvgTheme, opts: { lens?: Lens; h
       .join("")}</defs>`,
     `<rect x="${minX}" y="${minY}" width="${width}" height="${height}" fill="${p.bg}"/>`,
     ...titleBlock,
+    ...frames.map(
+      (f) =>
+        `<g data-group-frame="${esc(f.key)}"><rect x="${r1(f.x)}" y="${r1(f.y)}" width="${r1(f.w)}" height="${r1(f.h)}" fill="none" stroke="${p.line}" stroke-dasharray="6 4"/>` +
+        `<rect x="${r1(f.x)}" y="${r1(f.y - GROUP_TAB_H)}" width="${r1(tabW(f))}" height="${GROUP_TAB_H}" fill="${p.bg}" stroke="${p.line}"/>` +
+        `<text x="${r1(f.x + 8)}" y="${r1(f.y - 5)}" font-family="${MONO}" font-size="11" fill="${p.muted}">${esc(tabText(f))}</text></g>`,
+    ),
     ...edges,
     ...nodes,
     ...(caption ? [caption] : []),
