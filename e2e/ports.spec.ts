@@ -86,6 +86,29 @@ test.describe("connection points that stick (M61, desktop)", () => {
     await expect.poll(() => pathOf(page, edgeId)).toBe(before);
   });
 
+  test("letting go of a moved end on empty canvas changes nothing and opens no menu", async ({ page }) => {
+    await open(page);
+    const edgeId = (await page.locator(".react-flow__edge").first().getAttribute("data-testid"))!.replace("rf__edge-", "");
+    const before = await pathOf(page, edgeId);
+    const end = await page.getByTestId(`rf__edge-${edgeId}`).evaluate((el) => {
+      const r = (el.querySelector(".react-flow__edgeupdater-target") as SVGCircleElement).getBoundingClientRect();
+      return { x: r.x + r.width / 2, y: r.y + r.height / 2 };
+    });
+    const pane = (await page.locator(".react-flow__pane").boundingBox())!;
+    await page.mouse.move(end.x, end.y);
+    await page.mouse.down();
+    // While moving an end, no other element is offered as a target.
+    await page.mouse.move(end.x + 20, end.y + 20, { steps: 3 });
+    await expect(page.locator("[data-connect-target]")).toHaveCount(0);
+    // Empty canvas, far from any element (the bottom-right corner of the canvas).
+    await page.mouse.move(pane.x + pane.width - 30, pane.y + pane.height - 30, { steps: 10 });
+    await page.mouse.up();
+    await expect(page.getByRole("menu")).toHaveCount(0);
+    await expect(page.getByRole("status")).not.toContainText("Drop the end");
+    expect(await pathOf(page, edgeId)).toBe(before);
+    await expect(page.getByTestId("save-status")).toHaveText("Saved in this browser");
+  });
+
   for (const scheme of ["dark", "light"] as const) {
     test(`the relationship menu with connection points passes WCAG 2.2 AA (${scheme})`, async ({ page }) => {
       await page.emulateMedia({ colorScheme: scheme });

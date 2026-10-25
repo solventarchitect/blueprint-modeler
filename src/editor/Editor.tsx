@@ -58,7 +58,7 @@ import { classById, classes, isClassId, isExtended, type ClassId, type Layer } f
 import { ALL_ELEMENTS, SIDES, attrValue, blastRadius, COLOR_BY_LABEL, evaluateHints, filterActive, formatModelDate, impactEnds, inView, isBusinessAnchor as isAnchor, modelDate, slotMap, UNTITLED_MODEL, type BlastDirection, type Edge, type ColorBy, type HintResult, type Model, type ViewFilter } from "@/model";
 import { site } from "@/lib/site";
 import { ClassNode, SuggestContext, type ClassFlowNode } from "./ClassNode";
-import { ConnectionLine, ConnectionModelContext } from "./ConnectionLine";
+import { ConnectionLine, ConnectionModelContext, ReconnectingContext } from "./ConnectionLine";
 import { exportItems, ExportMenu, type ExportKind } from "./ExportMenu";
 import { CommandPalette } from "./CommandPalette";
 import type { Command } from "./commands";
@@ -344,6 +344,9 @@ function EditorInner() {
   const [readEdgeId, setReadEdgeId] = useState<string | null>(null);
   /** The relationship whose end is being dragged to another point (M61). */
   const reconnecting = useRef<string | null>(null);
+  /** The same, for the elements and the drawn line (no outlines, no verdict); and whether the drop stored a side. */
+  const [reconnectingNow, setReconnectingNow] = useState(false);
+  const portsStored = useRef(false);
   /** The Read tab as sentences or as an outline of every element (M55). */
   const [readMode, setReadMode] = useState<ReadMode>("sentences");
   const readEdge = model.edges.find((e) => e.id === readEdgeId);
@@ -2114,6 +2117,7 @@ function EditorInner() {
 
         <div className="relative min-w-0 flex-1 bg-canvas" aria-label="Model canvas" role="region" onKeyDown={onCanvasKeyDown}>
           <ConnectionModelContext.Provider value={model}>
+          <ReconnectingContext.Provider value={reconnectingNow}>
           <SuggestContext.Provider value={suggestCtx}>
           {/* In an isometric projection the plan canvas stays mounted underneath, out of reach. */}
           <div className="contents" inert={projection !== "plan" || undefined}>
@@ -2137,6 +2141,8 @@ function EditorInner() {
               edgesReconnectable={wide && !presenting && projection === "plan"}
               onReconnectStart={(_, edge) => {
                 reconnecting.current = edge.id;
+                portsStored.current = false;
+                setReconnectingNow(true);
                 setMessage("Drop the end on another point of the same element, and the relationship keeps it.");
               }}
               onReconnect={(old, c) => {
@@ -2146,11 +2152,24 @@ function EditorInner() {
                   ...(c.sourceHandle && c.sourceHandle !== old.sourceHandle ? { from: c.sourceHandle as Side } : {}),
                   ...(c.targetHandle && c.targetHandle !== old.targetHandle ? { to: c.targetHandle as Side } : {}),
                 };
-                if (p.from || p.to) setPorts(e, p);
+                if (p.from || p.to) {
+                  portsStored.current = true;
+                  setPorts(e, p);
+                }
               }}
-              onReconnectEnd={() => (reconnecting.current = null)}
+              onReconnectEnd={() => {
+                reconnecting.current = null;
+                setReconnectingNow(false);
+                // Let go without a new side (dropped back, elsewhere or cancelled): the hint goes.
+                if (!portsStored.current) setMessage("");
+              }}
               onConnectEnd={(event, state) => {
                 connecting.current = false;
+                // Moving an existing relationship's end (M61) goes through onReconnect: no explanations, no Quick Add.
+                if (reconnecting.current) {
+                  connectStart.current = null;
+                  return;
+                }
                 // Refused connections never reach onConnect, so explain them here.
                 if (state.fromNode && state.toNode && !state.isValid) setMessage(connectionProblem(model, state.fromNode.id, state.toNode.id) ?? "");
                 // Dropped on empty canvas after a real drag: offer a new element there (M53).
@@ -2173,6 +2192,7 @@ function EditorInner() {
               onNodeMouseLeave={() => hoverNode(null)}
               onNodeDragStart={() => hoverNode(null)}
               onConnectStart={(event, { nodeId }) => {
+                if (reconnecting.current) return;
                 connecting.current = true;
                 connectStart.current = clientPoint(event);
                 hoverNode(null);
@@ -2297,6 +2317,7 @@ function EditorInner() {
           </LabelObstacles>
           </div>
           </SuggestContext.Provider>
+          </ReconnectingContext.Provider>
           </ConnectionModelContext.Provider>
           {projection !== "plan" && (
             <IsoView
