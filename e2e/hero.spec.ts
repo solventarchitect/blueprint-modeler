@@ -41,6 +41,21 @@ test.describe("landing hero: the realization chain in isometric", () => {
       [...new Set(document.getAnimations().filter((a) => a.effect?.getTiming().iterations === Infinity && a.playState === "running").map((a) => (a as CSSAnimation).animationName))].sort(),
     );
     expect(loops).toEqual(["iso-float", "iso-rise"]);
+    // Everything the stack animates, its settling, float, packets and the explode transition, is a transform.
+    await page.getByRole("button", { name: "Explode the stack" }).click();
+    const props = await page.evaluate(() => {
+      const stage = document.querySelector(".iso-stage")!;
+      const out = new Set<string>();
+      for (const a of document.getAnimations()) {
+        const fx = a.effect as KeyframeEffect | null;
+        if (!fx?.target || !stage.contains(fx.target as Node)) continue;
+        if ("transitionProperty" in a) out.add((a as CSSTransition).transitionProperty);
+        for (const k of fx.getKeyframes()) for (const p of Object.keys(k)) if (!["offset", "computedOffset", "easing", "composite"].includes(p)) out.add(p);
+      }
+      return [...out];
+    });
+    expect(props.length).toBeGreaterThan(0);
+    expect(props.every((p) => p === "transform")).toBe(true);
   });
 
   test("with reduced motion the stack holds still: no settling, float or packets", async ({ page }) => {
@@ -56,11 +71,11 @@ test.describe("landing: the same chain, three ways", () => {
     await page.goto("/");
     await expect(cards(page)).toHaveCount(3);
     const hrefs = ["/guide#relationships", "/guide#hints", "/guide#archimate"];
-    const names = [/The realization chain/, /Caught early/, /Read it in ArchiMate/];
+    const names = ["The realization chain", "Caught early", "Read it in ArchiMate"];
     for (let i = 0; i < 3; i++) {
       const card = cards(page).nth(i);
       await expect(card).toHaveAttribute("href", hrefs[i]!);
-      await expect(card).toHaveAccessibleName(names[i]!);
+      await expect(card).toHaveAccessibleName(names[i]!); // the label only; the rest is its description
       await expect(card.locator(".hero-sheet")).toHaveAttribute("data-fig", String(i));
     }
     await expect(cards(page).nth(1)).toHaveAccessibleDescription(/not related directly to a Host in CSDM/);
@@ -73,7 +88,7 @@ test.describe("landing: the same chain, three ways", () => {
   test("a card's signal runs only while it is hovered or focused", async ({ page, isMobile }) => {
     test.skip(!!isMobile, "hover effect");
     await page.goto("/");
-    // Every card, figures 2 and 3 included (their per-figure rule restarts the signal unless outranked).
+    // Every card is still at rest.
     for (let i = 0; i < 3; i++) {
       const s = cards(page).nth(i).locator(".hero-signal");
       await expect.poll(() => s.evaluate((e) => getComputedStyle(e).animationPlayState)).toBe("paused");
@@ -81,9 +96,20 @@ test.describe("landing: the same chain, three ways", () => {
     const signal = cards(page).first().locator(".hero-signal");
     await cards(page).first().hover();
     await expect.poll(() => signal.evaluate((e) => getComputedStyle(e).animationPlayState)).toBe("running");
+    await page.mouse.move(0, 0);
+    await expect.poll(() => signal.evaluate((e) => getComputedStyle(e).animationPlayState)).toBe("paused");
+    // Keyboard focus runs it too (focus-visible: reached with Tab, not a click).
+    const second = cards(page).nth(1).locator(".hero-signal");
+    await cards(page).first().focus();
+    await page.keyboard.press("Tab");
+    await expect(cards(page).nth(1)).toBeFocused();
+    await expect.poll(() => second.evaluate((e) => getComputedStyle(e).animationPlayState)).toBe("running");
   });
 
   test("the guide link opens the guide; Open the modeler opens the editor", async ({ page }) => {
+    await page.goto("/");
+    await page.getByRole("link", { name: "Read the class guide" }).click();
+    await expect(page).toHaveURL(/\/guide\/?$/);
     await page.goto("/");
     await page.getByRole("link", { name: "Open the modeler" }).click();
     await expect(page).toHaveURL(/\/editor\/?$/);
@@ -100,3 +126,12 @@ for (const scheme of ["dark", "light"] as const) {
     expect((await explode(page).boundingBox())!.height).toBeGreaterThanOrEqual(24);
   });
 }
+
+test("the focus ring of Open the modeler sits on its raised face", async ({ page, isMobile }) => {
+  test.skip(!!isMobile, "keyboard");
+  await page.goto("/");
+  const link = page.getByRole("link", { name: "Open the modeler" });
+  await link.focus();
+  await expect.poll(() => link.evaluate((a) => getComputedStyle(a.firstElementChild!).outlineStyle)).toBe("solid");
+  expect(await link.evaluate((a) => getComputedStyle(a).outlineStyle)).toBe("none");
+});

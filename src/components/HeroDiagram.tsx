@@ -20,7 +20,7 @@ const chain: { cls: ClassId; name: string; rel?: string }[] = [
   { cls: "host", name: "web-prod-01" },
 ];
 
-/** The three figures' titles and footers. The figure's accessible name and description live in HeroFigures. */
+/** The three figures' titles and footers. Each figure's accessible name and description live in heroFigures. */
 const titles = ["FIG.01 — THE REALIZATION CHAIN", "FIG.02 — CAUGHT EARLY", "FIG.03 — READ IT IN ARCHIMATE"];
 const footers: { text: string; color: string }[] = [
   { text: "Allowed relationships only. Every rule cites its source.", color: "var(--accent)" },
@@ -76,15 +76,14 @@ function ArchimateEnd({ from, to, i }: { from: ClassId; to: ClassId; i: number }
 }
 
 /**
- * The landing page's hero: one drawing sheet that steps through three figures without cutting.
- * FIG.01 is the realization chain from a Business Capability down to a Host; FIG.02 catches a
- * shortcut from the Business Application straight to the Host, the line the editor refuses; FIG.03
- * reads the same elements in ArchiMate 3.2. Every element stays where it is and changes in place,
- * cascading down the chain behind the accent signal; the parent's `data-fig` picks the figure
- * (see `.hero-sheet` in globals.css). Decorative to assistive tech: its figure card (heroFigures)
- * names and describes the figure in text. `id` keeps the mask's id unique when several copies share a page.
+ * The landing page's figure drawing, one per figure card: FIG.01 is the realization chain from a
+ * Business Capability down to a Host; FIG.02 catches a shortcut from the Business Application
+ * straight to the Host, the line the editor refuses; FIG.03 reads the same elements in ArchiMate 3.2.
+ * The parent's `data-fig` picks the figure (see `.hero-sheet` in globals.css). Decorative to
+ * assistive tech: its figure card (heroFigures) names and describes the figure in text. `id` keeps
+ * the mask's id unique, since several copies share the page.
  */
-export function HeroDiagram({ id = "hero" }: { id?: string }) {
+export function HeroDiagram({ id }: { id: string }) {
   const yA = nodeY(1) + NODE_H / 2;
   const yH = nodeY(4) + NODE_H / 2;
   const shortcut = `M${NODE_X + NODE_W + 1} ${yA} C${NODE_X + NODE_W + 40} ${yA} ${NODE_X + NODE_W + 40} ${yH} ${NODE_X + NODE_W + 16} ${yH}`;

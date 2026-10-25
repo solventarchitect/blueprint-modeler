@@ -54,7 +54,7 @@ export default function Home() {
               <span id={`fig-desc-${i}`} hidden>
                 {f.desc}
               </span>
-              <a href={f.href} aria-describedby={`fig-desc-${i}`} className="fig-card flex h-full flex-col border border-border bg-surface-raised text-ink">
+              <a href={f.href} aria-labelledby={`fig-label-${i}`} aria-describedby={`fig-desc-${i}`} className="fig-card flex h-full flex-col border border-border bg-surface-raised text-ink">
                 <span className="block overflow-hidden border-b border-border p-3" aria-hidden="true">
                   <span className="fig-tilt hero-sheet block" data-fig={i}>
                     <HeroDiagram id={`fig-${i}`} />
@@ -62,7 +62,9 @@ export default function Home() {
                 </span>
                 <span className="flex flex-col gap-2 p-5">
                   <span className="font-mono text-xs tracking-[0.12em] text-ink-muted uppercase">Fig. {String(i + 1).padStart(2, "0")}</span>
-                  <span className="text-lg font-medium">{f.label}</span>
+                  <span id={`fig-label-${i}`} className="text-lg font-medium">
+                    {f.label}
+                  </span>
                   <span className="text-sm text-ink-soft">{f.summary}</span>
                   {f.href === "/guide#archimate" && <span className="text-xs text-ink-muted">{ARCHIMATE_TRADEMARK}</span>}
                 </span>
