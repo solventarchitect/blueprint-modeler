@@ -11,6 +11,7 @@ import {
   Panel,
   ReactFlow,
   ReactFlowProvider,
+  ViewportPortal,
   useReactFlow,
   useStore,
   useStoreApi,
@@ -30,6 +31,7 @@ import {
   type KeyboardEvent as ReactKeyboardEvent,
   type MouseEvent as ReactMouseEvent,
   type PointerEvent as ReactPointerEvent,
+  type SetStateAction,
 } from "react";
 import Link from "next/link";
 import { exampleCategories, examples } from "@/examples";
@@ -48,6 +50,7 @@ import { modelToSvg } from "@/io/svg";
 import { LAYERS, layerBoxes, layerLanes, layoutOrientation, settleIntoLane } from "@/layout/bands";
 import { edgePath } from "@/layout/edgePath";
 import { edgeSides, type Side } from "@/layout/geometry";
+import { alignNodes, boundsOf, snapToGuides, type Guide } from "@/layout/align";
 import { distributeEvenly } from "@/layout/distribute";
 import { autoLayout, DEFAULT_SIZE, fillSpace, type LayoutMode } from "@/layout/layout";
 import { createWorkerEngine } from "@/layout/worker-engine";
@@ -60,6 +63,7 @@ import { exportItems, ExportMenu, type ExportKind } from "./ExportMenu";
 import { CommandPalette } from "./CommandPalette";
 import type { Command } from "./commands";
 import { ShortcutMap } from "./ShortcutMap";
+import { ARRANGE, SelectionPanel, type ArrangeKind } from "./SelectionPanel";
 import { ViewDialog, ViewLegend, ViewsMenu, type ShownView } from "./Views";
 import { ExamplesMenu } from "./ExamplesMenu";
 import { ContextMenu, type MenuItem } from "./ContextMenu";
@@ -150,6 +154,10 @@ const withIndefinite = (label: string) => `${/^[AEIOU]/.test(label) ? "an" : "a"
 
 /** Blast radius auto-play: time on each hop. */
 const BLAST_STEP_MS = 1500;
+/** Smart guides (M57) pull a dragged element into line from this many screen pixels away. */
+const GUIDE_SNAP_PX = 6;
+/** Distribute vertically: the closest the tops of selected elements come (an element's height and a gap). */
+const ROW_PITCH = 128;
 const prefersStill = () => typeof window !== "undefined" && window.matchMedia("(prefers-reduced-motion: reduce)").matches;
 /** The theme being viewed: the header toggle's choice, else the system setting. */
 const viewedTheme = (): "dark" | "light" => {
@@ -226,16 +234,27 @@ function EditorInner() {
   );
   // The first fit, before any model is measured: the room at zoom 1 is the most ever needed.
   const firstFitOptions = { maxZoom: 1, padding: { x: FIT_PAD, bottom: FIT_PAD, top: `${titleRoom(!!model.description, 1)}px` } } as const;
-  const [selectedId, setSelectedId] = useState<string | null>(null);
+  const [selectedId, setSelectedOne] = useState<string | null>(null);
+  /** M57: two or more elements selected together (Shift+click, Shift+drag, Ctrl+A); selectedId is then null. */
+  const [multi, setMulti] = useState<string[]>([]);
+  /** Select one element, or none: a selection of several ends. */
+  const setSelectedId = useCallback((v: SetStateAction<string | null>) => {
+    setMulti([]);
+    setSelectedOne(v);
+  }, []);
+  const multiSet = useMemo(() => new Set(multi), [multi]);
+  const selection = useMemo(() => (multi.length ? multi : selectedId ? [selectedId] : []), [multi, selectedId]);
+  /** Smart guides drawn while dragging (M57). */
+  const [guides, setGuides] = useState<Guide[]>([]);
   /** How the canvas shows the model (M59): Plan (the editable canvas), Isometric or Exploded (read-only pictures). */
   const [projection, setProjection] = useState<"plan" | IsoMode>("plan");
   const isoRef = useRef<IsoHandle>(null);
   const [isoZoom, setIsoZoom] = useState(1);
   /** The selection as the zoom shortcuts see it: their listener is bound once, so it reads a ref. */
-  const selectedRef = useRef<string | null>(null);
+  const selectedRef = useRef<string[]>([]);
   useEffect(() => {
-    selectedRef.current = selectedId;
-  }, [selectedId]);
+    selectedRef.current = selection;
+  }, [selection]);
   /** Zoom menu and Shift+1/2/0 (M49): fit, the selected element, or a preset level around the center. */
   const zoomCommand = useCallback(
     (c: ZoomCommand) => {
@@ -244,7 +263,7 @@ function EditorInner() {
       const duration = prefersStill() ? 0 : 300;
       if (c === "fit") void flow.fitView({ maxZoom: 1, padding: fitPadding(0.15), duration });
       else if (c === "selection") {
-        if (selectedRef.current) void flow.fitView({ nodes: [{ id: selectedRef.current }], padding: 0.3, maxZoom: 1.25, duration });
+        if (selectedRef.current.length) void flow.fitView({ nodes: selectedRef.current.map((id) => ({ id })), padding: 0.3, maxZoom: 1.25, duration });
       } else void flow.zoomTo(c, { duration });
     },
     [flow, fitPadding],
@@ -442,7 +461,14 @@ function EditorInner() {
   // A deleted element, or one the view now fades, is no longer selected (a faded element is out of reach).
   useEffect(() => {
     if (selectedId && (!model.nodes.some((n) => n.id === selectedId) || fadedIds.has(selectedId))) setSelectedId(null);
-  }, [model.nodes, selectedId, fadedIds]);
+  }, [model.nodes, selectedId, fadedIds, setSelectedId]);
+  useEffect(() => {
+    if (!multi.length) return;
+    const kept = multi.filter((id) => model.nodes.some((n) => n.id === id) && !fadedIds.has(id));
+    if (kept.length === multi.length) return;
+    if (kept.length > 1) setMulti(kept);
+    else setSelectedId(kept[0] ?? null);
+  }, [model.nodes, multi, fadedIds, setSelectedId]);
   const slotFor = useMemo(() => slotMap(model, shown.colorBy), [model, shown.colorBy]);
   const nodes: ClassFlowNode[] = useMemo(
     () =>
@@ -467,13 +493,13 @@ function EditorInner() {
           slot: slotFor?.(n),
           faded: fadedIds.has(n.id) || undefined,
         },
-        selected: n.id === selectedId,
+        selected: n.id === selectedId || multiSet.has(n.id),
         // Filtered out: in place and faded, but out of reach (no select, drag, connect or Tab stop).
         ...(fadedIds.has(n.id) ? { selectable: false, draggable: false, connectable: false, focusable: false, deletable: false, className: "bm-faded" } : {}),
         ariaLabel: `${classById(n.class)?.label ?? n.class}: ${n.name || "Untitled"}${shown.colorBy !== "layer" ? `, ${COLOR_BY_LABEL[shown.colorBy]}: ${attrValue(n, shown.colorBy) || "Not set"}` : ""}${!blastShown && hintLevel.get(n.id) ? " (has hints)" : ""}${!blastShown && neighbors.has(n.id) ? " (connected to the selected element)" : ""}${blastLabel(n.id)}`,
       })),
     // eslint-disable-next-line react-hooks/exhaustive-deps -- drag and measured are refs; dragTick re-runs this
-    [model, selectedId, dragTick, hintLevel, highlighted, lens, wide, presenting, dismissed, neighbors, blastShown, fadedIds, shown.colorBy, slotFor],
+    [model, selectedId, multiSet, dragTick, hintLevel, highlighted, lens, wide, presenting, dismissed, neighbors, blastShown, fadedIds, shown.colorBy, slotFor],
   );
 
   // Layers as columns (a left-to-right layout): relationships then run sideways between layers.
@@ -581,8 +607,56 @@ function EditorInner() {
     [model, hintedEdges, selectedId, lens, blastShown, columns, isFlow, hoveredId, view.labels, edgeLabelOf, fadedIds],
   );
 
+  /** Several elements selected at once (M57); one or none falls back to the single selection. */
+  const selectMany = (ids: string[]) => {
+    if (ids.length <= 1) {
+      setSelectedId(ids[0] ?? null);
+      if (ids[0]) setTab("details");
+      return;
+    }
+    setSelectedOne(null);
+    setMulti(ids);
+    setTab("details");
+    setMessage(`${ids.length} elements selected.`);
+  };
+  const sizeOf = (id: string) => measured.current[id] ?? DEFAULT_SIZE;
+  /** Where moved elements come to rest: in their own lane when lanes are on. */
+  const settle = (positions: Record<string, { x: number; y: number }>) => {
+    let lane: string | undefined;
+    const out = Object.fromEntries(
+      Object.entries(positions).map(([id, pos]) => {
+        if (!view.lanes) return [id, pos];
+        const kept = settleIntoLane(model, measured.current, id, pos);
+        if (kept.settled) lane = kept.lane;
+        return [id, { x: kept.x, y: kept.y }];
+      }),
+    );
+    return { positions: out, lane };
+  };
+
   const onNodesChange = useCallback(
     (changes: NodeChange<ClassFlowNode>[]) => {
+      // While dragging, line the moving elements up with the others (smart guides, M57): every
+      // element of a group drag moves by the same shift, worked out from the box around them.
+      const moving: Record<string, { x: number; y: number }> = {};
+      for (const c of changes) if (c.type === "position" && c.dragging && c.position) moving[c.id] = c.position;
+      if (Object.keys(moving).length) {
+        let shift = { dx: 0, dy: 0 };
+        let lines: Guide[] = [];
+        if (view.guides) {
+          const box = boundsOf(Object.entries(moving).map(([id, p]) => ({ ...p, ...sizeOf(id) })));
+          const others = model.nodes.filter((n) => !moving[n.id] && model.layout[n.id]).map((n) => ({ ...model.layout[n.id]!, ...sizeOf(n.id) }));
+          const r = snapToGuides(box, others, GUIDE_SNAP_PX / flow.getZoom());
+          shift = r;
+          lines = r.guides;
+        }
+        for (const [id, p] of Object.entries(moving)) moving[id] = { x: p.x + shift.dx, y: p.y + shift.dy };
+        drag.current = { ...drag.current, ...moving };
+        setGuides((cur) => (JSON.stringify(cur) === JSON.stringify(lines) ? cur : lines));
+        setDragTick((n) => n + 1);
+      }
+      const ended: Record<string, { x: number; y: number }> = {};
+      let picked: Set<string> | null = null;
       for (const c of changes) {
         if (c.type === "dimensions") {
           if (c.dimensions) {
@@ -593,31 +667,37 @@ function EditorInner() {
             }
           }
         } else if (c.type === "position") {
-          if (c.dragging && c.position) {
-            drag.current = { ...drag.current, [c.id]: c.position };
-            setDragTick((n) => n + 1);
-          } else {
-            const pos = c.position ?? drag.current[c.id];
-            const { [c.id]: _done, ...rest } = drag.current;
-            void _done;
-            drag.current = rest;
-            if (pos) {
-              const kept = view.lanes ? settleIntoLane(model, measured.current, c.id, pos) : { ...pos, settled: false, lane: undefined };
-              dispatch({ type: "move-node", id: c.id, x: kept.x, y: kept.y });
-              if (kept.settled) setMessage(`Kept in the ${kept.lane} lane.`);
-            }
-          }
+          if (c.dragging) continue;
+          // A drag ends where the guides left it; a keyboard move has only its own position.
+          const pos = drag.current[c.id] ?? c.position;
+          const { [c.id]: _done, ...rest } = drag.current;
+          void _done;
+          drag.current = rest;
+          if (pos) ended[c.id] = pos;
         } else if (c.type === "select") {
-          if (c.selected) {
-            setSelectedId(c.id);
-            setTab("details");
-          } else setSelectedId((cur) => (cur === c.id ? null : cur));
-        } else if (c.type === "remove") {
-          dispatch({ type: "delete-node", id: c.id });
+          picked ??= new Set(multi.length ? multi : selectedId ? [selectedId] : []);
+          if (c.selected) picked.add(c.id);
+          else picked.delete(c.id);
         }
+        // Deleting goes through onBeforeDelete, as one undo step.
+      }
+      const endedIds = Object.keys(ended);
+      if (endedIds.length) {
+        setGuides([]);
+        const { positions, lane } = settle(ended);
+        // A group move is one undo step.
+        if (endedIds.length === 1) dispatch({ type: "move-node", id: endedIds[0]!, x: positions[endedIds[0]!]!.x, y: positions[endedIds[0]!]!.y });
+        else dispatch({ type: "set-layout", layout: positions });
+        if (lane) setMessage(endedIds.length === 1 ? `Kept in the ${lane} lane.` : "Kept each element in its own lane.");
+      }
+      if (picked) {
+        const ids = [...picked].filter((id) => !fadedIds.has(id));
+        const before = multi.length ? multi : selectedId ? [selectedId] : [];
+        if (ids.length !== before.length || ids.some((id) => !before.includes(id))) selectMany(ids);
       }
     },
-    [dispatch, view.lanes, model],
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- selectMany, settle and sizeOf read this render's state
+    [dispatch, view.lanes, view.guides, model, multi, selectedId, fadedIds, flow],
   );
 
   const onEdgesChange = useCallback(
@@ -1178,8 +1258,41 @@ function EditorInner() {
     setSelectedId(id);
     setTab("details");
   };
+  /** Align or distribute the selected elements (M57), as one undo step. */
+  const arrange = (kind: ArrangeKind) => {
+    if (multi.length < 2) return;
+    const layout =
+      kind === "spread-x" ? distributeEvenly(model, multi, SLOT) : kind === "spread-y" ? distributeEvenly(model, multi, ROW_PITCH, "y") : alignNodes(model, multi, measured.current, kind);
+    const a = ARRANGE.find((x) => x.id === kind)!;
+    if (!layout) return setMessage(kind.startsWith("spread") ? "Already evenly spread." : `Already lined up ${a.done}.`);
+    const { positions, lane } = settle(layout);
+    dispatch({ type: "set-layout", layout: positions });
+    setMessage(`${kind.startsWith("spread") ? "Spread" : "Aligned"} ${multi.length} elements ${a.done}.${lane ? " Lanes keep each in its own layer." : ""}`);
+  };
+  const deleteSelection = () => {
+    const n = multi.length;
+    if (n < 2) return;
+    dispatch({ type: "delete-nodes", ids: multi });
+    setSelectedId(null);
+    setMessage(`Deleted ${n} elements. Undo restores them.`);
+  };
+  const clearSelection = () => {
+    setSelectedId(null);
+    setMessage("Selection cleared.");
+  };
+  const selectAll = () => selectMany(model.nodes.filter((n) => !fadedIds.has(n.id)).map((n) => n.id));
+  const selectionMenu = (): MenuItem[] => [
+    ...ARRANGE.slice(0, 6).map((a): MenuItem => ({ kind: "item", label: a.label, onSelect: () => arrange(a.id) })),
+    { kind: "separator" },
+    ...ARRANGE.slice(6).map((a): MenuItem => ({ kind: "item", label: a.label, onSelect: () => arrange(a.id) })),
+    { kind: "separator" },
+    { kind: "item", label: "Clear selection", onSelect: clearSelection },
+    { kind: "item", label: `Delete ${multi.length} elements`, danger: true, onSelect: deleteSelection },
+  ];
   const focusLayerHandle = (layer: Layer) => setTimeout(() => document.getElementById(layerHandleId(layer))?.focus(), 0);
   const nodeMenu = (id: string): MenuItem[] => {
+    // An element in a selection of several: the menu acts on all of them.
+    if (multiSet.has(id)) return selectionMenu();
     const n = model.nodes.find((x) => x.id === id);
     if (!n) return [];
     const name = n.name || "Untitled";
@@ -1269,12 +1382,14 @@ function EditorInner() {
     { kind: "item", label: "Redo", disabled: !doc.canRedo, onSelect: () => dispatch({ type: "redo" }) },
     { kind: "separator" },
     { kind: "item", label: "Fit view", onSelect: () => zoomCommand("fit") },
-    { kind: "item", label: "Zoom to selection", disabled: !selectedId, onSelect: () => zoomCommand("selection") },
+    { kind: "item", label: "Zoom to selection", disabled: !selection.length, onSelect: () => zoomCommand("selection") },
+    { kind: "item", label: "Select all", disabled: model.nodes.length < 2, onSelect: selectAll },
     { kind: "item", label: "Auto-layout", disabled: model.nodes.length === 0 || layingOut, onSelect: () => void runLayout() },
     { kind: "separator" },
     { kind: "check", label: "Layer boxes", checked: view.boxes, onSelect: () => setView({ ...view, boxes: !view.boxes }) },
     { kind: "check", label: "Lanes", checked: view.lanes, onSelect: () => setView({ ...view, lanes: !view.lanes }) },
     { kind: "check", label: "Snap to grid", checked: view.snap, onSelect: () => setView({ ...view, snap: !view.snap }) },
+    { kind: "check", label: "Smart guides", checked: view.guides, onSelect: () => setView({ ...view, guides: !view.guides }) },
     { kind: "check", label: "Relationship labels", checked: view.labels, onSelect: () => setView({ ...view, labels: !view.labels }) },
   ];
   const canMenu = wide && !presenting;
@@ -1285,6 +1400,18 @@ function EditorInner() {
   const onCanvasKeyDown = (e: ReactKeyboardEvent<HTMLDivElement>) => {
     // The isometric projections are read only: no quick-add, no canvas menu.
     if (projection !== "plan") return;
+    const inField = (t: HTMLElement) => t.isContentEditable || !!t.closest("input, textarea, select");
+    // Ctrl+A selects every element in the view; Esc lets a selection of several go (M57).
+    if (canMenu && (e.ctrlKey || e.metaKey) && !e.altKey && !e.shiftKey && e.key.toLowerCase() === "a" && !inField(e.target as HTMLElement)) {
+      e.preventDefault();
+      selectAll();
+      return;
+    }
+    if (e.key === "Escape" && multi.length && !inField(e.target as HTMLElement)) {
+      e.preventDefault();
+      clearSelection();
+      return;
+    }
     // Shift+A: quick-add to the focused element, else the selected one (M53).
     if (canMenu && e.shiftKey && !e.ctrlKey && !e.metaKey && !e.altKey && e.key.toLowerCase() === "a") {
       const t = e.target as HTMLElement;
@@ -1561,13 +1688,19 @@ function EditorInner() {
         ? [{ id: "quick-add", group: "Add", label: "Add a related element…", keys: "Shift+A", keywords: "connect new relationship", disabled: selectedId ? undefined : "Select an element first", run: () => selectedId && quickAddAt(selectedId) }]
         : []),
       ...(wide
+        ? [
+            { id: "select-all", group: "Arrange", label: "Select all elements", keys: "Ctrl+A", keywords: "selection multiple", disabled: model.nodes.length < 2 ? "Add two or more elements first" : undefined, run: selectAll },
+            ...ARRANGE.map((a): Command => ({ id: `arrange-${a.id}`, group: "Arrange", label: a.label, keywords: "selection line up spread", disabled: multi.length < 2 ? "Select two or more elements first (Shift+click)" : undefined, run: () => arrange(a.id) })),
+          ]
+        : []),
+      ...(wide
         ? layoutChoices.map((c): Command => ({ id: `layout-${c.id}`, group: "Layout", label: c.id === "auto" ? c.label : `Layout: ${c.label}`, keywords: "arrange", disabled: empty ?? (layingOut ? "A layout is running" : undefined), run: () => chooseLayout(c.id) }))
         : []),
       ...viewItems.map((it): Command => ({
         id: `view-${it.key}`,
         group: "View",
         // Snapping is turned on, the rest are shown.
-        label: it.key === "snap" ? `Turn ${view.snap ? "off" : "on"} snap to grid` : `${view[it.key] ? "Hide" : "Show"} ${it.label.toLowerCase()}`,
+        label: it.key === "snap" || it.key === "guides" ? `Turn ${view[it.key] ? "off" : "on"} ${it.label.toLowerCase()}` : `${view[it.key] ? "Hide" : "Show"} ${it.label.toLowerCase()}`,
         keywords: it.note,
         run: () => setView({ ...view, [it.key]: !view[it.key] }),
       })),
@@ -1588,7 +1721,7 @@ function EditorInner() {
         .filter((p) => p !== projection)
         .map((p): Command => ({ id: `projection-${p}`, group: "Projection", label: `${PROJECTION_LABEL[p]} view`, keywords: p === "plan" ? "edit 2d canvas" : "isometric 3d layers stack read only", run: () => chooseProjection(p) })),
       { id: "zoom-fit", group: "Zoom", label: "Fit view", keys: "Shift+1", keywords: "whole model", run: () => zoomCommand("fit") },
-      { id: "zoom-selection", group: "Zoom", label: "Zoom to selection", keys: "Shift+2", disabled: selectedId ? undefined : "Select an element first", run: () => zoomCommand("selection") },
+      { id: "zoom-selection", group: "Zoom", label: "Zoom to selection", keys: "Shift+2", disabled: selection.length ? undefined : "Select an element first", run: () => zoomCommand("selection") },
       ...ZOOM_PRESETS.map((z): Command => ({ id: `zoom-${z}`, group: "Zoom", label: `Zoom to ${z * 100}%`, keys: z === 1 ? "Shift+0" : undefined, run: () => zoomCommand(z) })),
       ...lenses
         .filter((l) => l.id !== lens)
@@ -1722,7 +1855,7 @@ function EditorInner() {
           {wide && <LayoutMenu busy={layingOut} disabled={model.nodes.length === 0} onChoose={chooseLayout} buttonClass={toolbarButton} />}
           <ViewMenu value={view} onChange={setView} buttonClass={toolbarButton} />
           <ViewsMenu model={model} shown={shown} onShow={pickView} onEdit={() => openDialog(setViewDialog)} buttonClass={toolbarButton} />
-          <ZoomMenu onCommand={zoomCommand} canZoomToSelection={!!selectedId} buttonClass={toolbarButton} level={projection === "plan" ? undefined : isoZoom} />
+          <ZoomMenu onCommand={zoomCommand} canZoomToSelection={selection.length > 0} buttonClass={toolbarButton} level={projection === "plan" ? undefined : isoZoom} />
         </div>
         <span className={toolbarDivider} aria-hidden="true" />
         <div role="group" aria-label="Lens" className={toolbarGroup}>
@@ -1992,13 +2125,40 @@ function EditorInner() {
               elementsSelectable={!presenting}
               // React Flow listens for Delete on the document, past `inert`: the isometric projections are read only.
               deleteKeyCode={wide && !presenting && projection === "plan" && !palette && !shortcuts && !managing && !viewDialog ? ["Delete", "Backspace"] : null}
+              // Delete and Backspace: the selected elements, their relationships and any selected
+              // relationship go together, as one undo step (React Flow would report each on its own).
+              onBeforeDelete={async ({ nodes: gone, edges: lines }) => {
+                if (!gone.length) return true;
+                const ids = gone.map((n) => n.id);
+                dispatch({ type: "delete-nodes", ids, edgeIds: lines.filter((e) => !ids.includes(e.source) && !ids.includes(e.target)).map((e) => e.id) });
+                if (ids.length > 1) setMessage(`Deleted ${ids.length} elements. Undo restores them.`);
+                return false;
+              }}
               snapToGrid={view.snap}
               snapGrid={[16, 16]}
+              // M57: Shift (or Ctrl, ⌘) + click adds to the selection; Shift + drag on the canvas selects in a box.
+              multiSelectionKeyCode={wide && !presenting ? ["Shift", "Meta", "Control"] : null}
+              selectionKeyCode={wide && !presenting ? "Shift" : null}
               fitView
               fitViewOptions={firstFitOptions}
               minZoom={0.2}
             >
               <NotationMarkers />
+              {guides.length > 0 && (
+                <ViewportPortal>
+                  {guides.map((g, i) => (
+                    <div
+                      key={i}
+                      data-testid="guide"
+                      data-axis={g.axis}
+                      aria-hidden
+                      className="bm-guide"
+                      // One screen pixel wide at any zoom.
+                      style={g.axis === "x" ? { left: g.at, top: g.from - 12, height: g.to - g.from + 24, width: 1 / flow.getZoom() } : { top: g.at, left: g.from - 12, width: g.to - g.from + 24, height: 1 / flow.getZoom() }}
+                    />
+                  ))}
+                </ViewportPortal>
+              )}
               <Panel position="top-right" className="!m-3 flex flex-col items-end gap-2">
                 <NotationLegend types={legendTypes} />
                 <ViewLegend
@@ -2123,7 +2283,9 @@ function EditorInner() {
               ))}
             </div>
             <div id={`panel-${tab}`} role="tabpanel" aria-labelledby={`tab-${tab}`} className="min-h-0 flex-1 overflow-y-auto">
-              {tab === "details" ? (
+              {tab === "details" && multi.length > 1 ? (
+                <SelectionPanel names={multi.map(nameOf)} onArrange={arrange} onDelete={deleteSelection} onClear={clearSelection} />
+              ) : tab === "details" ? (
                 <Inspector
                   model={model}
                   selectedId={selectedId}
