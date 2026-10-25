@@ -4,7 +4,7 @@ import { useEffect, useId, useRef, useState } from "react";
 import { ARCHIMATE_TRADEMARK, archimateElements, archimateRelationshipFor, archimateSources, type ElementMapping, type Lens, showsArchimate } from "@/frameworks";
 import { ArchimateGlyph } from "@/frameworks/ArchimateGlyph";
 import { classSlug } from "@/guide";
-import { allowedTypes, classById, isClassId, isCsdmCore, sources } from "@/metamodel";
+import { allowedTypes, classById, ENVIRONMENT_EXAMPLES, isClassId, isCsdmCore, LIFE_CYCLE, lifecycleFor, sources } from "@/metamodel";
 import { modelDate, type Model } from "@/model";
 import type { Action } from "./state";
 import { suggestionDetail, suggestionLabel, type Suggestion } from "./suggest";
@@ -43,9 +43,12 @@ function NameField({
   optional = false,
   maxLength = 200,
   help,
+  list,
 }: {
   id: string;
   value: string;
+  /** A datalist of suggestions (M54: environments, owners already used). */
+  list?: string;
   label: string;
   onCommit: (v: string) => void;
   focusToken?: number;
@@ -72,6 +75,7 @@ function NameField({
         className={input}
         value={draft}
         maxLength={maxLength}
+        list={list}
         onChange={(e) => setDraft(e.target.value)}
         onBlur={commit}
         onKeyDown={(e) => {
@@ -80,6 +84,50 @@ function NameField({
         }}
       />
       {help && <span className="text-xs text-ink-muted">{help}</span>}
+    </label>
+  );
+}
+
+const PROCESS_LABEL = { product: "product", tangible: "tangible / physical", logical: "intangible / logical", document: "document", "tangible-or-logical": "tangible / physical or intangible / logical" } as const;
+
+/**
+ * The element's CSDM life cycle stage (M54): the stages of the life cycle process its class follows,
+ * from the CSDM 5 white paper. Saved on change, one undo step. A value from a file that is not a stage
+ * for this class is kept and shown as such.
+ */
+function LifecycleField({ cls, value, onCommit }: { cls: string; value: string; onCommit: (v: string) => void }) {
+  const lc = lifecycleFor(cls);
+  // No CSDM life cycle for this class: nothing to set, but a value from a file can still be seen and cleared.
+  if (!lc)
+    return value ? (
+      <label className="flex flex-col gap-1 text-sm">
+        <span className="text-ink-muted">Life cycle stage</span>
+        <select className={input} value={value} onChange={(e) => onCommit(e.target.value)}>
+          <option value="">Not set</option>
+          <option value={value}>{value} (no life cycle for this class)</option>
+        </select>
+      </label>
+    ) : null;
+  const pages = lc.process === "tangible-or-logical" ? `pp. ${LIFE_CYCLE.tangible.source.page}, ${LIFE_CYCLE.logical.source.page}` : `p. ${LIFE_CYCLE[lc.process].source.page}`;
+  return (
+    <label className="flex flex-col gap-1 text-sm">
+      <span className="text-ink-muted">Life cycle stage</span>
+      <select className={input} value={value} onChange={(e) => onCommit(e.target.value)}>
+        <option value="">Not set</option>
+        {lc.stages.map((st) => (
+          <option key={st} value={st}>
+            {st}
+          </option>
+        ))}
+        {value && !lc.stages.includes(value) && <option value={value}>{value} (not a stage for this class)</option>}
+      </select>
+      <span className="text-xs text-ink-muted">
+        The {PROCESS_LABEL[lc.process]} life cycle,{" "}
+        <a className="text-accent underline underline-offset-4" href={sources.whitepaper.url} target="_blank" rel="noopener noreferrer">
+          CSDM 5 white paper<span className="sr-only"> (opens in a new tab)</span>
+        </a>
+        , {pages}.
+      </span>
     </label>
   );
 }
@@ -246,6 +294,28 @@ export function Inspector({ model, selectedId, dispatch, focusName, focusConnect
       )}
       <NameField id={node.id} value={node.name} label="Name" focusToken={focusName} onCommit={(name) => dispatch({ type: "rename-node", id: node.id, name })} />
       <DescriptionField id={node.id} value={node.attrs?.description ?? ""} onCommit={(description) => dispatch({ type: "describe-node", id: node.id, description })} />
+      <LifecycleField cls={node.class} value={node.attrs?.lifecycle ?? ""} onCommit={(value) => dispatch({ type: "set-attr", id: node.id, key: "lifecycle", value })} />
+      <NameField
+        id={node.id}
+        value={node.attrs?.environment ?? ""}
+        label="Environment"
+        optional
+        list="bm-environment-options"
+        help="For example Production, Test or Development."
+        onCommit={(value) => dispatch({ type: "set-attr", id: node.id, key: "environment", value })}
+      />
+      <NameField id={node.id} value={node.attrs?.owner ?? ""} label="Owner" optional list="bm-owner-options" help="A person, team or group." onCommit={(value) => dispatch({ type: "set-attr", id: node.id, key: "owner", value })} />
+      {/* Suggestions: the white paper's environment examples and every value already used in this model. */}
+      <datalist id="bm-environment-options">
+        {[...new Set([...ENVIRONMENT_EXAMPLES.values, ...model.nodes.map((n) => n.attrs?.environment?.trim() ?? "").filter(Boolean)])].map((v) => (
+          <option key={v} value={v} />
+        ))}
+      </datalist>
+      <datalist id="bm-owner-options">
+        {[...new Set(model.nodes.map((n) => n.attrs?.owner?.trim() ?? "").filter(Boolean))].map((v) => (
+          <option key={v} value={v} />
+        ))}
+      </datalist>
 
       <section aria-labelledby="rel-heading" className="flex flex-col gap-2">
         <h2 id="rel-heading" className="text-sm font-medium">

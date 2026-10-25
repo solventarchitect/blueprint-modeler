@@ -57,6 +57,20 @@ describe("ServiceNow export", () => {
     expect(row[1]).toBe("Owned by the order team");
   });
 
+  it("adds a column per element property only when the model uses it (M54)", () => {
+    expect(sheets.find((s) => s.name !== "README")!.rows[0]).toEqual(["name", "description", "sys_class_name", "blueprint_id"]);
+    expect(sheets[0]!.rows.flat().join(" ")).not.toContain("life_cycle_stage");
+    const n = model.nodes[0]!;
+    const withProps = { ...model, nodes: model.nodes.map((m) => (m.id === n.id ? { ...m, attrs: { lifecycle: "Operational", owner: " Order team " } } : m)) };
+    const out = modelToServiceNowSheets(withProps);
+    const sheet = out.find((s) => s.rows.slice(1).some((r) => r[3] === n.id))!;
+    expect(sheet.rows[0]).toEqual(["name", "description", "sys_class_name", "blueprint_id", "life_cycle_stage", "owner"]);
+    expect(sheet.rows.find((r) => r[3] === n.id)!.slice(4)).toEqual(["Operational", "Order team"]);
+    // Every table sheet has the same columns, so one transform map fits them all.
+    expect(new Set(out.filter((s) => !["README", "cmdb_rel_ci", "references"].includes(s.name)).map((s) => s.rows[0]!.join()))).toHaveLength(1);
+    expect(out[0]!.rows.flat().join(" ")).toContain("life_cycle_stage → Life Cycle Stage");
+  });
+
   it("produces a workbook", () => {
     expect(zipEntries(modelToServiceNowXlsx(model))).toContain("xl/workbook.xml");
   });

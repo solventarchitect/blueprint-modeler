@@ -1,6 +1,6 @@
 import { archimateElements, archimateFill, archimateRelationshipFor, archimateTypeInk, edgeNotation, markerSvg, type Lens, type MarkerShape, showsArchimate } from "@/frameworks";
 import { classById, isClassId, type Layer } from "@/metamodel";
-import { formatModelDate, modelDate, UNTITLED_MODEL, type Model } from "@/model";
+import { COLOR_BY_LABEL, filterActive, formatModelDate, inView, legend, modelDate, PALETTE, slotColor, slotMap, slotMarker, UNTITLED_MODEL, type ColorBy, type Model, type ViewFilter } from "@/model";
 import { layoutOrientation } from "@/layout/bands";
 import { planLabels } from "@/layout/edgeLabel";
 import { edgePath, type LineStyle } from "@/layout/edgePath";
@@ -30,12 +30,16 @@ export type SvgHighlight = {
   caption?: { label: string; text: string; reserve?: number };
 };
 
-/** Every color a picture in this theme and lens can use: large fills, then lines and text. */
-export function svgColors(theme: SvgTheme, lens: Lens): { surfaces: string[]; inks: string[] } {
+/** A view (M54) drawn into the picture: elements outside the filter fade; color by puts a colored bar and a marker on each element, with a legend in the title block. */
+export type SvgView = { filter: ViewFilter; colorBy: ColorBy; name?: string };
+
+/** Every color a picture in this theme and lens can use: large fills, then lines and text; with `view`, the color-by colors too. */
+export function svgColors(theme: SvgTheme, lens: Lens, view?: SvgView): { surfaces: string[]; inks: string[] } {
   const p = palettes[theme];
   const amOnly = lens === "archimate-only";
   const fills = amOnly ? Object.values(archimateFill[theme]).filter((c): c is string => !!c) : [];
-  const inks = [p.ink, p.muted, p.line, p.status, p.accent, p.ai, p.invalid, p.onBadge, ...(amOnly ? [archimateTypeInk[theme]] : [])];
+  const slots = view && view.colorBy !== "layer" ? [...PALETTE[theme], PALETTE.other[theme], PALETTE.none[theme]] : [];
+  const inks = [p.ink, p.muted, p.line, p.status, p.accent, p.ai, p.invalid, p.onBadge, ...(amOnly ? [archimateTypeInk[theme]] : []), ...slots];
   return { surfaces: [...new Set([p.bg, p.node, ...fills])], inks: [...new Set(inks)] };
 }
 
@@ -86,6 +90,8 @@ function wrapText(text: string, width: number, max: number): string[] {
 
 /** The title block: model name, with its Artifact ID above and description below when they exist. */
 const TITLE = { top: 28, artifact: 22, name: 28, line: 18, gap: 24, nameChar: 12.4, textChar: 7.2, monoChar: 7.6, maxName: 800 } as const;
+/** The view legend in the title block: a head line, then rows of entries (12px sans, about 6.8px a character). */
+const LEGEND = { head: 26, row: 20, char: 6.8, marker: 16, gap: 20 } as const;
 
 type Box = { x: number; y: number; w: number; h: number };
 
@@ -106,8 +112,12 @@ function anchor(b: Box, side: Side) {
  * The model as a standalone SVG in the chosen theme: same boxes, lanes and edge routing as the
  * canvas, system fonts (IBM Plex if installed), no scripts, no external references.
  */
-export function modelToSvg(model: Model, theme: SvgTheme, opts: { lens?: Lens; highlight?: SvgHighlight; lines?: LineStyle; labels?: boolean } = {}): string {
+export function modelToSvg(model: Model, theme: SvgTheme, opts: { lens?: Lens; highlight?: SvgHighlight; lines?: LineStyle; labels?: boolean; view?: SvgView } = {}): string {
   const lens = opts.lens ?? "csdm";
+  // "All elements" colored by layer draws exactly as without a view.
+  const view = opts.view && (filterActive(opts.view.filter) || opts.view.colorBy !== "layer") ? opts.view : undefined;
+  const faded = new Set(view ? model.nodes.filter((n) => !inView(n, view.filter)).map((n) => n.id) : []);
+  const slotFor = view ? slotMap(model, view.colorBy) : null;
   const lines = opts.lines ?? "curved";
   const showLabels = opts.labels ?? true;
   const hl = opts.highlight;
@@ -137,17 +147,43 @@ export function modelToSvg(model: Model, theme: SvgTheme, opts: { lens?: Lens; h
   const aboutLines = about ? wrapText(about, aboutChars, 3) : [];
   // The title block sets a minimum width: name (22px sans), Artifact ID (12px mono after its icon)
   // and description lines; so does a blast caption (14px sans, about 7.6px a character).
+  // The view legend: entries wrap into rows as wide as the diagram (at least 480px).
+  const shownCount = model.nodes.length - faded.size;
+  const legendHead = view
+    ? [view.name ? `View: ${view.name}` : "View", view.colorBy !== "layer" ? `colored by ${COLOR_BY_LABEL[view.colorBy].toLowerCase()}` : "", `showing ${shownCount} of ${model.nodes.length} elements`].filter(Boolean).join(" · ")
+    : "";
+  const legendRows: { label: string; slot: Parameters<typeof slotColor>[0]; w: number }[][] = [];
+  if (view) {
+    const avail = Math.max(480, diagramMaxX - minX - 2 * PAD);
+    let row: (typeof legendRows)[number] = [];
+    let used = 0;
+    for (const e of legend(model, view.colorBy, view.filter)) {
+      const label = `${clip(e.label, 40)} (${e.count})`;
+      const w = LEGEND.marker + label.length * LEGEND.char + LEGEND.gap;
+      if (row.length && used + w > avail) {
+        legendRows.push(row);
+        row = [];
+        used = 0;
+      }
+      row.push({ label, slot: e.slot, w });
+      used += w;
+    }
+    if (row.length) legendRows.push(row);
+  }
+  const legendH = view ? LEGEND.head + legendRows.length * LEGEND.row : 0;
   const titleWidth = Math.max(
     Math.min(name.length * TITLE.nameChar, TITLE.maxName),
     (artifactId ? 20 + (artifactId.length + 3) * TITLE.monoChar : 0) + 12 * TITLE.monoChar,
     ...aboutLines.map((l) => l.length * TITLE.textChar),
+    legendHead.length * TITLE.textChar,
+    ...legendRows.map((r) => r.reduce((a, x) => a + x.w, 0)),
   );
   const maxX = Math.max(
     diagramMaxX,
     hl?.caption ? minX + 2 * PAD + Math.max(hl.caption.text.length, hl.caption.reserve ?? 0) * 7.6 : -Infinity,
     minX + 2 * PAD + titleWidth,
   );
-  const titleH = TITLE.top + TITLE.artifact + TITLE.name + (aboutLines.length ? 6 + aboutLines.length * TITLE.line : 0) + TITLE.gap;
+  const titleH = TITLE.top + TITLE.artifact + TITLE.name + (aboutLines.length ? 6 + aboutLines.length * TITLE.line : 0) + legendH + TITLE.gap;
   const minY = (all.length ? Math.min(...all.map((b) => b.y)) - PAD : 0) - titleH - (hl?.caption ? CAPTION_H : 0);
   const maxY = all.length ? Math.max(...all.map((b) => b.y + b.h)) + PAD : 2 * PAD;
   const width = hl?.caption ? Math.ceil(maxX - minX) : maxX - minX;
@@ -188,7 +224,10 @@ export function modelToSvg(model: Model, theme: SvgTheme, opts: { lens?: Lens; h
       if (am.atTo) shapes.add(am.atTo);
     }
     const stroke = carried ? `stroke="${hl?.flow ? p.ai : p.status}" stroke-width="2.5"${carried.current ? ` stroke-dasharray="10 6"` : ""}` : `stroke="${p.line}" stroke-width="1.25"`;
-    edges.push(`<path d="${pathD}" fill="none" ${stroke}${ends}/>`);
+    // A relationship to a faded element fades with it, as on the canvas: the line only, so its label
+    // (muted ink on the background) stays readable.
+    const fade = faded.has(e.from) || faded.has(e.to);
+    edges.push(`<path d="${pathD}" fill="none" ${stroke}${ends}${fade ? ` opacity="0.2" data-faded=""` : ""}/>`);
     if (showLabels)
       edges.push(
         `<rect x="${r1(mid.x - lw / 2)}" y="${r1(mid.y - 8)}" width="${r1(lw)}" height="16" fill="${p.bg}"/>`,
@@ -201,17 +240,22 @@ export function modelToSvg(model: Model, theme: SvgTheme, opts: { lens?: Lens; h
     const b = boxes.get(n.id)!;
     const layer = classById(n.class)?.layer ?? "design";
     const alt = altOf(n.class);
+    // Faded by the view (M54): a ghost, as on the canvas: no fill, a dashed outline and bar, and text in
+    // the muted ink, which keeps 4.5:1 on the background, so the element stays readable.
+    const ghost = faded.has(n.id);
     const cls = b.lines
-      .map((l, i) => `<text x="${b.x + 14}" y="${b.y + 22 + i * 14}" font-family="${MONO}" font-size="10" letter-spacing="1.2" fill="${amOnly ? (fillOf(n.class) ? archimateTypeInk[theme] : p.ai) : p.muted}">${esc(l)}</text>`)
+      .map((l, i) => `<text x="${b.x + 14}" y="${b.y + 22 + i * 14}" font-family="${MONO}" font-size="10" letter-spacing="1.2" fill="${ghost ? p.muted : amOnly ? (fillOf(n.class) ? archimateTypeInk[theme] : p.ai) : p.muted}">${esc(l)}</text>`)
       .join("");
+    const slot = slotFor?.(n) ?? null;
     nodes.push(
-      `<g><rect x="${b.x}" y="${b.y}" width="${b.w}" height="${b.h}" fill="${fillOf(n.class) ?? p.node}" stroke="${p.line}"/>` +
-        `<rect x="${b.x}" y="${b.y}" width="4" height="${b.h}" fill="${layerColor(p, layer)}"/>` +
+      `<g${ghost ? ` data-faded=""` : ""}><rect x="${b.x}" y="${b.y}" width="${b.w}" height="${b.h}" fill="${ghost ? p.bg : (fillOf(n.class) ?? p.node)}" stroke="${p.line}"${ghost ? ` stroke-dasharray="4 3"` : ""}/>` +
+        `<rect x="${b.x}" y="${b.y}" width="4" height="${b.h}" fill="${ghost ? p.line : slot === null ? layerColor(p, layer) : slotColor(slot, theme)}"/>` +
+        (slot === null ? "" : `<path data-slot="${slot}" d="${slotMarker(slot)}" transform="translate(${b.x + b.w - 18} ${b.y + 8})" fill="${slotColor(slot, theme)}" fill-rule="evenodd"${ghost ? ` opacity="0.4"` : ""}/>`) +
         cls +
-        `<text x="${b.x + 14}" y="${b.y + b.h - 14 - (alt ? 20 : 0)}" font-family="${SANS}" font-size="14" font-weight="500" fill="${p.ink}">${esc(clip(n.name || "Untitled", NAME_CHARS))}</text>` +
+        `<text x="${b.x + 14}" y="${b.y + b.h - 14 - (alt ? 20 : 0)}" font-family="${SANS}" font-size="14" font-weight="500" fill="${ghost ? p.muted : p.ink}">${esc(clip(n.name || "Untitled", NAME_CHARS))}</text>` +
         (alt
           ? `<line x1="${b.x + 14}" y1="${b.y + b.h - 26}" x2="${b.x + b.w - 10}" y2="${b.y + b.h - 26}" stroke="${p.line}" stroke-opacity="0.4"/>` +
-            `<text x="${b.x + 14}" y="${b.y + b.h - 10}" font-family="${MONO}" font-size="10" fill="${p.ai}">ArchiMate · ${esc(alt)}</text>`
+            `<text x="${b.x + 14}" y="${b.y + b.h - 10}" font-family="${MONO}" font-size="10" fill="${ghost ? p.muted : p.ai}">ArchiMate · ${esc(alt)}</text>`
           : "") +
         `</g>`,
     );
@@ -254,6 +298,21 @@ export function modelToSvg(model: Model, theme: SvgTheme, opts: { lens?: Lens; h
         aboutLines.map((l) => `<tspan x="${tx}" dy="${TITLE.line}" data-title-line="">${esc(l)}</tspan>`).join("") +
         `</text>`,
     );
+  }
+  if (view) {
+    let ly = ty + 6 + aboutLines.length * TITLE.line + LEGEND.head;
+    titleBlock.push(`<text data-title="view" x="${tx}" y="${ly - 6}" font-family="${SANS}" font-size="13" fill="${p.muted}">${esc(legendHead)}</text>`);
+    for (const row of legendRows) {
+      let lx = tx;
+      ly += LEGEND.row;
+      for (const it of row) {
+        titleBlock.push(
+          `<g data-legend="${it.slot}"><path d="${slotMarker(it.slot)}" transform="translate(${lx} ${ly - 15})" fill="${slotColor(it.slot, theme)}" fill-rule="evenodd"/>` +
+            `<text x="${lx + LEGEND.marker}" y="${ly - 6}" font-family="${SANS}" font-size="12" fill="${p.ink}">${esc(it.label)}</text></g>`,
+        );
+        lx += it.w;
+      }
+    }
   }
   const capY = minY + titleH;
   const caption = hl?.caption

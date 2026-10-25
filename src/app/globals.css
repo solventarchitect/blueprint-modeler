@@ -30,6 +30,17 @@
   /* ArchiMate-only lens: element fill per ArchiMate layer (same values as archimateFill in
    * src/frameworks/notation.ts; a test keeps them equal). Dark: the conventional hues at 22% over
    * the raised surface, with the type label in --am-ink (>= 5.2:1). Light: the ArchiMate tool colors. */
+  /* Color by (M54): categorical slots, Other and Not set — the same hex as PALETTE in src/model/views.ts. */
+  --slot-0: #5ec8ff;
+  --slot-1: #deb163;
+  --slot-2: #b4a7ff;
+  --slot-3: #7fd49a;
+  --slot-4: #ff9f80;
+  --slot-5: #f08fc0;
+  --slot-6: #e6e07a;
+  --slot-7: #9fb4cc;
+  --slot-other: #8a96a6;
+  --slot-none: #3b4f66;
   --am-motivation: #3f4b64;
   --am-strategy: #484f51;
   --am-business: #4a5754;
@@ -62,6 +73,17 @@
     --valid: var(--color-success-800);
     --invalid: var(--color-error-600);
     --neighbor: var(--color-primary-600);
+    /* Color by (M54): categorical slots, Other and Not set — the same hex as PALETTE in src/model/views.ts. */
+    --slot-0: #005785;
+    --slot-1: #6d4e17;
+    --slot-2: #2000d6;
+    --slot-3: #1f6f3a;
+    --slot-4: #b23c17;
+    --slot-5: #a3226b;
+    --slot-6: #5f5800;
+    --slot-7: #406996;
+    --slot-other: #5c6773;
+    --slot-none: #c3ccd6;
     --am-motivation: #ccccff;
     --am-strategy: #f5deaa;
     --am-business: #ffffb5;
@@ -93,6 +115,17 @@
   --valid: var(--color-success-800);
   --invalid: var(--color-error-600);
   --neighbor: var(--color-primary-600);
+  /* Color by (M54): categorical slots, Other and Not set — the same hex as PALETTE in src/model/views.ts. */
+  --slot-0: #005785;
+  --slot-1: #6d4e17;
+  --slot-2: #2000d6;
+  --slot-3: #1f6f3a;
+  --slot-4: #b23c17;
+  --slot-5: #a3226b;
+  --slot-6: #5f5800;
+  --slot-7: #406996;
+  --slot-other: #5c6773;
+  --slot-none: #c3ccd6;
   --am-motivation: #ccccff;
   --am-strategy: #f5deaa;
   --am-business: #ffffb5;
@@ -593,4 +626,26 @@
     height: auto;
     max-height: 100vh;
   }
+}
+
+/*
+ * M54: elements a view filters out stay in place, faded and out of reach; so do their relationships.
+ * The fade is a ghost, not transparency: no fill, a dashed gray outline and bar, and text in the muted
+ * ink, which still meets 4.5:1 on the canvas (WCAG 1.4.3), so a faded element stays readable.
+ */
+.react-flow__node.bm-faded > div {
+  background: transparent;
+  border-style: dashed;
+  border-color: var(--border-strong);
+  border-left-color: var(--border-strong) !important;
+}
+.react-flow__node.bm-faded > div :is(p, span) {
+  color: var(--ink-muted);
+}
+.react-flow__node.bm-faded [data-testid="slot-marker"] {
+  opacity: 0.4;
+}
+/* The line and its arrowhead fade; the label keeps its contrast. */
+.react-flow__edge.faded .react-flow__edge-path {
+  opacity: 0.2;
 }

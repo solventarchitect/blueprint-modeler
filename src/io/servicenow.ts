@@ -1,9 +1,15 @@
 import { classById } from "@/metamodel";
-import { UNTITLED_MODEL, type Model } from "@/model";
+import { attrValue, UNTITLED_MODEL, type Model } from "@/model";
 import { workbook, type Sheet } from "./xlsx";
 
 const NO_TABLE = "No CMDB table";
 const HEADER = ["name", "description", "sys_class_name", "blueprint_id"];
+/** M54 properties: a column each, only when some element in the model has a value (so other exports stay as they were). */
+const PROPS = [
+  ["life_cycle_stage", "lifecycle"],
+  ["environment", "environment"],
+  ["owner", "owner"],
+] as const;
 
 /**
  * The model as a ServiceNow import workbook: one sheet per target table (named after it), a
@@ -11,12 +17,13 @@ const HEADER = ["name", "description", "sys_class_name", "blueprint_id"];
  * Columns become import set fields; the README says how to map them.
  */
 export function modelToServiceNowSheets(model: Model): Sheet[] {
+  const props = PROPS.filter(([, key]) => model.nodes.some((n) => attrValue(n, key)));
   const byTable = new Map<string, string[][]>();
   for (const n of model.nodes) {
     const def = classById(n.class);
     const table = def?.table ?? NO_TABLE;
     const rows = byTable.get(table) ?? [];
-    rows.push([n.name, n.attrs?.description ?? "", def?.table ?? `(${def?.label ?? n.class})`, n.id]);
+    rows.push([n.name, n.attrs?.description ?? "", def?.table ?? `(${def?.label ?? n.class})`, n.id, ...props.map(([, key]) => attrValue(n, key))]);
     byTable.set(table, rows);
   }
   const node = new Map(model.nodes.map((n) => [n.id, n]));
@@ -42,11 +49,18 @@ export function modelToServiceNowSheets(model: Model): Sheet[] {
         ["3. Then load the cmdb_rel_ci sheet: look up parent and child by correlation_id (parent_blueprint_id, child_blueprint_id) and set type from the type column (a cmdb_rel_type name)."],
         ["4. The references sheet lists reference fields (such as parent or model_id): set them on the 'from' record after both records exist."],
         [`5. Elements whose class has no CMDB table in Blueprint's metamodel are on the '${NO_TABLE}' sheet: choose a table for them first.`],
+        ...(props.length
+          ? [
+              [
+                `6. Element properties (${props.map(([col]) => col).join(", ")}): life_cycle_stage → Life Cycle Stage, an attribute on every CI (CSDM 5 white paper, p. 20; the value must be one of your instance's stages); environment → the table's Environment field, where it has one (the white paper designates instances by environment, p. 11); owner → a person or group field of your choice, such as Managed by Group (p. 28).`,
+              ],
+            ]
+          : []),
         [""],
         ["Check the target tables and fields on your instance before importing; this workbook is a starting point, not a certified integration. Not affiliated with or endorsed by ServiceNow."],
       ],
     },
-    ...tables.map((t) => ({ name: t, rows: [HEADER, ...byTable.get(t)!] })),
+    ...tables.map((t) => ({ name: t, rows: [[...HEADER, ...props.map(([col]) => col)], ...byTable.get(t)!] })),
     {
       name: "cmdb_rel_ci",
       rows: [

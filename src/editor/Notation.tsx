@@ -1,6 +1,5 @@
 "use client";
 
-import { Panel } from "@xyflow/react";
 import { MARKER_SCALE, markerGeometry, notation, type ArchimateRelationshipType, type MarkerShape } from "@/frameworks";
 
 /** Edge tones, matching the edge classes in globals.css: plain, connected to the selection, hinted. */
@@ -48,11 +47,11 @@ export function NotationMarkers() {
 const ORDER = Object.keys(notation) as ArchimateRelationshipType[];
 
 /** Key to the relationship notation on the canvas: only the relationship types the model uses. */
+/** The legend; inside the editor's top-right panel stack (M54 adds the view legend under it). */
 export function NotationLegend({ types }: { types: ReadonlySet<ArchimateRelationshipType> }) {
   const shown = ORDER.filter((t) => types.has(t));
   if (shown.length === 0) return null;
   return (
-    <Panel position="top-right" className="!m-3">
       <figure className="border border-border bg-surface-raised px-3 py-2" data-testid="notation-legend">
         <figcaption className="font-mono text-[0.65rem] tracking-[0.12em] text-ink-muted uppercase">ArchiMate relationships</figcaption>
         <ul className="mt-1.5 flex flex-col gap-1">
@@ -79,6 +78,5 @@ export function NotationLegend({ types }: { types: ReadonlySet<ArchimateRelation
           })}
         </ul>
       </figure>
-    </Panel>
   );
 }

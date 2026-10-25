@@ -8,6 +8,7 @@ import {
   Controls,
   MarkerType,
   MiniMap,
+  Panel,
   ReactFlow,
   ReactFlowProvider,
   useReactFlow,
@@ -51,7 +52,7 @@ import { distributeEvenly } from "@/layout/distribute";
 import { autoLayout, DEFAULT_SIZE, fillSpace, type LayoutMode } from "@/layout/layout";
 import { createWorkerEngine } from "@/layout/worker-engine";
 import { classById, classes, isClassId, isExtended, type ClassId, type Layer } from "@/metamodel";
-import { blastRadius, evaluateHints, formatModelDate, impactEnds, isBusinessAnchor as isAnchor, modelDate, UNTITLED_MODEL, type BlastDirection, type HintResult, type Model } from "@/model";
+import { ALL_ELEMENTS, attrValue, blastRadius, COLOR_BY_LABEL, evaluateHints, filterActive, formatModelDate, impactEnds, inView, isBusinessAnchor as isAnchor, modelDate, slotMap, UNTITLED_MODEL, type BlastDirection, type ColorBy, type HintResult, type Model, type ViewFilter } from "@/model";
 import { site } from "@/lib/site";
 import { ClassNode, SuggestContext, type ClassFlowNode } from "./ClassNode";
 import { ConnectionLine, ConnectionModelContext } from "./ConnectionLine";
@@ -59,6 +60,7 @@ import { exportItems, ExportMenu, type ExportKind } from "./ExportMenu";
 import { CommandPalette } from "./CommandPalette";
 import type { Command } from "./commands";
 import { ShortcutMap } from "./ShortcutMap";
+import { ViewDialog, ViewLegend, ViewsMenu, type ShownView } from "./Views";
 import { ExamplesMenu } from "./ExamplesMenu";
 import { ContextMenu, type MenuItem } from "./ContextMenu";
 import { blastAnnouncement, blastProgress, blastSteps, blastView, flowAnnouncement, flowProgress, flowSteps, type BlastKind } from "./blast";
@@ -114,7 +116,7 @@ const primaryButton =
   "inline-flex min-h-8 cursor-pointer items-center gap-1.5 border border-accent bg-accent px-3 text-sm font-medium text-accent-ink hover:opacity-90 disabled:cursor-not-allowed disabled:opacity-60";
 /** Toolbar groups (Model, Edit, Arrange, Lens): a caption on wide screens, a divider between groups. */
 const toolbarGroup = "flex flex-wrap items-center gap-1.5";
-const groupCaption = "mr-0.5 hidden font-mono text-[0.65rem] tracking-[0.14em] text-ink-muted uppercase min-[1840px]:inline";
+const groupCaption = "mr-0.5 hidden font-mono text-[0.65rem] tracking-[0.14em] text-ink-muted uppercase min-[1880px]:inline";
 const toolbarDivider = "h-6 w-px bg-border-strong/50";
 const toolbarSelect = "min-h-8 max-w-60 border border-border-strong bg-surface-raised px-2 text-sm text-ink";
 /** Minimap node fill per CSDM layer: the same tokens as the nodes' left borders (layerAccent). */
@@ -257,9 +259,13 @@ function EditorInner() {
     saveView(v);
   };
   const [managing, setManaging] = useState(false);
+  // The view in use (M54): a saved view's id (or null), its filter and its coloring. Kept per model and
+  // not stored: a model opens on All elements, and a deleted view leaves its filter showing, unsaved.
+  const [activeView, setActiveView] = useState<{ modelId: string; id: string | null; filter: ViewFilter; colorBy: ColorBy }>({ modelId: "", id: null, ...ALL_ELEMENTS });
   // Command palette and shortcut map (M52): modal dialogs, mounted while open; focus goes back where they were opened.
   const [palette, setPalette] = useState(false);
   const [shortcuts, setShortcuts] = useState(false);
+  const [viewDialog, setViewDialog] = useState(false);
   const dialogReturn = useRef<HTMLElement | null>(null);
   const [presenting, setPresenting] = useState(false);
   const [step, setStep] = useState(0);
@@ -362,9 +368,6 @@ function EditorInner() {
     return () => window.removeEventListener("keydown", onKey);
   }, [dispatch, zoomCommand, presenting]);
 
-  useEffect(() => {
-    if (selectedId && !model.nodes.some((n) => n.id === selectedId)) setSelectedId(null);
-  }, [model.nodes, selectedId]);
 
   // The element under the pointer (M46): its own relationships run the way impact travels, so a
   // glance shows what it depends on and what depends on it. Off while a blast radius is open, while
@@ -404,6 +407,23 @@ function EditorInner() {
     if (b.hop === 0) return impact ? " (failed: start of the blast radius)" : " (start of the dependencies view)";
     return impact ? ` (affected at hop ${b.hop})` : ` (needed at hop ${b.hop})`;
   };
+  const shown = activeView.modelId === model.id ? { ...activeView, id: model.views?.some((v) => v.id === activeView.id) ? activeView.id : null } : { modelId: model.id, id: null, ...ALL_ELEMENTS };
+  // Images follow the view on screen (M54); data exports always carry the whole model.
+  const imageView = { filter: shown.filter, colorBy: shown.colorBy, name: model.views?.find((v) => v.id === shown.id)?.name };
+  const showView = (v: ShownView) => setActiveView({ modelId: model.id, ...v });
+  /** Switch views from the menu or the palette, and say what it shows. */
+  const pickView = (v: ShownView) => {
+    showView(v);
+    const name = v.id ? model.views?.find((x) => x.id === v.id)?.name : null;
+    const kept = model.nodes.filter((n) => inView(n, v.filter)).length;
+    setMessage(name ? `View “${name}”: ${kept} of ${model.nodes.length} elements, ${COLOR_BY_LABEL[v.colorBy].toLowerCase()} colors.` : "Showing all elements, in layer colors.");
+  };
+  const fadedIds = useMemo(() => new Set(filterActive(shown.filter) ? model.nodes.filter((n) => !inView(n, shown.filter)).map((n) => n.id) : []), [model.nodes, shown.filter]);
+  // A deleted element, or one the view now fades, is no longer selected (a faded element is out of reach).
+  useEffect(() => {
+    if (selectedId && (!model.nodes.some((n) => n.id === selectedId) || fadedIds.has(selectedId))) setSelectedId(null);
+  }, [model.nodes, selectedId, fadedIds]);
+  const slotFor = useMemo(() => slotMap(model, shown.colorBy), [model, shown.colorBy]);
   const nodes: ClassFlowNode[] = useMemo(
     () =>
       model.nodes.map((n) => ({
@@ -422,13 +442,18 @@ function EditorInner() {
           description: n.attrs?.description,
           alt: showsArchimate(lens) && isClassId(n.class) ? { type: archimateElements[n.class].type, label: archimateElements[n.class].label, layer: archimateElements[n.class].layer } : undefined,
           archimateOnly: lens === "archimate-only",
-          suggest: wide && !presenting && !blastShown && !dismissed.has(n.id) && !model.edges.some((e) => e.from === n.id || e.to === n.id),
+          suggest: wide && !presenting && !blastShown && !fadedIds.has(n.id) && !dismissed.has(n.id) && !model.edges.some((e) => e.from === n.id || e.to === n.id),
+          // M54: the view's coloring (a palette slot; none when coloring by layer) and whether it filters this out.
+          slot: slotFor?.(n),
+          faded: fadedIds.has(n.id) || undefined,
         },
         selected: n.id === selectedId,
-        ariaLabel: `${classById(n.class)?.label ?? n.class}: ${n.name || "Untitled"}${!blastShown && hintLevel.get(n.id) ? " (has hints)" : ""}${!blastShown && neighbors.has(n.id) ? " (connected to the selected element)" : ""}${blastLabel(n.id)}`,
+        // Filtered out: in place and faded, but out of reach (no select, drag, connect or Tab stop).
+        ...(fadedIds.has(n.id) ? { selectable: false, draggable: false, connectable: false, focusable: false, deletable: false, className: "bm-faded" } : {}),
+        ariaLabel: `${classById(n.class)?.label ?? n.class}: ${n.name || "Untitled"}${shown.colorBy !== "layer" ? `, ${COLOR_BY_LABEL[shown.colorBy]}: ${attrValue(n, shown.colorBy) || "Not set"}` : ""}${!blastShown && hintLevel.get(n.id) ? " (has hints)" : ""}${!blastShown && neighbors.has(n.id) ? " (connected to the selected element)" : ""}${blastLabel(n.id)}`,
       })),
     // eslint-disable-next-line react-hooks/exhaustive-deps -- drag and measured are refs; dragTick re-runs this
-    [model, selectedId, dragTick, hintLevel, highlighted, lens, wide, presenting, dismissed, neighbors, blastShown],
+    [model, selectedId, dragTick, hintLevel, highlighted, lens, wide, presenting, dismissed, neighbors, blastShown, fadedIds, shown.colorBy, slotFor],
   );
 
   // Layers as columns (a left-to-right layout): relationships then run sideways between layers.
@@ -505,13 +530,14 @@ function EditorInner() {
           targetHandle,
           label: view.labels ? edgeLabelOf(e) : undefined,
           className:
+            ((fadedIds.has(e.from) || fadedIds.has(e.to) ? "faded " : "") +
             (carried
               ? `blast${isFlow ? " flow" : ""}${carried.current ? " blast-now" : ""}${carried.forward ? "" : " blast-reverse"}`
               : hinted
                 ? "hinted"
                 : connected
                   ? "connected"
-                  : "") + hoverClass || undefined,
+                  : "") + hoverClass).trim() || undefined,
           ...(am
             ? {
                 // The flowing blast dash replaces the notation's dash while that hop is current.
@@ -532,7 +558,7 @@ function EditorInner() {
           ariaLabel: `${e.type} from ${model.nodes.find((n) => n.id === e.from)?.name} to ${model.nodes.find((n) => n.id === e.to)?.name}${carried ? (isFlow ? " (carries data)" : " (carries impact)") : ""}`,
         };
       }),
-    [model, hintedEdges, selectedId, lens, blastShown, columns, isFlow, hoveredId, view.labels, edgeLabelOf],
+    [model, hintedEdges, selectedId, lens, blastShown, columns, isFlow, hoveredId, view.labels, edgeLabelOf, fadedIds],
   );
 
   const onNodesChange = useCallback(
@@ -798,7 +824,7 @@ function EditorInner() {
   useEffect(() => () => gifAbort.current?.abort(), []);
   const exportBlastGif = async () => {
     if (!blast || !radius || !radius.steps.length || makingGif) return;
-    const frames = blastFrames(model, radius, viewedTheme(), lens, blast.kind, view.lines, view.labels);
+    const frames = blastFrames(model, radius, viewedTheme(), lens, blast.kind, view.lines, view.labels, imageView);
     const filename = `${fileBase(model)}-${isFlow ? "data-flow" : "blast-radius"}.gif`;
     const count = `${frames.svgs.length} frame${frames.svgs.length === 1 ? "" : "s"}`;
     setMakingGif(true);
@@ -912,7 +938,7 @@ function EditorInner() {
     } else if (kind === "png-dark" || kind === "png-light") {
       const theme = kind === "png-dark" ? "dark" : "light";
       const filename = `${fileBase(model)}-${theme}.png`;
-      const svg = modelToSvg(model, theme, { lens, lines: view.lines, labels: view.labels });
+      const svg = modelToSvg(model, theme, { lens, lines: view.lines, labels: view.labels, view: imageView });
       const size = /width="([\d.]+)" height="([\d.]+)"/.exec(svg);
       setMessage(`Making ${filename}…`);
       void svgToPng(svg, size ? pngScale(Number(size[1]), Number(size[2])) : 2)
@@ -922,11 +948,11 @@ function EditorInner() {
         }))
         .catch(() => setMessage("Could not make the PNG in this browser. Nothing was saved."));
     } else if (kind === "print") {
-      printSvg(modelToSvg(model, "light", { lens, lines: view.lines, labels: view.labels }), fileBase(model));
+      printSvg(modelToSvg(model, "light", { lens, lines: view.lines, labels: view.labels, view: imageView }), fileBase(model));
     } else {
       const theme = kind === "svg-dark" ? "dark" : "light";
       const filename = `${fileBase(model)}-${theme}.svg`;
-      downloadText(filename, modelToSvg(model, theme, { lens, lines: view.lines, labels: view.labels }), "image/svg+xml");
+      downloadText(filename, modelToSvg(model, theme, { lens, lines: view.lines, labels: view.labels, view: imageView }), "image/svg+xml");
       setMessage(`Exported ${filename}.`);
     }
   };
@@ -1321,7 +1347,7 @@ function EditorInner() {
   }, [blast, radius]); // eslint-disable-line react-hooks/exhaustive-deps -- nameOf reads the same model as radius
   // Escape closes it, unless a menu, dialog or text field has the key.
   useEffect(() => {
-    if (!blast || menu || managing || palette || shortcuts) return;
+    if (!blast || menu || managing || palette || shortcuts || viewDialog) return;
     const onKey = (e: KeyboardEvent) => {
       const el = e.target as HTMLElement | null;
       if (e.key !== "Escape" || e.defaultPrevented) return;
@@ -1331,7 +1357,7 @@ function EditorInner() {
     };
     window.addEventListener("keydown", onKey);
     return () => window.removeEventListener("keydown", onKey);
-  }, [blast, menu, managing, palette, shortcuts, closeBlast]);
+  }, [blast, menu, managing, palette, shortcuts, viewDialog, closeBlast]);
 
   // Present mode: the canvas alone, full screen, stepping through the model layer by layer.
   const steps = useMemo(() => [{ name: "Overview", nodeIds: [] as string[] }, ...boxes.map((b) => ({ name: b.name, nodeIds: b.nodeIds }))], [boxes]);
@@ -1519,6 +1545,16 @@ function EditorInner() {
       ...lineStyles
         .filter((l) => l.id !== view.lines)
         .map((l): Command => ({ id: `lines-${l.id}`, group: "View", label: `Line style: ${l.label}`, keywords: "relationship", run: () => setView({ ...view, lines: l.id }) })),
+      { id: "view-edit", group: "Views", label: "Filter and color…", keywords: "view legend color by lifecycle environment owner", run: () => openDialog(setViewDialog) },
+      {
+        id: "view-all",
+        group: "Views",
+        label: "Show all elements",
+        keywords: "view reset clear filter",
+        disabled: shown.id === null && !filterActive(shown.filter) && shown.colorBy === "layer" ? "Already showing all elements, in layer colors" : undefined,
+        run: () => pickView({ id: null, filter: {}, colorBy: "layer" }),
+      },
+      ...(model.views ?? []).map((v): Command => ({ id: `view-${v.id}`, group: "Views", label: `View: ${v.name}`, keywords: "saved view", run: () => pickView({ id: v.id, filter: v.filter, colorBy: v.colorBy }) })),
       { id: "zoom-fit", group: "Zoom", label: "Fit view", keys: "Shift+1", keywords: "whole model", run: () => zoomCommand("fit") },
       { id: "zoom-selection", group: "Zoom", label: "Zoom to selection", keys: "Shift+2", disabled: selectedId ? undefined : "Select an element first", run: () => zoomCommand("selection") },
       ...ZOOM_PRESETS.map((z): Command => ({ id: `zoom-${z}`, group: "Zoom", label: `Zoom to ${z * 100}%`, keys: z === 1 ? "Shift+0" : undefined, run: () => zoomCommand(z) })),
@@ -1535,6 +1571,8 @@ function EditorInner() {
       label: `${n.name || "Untitled"}`,
       keywords: `${className(n.id)} element select find`,
       run: () => {
+        // A faded element is out of reach: lift the filter (keeping the coloring) to go to it.
+        if (fadedIds.has(n.id)) showView({ id: null, filter: {}, colorBy: shown.colorBy });
         selectNode(n.id);
         void flow.fitView({ nodes: [{ id: n.id }], padding: 0.3, maxZoom: 1.25, duration: prefersStill() ? 0 : 300 });
         setMessage(`Selected ${className(n.id)} “${n.name || "Untitled"}”.`);
@@ -1651,6 +1689,7 @@ function EditorInner() {
           </span>
           {wide && <LayoutMenu busy={layingOut} disabled={model.nodes.length === 0} onChoose={chooseLayout} buttonClass={toolbarButton} />}
           <ViewMenu value={view} onChange={setView} buttonClass={toolbarButton} />
+          <ViewsMenu model={model} shown={shown} onShow={pickView} onEdit={() => openDialog(setViewDialog)} buttonClass={toolbarButton} />
           <ZoomMenu onCommand={zoomCommand} canZoomToSelection={!!selectedId} buttonClass={toolbarButton} />
         </div>
         <span className={toolbarDivider} aria-hidden="true" />
@@ -1669,17 +1708,20 @@ function EditorInner() {
             </select>
           </label>
         </div>
-        {/* Icon only from 1536 to 1599px: there the word would push Present onto a second row (narrower, the toolbar has two rows anyway). */}
-        <button type="button" className={toolbarButton} onClick={() => openDialog(setPalette)} aria-label="Commands" title="Commands (Ctrl+K or ⌘K)" aria-keyshortcuts="Control+K Meta+K">
-          <ToolbarIcon name="commands" />
-          <span aria-hidden="true" className="min-[1536px]:max-[1599px]:hidden">
-            Commands
-          </span>
-        </button>
-        <button ref={presentButton} type="button" className={primaryButton} disabled={model.nodes.length === 0} onClick={startPresenting}>
-          <ToolbarIcon name="present" />
-          Present
-        </button>
+        {/* Commands and Present wrap together, so Present never sits alone on a second row. */}
+        <div className="flex items-center gap-2">
+          {/* Icon only from 1608 to 1679px: there the word would push Present onto a second row (narrower, the toolbar has two rows anyway). */}
+          <button type="button" className={toolbarButton} onClick={() => openDialog(setPalette)} aria-label="Commands" title="Commands (Ctrl+K or ⌘K)" aria-keyshortcuts="Control+K Meta+K">
+            <ToolbarIcon name="commands" />
+            <span aria-hidden="true" className="min-[1608px]:max-[1679px]:hidden">
+              Commands
+            </span>
+          </button>
+          <button ref={presentButton} type="button" className={primaryButton} disabled={model.nodes.length === 0} onClick={startPresenting}>
+            <ToolbarIcon name="present" />
+            Present
+          </button>
+        </div>
       </div>
 
       {linkField && !presenting && (
@@ -1895,7 +1937,7 @@ function EditorInner() {
               nodesDraggable={wide && !presenting}
               nodesConnectable={wide && !presenting}
               elementsSelectable={!presenting}
-              deleteKeyCode={wide && !presenting && !palette && !shortcuts && !managing ? ["Delete", "Backspace"] : null}
+              deleteKeyCode={wide && !presenting && !palette && !shortcuts && !managing && !viewDialog ? ["Delete", "Backspace"] : null}
               snapToGrid={view.snap}
               snapGrid={[16, 16]}
               fitView
@@ -1903,7 +1945,23 @@ function EditorInner() {
               minZoom={0.2}
             >
               <NotationMarkers />
-              <NotationLegend types={legendTypes} />
+              <Panel position="top-right" className="!m-3 flex flex-col items-end gap-2">
+                <NotationLegend types={legendTypes} />
+                <ViewLegend
+                  model={model}
+                  shown={shown}
+                  onEdit={presenting ? undefined : () => openDialog(setViewDialog)}
+                  onShowAll={
+                    presenting
+                      ? undefined
+                      : () => {
+                          pickView({ id: null, filter: {}, colorBy: "layer" });
+                          // The legend (and this button) goes away: keep focus on the Views button.
+                          document.getElementById("views-button")?.focus();
+                        }
+                  }
+                />
+              </Panel>
               <Background id="minor" variant={BackgroundVariant.Dots} gap={32} size={3} color="var(--canvas-grid)" />
               <Background id="major" variant={BackgroundVariant.Dots} gap={160} size={5} color="var(--canvas-grid-major)" />
               {!presenting && <FitControls hasDescription={!!model.description} />}
@@ -2048,6 +2106,32 @@ function EditorInner() {
       />
       {palette && <CommandPalette commands={paletteCommands()} onClose={(chosen) => dialogClosed(setPalette, chosen)} />}
       {shortcuts && <ShortcutMap onClose={() => dialogClosed(setShortcuts)} />}
+      {viewDialog && (
+        <ViewDialog
+          model={model}
+          shown={shown}
+          onChange={showView}
+          onSave={(name) => {
+            const id = newId();
+            dispatch({ type: "save-view", view: { id, name, filter: shown.filter, colorBy: shown.colorBy } });
+            showView({ ...shown, id });
+            setMessage(`Saved the view “${name}”.`);
+          }}
+          onUpdate={(name) => {
+            if (!shown.id) return;
+            dispatch({ type: "save-view", view: { id: shown.id, name, filter: shown.filter, colorBy: shown.colorBy } });
+            setMessage(`Updated the view “${name}”.`);
+          }}
+          onDelete={() => {
+            const gone = model.views?.find((v) => v.id === shown.id);
+            if (!gone) return;
+            dispatch({ type: "delete-view", id: gone.id });
+            showView({ ...shown, id: null });
+            setMessage(`Deleted the view “${gone.name}”. Its filter still shows until you change it.`);
+          }}
+          onClose={() => dialogClosed(setViewDialog)}
+        />
+      )}
       {menu && <ContextMenu key={menu.n} x={menu.x} y={menu.y} label={menu.label} items={menu.items} onClose={closeMenu} />}
       <div className={`${presenting ? "hidden" : "flex"} flex-wrap items-center justify-between gap-2 border-t border-border px-4 py-1.5 text-xs text-ink-muted`}>
         <p role="status" aria-live="polite">

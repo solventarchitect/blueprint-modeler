@@ -104,3 +104,66 @@ describe("SVG highlight (blast radius frames)", () => {
     }
   });
 });
+
+describe("SVG of a view (M54)", () => {
+  const withProps = () => {
+    const m = checkout();
+    const set = (name: string, attrs: Record<string, string>) => {
+      const n = m.nodes.find((x) => x.name === name)!;
+      n.attrs = { ...n.attrs, ...attrs };
+    };
+    set("db-prod-01", { environment: "Production", lifecycle: "Operational" });
+    set(m.nodes[0]!.name, { environment: "Test" });
+    return m;
+  };
+
+  it("draws exactly as before for All elements colored by layer", () => {
+    const m = withProps();
+    expect(modelToSvg(m, "dark", { view: { filter: {}, colorBy: "layer" } })).toBe(modelToSvg(m, "dark"));
+  });
+
+  it("fades the elements outside the filter and the relationships that touch them", () => {
+    const m = withProps();
+    const svg = modelToSvg(m, "light", { view: { filter: { environment: ["Production"] }, colorBy: "layer", name: "Prod" } });
+    const fadedNodes = svg.match(/<g data-faded="">/g) ?? [];
+    expect(fadedNodes).toHaveLength(m.nodes.length - 1);
+    // A ghost, not transparency: dashed outline, text in the muted ink (4.5:1 or better on the background).
+    const db = svg.split("<g").find((g) => g.includes(">db-prod-01<"))!;
+    expect(db).not.toContain("data-faded");
+    const ghost = svg.split("<g").find((g) => g.startsWith(' data-faded=""><rect'))!;
+    expect(ghost).toContain('stroke-dasharray="4 3"');
+    expect(ghost).toMatch(/font-size="14" font-weight="500" fill="#406996"/);
+    expect(ghost).not.toContain("opacity");
+    // Only one element is in view, so every relationship has a faded end.
+    expect((svg.match(/<path [^>]*opacity="0.2" data-faded=""/g) ?? []).length).toBe(m.edges.length);
+    expect(svg).toMatch(new RegExp(`data-title="view"[^>]*>View: Prod · showing 1 of ${m.nodes.length} elements<`));
+    // No color-by legend rows when coloring by layer.
+    expect(svg).not.toContain("data-legend=");
+  });
+
+  it("colors by a property with a marker on each element and a legend with counts", () => {
+    const m = withProps();
+    const svg = modelToSvg(m, "dark", { view: { filter: {}, colorBy: "environment" } });
+    expect(svg).toMatch(/data-title="view"[^>]*>View · colored by environment · showing \d+ of \d+ elements</);
+    expect(svg).toContain('data-legend="0"');
+    expect(svg).toContain('data-legend="none"');
+    expect(svg).toContain(">Production (1)<");
+    expect(svg).toContain(">Test (1)<");
+    expect(svg).toContain(`>Not set (${m.nodes.length - 2})<`);
+    // One marker per element.
+    expect((svg.match(/<path data-slot=/g) ?? []).length).toBe(m.nodes.length);
+    // The legend makes the title block taller, so the picture is too.
+    const h = (s: string) => Number(/height="([\d.]+)"/.exec(s)![1]);
+    expect(h(svg)).toBeGreaterThan(h(modelToSvg(m, "dark")));
+  });
+
+  it("uses only colors the GIF palette knows", () => {
+    const m = withProps();
+    for (const theme of ["dark", "light"] as const) {
+      const view = { filter: { environment: ["Production", "Test"] }, colorBy: "environment" as const };
+      const { surfaces, inks } = svgColors(theme, "csdm", view);
+      const known = new Set([...surfaces, ...inks]);
+      for (const c of modelToSvg(m, theme, { view }).match(/#[0-9a-f]{6}/gi) ?? []) expect(known, `${theme} ${c}`).toContain(c.toLowerCase());
+    }
+  });
+});

@@ -35,3 +35,4 @@ export const isCsdmCore = (c: ClassDef) => c.source.id === "whitepaper";
 
 /** In the optional "Extended" palette group (off by default). */
 export const isExtended = (c: ClassDef) => !!c.extended;
+export * from "./lifecycle";
