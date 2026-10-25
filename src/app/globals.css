@@ -929,6 +929,13 @@
     height: auto;
     max-height: 100vh;
   }
+  /* While a sheet prints, white paper whatever the theme (with "Background graphics" on, the app's own backgrounds would print). */
+  html:has(#bm-print),
+  body:has(> #bm-print) {
+    background: #fff !important;
+    background-image: none !important;
+    color-scheme: light;
+  }
   /* M64: the health report, black on white in the app's type. */
   .bm-report {
     color: #000;

@@ -33,16 +33,21 @@ export type HealthReport = {
 export function healthReport(model: Model): HealthReport {
   const name = (id: string) => model.nodes.find((n) => n.id === id)?.name || "Untitled";
   const results = evaluateHints(model);
-  const hints: HealthReport["hints"] = [];
+  // One row per kind of hint (by id), each element once (by id: two may share a name).
+  const rows = new Map<string, { row: HealthReport["hints"][number]; ids: Set<string> }>();
   for (const r of results) {
-    let row = hints.find((h) => h.title === r.hint.title);
-    if (!row) hints.push((row = { title: r.hint.title, severity: r.hint.severity, count: 0, elements: [] }));
-    row.count++;
-    for (const id of r.nodeIds) if (!row.elements.includes(name(id))) row.elements.push(name(id));
+    let entry = rows.get(r.hint.id);
+    if (!entry) rows.set(r.hint.id, (entry = { row: { title: r.hint.title, severity: r.hint.severity, count: 0, elements: [] }, ids: new Set() }));
+    entry.row.count++;
+    for (const id of r.nodeIds) entry.ids.add(id);
   }
-  const connected = new Set(model.edges.flatMap((e) => [e.from, e.to]));
+  const hints = [...rows.values()].map(({ row, ids }) => ({ ...row, elements: [...ids].map(name) }));
+  // A relationship to itself doesn't relate an element to anything else.
+  const connected = new Set(model.edges.filter((e) => e.from !== e.to).flatMap((e) => [e.from, e.to]));
   const has = (key: "owner" | "environment" | "lifecycle" | "description") => (n: Model["nodes"][number]) => !!n.attrs?.[key]?.trim();
   const withLifecycle = model.nodes.filter((n) => lifecycleFor(n.class));
+  // A stage counts only if the class offers it (a file can carry any text).
+  const validStage = (n: Model["nodes"][number]) => !!lifecycleFor(n.class)?.stages.includes(n.attrs?.lifecycle?.trim() ?? "");
   return {
     elements: model.nodes.length,
     relationships: model.edges.length,
@@ -53,7 +58,7 @@ export function healthReport(model: Model): HealthReport {
     unconnected: model.nodes.filter((n) => !connected.has(n.id)).map((n) => n.name || "Untitled"),
     details: [
       { label: "Description", set: model.nodes.filter(has("description")).length, of: model.nodes.length },
-      { label: "Life cycle stage", set: withLifecycle.filter(has("lifecycle")).length, of: withLifecycle.length },
+      { label: "Life cycle stage", set: withLifecycle.filter(validStage).length, of: withLifecycle.length },
       { label: "Environment", set: model.nodes.filter(has("environment")).length, of: model.nodes.length },
       { label: "Owner", set: model.nodes.filter(has("owner")).length, of: model.nodes.length },
     ],

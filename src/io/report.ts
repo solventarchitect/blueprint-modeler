@@ -17,13 +17,16 @@ const pct = (set: number, of: number) => (of ? `${Math.round((set / of) * 100)}%
 const MAX_NAMES = 12;
 const names = (list: string[]) => (list.length > MAX_NAMES ? `${list.slice(0, MAX_NAMES).join(", ")} and ${list.length - MAX_NAMES} more` : list.join(", "));
 
+/** "a", "a and b", "a, b and c". */
+const listed = (items: string[]) => (items.length < 2 ? items.join("") : `${items.slice(0, -1).join(", ")} and ${items[items.length - 1]}`);
+
 /** The summary sentence, also used for the editor's announcement. */
 export function reportSummary(r: HealthReport): string {
   const missing = r.layers.filter((l) => !l.count).map((l) => l.name);
   return [
     `${plural(r.elements, "element")} and ${plural(r.relationships, "relationship")}.`,
     `${plural(r.warnings, "warning")} and ${plural(r.infos, "note")}.`,
-    missing.length ? `No elements in the ${missing.join(", ")} ${missing.length === 1 ? "layer" : "layers"}.` : "Every CSDM layer has elements.",
+    missing.length ? `No elements in the ${listed(missing)} ${missing.length === 1 ? "layer" : "layers"}.` : "Every CSDM layer has elements.",
   ].join(" ");
 }
 

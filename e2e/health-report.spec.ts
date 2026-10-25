@@ -11,6 +11,8 @@ test("the health report prints a page on layers, hints, details and unconnected 
       (window as unknown as { __printed: number }).__printed += 1;
     };
   });
+  // Hold the clock: the sheet tidies itself up a second after a print that never says it ended.
+  await page.clock.install();
   await page.goto("/editor");
   await expect(page.getByTestId("save-status")).toHaveText("Saved in this browser");
   await openExample(page, "Online Store Checkout");
@@ -34,6 +36,8 @@ test("the health report prints a page on layers, hints, details and unconnected 
   await expect(sheet).toContainText("Elements without relationships");
   await expect(page.getByRole("button", { name: "Export" })).toBeHidden();
   await page.emulateMedia({ media: "screen" });
+  // Still there until the print ends.
+  await expect(page.locator("#bm-print")).toHaveCount(1);
   await page.evaluate(() => window.dispatchEvent(new Event("afterprint")));
   await expect(page.locator("#bm-print")).toHaveCount(0);
   await expect(page).toHaveTitle(title);

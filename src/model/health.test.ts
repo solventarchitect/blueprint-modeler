@@ -35,8 +35,22 @@ describe("healthReport (M64)", () => {
     expect(noCap.elements).toEqual(["Ledger"]);
     // Warnings come before infos.
     const firstInfo = r.hints.findIndex((h) => h.severity === "info");
+    expect(firstInfo).toBeGreaterThanOrEqual(0);
     expect(r.hints.slice(firstInfo).every((h) => h.severity === "info")).toBe(true);
     expect(r.unconnected).toEqual(["Ledger"]);
+  });
+
+  it("names each element once per hint, even when two share a name; a relationship to itself relates nothing", () => {
+    const m = make("checkout");
+    m.nodes.push({ id: "x", class: "business_application", name: "Ledger" }, { id: "y", class: "business_application", name: "Ledger" });
+    m.layout.x = { x: 0, y: 0 };
+    m.layout.y = { x: 300, y: 0 };
+    m.edges.push({ id: "loop", from: "y", to: "y", type: "Depends on::Used by" });
+    const r = healthReport(m);
+    const noCap = r.hints.find((h) => h.title === "Business Application has no Business Capability")!;
+    expect(noCap.count).toBe(2);
+    expect(noCap.elements).toEqual(["Ledger", "Ledger"]);
+    expect(r.unconnected).toEqual(["Ledger", "Ledger"]);
   });
 
   it("measures how complete the elements' details are", () => {
@@ -46,9 +60,11 @@ describe("healthReport (M64)", () => {
     const row = (label: string) => r.details.find((d) => d.label === label)!;
     expect(row("Owner")).toMatchObject({ set: 3, of: 14 });
     expect(row("Environment")).toMatchObject({ set: 3, of: 14 });
-    // Life cycle: only elements whose class has a CSDM life cycle count.
+    // Life cycle: only elements whose class has a CSDM life cycle count, and only stages it offers.
     expect(row("Life cycle stage").of).toBeLessThanOrEqual(14);
     expect(row("Life cycle stage").set).toBe(3);
+    m.nodes[0] = { ...m.nodes[0]!, attrs: { lifecycle: "Retired soon" } };
+    expect(healthReport(m).details.find((d) => d.label === "Life cycle stage")!.set).toBe(2);
     expect(row("Description").of).toBe(14);
   });
 
