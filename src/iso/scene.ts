@@ -20,7 +20,7 @@ export type Rect = { x: number; y: number; w: number; d: number };
 
 export type IsoSlab = { layer: Layer; rect: Rect; top: number };
 export type IsoBlock = { id: string; layer: Layer; rect: Rect; z: number; h: number };
-/** A relationship's route: a pipe on its layer's slab (same layer) or a straight line between the blocks' tops (across layers). */
+/** A relationship's route: a pipe on its layer's slab (same layer) or a bridge between the blocks' tops (across layers); both run only along the three axes. */
 export type IsoEdge = { id: string; from: string; to: string; points: P3[]; across: boolean };
 export type IsoScene = { slabs: IsoSlab[]; blocks: IsoBlock[]; edges: IsoEdge[]; mode: IsoMode };
 
@@ -76,6 +76,32 @@ export function pipeRoute(a: Rect, b: Rect): { x: number; y: number }[] | null {
   return [exitPoint(a, ca, corner), corner, exitPoint(b, cb, corner)];
 }
 
+/** How far above its layer's block tops a bridge runs, before it drops onto the block it joins. */
+export const BRIDGE_CLEAR = 14;
+
+/**
+ * Across layers (M60): a bridge along the three axes only, so it keeps the pipes' angles. It rises
+ * straight up from the top of the lower block to just above the higher layer's block tops, runs
+ * back or forward (y) over the layers between (all lower), then across (x) along the higher block's
+ * own lane, above its row, and drops onto its top. Staying over the lanes keeps it inside the
+ * picture (running across in front of the lower layer first made wide V's below everything). Drawn
+ * from `from` to `to`, whichever is higher.
+ */
+export function bridgeRoute(a: IsoBlock, b: IsoBlock): P3[] {
+  const [low, high] = a.z <= b.z ? [a, b] : [b, a];
+  const cl = center(low.rect);
+  const ch = center(high.rect);
+  const z = high.z + high.h + BRIDGE_CLEAR;
+  const points: P3[] = [
+    { x: cl.x, y: cl.y, z: low.z + low.h },
+    { x: cl.x, y: cl.y, z },
+    { x: cl.x, y: ch.y, z },
+    { x: ch.x, y: ch.y, z },
+    { x: ch.x, y: ch.y, z: high.z + high.h },
+  ].filter((p, i, all) => i === 0 || p.x !== all[i - 1]!.x || p.y !== all[i - 1]!.y || p.z !== all[i - 1]!.z);
+  return low === a ? points : points.reverse();
+}
+
 export function isoScene(model: Model, mode: IsoMode, sizes: Record<string, Size | undefined> = {}, lift?: Layer): IsoScene {
   const step = STEP[mode];
   const layerOf = new Map(model.nodes.map((n) => [n.id, classById(n.class)?.layer ?? "design"] as const));
@@ -95,21 +121,12 @@ export function isoScene(model: Model, mode: IsoMode, sizes: Record<string, Size
     const a = byId.get(e.from);
     const b = byId.get(e.to);
     if (!a || !b || a === b) continue;
-    const ca = center(a.rect);
-    const cb = center(b.rect);
     if (a.layer === b.layer) {
       const route = pipeRoute(a.rect, b.rect);
       // Blocks that overlap (stacked, or pasted onto one another) have no gap for a pipe.
       if (route) edges.push({ id: e.id, from: e.from, to: e.to, points: route.map((p) => ({ ...p, z: a.z + 1 })), across: false });
     } else {
-      // Across layers: a straight line from the top of one block to the top of the other, between the
-      // floors. (Right-angled bridges at this scale cross the whole picture; the design system's
-      // never-diagonal rule is for pipes on a slab.)
-      const points = [
-        { x: ca.x, y: ca.y, z: a.z + a.h },
-        { x: cb.x, y: cb.y, z: b.z + b.h },
-      ];
-      edges.push({ id: e.id, from: e.from, to: e.to, points, across: true });
+      edges.push({ id: e.id, from: e.from, to: e.to, points: bridgeRoute(a, b), across: true });
     }
   }
   return { slabs, blocks, edges, mode };
