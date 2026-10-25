@@ -6,9 +6,10 @@ import type { Frame } from "@/layout/groupLayout";
 /**
  * Group frames (M56): a frame around each group's elements, drawn in flow coordinates behind the
  * edges and nodes like the layer boxes, with a tab on its top edge naming the group. The tab is a
- * button that collapses the group into one block (aria-expanded), readable at any zoom.
+ * button that collapses the group into one block (aria-expanded), readable at any zoom; the canvas
+ * brings a tab into view when it gets focus.
  */
-export function GroupOverlay({ frames, onToggle, kind }: { frames: Frame[]; onToggle: (key: string) => void; kind: string }) {
+export function GroupOverlay({ frames, onToggle, onFocusTab, kind }: { frames: Frame[]; onToggle: (key: string) => void; onFocusTab?: (f: Frame, el: HTMLElement) => void; kind: string }) {
   const { zoom } = useViewport();
   return (
     <ViewportPortal>
@@ -25,6 +26,7 @@ export function GroupOverlay({ frames, onToggle, kind }: { frames: Frame[]; onTo
               // The tab keeps its size on screen, sitting on the frame's top edge.
               style={{ transform: `translate(${f.x}px, ${f.y}px) scale(${1 / zoom}) translateY(-100%)`, transformOrigin: "0 0", maxWidth: Math.max(f.w * zoom, 96) }}
               onClick={() => onToggle(f.key)}
+              onFocus={(e) => onFocusTab?.(f, e.currentTarget)}
             >
               <span aria-hidden="true" className="shrink-0">▾</span>
               <span className="min-w-0 truncate">{f.label}</span>
@@ -44,7 +46,7 @@ export type GroupFlowNode = Node<GroupNodeData, "group">;
 
 /**
  * A collapsed group (M56): one block standing for its elements, where its frame began. Relationships
- * to its elements from outside run to it (dashed). Expand (or Enter on it) opens the group again.
+ * to its elements from outside run to it (dashed). Its Expand button opens the group again.
  */
 export function GroupNode({ data }: NodeProps<GroupFlowNode>) {
   const hidden = "!pointer-events-none !opacity-0";

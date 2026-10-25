@@ -2,7 +2,7 @@ import { archimateElements, archimateFill, archimateRelationshipFor, archimateTy
 import { classById, isClassId, type Layer } from "@/metamodel";
 import { COLOR_BY_LABEL, filterActive, GROUP_BY_LABEL, groupsOf, type GroupBy, formatModelDate, inView, legend, modelDate, PALETTE, slotColor, slotMap, slotMarker, UNTITLED_MODEL, type ColorBy, type Model, type ViewFilter } from "@/model";
 import { layoutOrientation } from "@/layout/bands";
-import { groupFrames } from "@/layout/groupLayout";
+import { groupFrames, ownGroups } from "@/layout/groupLayout";
 import { planLabels } from "@/layout/edgeLabel";
 import { edgePath, type LineStyle } from "@/layout/edgePath";
 import { edgeEnds, type Side } from "@/layout/geometry";
@@ -229,7 +229,7 @@ export function modelToSvg(model: Model, theme: SvgTheme, opts: { lens?: Lens; h
 
   const all = [...boxes.values()];
   // Group frames (M56), every group open: collapsing is for the screen only.
-  const frames = view?.groupBy ? groupFrames(groupsOf(model, view.groupBy), model.layout, Object.fromEntries([...boxes].map(([id, b]) => [id, { width: b.w, height: b.h }]))) : [];
+  const frames = view?.groupBy ? groupFrames(ownGroups(groupsOf(model, view.groupBy)), model.layout, Object.fromEntries([...boxes].map(([id, b]) => [id, { width: b.w, height: b.h }]))) : [];
   const tabText = (f: (typeof frames)[number]) => `${f.label} · ${f.count}`;
   const tabW = (f: (typeof frames)[number]) => tabText(f).length * 6.6 + 16;
   // What the image has to hold: the elements, and the frames with their tabs.

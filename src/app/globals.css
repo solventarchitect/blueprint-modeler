@@ -1000,6 +1000,7 @@
 }
 .bm-group-tab {
   margin-top: -2px;
+  min-height: 24px;
   padding: 2px 8px;
   border: 1.5px solid var(--ink-soft);
   border-bottom: 0;

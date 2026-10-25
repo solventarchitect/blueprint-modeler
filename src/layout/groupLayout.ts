@@ -1,4 +1,3 @@
-import { classById } from "@/metamodel";
 import { primaryGroup, type Group, type Model } from "@/model";
 import { layoutOrientation } from "./bands";
 import { DEFAULT_SIZE, type Size } from "./layout";
@@ -12,8 +11,9 @@ export const GROUP_PAD = 20;
 
 /**
  * Arrange by group (M56): each group gets its own band across the layers, so its frame holds its
- * elements and frames sit side by side; elements keep their layer row (or column), in the order they
- * stood. An element in two groups goes with its first. Elements in no group follow the last band.
+ * elements and frames sit side by side; elements keep their row (or column), in the order they
+ * stood. Elements whose boxes share a row run one after another, so nothing lands on anything else.
+ * An element in two groups goes with its first. Elements in no group follow the last band.
  * Returns the new positions, or null when nothing would move.
  */
 export function arrangeByGroups(model: Model, groups: Group[], sizes: Sizes = {}): Model["layout"] | null {
@@ -23,9 +23,23 @@ export function arrangeByGroups(model: Model, groups: Group[], sizes: Sizes = {}
   // Along the band (across the layers' direction) and across it.
   const along = (id: string) => (columns ? model.layout[id]!.y : model.layout[id]!.x);
   const span = (id: string) => (columns ? (sizes[id] ?? DEFAULT_SIZE).height : (sizes[id] ?? DEFAULT_SIZE).width);
+  // Across the band: where an element's box starts and ends.
+  const across = (id: string) => (columns ? model.layout[id]!.x : model.layout[id]!.y);
+  const depth = (id: string) => (columns ? (sizes[id] ?? DEFAULT_SIZE).width : (sizes[id] ?? DEFAULT_SIZE).height);
   const primary = primaryGroup(groups);
   const order = [...groups.map((g) => g.key), ""];
-  const layerOf = (id: string) => classById(model.nodes.find((n) => n.id === id)!.class)?.layer ?? "design";
+  /** Rows: elements whose boxes overlap across the band, which must not share a spot along it. */
+  const rowsOf = (ids: string[]) => {
+    const rows: { end: number; ids: string[] }[] = [];
+    for (const id of [...ids].sort((a, b) => across(a) - across(b) || a.localeCompare(b))) {
+      const last = rows[rows.length - 1];
+      if (last && across(id) < last.end) {
+        last.ids.push(id);
+        last.end = Math.max(last.end, across(id) + depth(id));
+      } else rows.push({ end: across(id) + depth(id), ids: [id] });
+    }
+    return rows.map((r) => r.ids);
+  };
 
   const start = Math.min(...placed.map((n) => along(n.id)));
   const next: Model["layout"] = {};
@@ -33,10 +47,8 @@ export function arrangeByGroups(model: Model, groups: Group[], sizes: Sizes = {}
   for (const key of order) {
     const members = placed.filter((n) => (primary.get(n.id) ?? "") === key).map((n) => n.id);
     if (!members.length) continue;
-    const byLayer = new Map<string, string[]>();
-    for (const id of members) byLayer.set(layerOf(id), [...(byLayer.get(layerOf(id)) ?? []), id]);
     let width = 0;
-    for (const ids of byLayer.values()) {
+    for (const ids of rowsOf(members)) {
       let at = cursor;
       for (const id of ids.sort((a, b) => along(a) - along(b) || a.localeCompare(b))) {
         const p = model.layout[id]!;
@@ -51,6 +63,15 @@ export function arrangeByGroups(model: Model, groups: Group[], sizes: Sizes = {}
 }
 
 export type Frame = { key: string; label: string; count: number; x: number; y: number; w: number; h: number };
+
+/**
+ * The groups as framed and arranged: each element in its first group only, so frames never claim an
+ * element another frame holds (a group whose elements are all in earlier groups has no frame).
+ */
+export function ownGroups(groups: Group[]): Group[] {
+  const primary = primaryGroup(groups);
+  return groups.map((g) => ({ ...g, nodeIds: g.nodeIds.filter((id) => primary.get(id) === g.key) }));
+}
 
 /** A frame around each group's placed elements, from their positions and sizes. */
 export function groupFrames(groups: Group[], layout: Model["layout"], sizes: Sizes = {}): Frame[] {

@@ -111,4 +111,40 @@ test.describe("group by (M56, desktop)", () => {
     expect(svg.match(/data-group-frame=/g)).toHaveLength(2);
     expect(svg).toContain("grouped by Service Offering");
   });
+
+  test("a shared element is framed once, the counts agree, and Go to opens a collapsed group; the block's menu expands it", async ({ page }) => {
+    await page.goto("/editor");
+    await saved(page);
+    await openExample(page, "Shared Database Platform");
+    await saved(page);
+    await groupBy(page, "Business Application");
+    await closeDialog(page);
+    await expect(frames(page)).toHaveCount(2);
+    // Each tab counts what its frame holds; the shared elements go with the first group.
+    const tabs = frames(page).getByRole("button");
+    const names = await tabs.evaluateAll((els) => els.map((e) => e.getAttribute("aria-label") ?? ""));
+    const counts = names.map((n) => Number(/, (\d+) elements?:/.exec(n)![1]));
+    expect(counts[0]! + counts[1]!).toBeLessThanOrEqual(await elements(page).count());
+    const second = tabs.nth(1);
+    const label = (await second.getAttribute("aria-label"))!;
+    await second.click();
+    await expect(page.getByTestId("group-node")).toContainText(`${counts[1]} element${counts[1] === 1 ? "" : "s"}, collapsed`);
+    // Its block's menu: Expand group.
+    await page.getByTestId("group-node").click({ button: "right" });
+    await page.getByRole("menuitem", { name: "Expand group" }).click();
+    await expect(page.getByTestId("group-node")).toHaveCount(0);
+    await expect(frames(page)).toHaveCount(2);
+    // Collapse again, then Go to an element inside: the group opens and the element is selected.
+    const all = await elements(page).count();
+    await page.getByRole("button", { name: label }).click();
+    await expect(elements(page)).toHaveCount(all - counts[1]!);
+    await expect(node(page, "Reporting")).toHaveCount(0);
+    await page.keyboard.press(`${process.platform === "darwin" ? "Meta" : "Control"}+k`);
+    const palette = page.getByRole("dialog", { name: "Commands" });
+    await palette.getByRole("combobox", { name: "Search commands" }).fill("Reporting");
+    await palette.getByRole("option", { name: /^Reporting/ }).first().click();
+    await expect(page.getByTestId("group-node")).toHaveCount(0);
+    await expect(elements(page)).toHaveCount(all);
+    await expect(node(page, "Reporting")).toHaveClass(/selected/);
+  });
 });

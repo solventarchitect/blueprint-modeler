@@ -52,7 +52,7 @@ import { edgePath } from "@/layout/edgePath";
 import { edgeEnds, type Side } from "@/layout/geometry";
 import { alignNodes, boundsOf, snapToGuides, type Guide } from "@/layout/align";
 import { distributeEvenly } from "@/layout/distribute";
-import { arrangeByGroups, groupFrames } from "@/layout/groupLayout";
+import { arrangeByGroups, groupFrames, ownGroups, type Frame } from "@/layout/groupLayout";
 import { autoLayout, DEFAULT_SIZE, fillSpace, type LayoutMode } from "@/layout/layout";
 import { createWorkerEngine } from "@/layout/worker-engine";
 import { classById, classes, isClassId, isExtended, type ClassId, type Layer } from "@/metamodel";
@@ -518,7 +518,8 @@ function EditorInner() {
   const groups = useMemo(() => (groupBy ? groupsOf(model, groupBy) : []), [model, groupBy]);
   const [collapsed, setCollapsed] = useState<{ key: string; ids: ReadonlySet<string> }>({ key: "", ids: NO_IDS });
   const collapsedKey = `${model.id}|${groupBy ?? ""}`;
-  const collapsedIds = collapsed.key === collapsedKey ? collapsed.ids : NO_IDS;
+  // Presenting shows every group open (the frames are off too): the slides are about the layers.
+  const collapsedIds = collapsed.key === collapsedKey && !presenting ? collapsed.ids : NO_IDS;
   const toggleGroup = (key: string) => {
     const g = groups.find((x) => x.key === key);
     const next = new Set(collapsedIds);
@@ -577,20 +578,19 @@ function EditorInner() {
     [model.layout, dragTick],
   );
   const groupLabel = groupBy ? GROUP_BY_LABEL[groupBy] : "";
-  // Frames for the open groups, around their elements still on show; a collapsed group's block sits where its frame began.
+  // Frames for the open groups, each around the elements it holds (one shared by two is framed with its first);
+  // a collapsed group's block sits where its frame began.
   const frames = useMemo(() => {
     if (!groups.length) return [];
-    const onShow = groups.map((g) => ({ ...g, nodeIds: g.nodeIds.filter((id) => !hiddenIds.has(id)) }));
-    return groupFrames(onShow.filter((g) => !collapsedIds.has(g.key)), liveLayout, measured.current).map((f) => ({ ...f, count: groups.find((g) => g.key === f.key)!.nodeIds.length }));
-  }, [groups, hiddenIds, collapsedIds, liveLayout]);
+    return groupFrames(ownGroups(groups).filter((g) => !collapsedIds.has(g.key)), liveLayout, measured.current);
+  }, [groups, collapsedIds, liveLayout]);
   const groupNodes: GroupFlowNode[] = useMemo(() => {
     if (!collapsedIds.size) return [];
-    const primary = primaryGroup(groups);
-    return groups
+    return ownGroups(groups)
       .filter((g) => collapsedIds.has(g.key))
       .flatMap((g) => {
-        const own = g.nodeIds.filter((id) => primary.get(id) === g.key);
-        const [f] = groupFrames([{ ...g, nodeIds: own }], model.layout, measured.current);
+        const own = g.nodeIds;
+        const [f] = groupFrames([g], model.layout, measured.current);
         if (!f) return [];
         return [
           {
@@ -602,6 +602,8 @@ function EditorInner() {
             selectable: false,
             deletable: false,
             connectable: false,
+            // Its Expand button is the one stop for it.
+            focusable: false,
             ariaLabel: `${groupLabel} group ${g.label}, ${own.length} element${own.length === 1 ? "" : "s"}, collapsed`,
           },
         ];
@@ -748,7 +750,7 @@ function EditorInner() {
         target,
         sourceHandle,
         targetHandle,
-        className: "group-edge",
+        className: `group-edge${fadedIds.has(e.from) || fadedIds.has(e.to) ? " faded" : ""}`,
         selectable: false,
         focusable: false,
         deletable: false,
@@ -757,7 +759,7 @@ function EditorInner() {
       } as FlowEdge);
     }
     return [...edges, ...extra];
-  }, [edges, groupNodes, groups, hiddenIds, model, columns]);
+  }, [edges, groupNodes, groups, hiddenIds, model, columns, fadedIds]);
 
   /** Several elements selected at once (M57); one or none falls back to the single selection. */
   const selectMany = (ids: string[]) => {
@@ -1425,6 +1427,20 @@ function EditorInner() {
     dispatch({ type: "set-layout", layout: positions });
     setMessage(`${kind.startsWith("spread") ? "Spread" : "Aligned"} ${multi.length} elements ${a.done}.${lane ? " Lanes keep each in its own layer." : ""}`);
   };
+  /**
+   * A frame's tab got focus (Tab key): bring it into view as the canvas does for elements. The pane
+   * clips its content, and a browser may scroll it to show the tab, so that scroll is undone first.
+   */
+  const revealFrame = (f: Frame, el: HTMLElement) => {
+    const pane = el.closest<HTMLElement>(".react-flow");
+    if (!pane) return;
+    for (const x of [pane, ...pane.querySelectorAll<HTMLElement>(".react-flow__renderer, .react-flow__pane, .react-flow__viewport")]) x.scrollTop = x.scrollLeft = 0;
+    const r = el.getBoundingClientRect();
+    const p = pane.getBoundingClientRect();
+    if (r.left >= p.left && r.right <= p.right && r.top >= p.top && r.bottom <= p.bottom) return;
+    const { zoom } = flow.getViewport();
+    void flow.setViewport({ x: 48 - f.x * zoom, y: 48 + r.height - f.y * zoom, zoom }, { duration: prefersStill() ? 0 : 200 });
+  };
   /** Arrange by group (M56): each group in its own band, so its frame holds just its elements. */
   const arrangeGroups = () => {
     if (!groupBy) return;
@@ -1467,6 +1483,8 @@ function EditorInner() {
   const nodeMenu = (id: string): MenuItem[] => {
     // An element in a selection of several: the menu acts on all of them.
     if (multiSet.has(id)) return selectionMenu();
+    // A collapsed group's block (M56): its only action is to open again.
+    if (id.startsWith("group:")) return [{ kind: "item", label: "Expand group", onSelect: () => toggleGroup(id.slice("group:".length)) }];
     const n = model.nodes.find((x) => x.id === id);
     if (!n) return [];
     const name = n.name || "Untitled";
@@ -1584,6 +1602,7 @@ function EditorInner() {
   ];
   const canMenu = wide && !presenting;
   const labelOf = (id: string) => {
+    if (id.startsWith("group:")) return `${groups.find((g) => `group:${g.key}` === id)?.label ?? "Group"} group menu`;
     const n = model.nodes.find((x) => x.id === id);
     return `${n?.name || "Untitled"} menu`;
   };
@@ -1607,7 +1626,7 @@ function EditorInner() {
       const t = e.target as HTMLElement;
       if (t.isContentEditable || t.closest("input, textarea, select")) return;
       const id = t.closest<HTMLElement>(".react-flow__node")?.dataset.id ?? selectedId;
-      if (!id) return;
+      if (!id || id.startsWith("group:")) return;
       e.preventDefault();
       selectNode(id);
       quickAddAt(id);
@@ -1843,10 +1862,18 @@ function EditorInner() {
     const n = model.nodes.find((x) => x.id === id);
     if (!n) return;
     if (fadedIds.has(id)) showView({ id: null, filter: {}, colorBy: shown.colorBy, groupBy: shown.groupBy });
+    // Folded into a collapsed group (M56): open the group first, so the element can be shown and selected.
+    const folded = hiddenIds.has(id);
+    if (folded) {
+      const ids = new Set(collapsedIds);
+      ids.delete(primaryGroup(groups).get(id) ?? "");
+      setCollapsed({ key: collapsedKey, ids });
+    }
     if (keepTab) setSelectedId(id);
     else selectNode(id);
     // The isometric picture zooms to the selection once it has been drawn with it.
     if (isoRef.current) setTimeout(() => isoRef.current?.zoom("selection"), 0);
+    else if (folded) setTimeout(() => void flow.fitView({ nodes: [{ id }], padding: 0.3, maxZoom: 1.25, duration: prefersStill() ? 0 : 300 }), 50);
     else void flow.fitView({ nodes: [{ id }], padding: 0.3, maxZoom: 1.25, duration: prefersStill() ? 0 : 300 });
     setMessage(`Selected ${classById(n.class)?.label ?? n.class} “${n.name || "Untitled"}”.`);
   };
@@ -2513,7 +2540,7 @@ function EditorInner() {
                   nodeColor={(n) => minimapColor[classById(n.data.cls)?.layer ?? "design"]}
                 />
               )}
-              {frames.length > 0 && !presenting && <GroupOverlay frames={frames} onToggle={toggleGroup} kind={groupLabel} />}
+              {frames.length > 0 && !presenting && <GroupOverlay frames={frames} onToggle={toggleGroup} onFocusTab={revealFrame} kind={groupLabel} />}
               <LayerOverlay boxes={boxes} lanes={lanes} showBoxes={view.boxes || presenting} showLanes={view.lanes} handlers={canMenu ? layerHandlers : undefined} />
               <CanvasTitle name={model.name} date={modelDate(model)} description={model.description} artifactId={model.artifactId} boxes={boxes} tabsAbove={(view.boxes && !view.lanes && canMenu) || (view.lanes && columns)} decorative={presenting} />
             </ReactFlow>

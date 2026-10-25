@@ -55,7 +55,8 @@ export const viewSchema = z.object({
   filter: viewFilterSchema,
   colorBy: z.enum(COLOR_BY),
   /** M56: frames around the elements that belong together; optional and additive in format 1 (older versions ignore it). */
-  groupBy: z.enum(GROUP_BY).optional(),
+  // A grouping this version does not know drops the grouping, not the file.
+  groupBy: z.enum(GROUP_BY).optional().catch(undefined),
 });
 
 export const modelSchema = z.object({
