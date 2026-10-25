@@ -10,7 +10,7 @@ const dialog = (page: Page) => page.getByTestId("view-dialog");
 const legend = (page: Page) => page.getByTestId("view-legend");
 const frames = (page: Page) => page.getByTestId("group-frame");
 const elements = (page: Page) => page.locator(".react-flow__node-csdm:visible");
-const node = (page: Page, name: string) => page.locator(".react-flow__node").filter({ has: page.getByText(name, { exact: true }) });
+const node = (page: Page, name: string) => page.locator(".react-flow__node-csdm").filter({ has: page.getByText(name, { exact: true }) });
 
 async function start(page: Page) {
   await page.goto("/editor");
