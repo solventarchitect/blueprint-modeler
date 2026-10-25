@@ -10,7 +10,7 @@ import { ARTIFACT_ICON_PATH } from "./icons";
 export type SvgTheme = "dark" | "light";
 
 /** Blueprint roles as literal hex (tokens.css), so the file stands alone: no CSS vars, nothing remote. */
-const palettes = {
+export const palettes = {
   dark: { bg: "#121e2b", node: "#172738", ink: "#f6f7f9", muted: "#7b9ec7", line: "#7b9ec7", status: "#deb163", accent: "#5ec8ff", ai: "#b4a7ff", invalid: "#e99696", onBadge: "#121e2b" },
   light: { bg: "#f6f7f9", node: "#ffffff", ink: "#121e2b", muted: "#406996", line: "#34557a", status: "#6d4e17", accent: "#005785", ai: "#2000d6", invalid: "#b12525", onBadge: "#ffffff" },
 } as const;
@@ -45,18 +45,18 @@ export function svgColors(theme: SvgTheme, lens: Lens, view?: SvgView): { surfac
 
 const CAPTION_H = 48;
 
-const layerColor = (p: (typeof palettes)[SvgTheme], layer: Layer) =>
+export const layerColor = (p: (typeof palettes)[SvgTheme], layer: Layer) =>
   ({ business: p.status, design: p.accent, service: p.ai, functional: p.muted, infrastructure: p.line })[layer];
 
-const SANS = "'IBM Plex Sans', system-ui, -apple-system, 'Segoe UI', Roboto, sans-serif";
-const MONO = "'IBM Plex Mono', ui-monospace, SFMono-Regular, Menlo, Consolas, monospace";
+export const SANS = "'IBM Plex Sans', system-ui, -apple-system, 'Segoe UI', Roboto, sans-serif";
+export const MONO = "'IBM Plex Mono', ui-monospace, SFMono-Regular, Menlo, Consolas, monospace";
 const W = 224;
 const PAD = 32;
 const CLASS_CHARS = 26; // uppercase mono at 10px with tracking, inside 200px
 const NAME_CHARS = 24;
 
-const esc = (s: string) => s.replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;").replace(/"/g, "&quot;").replace(/'/g, "&apos;");
-const clip = (s: string, n: number) => (s.length > n ? `${s.slice(0, n - 1)}…` : s);
+export const esc = (s: string) => s.replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;").replace(/"/g, "&quot;").replace(/'/g, "&apos;");
+export const clip = (s: string, n: number) => (s.length > n ? `${s.slice(0, n - 1)}…` : s);
 const r1 = (n: number) => Math.round(n * 10) / 10;
 
 function wrap(text: string, width: number): string[] {
@@ -109,6 +109,94 @@ function anchor(b: Box, side: Side) {
 }
 
 /**
+ * The title block of an exported picture: the reference line (Artifact ID and date), the model's name,
+ * its description and, with a view (M54), the view's head line and legend. `avail` is the drawing's
+ * width, which the description and legend wrap to. Shared by the plan and isometric pictures.
+ */
+export function svgTitleBlock(model: Model, theme: SvgTheme, view: SvgView | undefined, shownCount: number, avail: number) {
+  const p = palettes[theme];
+  const name = model.name || UNTITLED_MODEL;
+  const artifactId = model.artifactId?.trim() ?? "";
+  const about = model.description?.trim() ?? "";
+  // Description lines: as wide as the diagram allows, between 40 and 110 characters (readable).
+  const aboutChars = Math.min(110, Math.max(40, Math.floor(avail / TITLE.textChar)));
+  const aboutLines = about ? wrapText(about, aboutChars, 3) : [];
+  // The view legend: entries wrap into rows as wide as the diagram (at least 480px).
+  const legendHead = view
+    ? [view.name ? `View: ${view.name}` : "View", view.colorBy !== "layer" ? `colored by ${COLOR_BY_LABEL[view.colorBy].toLowerCase()}` : "", `showing ${shownCount} of ${model.nodes.length} elements`].filter(Boolean).join(" · ")
+    : "";
+  const legendRows: { label: string; slot: Parameters<typeof slotColor>[0]; w: number }[][] = [];
+  if (view) {
+    const rowWidth = Math.max(480, avail);
+    let row: (typeof legendRows)[number] = [];
+    let used = 0;
+    for (const e of legend(model, view.colorBy, view.filter)) {
+      const label = `${clip(e.label, 40)} (${e.count})`;
+      const w = LEGEND.marker + label.length * LEGEND.char + LEGEND.gap;
+      if (row.length && used + w > rowWidth) {
+        legendRows.push(row);
+        row = [];
+        used = 0;
+      }
+      row.push({ label, slot: e.slot, w });
+      used += w;
+    }
+    if (row.length) legendRows.push(row);
+  }
+  const legendH = view ? LEGEND.head + legendRows.length * LEGEND.row : 0;
+  // The title block sets a minimum width: name (22px sans), Artifact ID (12px mono after its icon),
+  // description lines and the legend.
+  const width = Math.max(
+    Math.min(name.length * TITLE.nameChar, TITLE.maxName),
+    (artifactId ? 20 + (artifactId.length + 3) * TITLE.monoChar : 0) + 12 * TITLE.monoChar,
+    ...aboutLines.map((l) => l.length * TITLE.textChar),
+    legendHead.length * TITLE.textChar,
+    ...legendRows.map((r) => r.reduce((a, x) => a + x.w, 0)),
+  );
+  const height = TITLE.top + TITLE.artifact + TITLE.name + (aboutLines.length ? 6 + aboutLines.length * TITLE.line : 0) + legendH + TITLE.gap;
+  /** The block's markup, its text starting at x = tx, its top at y = top. */
+  const render = (tx: number, top: number): string[] => {
+    let ty = top + TITLE.top;
+    const out: string[] = [];
+    // The reference line: the Artifact ID (with its tag icon) when set, then the model's date.
+    const date = formatModelDate(modelDate(model));
+    out.push(
+      artifactId
+        ? `<g data-title="artifact"><path data-icon="artifact" d="${ARTIFACT_ICON_PATH}" transform="translate(${tx} ${ty - 12}) scale(0.875)" fill="none" stroke="${p.muted}" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/>` +
+            `<text x="${tx + 20}" y="${ty}" font-family="${MONO}" font-size="12" letter-spacing="0.4" fill="${p.muted}">${esc(clip(artifactId, 64))}<tspan dx="8">·</tspan><tspan data-title="date" dx="8">${esc(date)}</tspan></text></g>`
+        : `<text data-title="date" x="${tx}" y="${ty}" font-family="${MONO}" font-size="12" letter-spacing="0.4" fill="${p.muted}">${esc(date)}</text>`,
+    );
+    ty += TITLE.artifact;
+    ty += TITLE.name - 6;
+    out.push(`<text data-title="name" x="${tx}" y="${ty}" font-family="${SANS}" font-size="22" font-weight="600" fill="${p.ink}">${esc(clip(name, Math.floor(TITLE.maxName / TITLE.nameChar)))}</text>`);
+    if (aboutLines.length) {
+      out.push(
+        `<text data-title="description" x="${tx}" y="${ty + 6}" font-family="${SANS}" font-size="13" fill="${p.muted}">` +
+          aboutLines.map((l) => `<tspan x="${tx}" dy="${TITLE.line}" data-title-line="">${esc(l)}</tspan>`).join("") +
+          `</text>`,
+      );
+    }
+    if (view) {
+      let ly = ty + 6 + aboutLines.length * TITLE.line + LEGEND.head;
+      out.push(`<text data-title="view" x="${tx}" y="${ly - 6}" font-family="${SANS}" font-size="13" fill="${p.muted}">${esc(legendHead)}</text>`);
+      for (const row of legendRows) {
+        let lx = tx;
+        ly += LEGEND.row;
+        for (const it of row) {
+          out.push(
+            `<g data-legend="${it.slot}"><path d="${slotMarker(it.slot)}" transform="translate(${lx} ${ly - 15})" fill="${slotColor(it.slot, theme)}" fill-rule="evenodd"/>` +
+              `<text x="${lx + LEGEND.marker}" y="${ly - 6}" font-family="${SANS}" font-size="12" fill="${p.ink}">${esc(it.label)}</text></g>`,
+          );
+          lx += it.w;
+        }
+      }
+    }
+    return out;
+  };
+  return { width, height, render };
+}
+
+/**
  * The model as a standalone SVG in the chosen theme: same boxes, lanes and edge routing as the
  * canvas, system fonts (IBM Plex if installed), no scripts, no external references.
  */
@@ -139,51 +227,15 @@ export function modelToSvg(model: Model, theme: SvgTheme, opts: { lens?: Lens; h
   const columns = layoutOrientation(model, Object.fromEntries([...boxes].map(([id, b]) => [id, { width: b.w, height: b.h }]))) === "columns";
   const minX = all.length ? Math.min(...all.map((b) => b.x)) - PAD : 0;
   const name = model.name || UNTITLED_MODEL;
-  const artifactId = model.artifactId?.trim() ?? "";
-  const about = model.description?.trim() ?? "";
   const diagramMaxX = all.length ? Math.max(...all.map((b) => b.x + b.w)) + PAD : 2 * PAD;
-  // Description lines: as wide as the diagram allows, between 40 and 110 characters (readable).
-  const aboutChars = Math.min(110, Math.max(40, Math.floor((diagramMaxX - minX - 2 * PAD) / TITLE.textChar)));
-  const aboutLines = about ? wrapText(about, aboutChars, 3) : [];
-  // The title block sets a minimum width: name (22px sans), Artifact ID (12px mono after its icon)
-  // and description lines; so does a blast caption (14px sans, about 7.6px a character).
-  // The view legend: entries wrap into rows as wide as the diagram (at least 480px).
-  const shownCount = model.nodes.length - faded.size;
-  const legendHead = view
-    ? [view.name ? `View: ${view.name}` : "View", view.colorBy !== "layer" ? `colored by ${COLOR_BY_LABEL[view.colorBy].toLowerCase()}` : "", `showing ${shownCount} of ${model.nodes.length} elements`].filter(Boolean).join(" · ")
-    : "";
-  const legendRows: { label: string; slot: Parameters<typeof slotColor>[0]; w: number }[][] = [];
-  if (view) {
-    const avail = Math.max(480, diagramMaxX - minX - 2 * PAD);
-    let row: (typeof legendRows)[number] = [];
-    let used = 0;
-    for (const e of legend(model, view.colorBy, view.filter)) {
-      const label = `${clip(e.label, 40)} (${e.count})`;
-      const w = LEGEND.marker + label.length * LEGEND.char + LEGEND.gap;
-      if (row.length && used + w > avail) {
-        legendRows.push(row);
-        row = [];
-        used = 0;
-      }
-      row.push({ label, slot: e.slot, w });
-      used += w;
-    }
-    if (row.length) legendRows.push(row);
-  }
-  const legendH = view ? LEGEND.head + legendRows.length * LEGEND.row : 0;
-  const titleWidth = Math.max(
-    Math.min(name.length * TITLE.nameChar, TITLE.maxName),
-    (artifactId ? 20 + (artifactId.length + 3) * TITLE.monoChar : 0) + 12 * TITLE.monoChar,
-    ...aboutLines.map((l) => l.length * TITLE.textChar),
-    legendHead.length * TITLE.textChar,
-    ...legendRows.map((r) => r.reduce((a, x) => a + x.w, 0)),
-  );
+  const tb = svgTitleBlock(model, theme, view, model.nodes.length - faded.size, diagramMaxX - minX - 2 * PAD);
+  const titleWidth = tb.width;
   const maxX = Math.max(
     diagramMaxX,
     hl?.caption ? minX + 2 * PAD + Math.max(hl.caption.text.length, hl.caption.reserve ?? 0) * 7.6 : -Infinity,
     minX + 2 * PAD + titleWidth,
   );
-  const titleH = TITLE.top + TITLE.artifact + TITLE.name + (aboutLines.length ? 6 + aboutLines.length * TITLE.line : 0) + legendH + TITLE.gap;
+  const titleH = tb.height;
   const minY = (all.length ? Math.min(...all.map((b) => b.y)) - PAD : 0) - titleH - (hl?.caption ? CAPTION_H : 0);
   const maxY = all.length ? Math.max(...all.map((b) => b.y + b.h)) + PAD : 2 * PAD;
   const width = hl?.caption ? Math.ceil(maxX - minX) : maxX - minX;
@@ -278,42 +330,7 @@ export function modelToSvg(model: Model, theme: SvgTheme, opts: { lens?: Lens; h
   }
   // Title block at the top, aligned with the leftmost element; a blast caption goes below it.
   const tx = minX + PAD;
-  let ty = minY + TITLE.top;
-  const titleBlock: string[] = [];
-  // The reference line: the Artifact ID (with its tag icon) when set, then the model's date.
-  const date = formatModelDate(modelDate(model));
-  const refLine = artifactId
-    ? `<g data-title="artifact"><path data-icon="artifact" d="${ARTIFACT_ICON_PATH}" transform="translate(${tx} ${ty - 12}) scale(0.875)" fill="none" stroke="${p.muted}" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/>` +
-      `<text x="${tx + 20}" y="${ty}" font-family="${MONO}" font-size="12" letter-spacing="0.4" fill="${p.muted}">${esc(clip(artifactId, 64))}<tspan dx="8">·</tspan><tspan data-title="date" dx="8">${esc(date)}</tspan></text></g>`
-    : `<text data-title="date" x="${tx}" y="${ty}" font-family="${MONO}" font-size="12" letter-spacing="0.4" fill="${p.muted}">${esc(date)}</text>`;
-  titleBlock.push(refLine);
-  ty += TITLE.artifact;
-  ty += TITLE.name - 6;
-  titleBlock.push(
-    `<text data-title="name" x="${tx}" y="${ty}" font-family="${SANS}" font-size="22" font-weight="600" fill="${p.ink}">${esc(clip(name, Math.floor(TITLE.maxName / TITLE.nameChar)))}</text>`,
-  );
-  if (aboutLines.length) {
-    titleBlock.push(
-      `<text data-title="description" x="${tx}" y="${ty + 6}" font-family="${SANS}" font-size="13" fill="${p.muted}">` +
-        aboutLines.map((l) => `<tspan x="${tx}" dy="${TITLE.line}" data-title-line="">${esc(l)}</tspan>`).join("") +
-        `</text>`,
-    );
-  }
-  if (view) {
-    let ly = ty + 6 + aboutLines.length * TITLE.line + LEGEND.head;
-    titleBlock.push(`<text data-title="view" x="${tx}" y="${ly - 6}" font-family="${SANS}" font-size="13" fill="${p.muted}">${esc(legendHead)}</text>`);
-    for (const row of legendRows) {
-      let lx = tx;
-      ly += LEGEND.row;
-      for (const it of row) {
-        titleBlock.push(
-          `<g data-legend="${it.slot}"><path d="${slotMarker(it.slot)}" transform="translate(${lx} ${ly - 15})" fill="${slotColor(it.slot, theme)}" fill-rule="evenodd"/>` +
-            `<text x="${lx + LEGEND.marker}" y="${ly - 6}" font-family="${SANS}" font-size="12" fill="${p.ink}">${esc(it.label)}</text></g>`,
-        );
-        lx += it.w;
-      }
-    }
-  }
+  const titleBlock = tb.render(tx, minY);
   const capY = minY + titleH;
   const caption = hl?.caption
     ? `<text x="${tx}" y="${capY + 20}" font-family="${MONO}" font-size="10" letter-spacing="1.4" fill="${hl.flow ? p.ai : p.status}">${esc(hl.caption.label.toUpperCase())}</text>` +
