@@ -1549,14 +1549,22 @@ function EditorInner() {
     },
     [steps, flow, fitPadding],
   );
-  /** What a present step shows, in words (M55): the overview counts the layers; a layer step names its elements. */
+  /**
+   * What a present step shows, in words (M55), from the step itself (the elements its box holds):
+   * `count` for the live step line, `list` (the elements by name and kind) for screen readers to read on demand.
+   */
   const stepContents = (st: (typeof steps)[number] | undefined) => {
-    if (!st) return "";
     const count = (n: number) => `${n} element${n === 1 ? "" : "s"}`;
-    if (!st.layer) return `${count(model.nodes.length)} in ${steps.length - 1} layer${steps.length === 2 ? "" : "s"}. Next shows each layer in turn.`;
-    const items = outline.find((l) => l.layer === st.layer)?.items ?? [];
-    return `${count(items.length)}: ${items.map((i) => `${i.name} (${i.kind})`).join(", ")}.`;
+    if (!st) return { count: "", list: "" };
+    if (!st.layer) {
+      const layers = steps.length - 1;
+      const all = boxes.reduce((n, b) => n + b.nodeIds.length, 0);
+      return { count: `${count(all)} in ${layers} layer${layers === 1 ? "" : "s"}.`, list: layers ? "Next shows each layer in turn." : "" };
+    }
+    const items = st.nodeIds.map((id) => outline.flatMap((l) => l.items).find((i) => i.id === id)).filter((i) => !!i);
+    return { count: `${count(items.length)}.`, list: `The ${st.name} layer: ${items.map((i) => `${i.name} (${i.kind})`).join(", ")}.` };
   };
+  const shownStep = stepContents(steps[step]);
   const startPresenting = () => {
     setBlast(null);
     setSelectedId(null);
@@ -1799,13 +1807,14 @@ function EditorInner() {
           {model.artifactId && <p className="sr-only">Artifact ID {model.artifactId}</p>}
           <p className="sr-only">Dated {formatModelDate(modelDate(model))}</p>
           {model.description && <p className="sr-only">{model.description}</p>}
-          <p className="text-sm text-ink-muted" aria-live="polite" data-testid="present-step">
-            {steps[step]?.name} · {step + 1} of {steps.length}
-            {/* M55: what the step shows, for screen readers (the canvas is a picture to them). */}
-            <span className="sr-only" data-testid="present-contents">
-              {". "}
-              {stepContents(steps[step])}
-            </span>
+          {/* The step, announced whole on each change; with how many elements it shows (M55). */}
+          <p className="text-sm text-ink-muted" aria-live="polite" aria-atomic="true" data-testid="present-step">
+            {`${steps[step]?.name} · ${step + 1} of ${steps.length}`}
+            <span className="sr-only">{`. ${shownStep.count}`}</span>
+          </p>
+          {/* What the step shows, by name, for screen readers to read when they choose (the canvas is a picture to them). */}
+          <p className="sr-only" data-testid="present-contents">
+            {shownStep.list}
           </p>
           <span className="ml-auto flex gap-2">
             <button type="button" className={toolbarButton} disabled={step === 0} onClick={() => goTo(step - 1)} aria-keyshortcuts="ArrowLeft">

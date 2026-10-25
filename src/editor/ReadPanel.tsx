@@ -52,15 +52,24 @@ export function ReadPanel({ reading, activeEdgeId, onFocus, scopeName, mode, onM
                     const current = selectedIds.includes(i.id);
                     return (
                       <li key={i.id}>
+                        {/* Named by kind and name; the details are its description, read after a pause. */}
                         <button
                           type="button"
                           onClick={() => onGo(i.id)}
                           aria-current={current || undefined}
+                          aria-labelledby={`outline-${i.id}-kind outline-${i.id}-name`}
+                          aria-describedby={`outline-${i.id}-meta`}
                           className={`flex w-full cursor-pointer flex-col border px-2.5 py-1.5 text-left hover:border-accent ${current ? "border-accent" : "border-border"}`}
                         >
-                          <span className="font-mono text-[0.65rem] tracking-[0.12em] text-ink-muted uppercase">{i.kind}</span>
-                          <span className="text-sm font-medium text-ink">{i.name}</span>
-                          <span className="text-xs text-ink-muted">{meta}</span>
+                          <span id={`outline-${i.id}-kind`} className="font-mono text-[0.65rem] tracking-[0.12em] text-ink-muted uppercase">
+                            {i.kind}
+                          </span>
+                          <span id={`outline-${i.id}-name`} className="text-sm font-medium text-ink">
+                            {i.name}
+                          </span>
+                          <span id={`outline-${i.id}-meta`} className="text-xs text-ink-muted">
+                            {meta}
+                          </span>
                         </button>
                       </li>
                     );
