@@ -191,3 +191,26 @@ describe("saved views in the model file (M54, still format 1)", () => {
     expect(bad([{ id: "v", name: "x", filter: {}, colorBy: "layer" }, { id: "v", name: "y", filter: {}, colorBy: "layer" }]).ok).toBe(false);
   });
 });
+
+describe("connection points in the file (M61)", () => {
+  const withPorts = (ports: unknown) => {
+    const m = JSON.parse(serializeModel(sample()));
+    m.edges[0].ports = ports;
+    return m;
+  };
+
+  it("round-trips chosen sides, and refuses a side that is not one", () => {
+    const r = parseModel(withPorts({ from: "left", to: "top" }));
+    expect(r.ok && r.model.edges[0]!.ports).toEqual({ from: "left", to: "top" });
+    expect(r.ok && serializeModel(r.model)).toContain('"ports"');
+    expect(parseModel(withPorts({ from: "middle" })).ok).toBe(false);
+  });
+
+  it("is ignored, not refused, by 1.10.0's reader: the same format without ports", () => {
+    // 1.10.0's edge schema is today's without `ports`; zod drops keys it does not know.
+    const older = modelSchema.extend({ edges: modelSchema.shape.edges.element.omit({ ports: true }).array() });
+    const parsed = older.safeParse(withPorts({ from: "left" }));
+    expect(parsed.success).toBe(true);
+    expect(parsed.success && "ports" in parsed.data.edges[0]!).toBe(false);
+  });
+});

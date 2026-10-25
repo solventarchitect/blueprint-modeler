@@ -963,3 +963,13 @@
   pointer-events: none;
   z-index: 3000;
 }
+
+/*
+ * M61: a relationship's ends can be dragged to another point on their element. React Flow's grab
+ * circles are invisible; while the relationship is hovered or selected they show as rings.
+ */
+.react-flow__edge:is(:hover, .selected) .react-flow__edgeupdater {
+  stroke: var(--accent);
+  stroke-width: 1.5;
+  stroke-dasharray: 2 2;
+}

@@ -49,13 +49,13 @@ import { modelToServiceNowXlsx } from "@/io/servicenow";
 import { modelToSvg } from "@/io/svg";
 import { LAYERS, layerBoxes, layerLanes, layoutOrientation, settleIntoLane } from "@/layout/bands";
 import { edgePath } from "@/layout/edgePath";
-import { edgeSides, type Side } from "@/layout/geometry";
+import { edgeEnds, type Side } from "@/layout/geometry";
 import { alignNodes, boundsOf, snapToGuides, type Guide } from "@/layout/align";
 import { distributeEvenly } from "@/layout/distribute";
 import { autoLayout, DEFAULT_SIZE, fillSpace, type LayoutMode } from "@/layout/layout";
 import { createWorkerEngine } from "@/layout/worker-engine";
 import { classById, classes, isClassId, isExtended, type ClassId, type Layer } from "@/metamodel";
-import { ALL_ELEMENTS, attrValue, blastRadius, COLOR_BY_LABEL, evaluateHints, filterActive, formatModelDate, impactEnds, inView, isBusinessAnchor as isAnchor, modelDate, slotMap, UNTITLED_MODEL, type BlastDirection, type ColorBy, type HintResult, type Model, type ViewFilter } from "@/model";
+import { ALL_ELEMENTS, SIDES, attrValue, blastRadius, COLOR_BY_LABEL, evaluateHints, filterActive, formatModelDate, impactEnds, inView, isBusinessAnchor as isAnchor, modelDate, slotMap, UNTITLED_MODEL, type BlastDirection, type Edge, type ColorBy, type HintResult, type Model, type ViewFilter } from "@/model";
 import { site } from "@/lib/site";
 import { ClassNode, SuggestContext, type ClassFlowNode } from "./ClassNode";
 import { ConnectionLine, ConnectionModelContext } from "./ConnectionLine";
@@ -342,6 +342,8 @@ function EditorInner() {
   }, [hints]);
   // The relationship chosen in the Read tab: highlighted like a hint's elements and relationships.
   const [readEdgeId, setReadEdgeId] = useState<string | null>(null);
+  /** The relationship whose end is being dragged to another point (M61). */
+  const reconnecting = useRef<string | null>(null);
   /** The Read tab as sentences or as an outline of every element (M55). */
   const [readMode, setReadMode] = useState<ReadMode>("sentences");
   const readEdge = model.edges.find((e) => e.id === readEdgeId);
@@ -553,7 +555,7 @@ function EditorInner() {
       const a = box(e.from);
       const b = box(e.to);
       if (!a || !b) return [];
-      const [ss, ts] = edgeSides(a, b, columns);
+      const [ss, ts] = edgeEnds(e.ports, a, b, columns);
       const s = anchor(a, ss);
       const t = anchor(b, ts);
       const { path, label: middle } = edgePath({ x: s.x, y: s.y, side: ss }, { x: t.x, y: t.y, side: ts }, view.lines);
@@ -573,7 +575,7 @@ function EditorInner() {
         const am = lens === "archimate-only" ? edgeNotation(archimateRelationshipFor(classOf(e.from), classOf(e.to))) : undefined;
         const a = model.layout[e.from] ?? { x: 0, y: 0 };
         const b = model.layout[e.to] ?? { x: 0, y: 0 };
-        const [sourceHandle, targetHandle] = edgeSides(a, b, columns);
+        const [sourceHandle, targetHandle] = edgeEnds(e.ports, a, b, columns);
         const hinted = !blastShown && hintedEdges.has(e.id);
         // A hinted relationship keeps its hint color; the others around the hovered element light up.
         const hovered = !blastShown && !hinted && !!hoveredId && (e.from === hoveredId || e.to === hoveredId);
@@ -1348,6 +1350,16 @@ function EditorInner() {
       { kind: "item", label: "Delete", danger: true, onSelect: () => (dispatch({ type: "delete-node", id }), setMessage(`Deleted ${name}. Undo restores it.`)) },
     ];
   };
+  /** M61: keep a relationship's end on a chosen side of its element (null: back to automatic), and say so. */
+  const setPorts = (e: Edge, p: { from?: Side | null; to?: Side | null }) => {
+    dispatch({ type: "set-ports", id: e.id, ...p });
+    const name = (nid: string) => model.nodes.find((n) => n.id === nid)?.name || "Untitled";
+    const said = [
+      p.from !== undefined ? (p.from ? `leaves ${name(e.from)} from the ${p.from}` : `leaves ${name(e.from)} where the layout puts it`) : "",
+      p.to !== undefined ? (p.to ? `arrives at ${name(e.to)} at the ${p.to}` : `arrives at ${name(e.to)} where the layout puts it`) : "",
+    ].filter(Boolean);
+    setMessage(p.from === null && p.to === null ? "Connection points back to automatic." : `The relationship ${said.join(" and ")}.`);
+  };
   const edgeMenu = (id: string): MenuItem[] => {
     const e = model.edges.find((x) => x.id === id);
     if (!e) return [];
@@ -1367,6 +1379,11 @@ function EditorInner() {
             { kind: "separator" as const },
           ]
         : []),
+      // M61: the side each end sits on, chosen here or by dragging the end; the check marks a chosen side.
+      ...SIDES.map((sd): MenuItem => ({ kind: "check", label: `Leave from the ${sd}`, checked: e.ports?.from === sd, onSelect: () => setPorts(e, { from: e.ports?.from === sd ? null : sd }) })),
+      ...SIDES.map((sd): MenuItem => ({ kind: "check", label: `Arrive at the ${sd}`, checked: e.ports?.to === sd, onSelect: () => setPorts(e, { to: e.ports?.to === sd ? null : sd }) })),
+      { kind: "item", label: "Automatic connection points", disabled: !e.ports, onSelect: () => setPorts(e, { from: null, to: null }) },
+      { kind: "separator" },
       { kind: "item", label: `Select ${name(e.from)}`, onSelect: () => selectNode(e.from) },
       { kind: "item", label: `Select ${name(e.to)}`, onSelect: () => selectNode(e.to) },
       { kind: "separator" },
@@ -2110,7 +2127,28 @@ function EditorInner() {
               onNodesChange={onNodesChange}
               onEdgesChange={onEdgesChange}
               onConnect={onConnect}
-              isValidConnection={(c) => connectionProblem(model, c.source, c.target) === null}
+              isValidConnection={(c) => {
+                // Moving a relationship's end (M61): only to another point on the same element.
+                const moving = reconnecting.current && model.edges.find((x) => x.id === reconnecting.current);
+                if (moving) return c.source === moving.from && c.target === moving.to;
+                return connectionProblem(model, c.source, c.target) === null;
+              }}
+              // M61: drag either end of a relationship to another point on its element, and it stays there.
+              edgesReconnectable={wide && !presenting && projection === "plan"}
+              onReconnectStart={(_, edge) => {
+                reconnecting.current = edge.id;
+                setMessage("Drop the end on another point of the same element, and the relationship keeps it.");
+              }}
+              onReconnect={(old, c) => {
+                const e = model.edges.find((x) => x.id === old.id);
+                if (!e || c.source !== e.from || c.target !== e.to) return;
+                const p = {
+                  ...(c.sourceHandle && c.sourceHandle !== old.sourceHandle ? { from: c.sourceHandle as Side } : {}),
+                  ...(c.targetHandle && c.targetHandle !== old.targetHandle ? { to: c.targetHandle as Side } : {}),
+                };
+                if (p.from || p.to) setPorts(e, p);
+              }}
+              onReconnectEnd={() => (reconnecting.current = null)}
               onConnectEnd={(event, state) => {
                 connecting.current = false;
                 // Refused connections never reach onConnect, so explain them here.
