@@ -6,13 +6,18 @@
 export const PRINT_SHEET_ID = "bm-print";
 
 export function printSvg(svg: string, title: string) {
+  // Our own generated markup, parsed as SVG (never as HTML) and imported as nodes.
+  const parsed = new DOMParser().parseFromString(svg, "image/svg+xml").documentElement;
+  printNode(document.importNode(parsed, true), title);
+}
+
+/** Print any node (M64: the health report): in the print-only sheet, then the browser's dialog. */
+export function printNode(node: Node, title: string) {
   document.getElementById(PRINT_SHEET_ID)?.remove();
   const sheet = document.createElement("div");
   sheet.id = PRINT_SHEET_ID;
   sheet.setAttribute("aria-hidden", "true");
-  // Our own generated markup, parsed as SVG (never as HTML) and imported as nodes.
-  const parsed = new DOMParser().parseFromString(svg, "image/svg+xml").documentElement;
-  sheet.append(document.importNode(parsed, true));
+  sheet.append(node);
   document.body.append(sheet);
   const was = document.title;
   document.title = title; // The print dialog's default file name.

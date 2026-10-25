@@ -929,6 +929,60 @@
     height: auto;
     max-height: 100vh;
   }
+  /* M64: the health report, black on white in the app's type. */
+  .bm-report {
+    color: #000;
+    font-family: var(--font-sans, sans-serif);
+    font-size: 10.5pt;
+    line-height: 1.4;
+  }
+  .bm-report h1 {
+    margin: 2pt 0 4pt;
+    font-size: 18pt;
+    font-weight: 600;
+  }
+  .bm-report h2 {
+    margin: 12pt 0 4pt;
+    font-size: 11pt;
+    font-weight: 600;
+  }
+  .bm-report p {
+    margin: 0 0 6pt;
+  }
+  .bm-report-kicker {
+    font-family: var(--font-mono, monospace);
+    font-size: 8pt;
+    letter-spacing: 0.12em;
+    text-transform: uppercase;
+  }
+  .bm-report-summary {
+    font-weight: 600;
+  }
+  .bm-report table {
+    width: 100%;
+    margin: 10pt 0 4pt;
+    border-collapse: collapse;
+    break-inside: auto;
+  }
+  .bm-report caption {
+    margin-bottom: 3pt;
+    text-align: left;
+    font-weight: 600;
+  }
+  .bm-report th,
+  .bm-report td {
+    padding: 3pt 5pt;
+    border: 0.5pt solid #666;
+    text-align: left;
+    vertical-align: top;
+  }
+  .bm-report tr {
+    break-inside: avoid;
+  }
+  .bm-report-foot {
+    margin-top: 14pt;
+    font-size: 8.5pt;
+  }
 }
 
 /*

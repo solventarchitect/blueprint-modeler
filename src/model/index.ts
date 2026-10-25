@@ -6,3 +6,4 @@ export * from "./impact";
 export * from "./views";
 export * from "./compare";
 export * from "./groups";
+export * from "./health";
