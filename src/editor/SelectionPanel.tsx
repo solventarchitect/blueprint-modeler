@@ -27,6 +27,14 @@ const button = "cursor-pointer border border-border-strong px-2.5 py-1.5 text-sm
 
 const input = "min-h-9 border border-border-strong bg-surface px-2 text-sm text-ink";
 
+/**
+ * The elements a change applies to (M63): all of them, except that a life cycle stage goes only to
+ * those whose class has a CSDM life cycle.
+ */
+export function batchTargets(nodes: Node[], key: BatchKey): Node[] {
+  return key === "lifecycle" ? nodes.filter((n) => lifecycleFor(n.class)) : nodes;
+}
+
 /** The value every element shares, "" when none has one, or null when they differ. */
 const common = (nodes: Node[], key: BatchKey) => {
   const values = new Set(nodes.map((n) => n.attrs?.[key]?.trim() ?? ""));
@@ -48,6 +56,12 @@ export function sharedStages(nodes: Node[]): { stages: string[]; skipped: number
 function BatchText({ label, nodes, k, list, onSet }: { label: string; nodes: Node[]; k: BatchKey; list: string; onSet: (key: BatchKey, value: string) => void }) {
   const shared = common(nodes, k);
   const [draft, setDraft] = useState(shared ?? "");
+  // The shared value changed (applied, undone): start again from it, keeping the field (and focus).
+  const [from, setFrom] = useState(shared);
+  if (from !== shared) {
+    setFrom(shared);
+    setDraft(shared ?? "");
+  }
   const id = useId();
   const apply = () => onSet(k, draft);
   return (
@@ -72,7 +86,7 @@ function BatchText({ label, nodes, k, list, onSet }: { label: string; nodes: Nod
             }
           }}
         />
-        <button type="button" className={button} onClick={apply} aria-label={`Set ${label.toLowerCase()} on all ${nodes.length}`}>
+        <button type="button" className={button} onClick={apply} aria-label={`Apply ${label.toLowerCase()} to all ${nodes.length}`}>
           Apply
         </button>
       </div>
@@ -103,7 +117,8 @@ export function SelectionPanel({
 }) {
   const lifecycleId = useId();
   const { stages, skipped } = sharedStages(nodes);
-  const lifecycle = common(nodes.filter((n) => lifecycleFor(n.class)), "lifecycle");
+  const withLifecycle = nodes.filter((n) => lifecycleFor(n.class));
+  const lifecycle = withLifecycle.length ? common(withLifecycle, "lifecycle") : "";
   const group = (title: string, kinds: ArrangeKind[]) => (
     <div role="group" aria-label={title} className="flex flex-col gap-1">
       <span className="text-sm text-ink-muted">{title}</span>
@@ -169,13 +184,15 @@ export function SelectionPanel({
               {lifecycle && !stages.includes(lifecycle) && <option value={lifecycle}>{lifecycle} (not a stage for all of them)</option>}
             </select>
             <span id={`${lifecycleId}-help`} className="text-xs text-ink-muted">
-              {!stages.length
+              {!withLifecycle.length
+                ? "None of these classes has a CSDM life cycle."
+                : !stages.length
                 ? "These classes share no life cycle stage: set it on each one."
                 : `The stages all of them offer.${skipped ? ` ${skipped} without a CSDM life cycle ${skipped === 1 ? "is" : "are"} left as ${skipped === 1 ? "it is" : "they are"}.` : ""}`}
             </span>
           </div>
-          <BatchText key={`environment:${common(nodes, "environment")}`} label="Environment" nodes={nodes} k="environment" list="bm-batch-environment-options" onSet={onSetAttr} />
-          <BatchText key={`owner:${common(nodes, "owner")}`} label="Owner" nodes={nodes} k="owner" list="bm-batch-owner-options" onSet={onSetAttr} />
+          <BatchText label="Environment" nodes={nodes} k="environment" list="bm-batch-environment-options" onSet={onSetAttr} />
+          <BatchText label="Owner" nodes={nodes} k="owner" list="bm-batch-owner-options" onSet={onSetAttr} />
           <datalist id="bm-batch-environment-options">
             {suggestions.environment.map((v) => (
               <option key={v} value={v} />

@@ -62,12 +62,16 @@ test.describe("set a property on several elements (M63, desktop)", () => {
     await env.fill("Production");
     await env.press("Enter");
     await expect(status(page)).toContainText("Set environment “Production” on 3 elements.");
+    // The field keeps focus, so Tab goes on to its Apply button.
+    await expect(env).toBeFocused();
+    await page.keyboard.press("Tab");
+    await expect(section.getByRole("button", { name: "Apply environment to all 3" })).toBeFocused();
     const owner = section.getByLabel("Owner", { exact: true });
     await owner.fill("Platform team");
-    await section.getByRole("button", { name: "Set owner on all 3" }).click();
+    await section.getByRole("button", { name: "Apply owner to all 3" }).click();
     await expect(status(page)).toContainText("Set owner “Platform team” on 3 elements.");
     // Again: nothing changes, and it says so.
-    await section.getByRole("button", { name: "Set owner on all 3" }).click();
+    await section.getByRole("button", { name: "Apply owner to all 3" }).click();
     await expect(status(page)).toContainText("All 3 already have owner “Platform team”.");
     for (const h of hosts) expect(await valueOf(page, h, "Environment")).toBe("Production");
     // One undo takes the owner off all three; the environment stays.
@@ -84,7 +88,7 @@ test.describe("set a property on several elements (M63, desktop)", () => {
     await select(page, hosts);
     await expect(env).toHaveAttribute("placeholder", "Mixed");
     await expect(env).toHaveValue("");
-    await section.getByRole("button", { name: "Set environment on all 3" }).click();
+    await section.getByRole("button", { name: "Apply environment to all 3" }).click();
     await expect(status(page)).toContainText("Cleared the environment of 3 elements.");
     for (const h of hosts) expect(await valueOf(page, h, "Environment")).toBe("");
   });

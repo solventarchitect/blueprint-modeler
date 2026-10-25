@@ -55,7 +55,7 @@ import { distributeEvenly } from "@/layout/distribute";
 import { arrangeByGroups, groupFrames, ownGroups, type Frame } from "@/layout/groupLayout";
 import { autoLayout, DEFAULT_SIZE, fillSpace, type LayoutMode } from "@/layout/layout";
 import { createWorkerEngine } from "@/layout/worker-engine";
-import { classById, classes, ENVIRONMENT_EXAMPLES, isClassId, isExtended, lifecycleFor, type ClassId, type Layer } from "@/metamodel";
+import { classById, classes, ENVIRONMENT_EXAMPLES, isClassId, isExtended, type ClassId, type Layer } from "@/metamodel";
 import { ALL_ELEMENTS, FIELD_LABEL, GROUP_BY_LABEL, groupsOf, primaryGroup, SIDES, attrValue, compareModels, parseModel, blastRadius, COLOR_BY_LABEL, evaluateHints, filterActive, formatModelDate, impactEnds, inView, isBusinessAnchor as isAnchor, modelDate, slotMap, UNTITLED_MODEL, type BlastDirection, type Edge, type HintResult, type Model } from "@/model";
 import { site } from "@/lib/site";
 import { ClassNode, SuggestContext, type ClassFlowNode } from "./ClassNode";
@@ -65,7 +65,7 @@ import { CommandPalette } from "./CommandPalette";
 import type { Command } from "./commands";
 import { ShortcutMap } from "./ShortcutMap";
 import { CompareBar, CompareDialog, compareSummary } from "./Compare";
-import { ARRANGE, SelectionPanel, type ArrangeKind, type BatchKey } from "./SelectionPanel";
+import { ARRANGE, batchTargets, SelectionPanel, type ArrangeKind, type BatchKey } from "./SelectionPanel";
 import { ViewDialog, ViewLegend, ViewsMenu, type ShownView } from "./Views";
 import { ExamplesMenu } from "./ExamplesMenu";
 import { ContextMenu, type MenuItem } from "./ContextMenu";
@@ -1460,13 +1460,15 @@ function EditorInner() {
   /** Set a property on every selected element at once (M63), one undo step. */
   const setAttrForAll = (key: BatchKey, raw: string) => {
     const value = raw.trim();
-    // Life cycle: only the elements whose class has one (the panel offers the stages they all share).
-    const ids = multi.filter((id) => key !== "lifecycle" || lifecycleFor(model.nodes.find((n) => n.id === id)?.class ?? ""));
+    const selected = model.nodes.filter((n) => multiSet.has(n.id));
+    const targets = batchTargets(selected, key);
+    const skipped = selected.length - targets.length;
+    const left = skipped ? ` ${skipped} without a CSDM life cycle ${skipped === 1 ? "is" : "are"} left as ${skipped === 1 ? "it is" : "they are"}.` : "";
     const label = BATCH_LABEL[key];
-    if (!ids.length) return setMessage(`None of these elements has a ${label}.`);
-    if (ids.every((id) => (model.nodes.find((n) => n.id === id)?.attrs?.[key] ?? "") === value)) return setMessage(value ? `All ${ids.length} already have ${label} “${value}”.` : `None of them has a ${label} set.`);
-    dispatch({ type: "set-attrs", ids, key, value });
-    setMessage(value ? `Set ${label} “${value}” on ${ids.length} elements.` : `Cleared the ${label} of ${ids.length} elements.`);
+    if (!targets.length) return setMessage(`None of these elements has a ${label}.`);
+    if (targets.every((n) => (n.attrs?.[key] ?? "") === value)) return setMessage(value ? `All ${targets.length} already have ${label} “${value}”.` : `None of them has a ${label} set.`);
+    dispatch({ type: "set-attrs", ids: targets.map((n) => n.id), key, value });
+    setMessage(value ? `Set ${label} “${value}” on ${targets.length} elements.${left}` : `Cleared the ${label} of ${targets.length} elements.${left}`);
   };
   // The side panel's buttons go with the selection: focus moves on to the Details tab.
   const focusDetails = () => setTimeout(() => document.getElementById("tab-details")?.focus(), 0);

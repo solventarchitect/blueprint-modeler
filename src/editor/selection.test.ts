@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 import { LIFE_CYCLE } from "@/metamodel";
-import { sharedStages } from "./SelectionPanel";
+import { batchTargets, sharedStages } from "./SelectionPanel";
 
 describe("sharedStages (M63)", () => {
   const n = (id: string, cls: string) => ({ id, class: cls, name: id });
@@ -11,5 +11,11 @@ describe("sharedStages (M63)", () => {
     // A value stream (cmn_ table) has none: left alone, and counted.
     expect(sharedStages([n("v", "value_stream"), n("h", "host"), n("h2", "host")]).skipped).toBe(1);
     expect(sharedStages([n("v", "value_stream")])).toEqual({ stages: [], skipped: 1 });
+  });
+
+  it("sets a life cycle stage only where the class has a CSDM life cycle; other properties on all", () => {
+    const sel = [n("v", "value_stream"), n("h", "host"), n("a", "business_application")];
+    expect(batchTargets(sel, "lifecycle").map((x) => x.id)).toEqual(["h", "a"]);
+    expect(batchTargets(sel, "environment").map((x) => x.id)).toEqual(["v", "h", "a"]);
   });
 });
