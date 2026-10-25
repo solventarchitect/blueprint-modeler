@@ -121,8 +121,6 @@ export function isoScene(model: Model, mode: IsoMode, sizes: Record<string, Size
     const a = byId.get(e.from);
     const b = byId.get(e.to);
     if (!a || !b || a === b) continue;
-    const ca = center(a.rect);
-    const cb = center(b.rect);
     if (a.layer === b.layer) {
       const route = pipeRoute(a.rect, b.rect);
       // Blocks that overlap (stacked, or pasted onto one another) have no gap for a pipe.
