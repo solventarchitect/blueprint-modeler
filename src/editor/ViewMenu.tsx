@@ -49,7 +49,7 @@ export const viewItems: { key: "boxes" | "lanes" | "snap" | "guides" | "extended
   { key: "boxes", label: "Layer boxes", note: "A box around each CSDM layer" },
   { key: "lanes", label: "Lanes", note: "Full-width bands; drops settle in their layer" },
   { key: "snap", label: "Snap to grid", note: "Positions snap to 16px" },
-  { key: "guides", label: "Smart guides", note: "Line up with other elements while dragging" },
+  { key: "guides", label: "Smart guides", note: "Line up with other elements while dragging (off while snapping to the grid)" },
   { key: "minimap", label: "Minimap", note: "An overview in the corner; drag it to pan" },
   { key: "labels", label: "Relationship labels", note: "The relationship type on each line, here and in images" },
   { key: "extended", label: "Extended classes", note: "Strategy, value streams, SDLC, product models, AI, virtualization and security in the palette" },

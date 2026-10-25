@@ -1,5 +1,6 @@
 import AxeBuilder from "@axe-core/playwright";
 import { expect, test, type Locator, type Page } from "@playwright/test";
+import { settled } from "./layout";
 import { currentModel } from "./model-menu";
 
 const tags = ["wcag2a", "wcag2aa", "wcag21aa", "wcag22aa"];
@@ -13,12 +14,15 @@ async function open(page: Page) {
   await expect(currentModel(page)).toHaveText("Online Store Checkout");
   await expect(page.getByTestId("save-status")).toHaveText("Saved in this browser");
   await expect(nodes(page)).toHaveCount(14);
+  // Placed (React Flow positions an element once measured) and fitted, so positions are final.
+  await expect.poll(() => nodes(page).evaluateAll((els) => els.every((el) => /translate\(/.test((el as HTMLElement).style.transform)))).toBe(true);
+  await settled(page);
 }
 
 /** An element's position on the canvas (flow coordinates), from its transform. */
 const pos = (n: Locator) =>
   n.evaluate((el) => {
-    const m = /translate\(([-\d.]+)px, ?([-\d.]+)px\)/.exec((el as HTMLElement).style.transform)!;
+    const m = /translate\(([-\d.e+]+)px, ?([-\d.e+]+)px\)/.exec((el as HTMLElement).style.transform)!;
     return { x: Number(m[1]), y: Number(m[2]) };
   });
 const zoom = (page: Page) => page.locator(".react-flow__viewport").evaluate((el) => Number(/scale\(([\d.]+)\)/.exec((el as HTMLElement).style.transform)![1]));
@@ -26,10 +30,24 @@ const zoom = (page: Page) => page.locator(".react-flow__viewport").evaluate((el)
 const all = (page: Page) =>
   nodes(page).evaluateAll((els) =>
     els.map((el) => {
-      const m = /translate\(([-\d.]+)px, ?([-\d.]+)px\)/.exec((el as HTMLElement).style.transform)!;
+      const m = /translate\(([-\d.e+]+)px, ?([-\d.e+]+)px\)/.exec((el as HTMLElement).style.transform)!;
       return { id: el.getAttribute("data-id")!, x: Number(m[1]), y: Number(m[2]) };
     }),
   );
+
+/**
+ * Shift+click, holding Shift until React Flow has seen it (it marks the canvas for a Shift+drag box
+ * then): a person holds Shift before clicking, while a test's key and click can land in one render.
+ */
+async function withShift(page: Page, act: () => Promise<void>) {
+  await page.keyboard.down("Shift");
+  await expect(page.locator(".react-flow__pane.selection")).toBeAttached();
+  // The click handler reads the key from React Flow's store, set in an effect after that render.
+  await page.evaluate(() => new Promise((r) => requestAnimationFrame(() => requestAnimationFrame(r))));
+  await act();
+  await page.keyboard.up("Shift");
+}
+const shiftClick = (page: Page, n: Locator) => withShift(page, () => n.click());
 
 /** Drags an element by a canvas (flow) distance, in small steps; checks `during` before letting go. */
 async function dragBy(page: Page, n: Locator, dx: number, dy: number, during?: () => Promise<void>) {
@@ -58,6 +76,7 @@ async function pair(page: Page) {
 test.describe("smart guides, multi-select, align and distribute (M57, desktop)", () => {
   test.skip(({ isMobile }) => !!isMobile, "editing is desktop-only");
 
+
   test("a dragged element snaps into line with another, with a guide while dragging; turned off, it does not", async ({ page }) => {
     await open(page);
     const { a, b, na } = await pair(page);
@@ -85,7 +104,7 @@ test.describe("smart guides, multi-select, align and distribute (M57, desktop)",
     await open(page);
     const { a, b, na, nb } = await pair(page);
     await na.click();
-    await nb.click({ modifiers: ["Shift"] });
+    await shiftClick(page, nb);
     await expect(panel(page)).toContainText("2 elements selected");
     await expect(status(page)).toContainText("2 elements selected.");
     await expect(page.locator(".react-flow__node.selected")).toHaveCount(2);
@@ -101,7 +120,7 @@ test.describe("smart guides, multi-select, align and distribute (M57, desktop)",
     await expect.poll(async () => [(await pos(na)).x, (await pos(nb)).x]).toEqual([a.x, b.x]);
 
     // Shift+click again takes one out: back to a single selection and the Inspector.
-    await nb.click({ modifiers: ["Shift"] });
+    await shiftClick(page, nb);
     await expect(panel(page)).toHaveCount(0);
     await expect(page.locator(".react-flow__node.selected")).toHaveCount(1);
   });
@@ -114,7 +133,8 @@ test.describe("smart guides, multi-select, align and distribute (M57, desktop)",
     await page.getByRole("combobox", { name: "Search commands" }).fill("Turn off smart guides");
     await page.keyboard.press("Enter");
     await na.click();
-    await nb.click({ modifiers: ["Shift"] });
+    await shiftClick(page, nb);
+    await expect(panel(page)).toContainText("2 elements selected");
     await dragBy(page, na, 160, 96);
     await expect.poll(async () => (await pos(na)).x - a.x).toBeGreaterThan(140);
     const [pa, pb] = [await pos(na), await pos(nb)];
@@ -148,12 +168,15 @@ test.describe("smart guides, multi-select, align and distribute (M57, desktop)",
     await page.keyboard.press(`${mod}+a`);
     await expect(panel(page)).toContainText("14 elements selected");
     await page.keyboard.press("Escape");
+    // A box drawn to the canvas edge pans it (React Flow's auto-pan): fit the model again.
+    await page.keyboard.press("Shift+1");
+    await settled(page);
 
     const lines = page.locator(".react-flow__edge");
     const edges = await lines.count();
     const { na, nb } = await pair(page);
     await na.click();
-    await nb.click({ modifiers: ["Shift"] });
+    await shiftClick(page, nb);
     await page.keyboard.press("Delete");
     await expect(nodes(page)).toHaveCount(12);
     await expect(status(page)).toContainText("Deleted 2 elements. Undo restores them.");
@@ -183,7 +206,7 @@ test.describe("smart guides, multi-select, align and distribute (M57, desktop)",
     await na.focus();
     await page.keyboard.press("Enter");
     await nb.focus();
-    await page.keyboard.press("Shift+Enter");
+    await withShift(page, () => page.keyboard.press("Enter"));
     await expect(panel(page)).toContainText("2 elements selected");
 
     await page.keyboard.press(`${mod}+k`);
@@ -214,7 +237,7 @@ test.describe("smart guides, multi-select, align and distribute (M57, desktop)",
       await open(page);
       const { na, nb } = await pair(page);
       await na.click();
-      await nb.click({ modifiers: ["Shift"] });
+      await shiftClick(page, nb);
       await expect(panel(page)).toBeVisible();
       expect((await new AxeBuilder({ page }).withTags(tags).analyze()).violations).toEqual([]);
     });

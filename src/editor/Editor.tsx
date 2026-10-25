@@ -156,6 +156,8 @@ const withIndefinite = (label: string) => `${/^[AEIOU]/.test(label) ? "an" : "a"
 const BLAST_STEP_MS = 1500;
 /** Smart guides (M57) pull a dragged element into line from this many screen pixels away. */
 const GUIDE_SNAP_PX = 6;
+/** Keys that add a clicked element to the selection (M57); one array, so React Flow keeps its key listener. */
+const MULTI_KEYS = ["Shift", "Meta", "Control"];
 /** Distribute vertically: the closest the tops of selected elements come (an element's height and a gap). */
 const ROW_PITCH = 128;
 const prefersStill = () => typeof window !== "undefined" && window.matchMedia("(prefers-reduced-motion: reduce)").matches;
@@ -237,13 +239,22 @@ function EditorInner() {
   const [selectedId, setSelectedOne] = useState<string | null>(null);
   /** M57: two or more elements selected together (Shift+click, Shift+drag, Ctrl+A); selectedId is then null. */
   const [multi, setMulti] = useState<string[]>([]);
-  /** Select one element, or none: a selection of several ends. */
-  const setSelectedId = useCallback((v: SetStateAction<string | null>) => {
-    setMulti([]);
-    setSelectedOne(v);
-  }, []);
+  /** Select one element, or none: a selection of several ends, and with it React Flow's box around a Shift+drag selection. */
+  const setSelectedId = useCallback(
+    (v: SetStateAction<string | null>) => {
+      setMulti([]);
+      setSelectedOne(v);
+      store.setState({ nodesSelectionActive: false });
+    },
+    [store],
+  );
   const multiSet = useMemo(() => new Set(multi), [multi]);
   const selection = useMemo(() => (multi.length ? multi : selectedId ? [selectedId] : []), [multi, selectedId]);
+  /** The selection as of the last change, ahead of the next render: React Flow can report a box selection in two calls in one event. */
+  const liveSelection = useRef<string[]>([]);
+  useEffect(() => {
+    liveSelection.current = selection;
+  }, [selection]);
   /** Smart guides drawn while dragging (M57). */
   const [guides, setGuides] = useState<Guide[]>([]);
   /** How the canvas shows the model (M59): Plan (the editable canvas), Isometric or Exploded (read-only pictures). */
@@ -352,6 +363,8 @@ function EditorInner() {
   const PROJECTION_LABEL = { plan: "Plan", iso: "Isometric", exploded: "Exploded" } as const;
   const chooseProjection = (p: "plan" | IsoMode) => {
     setProjection(p);
+    // The isometric projections are read only: a selection of several (which arranges and deletes) ends.
+    if (p !== "plan" && multi.length) setSelectedId(null);
     setMessage(p === "plan" ? "Plan view: edit the model on the canvas." : `${PROJECTION_LABEL[p]} view, read only: drag or use the arrow keys to pan, the wheel or plus and minus to zoom. Switch to Plan to edit.`);
   };
   // The words for the open view: a blast radius speaks of hops and impact, a data flow of steps and data.
@@ -643,9 +656,10 @@ function EditorInner() {
       if (Object.keys(moving).length) {
         let shift = { dx: 0, dy: 0 };
         let lines: Guide[] = [];
-        if (view.guides) {
+        // Snap to grid, when on, decides where things land; guides line up only what is in reach.
+        if (view.guides && !view.snap) {
           const box = boundsOf(Object.entries(moving).map(([id, p]) => ({ ...p, ...sizeOf(id) })));
-          const others = model.nodes.filter((n) => !moving[n.id] && model.layout[n.id]).map((n) => ({ ...model.layout[n.id]!, ...sizeOf(n.id) }));
+          const others = model.nodes.filter((n) => !moving[n.id] && !fadedIds.has(n.id) && model.layout[n.id]).map((n) => ({ ...model.layout[n.id]!, ...sizeOf(n.id) }));
           const r = snapToGuides(box, others, GUIDE_SNAP_PX / flow.getZoom());
           shift = r;
           lines = r.guides;
@@ -675,7 +689,7 @@ function EditorInner() {
           drag.current = rest;
           if (pos) ended[c.id] = pos;
         } else if (c.type === "select") {
-          picked ??= new Set(multi.length ? multi : selectedId ? [selectedId] : []);
+          picked ??= new Set(liveSelection.current);
           if (c.selected) picked.add(c.id);
           else picked.delete(c.id);
         }
@@ -692,12 +706,13 @@ function EditorInner() {
       }
       if (picked) {
         const ids = [...picked].filter((id) => !fadedIds.has(id));
-        const before = multi.length ? multi : selectedId ? [selectedId] : [];
+        const before = liveSelection.current;
+        liveSelection.current = ids;
         if (ids.length !== before.length || ids.some((id) => !before.includes(id))) selectMany(ids);
       }
     },
     // eslint-disable-next-line react-hooks/exhaustive-deps -- selectMany, settle and sizeOf read this render's state
-    [dispatch, view.lanes, view.guides, model, multi, selectedId, fadedIds, flow],
+    [dispatch, view.lanes, view.guides, view.snap, model, fadedIds, flow],
   );
 
   const onEdgesChange = useCallback(
@@ -1269,24 +1284,32 @@ function EditorInner() {
     dispatch({ type: "set-layout", layout: positions });
     setMessage(`${kind.startsWith("spread") ? "Spread" : "Aligned"} ${multi.length} elements ${a.done}.${lane ? " Lanes keep each in its own layer." : ""}`);
   };
+  // The side panel's buttons go with the selection: focus moves on to the Details tab.
+  const focusDetails = () => setTimeout(() => document.getElementById("tab-details")?.focus(), 0);
   const deleteSelection = () => {
     const n = multi.length;
     if (n < 2) return;
     dispatch({ type: "delete-nodes", ids: multi });
     setSelectedId(null);
     setMessage(`Deleted ${n} elements. Undo restores them.`);
+    focusDetails();
   };
-  const clearSelection = () => {
+  const clearSelection = (moveFocus = false) => {
     setSelectedId(null);
     setMessage("Selection cleared.");
+    if (moveFocus) focusDetails();
   };
-  const selectAll = () => selectMany(model.nodes.filter((n) => !fadedIds.has(n.id)).map((n) => n.id));
+  const selectAll = () => {
+    if (projection !== "plan") return;
+    store.setState({ nodesSelectionActive: false });
+    selectMany(model.nodes.filter((n) => !fadedIds.has(n.id)).map((n) => n.id));
+  };
   const selectionMenu = (): MenuItem[] => [
     ...ARRANGE.slice(0, 6).map((a): MenuItem => ({ kind: "item", label: a.label, onSelect: () => arrange(a.id) })),
     { kind: "separator" },
     ...ARRANGE.slice(6).map((a): MenuItem => ({ kind: "item", label: a.label, onSelect: () => arrange(a.id) })),
     { kind: "separator" },
-    { kind: "item", label: "Clear selection", onSelect: clearSelection },
+    { kind: "item", label: "Clear selection", onSelect: () => clearSelection() },
     { kind: "item", label: `Delete ${multi.length} elements`, danger: true, onSelect: deleteSelection },
   ];
   const focusLayerHandle = (layer: Layer) => setTimeout(() => document.getElementById(layerHandleId(layer))?.focus(), 0);
@@ -1689,7 +1712,7 @@ function EditorInner() {
         : []),
       ...(wide
         ? [
-            { id: "select-all", group: "Arrange", label: "Select all elements", keys: "Ctrl+A", keywords: "selection multiple", disabled: model.nodes.length < 2 ? "Add two or more elements first" : undefined, run: selectAll },
+            { id: "select-all", group: "Arrange", label: "Select all elements", keys: "Ctrl+A", keywords: "selection multiple", disabled: model.nodes.length < 2 ? "Add two or more elements first" : projection !== "plan" ? "Switch to Plan to select elements" : undefined, run: selectAll },
             ...ARRANGE.map((a): Command => ({ id: `arrange-${a.id}`, group: "Arrange", label: a.label, keywords: "selection line up spread", disabled: multi.length < 2 ? "Select two or more elements first (Shift+click)" : undefined, run: () => arrange(a.id) })),
           ]
         : []),
@@ -2137,7 +2160,7 @@ function EditorInner() {
               snapToGrid={view.snap}
               snapGrid={[16, 16]}
               // M57: Shift (or Ctrl, ⌘) + click adds to the selection; Shift + drag on the canvas selects in a box.
-              multiSelectionKeyCode={wide && !presenting ? ["Shift", "Meta", "Control"] : null}
+              multiSelectionKeyCode={wide && !presenting ? MULTI_KEYS : null}
               selectionKeyCode={wide && !presenting ? "Shift" : null}
               fitView
               fitViewOptions={firstFitOptions}
@@ -2284,7 +2307,7 @@ function EditorInner() {
             </div>
             <div id={`panel-${tab}`} role="tabpanel" aria-labelledby={`tab-${tab}`} className="min-h-0 flex-1 overflow-y-auto">
               {tab === "details" && multi.length > 1 ? (
-                <SelectionPanel names={multi.map(nameOf)} onArrange={arrange} onDelete={deleteSelection} onClear={clearSelection} />
+                <SelectionPanel names={multi.map(nameOf)} onArrange={arrange} onDelete={deleteSelection} onClear={() => clearSelection(true)} />
               ) : tab === "details" ? (
                 <Inspector
                   model={model}
