@@ -1,6 +1,7 @@
 import { archimateElements, archimateRelationshipFor, archimateVerb, type Lens } from "@/frameworks";
-import { classById, isClassId } from "@/metamodel";
-import type { Model } from "@/model";
+import { LAYERS } from "@/layout/bands";
+import { classById, isClassId, type Layer } from "@/metamodel";
+import { attrValue, type Model } from "@/model";
 
 /** One relationship as a sentence, subject first. */
 export type Sentence = { edgeId: string; subjectId: string; objectId: string; text: string };
@@ -65,4 +66,34 @@ export function readModel(model: Model, lens: Lens, scopeId?: string | null): Re
           .sort(byName)
           .map((id) => ({ id, name: nodes.get(id)?.name || "Untitled", kind: kindOf(id) })),
   };
+}
+
+/** One element in the outline (M55): its name, kind, the details it has, and how many relationships it takes part in. */
+export type OutlineItem = { id: string; name: string; kind: string; details: string[]; links: number };
+export type OutlineLayer = { layer: Layer; name: string; items: OutlineItem[] };
+
+/**
+ * The model as an outline (M55): every element, under its CSDM layer (Business first, as on the
+ * canvas), by name; with its kind (the lens's term, as in the sentences), its life cycle stage,
+ * environment and owner where set, and its relationship count. Empty layers are left out.
+ */
+export function outlineModel(model: Model, lens: Lens): OutlineLayer[] {
+  const archimate = lens === "archimate-only";
+  const kindOf = (cls: string) => (archimate && isClassId(cls) ? archimateElements[cls].label : (classById(cls)?.label ?? cls));
+  const links = new Map<string, number>();
+  for (const e of model.edges) for (const id of new Set([e.from, e.to])) links.set(id, (links.get(id) ?? 0) + 1);
+  return LAYERS.map(({ id, name }) => ({
+    layer: id,
+    name,
+    items: model.nodes
+      .filter((n) => classById(n.class)?.layer === id)
+      .map((n) => ({
+        id: n.id,
+        name: n.name || "Untitled",
+        kind: kindOf(n.class),
+        details: [attrValue(n, "lifecycle"), attrValue(n, "environment"), attrValue(n, "owner") && `Owner: ${attrValue(n, "owner")}`].filter(Boolean),
+        links: links.get(n.id) ?? 0,
+      }))
+      .sort((a, b) => a.name.localeCompare(b.name) || a.kind.localeCompare(b.kind) || a.id.localeCompare(b.id)),
+  })).filter((l) => l.items.length > 0);
 }
