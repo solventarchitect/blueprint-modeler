@@ -128,6 +128,8 @@ export function ModelMenu({
             className="mt-3 cursor-pointer border border-border-strong px-2.5 py-1.5 text-sm text-ink hover:border-accent hover:text-accent"
             onClick={() => {
               setOpen(false);
+              // The dialog gives focus back to the Model button (this one is hidden with the panel).
+              button.current?.focus();
               onCompare();
             }}
           >

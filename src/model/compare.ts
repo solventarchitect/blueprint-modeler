@@ -98,7 +98,9 @@ export function compareModels(current: Model, base: Model): Comparison {
   const named = (e: Edge, m: Map<string, Node>): EdgeRef => ({ id: e.id, from: name(m, e.from), to: name(m, e.to), type: e.type });
   // A base relationship in this model's terms: its ends mapped through the element match.
   const mapped = (e: Edge) => ({ from: match.get(e.from), to: match.get(e.to) });
-  const edgeAt = new Map(current.edges.map((e) => [`${e.from}|${e.to}|${e.type}`, e]));
+  // Every relationship at each ends-and-type (a file can hold the same one twice), taken first unused first.
+  const edgeAt = new Map<string, Edge[]>();
+  for (const e of current.edges) edgeAt.set(`${e.from}|${e.to}|${e.type}`, [...(edgeAt.get(`${e.from}|${e.to}|${e.type}`) ?? []), e]);
   const edgeById = new Map(current.edges.map((e) => [e.id, e]));
   const seen = new Set<string>();
   const edgesRemoved: EdgeRef[] = [];
@@ -111,8 +113,8 @@ export function compareModels(current: Model, base: Model): Comparison {
       if (same.type !== e.type) edgesChanged.push({ ...named(same, byId), before: e.type });
       continue;
     }
-    const byEnds = from && to ? edgeAt.get(`${from}|${to}|${e.type}`) : undefined;
-    if (byEnds && !seen.has(byEnds.id)) {
+    const byEnds = from && to ? edgeAt.get(`${from}|${to}|${e.type}`)?.find((x) => !seen.has(x.id)) : undefined;
+    if (byEnds) {
       seen.add(byEnds.id);
       continue;
     }

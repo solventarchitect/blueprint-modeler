@@ -1519,10 +1519,14 @@ function EditorInner() {
     showComparison(base, base.name || UNTITLED_MODEL);
   };
   const compareWithFile = async (file: File) => {
-    if (file.size > MAX_FILE_CHARS) return setCompareError("That file is too large to be a model.");
+    // As Import: bytes first (a character can take up to four), then characters.
+    const tooLarge = "That file is too large to be a model.";
+    if (file.size > MAX_FILE_CHARS * 4) return setCompareError(tooLarge);
+    const text = await file.text();
+    if (text.length > MAX_FILE_CHARS) return setCompareError(tooLarge);
     let data: unknown;
     try {
-      data = JSON.parse(await file.text());
+      data = JSON.parse(text);
     } catch {
       return setCompareError("That file is not a model file (it is not JSON).");
     }
@@ -1538,7 +1542,7 @@ function EditorInner() {
   useEffect(() => setCompare(null), [model.id]);
   // Escape ends it, unless a menu, dialog, text field or a blast radius has the key.
   useEffect(() => {
-    if (!compare || blast || menu || managing || palette || shortcuts || viewDialog || compareDialog) return;
+    if (!compare || presenting || blast || menu || managing || palette || shortcuts || viewDialog || compareDialog) return;
     const onKey = (e: KeyboardEvent) => {
       const el = e.target as HTMLElement | null;
       if (e.key !== "Escape" || e.defaultPrevented) return;
@@ -1548,7 +1552,7 @@ function EditorInner() {
     };
     window.addEventListener("keydown", onKey);
     return () => window.removeEventListener("keydown", onKey);
-  }, [compare, blast, menu, managing, palette, shortcuts, viewDialog, compareDialog, closeCompare]);
+  }, [compare, presenting, blast, menu, managing, palette, shortcuts, viewDialog, compareDialog, closeCompare]);
 
   // Blast radius: the start element, then each hop it reaches, played or stepped by hand.
   const nameOf = (id: string) => model.nodes.find((n) => n.id === id)?.name || "Untitled";

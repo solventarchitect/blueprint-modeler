@@ -74,3 +74,15 @@ describe("compareModels (M58)", () => {
     expect(compareModels(twin, one).added).toHaveLength(1);
   });
 });
+
+describe("compareModels with the same relationship twice (M58)", () => {
+  it("pairs parallel relationships one to one, by ends and type", () => {
+    const base = examples.find((e) => e.id === "checkout")!.create(new Date("2026-09-27T00:00:00Z"), "m1");
+    const e = base.edges[0]!;
+    const twice = { ...base, edges: [...base.edges, { ...e, id: "dup" }] };
+    const other = { ...twice, edges: twice.edges.map((x) => ({ ...x, id: `o-${x.id}` })) };
+    const c = compareModels(other, twice);
+    expect(c.edgesAdded).toEqual([]);
+    expect(c.edgesRemoved).toEqual([]);
+  });
+});

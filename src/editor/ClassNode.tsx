@@ -166,13 +166,13 @@ function ClassNodeView({ id, data, selected, dragging }: NodeProps<ClassFlowNode
     ? "outline-2 outline-dashed outline-offset-4 outline-valid"
     : blast
       ? `${blast.current ? "outline-[3px]" : "outline-2"} outline-offset-2 ${blast.flow ? "outline-ai" : blast.hop > 0 ? "outline-status" : blast.impact ? "outline-invalid" : "outline-accent"} ${blast.current ? "blast-pulse" : ""}`
-      : data.diff
-      ? // Compare (M58): added solid, changed dashed, so the outline's style carries it, not its color alone.
-        `outline-2 outline-offset-2 ${data.diff === "added" ? "outline-valid" : "outline-dashed outline-status"}`
       : data.highlight
       ? "ring-2 ring-status ring-offset-2 ring-offset-surface"
       : selected
         ? "outline-2 outline-offset-2 outline-accent"
+        : data.diff
+        ? // Compare (M58): added solid, changed dashed, so the outline's style carries it, not its color alone. A selection's outline wins; the badge stays.
+          `outline-2 outline-offset-2 ${data.diff === "added" ? "outline-valid" : "outline-dashed outline-status"}`
         : data.neighbor
           ? "outline-4 outline-offset-2 outline-neighbor"
           : focus
