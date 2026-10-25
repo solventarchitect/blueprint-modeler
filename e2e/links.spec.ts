@@ -40,19 +40,24 @@ test.describe("links and a record number (M65, desktop)", () => {
     await expect(link).toHaveAttribute("href", "https://example.com/runbook");
     await expect(link).toHaveAttribute("target", "_blank");
     await expect(link).toHaveAttribute("rel", "noopener noreferrer");
-    // Focus goes back to the title for the next one.
+    // Where it goes is shown; focus goes back to the title for the next one.
+    await expect(links(page).getByRole("listitem")).toContainText("example.com");
     await expect(links(page).getByLabel("Link title")).toBeFocused();
-    // Not a web address: said, and nothing added.
+    // Not a web address: said on that field, and nothing added.
     await addLink(page, "Script", "javascript:alert(1)");
-    await expect(links(page).getByRole("alert")).toHaveText("Enter a web address that starts with http:// or https://.");
+    await expect(links(page).getByRole("alert")).toHaveText("Enter a web address, such as https://example.com/page.");
+    await expect(links(page).getByLabel("Web address")).toHaveAttribute("aria-invalid", "true");
+    await expect(links(page).getByLabel("Link title")).not.toHaveAttribute("aria-invalid", "true");
     await expect(links(page).getByRole("link")).toHaveCount(1);
     await saved(page);
     await page.reload();
     await node(page, "Checkout").click();
     await expect(inspector(page).getByRole("textbox", { name: /^Record number/ })).toHaveValue("APM0001234");
     await expect(links(page).getByRole("link", { name: /^Runbook/ })).toHaveAttribute("href", "https://example.com/runbook");
-    await links(page).getByRole("button", { name: "Remove link Runbook" }).click();
+    await links(page).getByRole("button", { name: "Remove link 1, Runbook" }).click();
     await expect(links(page).getByRole("link")).toHaveCount(0);
+    // The last one gone: focus goes to the title field.
+    await expect(links(page).getByLabel("Link title")).toBeFocused();
     // One undo brings it back.
     await page.getByRole("button", { name: "Undo" }).click();
     await expect(links(page).getByRole("link")).toHaveCount(1);
@@ -64,9 +69,13 @@ test.describe("links and a record number (M65, desktop)", () => {
     await expect(links(page).getByRole("link")).toHaveCount(5);
     await expect(links(page)).toContainText("An element holds up to 5 links: remove one to add another.");
     await expect(links(page).getByRole("button", { name: "Add link" })).toHaveCount(0);
+    // The form closed under focus: it moves to the Links heading.
+    await expect(links(page).getByRole("heading", { name: "Links" })).toBeFocused();
     expect(await new AxeBuilder({ page }).withTags(tags).include('[aria-label="Inspector"]').analyze().then((r) => r.violations)).toEqual([]);
-    await links(page).getByRole("button", { name: "Remove link Page 3" }).click();
+    await links(page).getByRole("button", { name: "Remove link 3, Page 3" }).click();
     await expect(links(page).getByLabel("Link title")).toBeVisible();
+    // Focus stays in the list, on the Remove button that took its place.
+    await expect(links(page).getByRole("button", { name: "Remove link 3, Page 4" })).toBeFocused();
     await links(page).getByLabel("Link title").fill("half typed");
     await node(page, "Orders database").click();
     await expect(inspector(page).getByLabel("Name", { exact: true })).toHaveValue("Orders database");

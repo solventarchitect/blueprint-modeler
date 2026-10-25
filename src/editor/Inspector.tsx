@@ -5,7 +5,7 @@ import { ARCHIMATE_TRADEMARK, archimateElements, archimateRelationshipFor, archi
 import { ArchimateGlyph } from "@/frameworks/ArchimateGlyph";
 import { classSlug } from "@/guide";
 import { allowedTypes, classById, ENVIRONMENT_EXAMPLES, isClassId, isCsdmCore, LIFE_CYCLE, lifecycleFor, sources } from "@/metamodel";
-import { isWebUrl, MAX_LINKS, modelDate, type Link, type Model } from "@/model";
+import { MAX_LINKS, modelDate, toWebAddress, type Link, type Model } from "@/model";
 import type { Action } from "./state";
 import { suggestionDetail, suggestionLabel, type Suggestion } from "./suggest";
 
@@ -178,36 +178,50 @@ function DescriptionField({
 
 /** Reads a CSDM edge in ArchiMate terms, e.g. "Serving — the node serves the instance". */
 /**
- * An element's links (M65): each opens in a new tab and can be removed; up to five, added with a
- * title and an http(s) address. Saved at once, one undo step each.
+ * An element's links (M65): each opens in a new tab, shows where it goes, and can be removed; up to
+ * five, added with a title and a web address. Saved at once, one undo step each.
  */
 function LinksField({ id, links, onChange }: { id: string; links: Link[]; onChange: (links: Link[]) => void }) {
   const [title, setTitle] = useState("");
   const [url, setUrl] = useState("");
-  const [error, setError] = useState("");
+  // Which field is wrong, and a count so the same message is announced again.
+  const [error, setError] = useState<{ field: "title" | "url"; text: string; n: number } | null>(null);
   // Another element: start the form again.
   const [formFor, setFormFor] = useState(id);
   if (formFor !== id) {
     setFormFor(id);
     setTitle("");
     setUrl("");
-    setError("");
+    setError(null);
   }
   const uid = useId();
-  const titleRef = useRef<HTMLInputElement>(null);
+  const section = useRef<HTMLElement>(null);
   const full = links.length >= MAX_LINKS;
+  const fail = (field: "title" | "url", text: string) => setError((e) => ({ field, text, n: (e?.n ?? 0) + 1 }));
+  /** Focus, once the list has redrawn: the given Remove button, else the title field, else the heading. */
+  const focusAfter = (removeAt: number | null) =>
+    setTimeout(() => {
+      const root = section.current;
+      if (!root) return;
+      const removes = root.querySelectorAll<HTMLElement>("[data-remove-link]");
+      const target = (removeAt !== null && (removes[removeAt] ?? removes[removes.length - 1])) || root.querySelector<HTMLElement>("[data-link-title]") || root.querySelector<HTMLElement>("h2");
+      target?.focus();
+    }, 0);
   const add = () => {
     const t = title.trim();
-    const u = url.trim();
-    // An address typed without its scheme is taken as https.
-    const address = u && !/^[a-z][a-z0-9+.-]*:/i.test(u) ? `https://${u}` : u;
-    if (!t) return setError("Give the link a title.");
-    if (!isWebUrl(address)) return setError("Enter a web address that starts with http:// or https://.");
-    setError("");
+    if (!t) return fail("title", "Give the link a title.");
+    const address = toWebAddress(url);
+    if (!address) return fail("url", "Enter a web address, such as https://example.com/page.");
+    setError(null);
     setTitle("");
     setUrl("");
     onChange([...links, { title: t, url: address }]);
-    titleRef.current?.focus();
+    // The fifth link closes the form: focus goes to the heading, which says why.
+    focusAfter(null);
+  };
+  const remove = (i: number) => {
+    onChange(links.filter((_, k) => k !== i));
+    focusAfter(i);
   };
   const onEnter = (e: React.KeyboardEvent) => {
     if (e.key === "Enter") {
@@ -215,20 +229,38 @@ function LinksField({ id, links, onChange }: { id: string; links: Link[]; onChan
       add();
     }
   };
+  const host = (u: string) => {
+    try {
+      return new URL(u).host;
+    } catch {
+      return u;
+    }
+  };
+  const errorId = `${uid}-error`;
   return (
-    <section aria-labelledby={`${uid}-head`} className="flex flex-col gap-2">
-      <h2 id={`${uid}-head`} className="text-sm font-medium">
+    <section ref={section} aria-labelledby={`${uid}-head`} className="flex flex-col gap-2">
+      <h2 id={`${uid}-head`} tabIndex={-1} className="text-sm font-medium">
         Links
       </h2>
       {links.length ? (
-        <ul className="flex flex-col gap-1">
+        <ul className="flex flex-col gap-1.5">
           {links.map((l, i) => (
             <li key={`${i}:${l.url}`} className="flex items-center justify-between gap-2 text-sm">
-              <a className="min-w-0 truncate text-accent underline underline-offset-4" href={l.url} target="_blank" rel="noopener noreferrer" title={l.url}>
-                {l.title}
-                <span className="sr-only"> (opens in a new tab)</span>
-              </a>
-              <button type="button" className={`${button} shrink-0 px-2 py-0.5 text-xs`} aria-label={`Remove link ${l.title}`} onClick={() => onChange(links.filter((_, k) => k !== i))}>
+              <span className="flex min-w-0 flex-col">
+                <a className="truncate text-accent underline underline-offset-4" href={l.url} target="_blank" rel="noopener noreferrer">
+                  {l.title}
+                  <span className="sr-only"> (opens in a new tab)</span>
+                </a>
+                {/* Where it goes, in plain sight (a title from someone else's file could say anything). */}
+                <span className="truncate font-mono text-xs text-ink-muted">{host(l.url)}</span>
+              </span>
+              <button
+                type="button"
+                data-remove-link
+                className="min-h-6 shrink-0 cursor-pointer border border-border-strong px-2 text-xs text-ink hover:border-accent hover:text-accent"
+                aria-label={`Remove link ${i + 1}, ${l.title}`}
+                onClick={() => remove(i)}
+              >
                 Remove
               </button>
             </li>
@@ -243,7 +275,16 @@ function LinksField({ id, links, onChange }: { id: string; links: Link[]; onChan
         <div className="flex flex-col gap-1">
           <label className="flex flex-col gap-1 text-sm">
             <span className="text-ink-muted">Link title</span>
-            <input ref={titleRef} className={input} value={title} maxLength={100} onChange={(e) => setTitle(e.target.value)} onKeyDown={onEnter} />
+            <input
+              data-link-title
+              className={input}
+              value={title}
+              maxLength={100}
+              aria-invalid={error?.field === "title" || undefined}
+              aria-describedby={error?.field === "title" ? errorId : undefined}
+              onChange={(e) => setTitle(e.target.value)}
+              onKeyDown={onEnter}
+            />
           </label>
           <label className="flex flex-col gap-1 text-sm">
             <span className="text-ink-muted">Web address</span>
@@ -254,15 +295,16 @@ function LinksField({ id, links, onChange }: { id: string; links: Link[]; onChan
               value={url}
               maxLength={2000}
               placeholder="https://"
-              aria-invalid={error ? true : undefined}
-              aria-describedby={error ? `${uid}-error` : undefined}
+              aria-invalid={error?.field === "url" || undefined}
+              aria-describedby={error?.field === "url" ? errorId : undefined}
               onChange={(e) => setUrl(e.target.value)}
               onKeyDown={onEnter}
             />
           </label>
           {error && (
-            <p id={`${uid}-error`} role="alert" className="text-xs text-invalid">
-              {error}
+            // Keyed by the count: the same message again is a new alert.
+            <p key={error.n} id={errorId} role="alert" className="text-xs text-invalid">
+              {error.text}
             </p>
           )}
           <button type="button" className={`${button} self-start`} onClick={add}>

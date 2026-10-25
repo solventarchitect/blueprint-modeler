@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { createModel, formatModelDate, localDay, migrate, modelDate, modelSchema, parseModel, serializeModel, UNTITLED_MODEL, type Model } from "./index";
+import { createModel, formatModelDate, localDay, migrate, modelDate, modelSchema, parseModel, serializeModel, toWebAddress, UNTITLED_MODEL, type Model } from "./index";
 
 const NOW = new Date("2026-09-27T12:00:00.000Z");
 
@@ -255,16 +255,42 @@ describe("links and a record number in the file (M65)", () => {
     expect(r.ok && r.model.nodes[0]!.links).toEqual([{ title: "Fine", url: "https://example.com/a" }]);
   });
 
+  it("never refuses a file over its links: not a list, too many, or none left", () => {
+    expect(parseModel(withLinks(null)).ok).toBe(true);
+    expect(parseModel(withLinks("https://example.com")).ok).toBe(true);
+    const lots = parseModel(withLinks(Array.from({ length: 80 }, (_, i) => ({ title: `L${i}`, url: `https://example.com/${i}` }))));
+    expect(lots.ok && lots.model.nodes[0]!.links).toHaveLength(5);
+    const none = parseModel(withLinks([{ title: "x", url: "javascript:alert(1)" }]));
+    expect(none.ok && none.model.nodes[0]!.links).toBeUndefined();
+    expect(none.ok && serializeModel(none.model)).not.toContain('"links"');
+  });
+
+  it("stores the address as the browser reads it", () => {
+    const r = parseModel(withLinks([{ title: "Upper", url: "HTTPS://Example.COM" }]));
+    expect(r.ok && r.model.nodes[0]!.links?.[0]?.url).toBe("https://example.com/");
+  });
+
   it("keeps at most five links", () => {
     const many = Array.from({ length: 8 }, (_, i) => ({ title: `L${i}`, url: `https://example.com/${i}` }));
     const r = parseModel(withLinks(many));
     expect(r.ok && r.model.nodes[0]!.links?.map((l) => l.title)).toEqual(["L0", "L1", "L2", "L3", "L4"]);
   });
 
-  it("is ignored, not refused, by 1.12.0's reader: the same format without links", () => {
+  it("is dropped, not refused, by a reader without links (1.12.0's element schema is the same non-strict object without them)", () => {
     const older = modelSchema.extend({ nodes: modelSchema.shape.nodes.element.omit({ links: true }).array() });
     const parsed = older.safeParse(withLinks([{ title: "Runbook", url: "https://example.com/" }]));
     expect(parsed.success).toBe(true);
     expect(parsed.success && "links" in parsed.data.nodes[0]!).toBe(false);
+  });
+});
+
+describe("toWebAddress (M65)", () => {
+  it("takes an address without a scheme as https, ports included; refuses other schemes", () => {
+    expect(toWebAddress("example.com/runbook")).toBe("https://example.com/runbook");
+    expect(toWebAddress("example.com:8080/x")).toBe("https://example.com:8080/x");
+    expect(toWebAddress("localhost:3000")).toBe("https://localhost:3000/");
+    expect(toWebAddress("server01:8443/wiki")).toBe("https://server01:8443/wiki");
+    expect(toWebAddress(" http://status.example.com ")).toBe("http://status.example.com/");
+    for (const bad of ["javascript:alert(1)", "JavaScript:alert(1)", "data:text/html,hi", "mailto:a@b.c", "ftp://files.example.com", "file:///etc/passwd", "", "   ", "http://", "not a url at all"]) expect(toWebAddress(bad)).toBeNull();
   });
 });
