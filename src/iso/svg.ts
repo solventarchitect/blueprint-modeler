@@ -2,7 +2,7 @@ import { classById } from "@/metamodel";
 import { filterActive, inView, slotColor, slotMap, slotMarker, UNTITLED_MODEL, type Model } from "@/model";
 import { clip, esc, layerColor, MONO, palettes, SANS, svgTitleBlock, type SvgHighlight, type SvgTheme, type SvgView } from "@/io/svg";
 import type { Size } from "@/layout/layout";
-import { behind, boxFaces, drawOrder, isoScene, project, RANK, SLAB, type IsoMode, type P3 } from "./scene";
+import { boxFaces, drawOrder, isoScene, paintOrder, project, RANK, SLAB, type IsoMode, type P3 } from "./scene";
 import type { Layer } from "@/metamodel";
 
 /** Mixes `a` into `b` by `t` (sRGB, 0–1); both "#rrggbb". */
@@ -50,6 +50,13 @@ export function isoToSvg(model: Model, theme: SvgTheme, opts: IsoOptions = {}): 
   const hl = opts.highlight;
   const scene = isoScene(model, mode, opts.sizes, opts.lift);
   const nodeById = new Map(model.nodes.map((n) => [n.id, n]));
+  const ids = opts.idPrefix ?? "";
+  // Each layer's blocks and pipes, gathered once.
+  const layerOfBlock = new Map(scene.blocks.map((b) => [b.id, b.layer]));
+  const pipesOf = new Map<string, typeof scene.edges>();
+  const blocksOf = new Map<string, typeof scene.blocks>();
+  for (const e of scene.edges) if (!e.across) pipesOf.set(layerOfBlock.get(e.from)!, [...(pipesOf.get(layerOfBlock.get(e.from)!) ?? []), e]);
+  for (const b of scene.blocks) blocksOf.set(b.layer, [...(blocksOf.get(b.layer) ?? []), b]);
 
   const quad = (ps: P3[], fill: string, stroke: string, extra = "") => `<polygon points="${pts(ps)}" fill="${fill}" stroke="${stroke}" stroke-width="1" stroke-linejoin="round"${extra}/>`;
   const body: string[] = [];
@@ -69,8 +76,8 @@ export function isoToSvg(model: Model, theme: SvgTheme, opts: IsoOptions = {}): 
         `</g>`,
     );
     // Pipes on this slab, under its blocks.
-    for (const e of scene.edges.filter((x) => !x.across && scene.blocks.find((b) => b.id === x.from)?.layer === layer)) body.push(pipe(e.id, e.from, e.to, e.points));
-    const blocks = scene.blocks.filter((b) => b.layer === layer).sort((a, b) => behind(a.rect, a.z, b.rect, b.z));
+    for (const e of pipesOf.get(layer) ?? []) body.push(pipe(e.id, e.from, e.to, e.points));
+    const blocks = paintOrder(blocksOf.get(layer) ?? []);
     for (const b of blocks) {
       const ghost = faded.has(b.id);
       const slot = slotFor?.(nodeById.get(b.id)!) ?? null;
@@ -102,7 +109,8 @@ export function isoToSvg(model: Model, theme: SvgTheme, opts: IsoOptions = {}): 
     const cls = (classById(n.class)?.label ?? n.class).toUpperCase();
     const w = Math.max(name.length * 7.2, cls.length * 6.4) + 12;
     body.push(
-      `<g data-iso-label="${esc(b.id)}">` +
+      // Labels let clicks through to the blocks underneath.
+      `<g data-iso-label="${esc(b.id)}" pointer-events="none">` +
         `<rect x="${r1(at.x - w / 2)}" y="${r1(at.y - 34)}" width="${r1(w)}" height="30" fill="${p.bg}" fill-opacity="0.85"/>` +
         `<text x="${r1(at.x)}" y="${r1(at.y - 22)}" text-anchor="middle" font-family="${MONO}" font-size="9" letter-spacing="1" fill="${p.muted}">${esc(cls)}</text>` +
         `<text x="${r1(at.x)}" y="${r1(at.y - 9)}" text-anchor="middle" font-family="${SANS}" font-size="12.5" font-weight="500" fill="${ghost ? p.muted : p.ink}">${esc(name)}</text>` +
@@ -150,15 +158,14 @@ export function isoToSvg(model: Model, theme: SvgTheme, opts: IsoOptions = {}): 
   const minY = (ys.length ? Math.min(...ys) : 0) - PAD - (tb ? tb.height : 0);
   const maxY = (ys.length ? Math.max(...ys) : 2 * PAD) + PAD;
   const height = Math.ceil(maxY - minY);
-  const ids = opts.idPrefix ?? "";
   const name = model.name || UNTITLED_MODEL;
   const desc = `CSDM model with ${model.nodes.length} elements and ${model.edges.length} relationships, drawn in isometric${mode === "exploded" ? " with its layers spread apart" : ""}: one slab per CSDM layer, Infrastructure lowest, Business highest. Exported from Blueprint Modeler.`;
   return [
     `<?xml version="1.0" encoding="UTF-8"?>`,
     `<svg xmlns="http://www.w3.org/2000/svg" viewBox="${r1(minX)} ${r1(minY)} ${width} ${height}" width="${width}" height="${height}" role="img" aria-labelledby="${ids}t ${ids}d" data-iso="${mode}">`,
     `<title id="${ids}t">${esc(name)}</title><desc id="${ids}d">${esc(desc)}</desc>`,
-    `<defs><marker id="iso-arrow" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse"><path d="M0 0L10 5L0 10z" fill="${p.line}"/></marker>${
-      hl ? `<marker id="iso-arrow-blast" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="6" markerHeight="6" orient="auto-start-reverse"><path d="M0 0L10 5L0 10z" fill="${hl.flow ? p.ai : p.status}"/></marker>` : ""
+    `<defs><marker id="${ids}iso-arrow" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse"><path d="M0 0L10 5L0 10z" fill="${p.line}"/></marker>${
+      hl ? `<marker id="${ids}iso-arrow-blast" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="6" markerHeight="6" orient="auto-start-reverse"><path d="M0 0L10 5L0 10z" fill="${hl.flow ? p.ai : p.status}"/></marker>` : ""
     }</defs>`,
     `<rect x="${r1(minX)}" y="${r1(minY)}" width="${width}" height="${height}" fill="${p.bg}"/>`,
     ...(tb ? tb.render(minX + PAD, minY) : []),
@@ -171,7 +178,7 @@ export function isoToSvg(model: Model, theme: SvgTheme, opts: IsoOptions = {}): 
     const carried = hl?.edges.get(id);
     const fade = faded.has(from) || faded.has(to);
     const stroke = carried ? `stroke="${hl?.flow ? p.ai : p.status}" stroke-width="2.5"${carried.current ? ` stroke-dasharray="10 6"` : ""}` : `stroke="${p.line}" stroke-width="1.5"`;
-    const line = `<polyline data-iso-rel="${esc(id)}" points="${pts(points)}" pathLength="100" fill="none" ${stroke} stroke-linejoin="round" marker-end="url(#${carried ? "iso-arrow-blast" : "iso-arrow"})"${fade ? ` opacity="0.2" data-faded=""` : ""}/>`;
+    const line = `<polyline data-iso-rel="${esc(id)}" points="${pts(points)}" pathLength="100" fill="none" ${stroke} stroke-linejoin="round" marker-end="url(#${ids}${carried ? "iso-arrow-blast" : "iso-arrow"})"${fade ? ` opacity="0.2" data-faded=""` : ""}/>`;
     // A packet runs the way the impact or the data travels (backward when the walk went against the arrow).
     const packet =
       opts.packets && carried

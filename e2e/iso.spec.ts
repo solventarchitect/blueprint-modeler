@@ -71,6 +71,24 @@ test.describe("isometric view (M59)", () => {
     await expect(page.getByTestId("zoom-menu")).toHaveAccessibleName("Zoom, 100%");
   });
 
+  test("read only: Delete, Backspace and Shift+A change nothing; Go to selects an element in the picture", async ({ page, isMobile }) => {
+    test.skip(!!isMobile, "keyboard");
+    await open(page);
+    await choose(page, "Iso");
+    // Select through the palette's Go to (the keyboard route to an element), then try to edit it.
+    await page.keyboard.press(`${mod}+k`);
+    await page.getByRole("combobox", { name: "Search commands" }).fill("db-prod-01");
+    await page.keyboard.press("Enter");
+    await expect(picture(page).locator("[data-selected]")).toHaveCount(1);
+    await expect(inspector(page).getByLabel("Name", { exact: true })).toHaveValue("db-prod-01");
+    await isoView(page).focus();
+    for (const key of ["Delete", "Backspace", "Shift+A", "Shift+F10"]) await page.keyboard.press(key);
+    await expect(picture(page).locator("[data-iso-el]")).toHaveCount(14);
+    await expect(page.getByRole("menu")).toHaveCount(0);
+    await choose(page, "Plan");
+    await expect(page.locator(".react-flow__node")).toHaveCount(14);
+  });
+
   test("the command palette switches projections", async ({ page, isMobile }) => {
     test.skip(!!isMobile, "keyboard");
     await open(page);

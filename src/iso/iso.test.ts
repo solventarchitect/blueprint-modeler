@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 import { examples } from "@/examples";
-import { behind, isoScene, drawOrder, project, depth, HEIGHT, STEP, SLAB } from "./scene";
+import { behind, isoScene, drawOrder, paintOrder, pipeRoute, project, depth, HEIGHT, STEP, SLAB, type Rect } from "./scene";
 import { isoToSvg, mix } from "./svg";
 
 const checkout = () => examples.find((e) => e.id === "checkout")!.create(new Date("2026-09-27T00:00:00Z"), "m1");
@@ -132,5 +132,72 @@ describe("isometric SVG (M59)", () => {
     expect(mix("#ffffff", "#000000", 0.5)).toBe("#808080");
     expect(mix("#5ec8ff", "#121e2b", 1)).toBe("#5ec8ff");
     expect(mix("#5ec8ff", "#121e2b", 0)).toBe("#121e2b");
+  });
+});
+
+describe("isometric edge cases (M59 review)", () => {
+  const inside = (p: { x: number; y: number }, r: Rect) => p.x > r.x && p.x < r.x + r.w && p.y > r.y && p.y < r.y + r.d;
+
+  it("draws no pipe between stacked blocks, and does not crash", () => {
+    const m = checkout();
+    const pipe = isoScene(m, "iso").edges.find((x) => !x.across)!;
+    const [a, b] = [pipe.from, pipe.to];
+    m.layout[b] = { ...m.layout[a]! };
+    expect(() => isoToSvg(m, "dark")).not.toThrow();
+    expect(isoScene(m, "iso").edges.find((e) => e.from === a && e.to === b)).toBeUndefined();
+  });
+
+  it("routes pipes straight where blocks face each other, else with one turn outside both, never through either", () => {
+    const a: Rect = { x: 0, y: 0, w: 200, d: 60 };
+    expect(pipeRoute(a, { x: 260, y: 20, w: 200, d: 60 })).toEqual([{ x: 200, y: 40 }, { x: 260, y: 40 }]); // rows offset by 20
+    expect(pipeRoute(a, { x: 100, y: 120, w: 200, d: 60 })).toEqual([{ x: 150, y: 60 }, { x: 150, y: 120 }]); // columns overlap
+    expect(pipeRoute(a, { x: 50, y: 10, w: 200, d: 60 })).toBeNull(); // overlapping blocks
+    for (let i = 0; i < 200; i++) {
+      const b: Rect = { x: Math.round(Math.random() * 1200 - 600), y: Math.round(Math.random() * 600 - 300), w: 200, d: 60 };
+      const route = pipeRoute(a, b);
+      if (!route) continue;
+      for (const p of route) {
+        expect(inside(p, a)).toBe(false);
+        expect(inside(p, b)).toBe(false);
+      }
+      for (let k = 1; k < route.length; k++) expect(route[k - 1]!.x === route[k]!.x || route[k - 1]!.y === route[k]!.y).toBe(true);
+    }
+  });
+
+  it("paints every pair that overlaps on screen in its true order, in free-form layouts too", () => {
+    let pairs = 0;
+    for (let t = 0; t < 200; t++) {
+      // Twelve blocks scattered without overlapping footprints.
+      const items: { rect: Rect; z: number; h: number }[] = [];
+      while (items.length < 12) {
+        const r: Rect = { x: Math.round(Math.random() * 900), y: Math.round(Math.random() * 500), w: 208, d: 68 };
+        if (items.every((o) => r.x + r.w <= o.rect.x || o.rect.x + o.rect.w <= r.x || r.y + r.d <= o.rect.y || o.rect.y + o.rect.d <= r.y)) items.push({ rect: r, z: 0, h: 40 });
+      }
+      const order = paintOrder(items);
+      const at = new Map(order.map((x, i) => [x, i]));
+      for (let i = 0; i < items.length; i++)
+        for (let j = i + 1; j < items.length; j++) {
+          const [a, b] = [items[i]!, items[j]!];
+          const pa = [project({ x: a.rect.x, y: a.rect.y + a.rect.d, z: 0 }).x, project({ x: a.rect.x + a.rect.w, y: a.rect.y, z: 0 }).x];
+          const pb = [project({ x: b.rect.x, y: b.rect.y + b.rect.d, z: 0 }).x, project({ x: b.rect.x + b.rect.w, y: b.rect.y, z: 0 }).x];
+          if (pa[1]! <= pb[0]! || pb[1]! <= pa[0]!) continue; // apart on screen: any order
+          const ya = [project({ x: a.rect.x, y: a.rect.y, z: a.h }).y, project({ x: a.rect.x + a.rect.w, y: a.rect.y + a.rect.d, z: 0 }).y];
+          const yb = [project({ x: b.rect.x, y: b.rect.y, z: b.h }).y, project({ x: b.rect.x + b.rect.w, y: b.rect.y + b.rect.d, z: 0 }).y];
+          if (ya[1]! <= yb[0]! || yb[1]! <= ya[0]!) continue;
+          pairs++;
+          expect(Math.sign(at.get(a)! - at.get(b)!)).toBe(Math.sign(behind(a.rect, a.z, b.rect, b.z)));
+        }
+    }
+    expect(pairs).toBeGreaterThan(100);
+  });
+
+  it("escapes every model string it writes", () => {
+    const m = checkout();
+    const evil = `"><script>alert(1)</script><img src=x onerror=alert(1) '`;
+    m.name = evil;
+    m.nodes[0]!.name = evil;
+    const svg = isoToSvg(m, "dark", { view: { filter: {}, colorBy: "owner", name: evil } });
+    expect(svg).not.toMatch(/<script|<img|onerror=alert\(1\) '/);
+    expect(svg).toContain("&lt;script&gt;");
   });
 });

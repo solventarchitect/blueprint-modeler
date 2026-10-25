@@ -49,6 +49,33 @@ function exitPoint(r: Rect, from: { x: number; y: number }, to: { x: number; y: 
 }
 
 /** `lift`: a layer Present is showing, raised above its place. */
+/** The overlap of two ranges, or null. */
+const overlap = (a0: number, a1: number, b0: number, b1: number) => (Math.max(a0, b0) < Math.min(a1, b1) ? { from: Math.max(a0, b0), to: Math.min(a1, b1) } : null);
+
+/**
+ * A pipe on the slab from the edge of one block to the edge of the other, never diagonal (the design
+ * system's rule) and never through either block: straight across where the blocks face each other
+ * (their y or x ranges overlap), else one right angle, which then always turns outside both blocks.
+ * Null when the blocks overlap.
+ */
+export function pipeRoute(a: Rect, b: Rect): { x: number; y: number }[] | null {
+  const ys = overlap(a.y, a.y + a.d, b.y, b.y + b.d);
+  const xs = overlap(a.x, a.x + a.w, b.x, b.x + b.w);
+  if (ys && xs) return null;
+  if (ys) {
+    const y = (ys.from + ys.to) / 2;
+    return a.x < b.x ? [{ x: a.x + a.w, y }, { x: b.x, y }] : [{ x: a.x, y }, { x: b.x + b.w, y }];
+  }
+  if (xs) {
+    const x = (xs.from + xs.to) / 2;
+    return a.y < b.y ? [{ x, y: a.y + a.d }, { x, y: b.y }] : [{ x, y: a.y }, { x, y: b.y + b.d }];
+  }
+  const ca = center(a);
+  const cb = center(b);
+  const corner = { x: cb.x, y: ca.y };
+  return [exitPoint(a, ca, corner), corner, exitPoint(b, cb, corner)];
+}
+
 export function isoScene(model: Model, mode: IsoMode, sizes: Record<string, Size | undefined> = {}, lift?: Layer): IsoScene {
   const step = STEP[mode];
   const layerOf = new Map(model.nodes.map((n) => [n.id, classById(n.class)?.layer ?? "design"] as const));
@@ -71,15 +98,9 @@ export function isoScene(model: Model, mode: IsoMode, sizes: Record<string, Size
     const ca = center(a.rect);
     const cb = center(b.rect);
     if (a.layer === b.layer) {
-      // On the slab, along x then y (the design system's pipes never run diagonally), from the edge of
-      // one block to the edge of the other.
-      const z = a.z + 1;
-      const corner = { x: cb.x, y: ca.y };
-      const path = [ca, corner, cb].filter((p, i, all) => i === 0 || p.x !== all[i - 1]!.x || p.y !== all[i - 1]!.y);
-      const start = exitPoint(a.rect, path[0]!, path[1]!);
-      const end = exitPoint(b.rect, path[path.length - 1]!, path[path.length - 2]!);
-      const points = [start, ...path.slice(1, -1), end].map((p) => ({ x: p.x, y: p.y, z }));
-      edges.push({ id: e.id, from: e.from, to: e.to, points, across: false });
+      const route = pipeRoute(a.rect, b.rect);
+      // Blocks that overlap (stacked, or pasted onto one another) have no gap for a pipe.
+      if (route) edges.push({ id: e.id, from: e.from, to: e.to, points: route.map((p) => ({ ...p, z: a.z + 1 })), across: false });
     } else {
       // Across layers: a straight line from the top of one block to the top of the other, between the
       // floors. (Right-angled bridges at this scale cross the whole picture; the design system's
@@ -108,11 +129,64 @@ export function behind(a: Rect, za: number, b: Rect, zb: number): number {
   return depth({ x: a.x + a.w / 2, y: a.y + a.d / 2, z: za }) - depth({ x: b.x + b.w / 2, y: b.y + b.d / 2, z: zb });
 }
 
-/** Back to front: the layers farthest from the viewer first, as LAYERS order breaks ties. */
+export type Solid = { rect: Rect; z: number; h: number };
+
+/** A box's outline on screen, as its projected bounds. */
+function screenBounds(s: Solid) {
+  const xs: number[] = [];
+  const ys: number[] = [];
+  for (const x of [s.rect.x, s.rect.x + s.rect.w])
+    for (const y of [s.rect.y, s.rect.y + s.rect.d])
+      for (const z of [s.z, s.z + s.h]) {
+        const p = project({ x, y, z });
+        xs.push(p.x);
+        ys.push(p.y);
+      }
+  return { x0: Math.min(...xs), x1: Math.max(...xs), y0: Math.min(...ys), y1: Math.max(...ys) };
+}
+
+/**
+ * Painter's order for boxes, back to front. Only boxes whose outlines overlap on screen need an order
+ * between them, and `behind` gives each such pair its true one; a topological sort of those pairs
+ * keeps every overlap right (a plain sort would not: `behind` is not transitive across pairs that
+ * never meet). Ties, and the rare cycle of overlapping footprints, go to the deeper middle.
+ */
+export function paintOrder<T extends Solid>(items: T[]): T[] {
+  const n = items.length;
+  const bounds = items.map(screenBounds);
+  const after: number[][] = items.map(() => []);
+  const indeg = new Array<number>(n).fill(0);
+  for (let i = 0; i < n; i++)
+    for (let j = i + 1; j < n; j++) {
+      const a = bounds[i]!;
+      const b = bounds[j]!;
+      if (a.x1 <= b.x0 || b.x1 <= a.x0 || a.y1 <= b.y0 || b.y1 <= a.y0) continue;
+      const c = behind(items[i]!.rect, items[i]!.z, items[j]!.rect, items[j]!.z);
+      const [first, second] = c <= 0 ? [i, j] : [j, i];
+      after[first]!.push(second);
+      indeg[second]!++;
+    }
+  const mid = (t: T) => depth({ x: t.rect.x + t.rect.w / 2, y: t.rect.y + t.rect.d / 2, z: t.z });
+  const left = new Set(items.keys());
+  const out: T[] = [];
+  while (left.size) {
+    let pick = -1;
+    for (const i of left) if (indeg[i] === 0 && (pick < 0 || mid(items[i]!) < mid(items[pick]!))) pick = i;
+    if (pick < 0) for (const i of left) if (pick < 0 || mid(items[i]!) < mid(items[pick]!)) pick = i; // a cycle: break it
+    left.delete(pick);
+    out.push(items[pick]!);
+    for (const j of after[pick]!) indeg[j]!--;
+  }
+  return out;
+}
+
+/** Back to front: the layers farthest from the viewer first, each counted with its blocks' heights. */
 export function drawOrder(scene: IsoScene): Layer[] {
-  return [...scene.slabs]
-    .sort((a, b) => behind(a.rect, a.top, b.rect, b.top) || LAYERS.findIndex((l) => l.id === a.layer) - LAYERS.findIndex((l) => l.id === b.layer))
-    .map((s) => s.layer);
+  const tallest = (l: Layer) => Math.max(0, ...scene.blocks.filter((b) => b.layer === l).map((b) => b.h));
+  const solids = [...scene.slabs]
+    .sort((a, b) => LAYERS.findIndex((l) => l.id === a.layer) - LAYERS.findIndex((l) => l.id === b.layer))
+    .map((s) => ({ layer: s.layer, rect: s.rect, z: s.top - SLAB, h: SLAB + tallest(s.layer) }));
+  return paintOrder(solids).map((s) => s.layer);
 }
 
 /** The block faces a viewer sees, as world-space quads: top, then the two front sides (+y, +x). */

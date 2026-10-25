@@ -121,7 +121,7 @@ export function IsoView({
       zoom: (c: ZoomCommand) => {
         if (c === "fit") fit();
         else if (c === "selection") {
-          const b = selectedId ? isoScene(model, mode, sizes).blocks.find((x) => x.id === selectedId) : undefined;
+          const b = selectedId ? isoScene(model, mode, sizes, lift).blocks.find((x) => x.id === selectedId) : undefined;
           if (!b) return;
           const at = project({ x: b.rect.x + b.rect.w / 2, y: b.rect.y + b.rect.d / 2, z: b.z + b.h });
           const k = 1.25;
@@ -133,7 +133,7 @@ export function IsoView({
         }
       },
     }),
-    [fit, model, mode, sizes, selectedId, vb.x, vb.y, zoomAt],
+    [fit, model, mode, sizes, lift, selectedId, vb.x, vb.y, zoomAt],
   );
 
   // Wheel zoom around the pointer (a native listener: React's wheel events are passive).
@@ -181,6 +181,9 @@ export function IsoView({
         d.y = e.clientY;
         setT((c) => ({ ...c, x: c.x + dx, y: c.y + dy }));
       }}
+      // A cancelled drag (the browser took the pointer) ends without a click.
+      onPointerCancel={() => (drag.current = null)}
+      onLostPointerCapture={() => (drag.current = null)}
       onPointerUp={(e) => {
         const d = drag.current;
         drag.current = null;

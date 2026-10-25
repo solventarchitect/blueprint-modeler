@@ -1283,6 +1283,8 @@ function EditorInner() {
     return `${n?.name || "Untitled"} menu`;
   };
   const onCanvasKeyDown = (e: ReactKeyboardEvent<HTMLDivElement>) => {
+    // The isometric projections are read only: no quick-add, no canvas menu.
+    if (projection !== "plan") return;
     // Shift+A: quick-add to the focused element, else the selected one (M53).
     if (canMenu && e.shiftKey && !e.ctrlKey && !e.metaKey && !e.altKey && e.key.toLowerCase() === "a") {
       const t = e.target as HTMLElement;
@@ -1988,7 +1990,8 @@ function EditorInner() {
               nodesDraggable={wide && !presenting}
               nodesConnectable={wide && !presenting}
               elementsSelectable={!presenting}
-              deleteKeyCode={wide && !presenting && !palette && !shortcuts && !managing && !viewDialog ? ["Delete", "Backspace"] : null}
+              // React Flow listens for Delete on the document, past `inert`: the isometric projections are read only.
+              deleteKeyCode={wide && !presenting && projection === "plan" && !palette && !shortcuts && !managing && !viewDialog ? ["Delete", "Backspace"] : null}
               snapToGrid={view.snap}
               snapGrid={[16, 16]}
               fitView
