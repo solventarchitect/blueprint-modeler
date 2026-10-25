@@ -11,6 +11,8 @@ import { connectionProblem } from "./state";
 
 /** The model being edited, for judging a connection while it is still being dragged. */
 export const ConnectionModelContext = createContext<Model | null>(null);
+/** M61: an existing relationship's end is being moved, not a new one drawn: no outlines, no verdict. */
+export const ReconnectingContext = createContext(false);
 
 /** What the line should say over a target: the relationship it will create, or why it can't. */
 export function connectionVerdict(model: Model, from: string, to: string): { ok: true; text: string } | { ok: false; text: string } {
@@ -30,7 +32,8 @@ export function ConnectionLine({ fromX, fromY, toX, toY, fromPosition, toPositio
   const style = useContext(LineStyleContext);
   const sideOf = (p: Position | undefined): Side => (p === Position.Top ? "top" : p === Position.Left ? "left" : p === Position.Right ? "right" : "bottom");
   const { path } = edgePath({ x: fromX, y: fromY, side: sideOf(fromPosition) }, { x: toX, y: toY, side: sideOf(toPosition) }, style);
-  const verdict = model && toNode ? connectionVerdict(model, fromNode.id, toNode.id) : null;
+  const reconnecting = useContext(ReconnectingContext);
+  const verdict = model && toNode && !reconnecting ? connectionVerdict(model, fromNode.id, toNode.id) : null;
   const status = verdict ? (verdict.ok ? "valid" : "invalid") : (connectionStatus ?? "searching");
   const color = status === "valid" ? "var(--valid)" : status === "invalid" ? "var(--invalid)" : "var(--accent)";
   const label = verdict ? `${verdict.ok ? "✓" : "✕"} ${verdict.text}` : null;

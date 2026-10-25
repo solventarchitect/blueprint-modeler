@@ -2,7 +2,7 @@ import { archimateElements, type Lens, showsArchimate } from "@/frameworks";
 import { classById, isClassId, type Layer } from "@/metamodel";
 import { UNTITLED_MODEL, type Model } from "@/model";
 import { layoutOrientation } from "@/layout/bands";
-import { edgeSides } from "@/layout/geometry";
+import { edgeEnds } from "@/layout/geometry";
 
 /**
  * The model as a draw.io file (.drawio, mxGraph XML). `modelToDrawio` returns the readable,
@@ -101,7 +101,7 @@ export function modelToDrawio(model: Model, opts: { lens?: Lens; now?: Date } = 
     const a = box.get(e.from);
     const b = box.get(e.to);
     if (!a || !b) continue;
-    const [ss, ts] = edgeSides(a, b, columns);
+    const [ss, ts] = edgeEnds(e.ports, a, b, columns);
     const label = e.type.startsWith("reference:") ? "reference" : (e.type.split("::")[0] ?? e.type);
     const style = [
       "edgeStyle=orthogonalEdgeStyle",

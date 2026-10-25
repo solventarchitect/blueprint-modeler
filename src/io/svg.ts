@@ -4,7 +4,7 @@ import { COLOR_BY_LABEL, filterActive, formatModelDate, inView, legend, modelDat
 import { layoutOrientation } from "@/layout/bands";
 import { planLabels } from "@/layout/edgeLabel";
 import { edgePath, type LineStyle } from "@/layout/edgePath";
-import { edgeSides, type Side } from "@/layout/geometry";
+import { edgeEnds, type Side } from "@/layout/geometry";
 import { ARTIFACT_ICON_PATH } from "./icons";
 
 export type SvgTheme = "dark" | "light";
@@ -251,7 +251,7 @@ export function modelToSvg(model: Model, theme: SvgTheme, opts: { lens?: Lens; h
     const a = boxes.get(e.from);
     const b = boxes.get(e.to);
     if (!a || !b) return [];
-    const [ss, ts] = edgeSides(a, b, columns);
+    const [ss, ts] = edgeEnds(e.ports, a, b, columns);
     const s = anchor(a, ss);
     const t = anchor(b, ts);
     // The same router as the canvas, so the image matches the screen.

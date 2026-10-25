@@ -192,3 +192,29 @@ describe("editor state", () => {
     expect(s.present.updated).toBe(T);
   });
 });
+
+describe("connection points (M61)", () => {
+  const withEdge = () => run([...base, { type: "add-edge", id: "e1", from: "ba", to: "svc" }]);
+
+  it("keeps a chosen side for either end, one undo step each, and back to automatic with null", () => {
+    let s = run([{ type: "set-ports", id: "e1", from: "right" }], withEdge());
+    expect(s.present.edges[0]!.ports).toEqual({ from: "right" });
+    s = run([{ type: "set-ports", id: "e1", to: "top" }], s);
+    expect(s.present.edges[0]!.ports).toEqual({ from: "right", to: "top" });
+    expect(run([{ type: "set-ports", id: "e1", to: "top" }], s)).toBe(s);
+    s = run([{ type: "set-ports", id: "e1", from: null }], s);
+    expect(s.present.edges[0]!.ports).toEqual({ to: "top" });
+    s = run([{ type: "set-ports", id: "e1", from: null, to: null }], s);
+    // Nothing chosen: the field goes, so the file is as before.
+    expect("ports" in s.present.edges[0]!).toBe(false);
+    expect(run([{ type: "undo" }], s).present.edges[0]!.ports).toEqual({ to: "top" });
+    expect(run([{ type: "set-ports", id: "nope", from: "top" }], s)).toBe(s);
+  });
+
+  it("keeps the chosen sides when a relationship is updated in place without turning round", () => {
+    const s = run([{ type: "set-ports", id: "e1", from: "right", to: "left" }], withEdge());
+    const e = s.present.edges[0]!;
+    const retyped = run([{ type: "update-edge", id: "e1", from: e.from, to: e.to, edgeType: e.type }], s);
+    expect(retyped.present.edges[0]!.ports).toEqual({ from: "right", to: "left" });
+  });
+});

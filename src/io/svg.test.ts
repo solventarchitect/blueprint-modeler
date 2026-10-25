@@ -167,3 +167,15 @@ describe("SVG of a view (M54)", () => {
     }
   });
 });
+
+describe("SVG connection points (M61)", () => {
+  it("draws a relationship from the sides the modeler chose, and the same picture when they are the automatic ones", () => {
+    const m = checkout();
+    const e = m.edges[0]!;
+    const withPorts = (ports: { from?: "top" | "right" | "bottom" | "left"; to?: "top" | "right" | "bottom" | "left" }) => ({ ...m, edges: m.edges.map((x) => (x.id === e.id ? { ...x, ports } : x)) });
+    const before = modelToSvg(m, "light");
+    // The checkout example runs top to bottom: a relationship between rows leaves by the bottom.
+    expect(modelToSvg(withPorts({ from: "bottom", to: "top" }), "light")).toBe(before);
+    expect(modelToSvg(withPorts({ from: "left", to: "right" }), "light")).not.toBe(before);
+  });
+});

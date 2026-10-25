@@ -1,4 +1,5 @@
 import { acceptedTypes, allowedTypes, classById, relationshipsBetween, type ClassId, type Layer } from "@/metamodel";
+import type { Side } from "@/layout/geometry";
 import { edgeKey, MAX_VIEWS, viewSchema, withDetails, type Edge, type Model, type Node, type View } from "@/model";
 
 /**
@@ -24,6 +25,8 @@ export type Action =
   | { type: "add-related"; id: string; class: ClassId; name: string; edgeId: string; relatedTo: string; outgoing: boolean; edgeType: string; at?: { x: number; y: number } }
   | { type: "delete-edge"; id: string }
   | { type: "update-edge"; id: string; from: string; to: string; edgeType: string }
+  /** M61: the side a relationship leaves (`from`) or reaches (`to`); null goes back to automatic, absent keeps it. */
+  | { type: "set-ports"; id: string; from?: Side | null; to?: Side | null }
   | { type: "set-layout"; layout: Model["layout"] }
   | { type: "undo" }
   | { type: "redo" };
@@ -217,7 +220,30 @@ function apply(model: Model, action: Action): Model | null {
       if (!edge) return null;
       const others = { ...model, edges: model.edges.filter((e) => e.id !== action.id) };
       if (connectionProblem(others, action.from, action.to, action.edgeType)) return null;
-      return { ...model, edges: model.edges.map((e) => (e.id === action.id ? { ...e, from: action.from, to: action.to, type: action.edgeType } : e)) };
+      // A relationship turned round keeps no chosen sides: they belonged to the other ends.
+      const turned = action.from !== edge.from || action.to !== edge.to;
+      return {
+        ...model,
+        edges: model.edges.map((e) => {
+          if (e.id !== action.id) return e;
+          const { ports, ...rest } = e;
+          return { ...rest, from: action.from, to: action.to, type: action.edgeType, ...(ports && !turned ? { ports } : {}) };
+        }),
+      };
+    }
+    case "set-ports": {
+      const edge = model.edges.find((e) => e.id === action.id);
+      if (!edge) return null;
+      const pick = (v: Side | null | undefined, cur: Side | undefined) => (v === undefined ? cur : (v ?? undefined));
+      const from = pick(action.from, edge.ports?.from);
+      const to = pick(action.to, edge.ports?.to);
+      if (from === edge.ports?.from && to === edge.ports?.to) return null;
+      const { ports: _old, ...rest } = edge;
+      void _old;
+      // Stored only when set, and only the sides that are, so files without chosen sides stay as they were.
+      const ports = { ...(from ? { from } : {}), ...(to ? { to } : {}) };
+      const next: Edge = from || to ? { ...rest, ports } : rest;
+      return { ...model, edges: model.edges.map((e) => (e.id === action.id ? next : e)) };
     }
     case "add-edge": {
       if (connectionProblem(model, action.from, action.to, action.edgeType)) return null;

@@ -13,3 +13,9 @@ export function edgeSides(from: Point, to: Point, columns = false): [Side, Side]
   if (columns) return Math.abs(from.x - to.x) < 60 ? upDown() : sideways();
   return Math.abs(from.y - to.y) < 60 ? sideways() : upDown();
 }
+
+/** M61: a relationship's sides: the ones the modeler chose (`ports`), the rest picked from the layout. */
+export function edgeEnds(ports: { from?: Side; to?: Side } | undefined, from: Point, to: Point, columns = false): [Side, Side] {
+  const [s, t] = edgeSides(from, to, columns);
+  return [ports?.from ?? s, ports?.to ?? t];
+}

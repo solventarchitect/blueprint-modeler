@@ -13,11 +13,21 @@ export const nodeSchema = z.object({
   attrs: z.record(z.string().max(64), z.string().max(2000)).optional(),
 });
 
+/** The sides of an element a relationship can leave or reach. */
+export const SIDES = ["top", "right", "bottom", "left"] as const;
+const side = z.enum(SIDES);
+
 export const edgeSchema = z.object({
   id,
   from: id,
   to: id,
   type: z.string().min(1).max(64),
+  /**
+   * M61: the side a relationship leaves its From element and reaches its To element on, where the
+   * modeler chose one; absent sides are picked from the layout. Optional and additive in format 1:
+   * older versions ignore it and pick both.
+   */
+  ports: z.object({ from: side.optional(), to: side.optional() }).optional(),
 });
 
 export const positionSchema = z.object({ x: z.number().finite(), y: z.number().finite() });

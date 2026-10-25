@@ -6,7 +6,7 @@ import { ArchimateGlyph } from "@/frameworks/ArchimateGlyph";
 import type { ArchimateElementType, ArchimateLayer } from "@/frameworks";
 import { classById } from "@/metamodel";
 import { slotMarker, type Slot } from "@/model";
-import { ConnectionModelContext } from "./ConnectionLine";
+import { ConnectionModelContext, ReconnectingContext } from "./ConnectionLine";
 import { layerAccent } from "./layerAccent";
 import { connectionProblem } from "./state";
 import { suggestionDetail, suggestionLabel, type Suggestion } from "./suggest";
@@ -137,7 +137,9 @@ function ClassNodeView({ id, data, selected, dragging }: NodeProps<ClassFlowNode
   // While a relationship is being drawn, mark every element it can be dropped on.
   const model = useContext(ConnectionModelContext);
   const fromId = useConnection((c) => (c.inProgress ? c.fromNode.id : null));
-  const target = !!(fromId && model && fromId !== id && connectionProblem(model, fromId, id) === null);
+  // Moving an existing relationship's end (M61) only ever lands on its own element: nothing to outline.
+  const reconnecting = useContext(ReconnectingContext);
+  const target = !!(fromId && model && !reconnecting && fromId !== id && connectionProblem(model, fromId, id) === null);
 
   // Hover shows suggestions after a short pause; leaving waits briefly so the pointer can reach the card.
   const [hovered, setHovered] = useState(false);
