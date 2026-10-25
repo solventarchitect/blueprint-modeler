@@ -20,7 +20,7 @@ const chain: { cls: ClassId; name: string; rel?: string }[] = [
   { cls: "host", name: "web-prod-01" },
 ];
 
-/** The three figures' titles and footers. The figure's accessible name and description live in HeroFigures. */
+/** The three figures' titles and footers. Each figure's accessible name and description live in heroFigures. */
 const titles = ["FIG.01 — THE REALIZATION CHAIN", "FIG.02 — CAUGHT EARLY", "FIG.03 — READ IT IN ARCHIMATE"];
 const footers: { text: string; color: string }[] = [
   { text: "Allowed relationships only. Every rule cites its source.", color: "var(--accent)" },
@@ -76,22 +76,21 @@ function ArchimateEnd({ from, to, i }: { from: ClassId; to: ClassId; i: number }
 }
 
 /**
- * The landing page's hero: one drawing sheet that steps through three figures without cutting.
- * FIG.01 is the realization chain from a Business Capability down to a Host; FIG.02 catches a
- * shortcut from the Business Application straight to the Host, the line the editor refuses; FIG.03
- * reads the same elements in ArchiMate 3.2. Every element stays where it is and changes in place,
- * cascading down the chain behind the accent signal; the parent's `data-fig` picks the figure
- * (see `.hero-sheet` in globals.css). Decorative to assistive tech: HeroFigures names and describes
- * the current figure in text.
+ * The landing page's figure drawing, one per figure card: FIG.01 is the realization chain from a
+ * Business Capability down to a Host; FIG.02 catches a shortcut from the Business Application
+ * straight to the Host, the line the editor refuses; FIG.03 reads the same elements in ArchiMate 3.2.
+ * The parent's `data-fig` picks the figure (see `.hero-sheet` in globals.css). Decorative to
+ * assistive tech: its figure card (heroFigures) names and describes the figure in text. `id` keeps
+ * the mask's id unique, since several copies share the page.
  */
-export function HeroDiagram() {
+export function HeroDiagram({ id }: { id: string }) {
   const yA = nodeY(1) + NODE_H / 2;
   const yH = nodeY(4) + NODE_H / 2;
   const shortcut = `M${NODE_X + NODE_W + 1} ${yA} C${NODE_X + NODE_W + 40} ${yA} ${NODE_X + NODE_W + 40} ${yH} ${NODE_X + NODE_W + 16} ${yH}`;
   return (
     <svg viewBox={`0 0 440 ${HEIGHT}`} aria-hidden="true" focusable="false" className="h-auto w-full font-mono">
       <defs>
-        <mask id="hero-shortcut-mask" maskUnits="userSpaceOnUse">
+        <mask id={`${id}-shortcut-mask`} maskUnits="userSpaceOnUse">
           <path d={shortcut} pathLength={100} className="hero-reveal" fill="none" stroke="white" strokeWidth="8" />
         </mask>
       </defs>
@@ -141,7 +140,7 @@ export function HeroDiagram() {
 
       {/* FIG.02: the shortcut the editor refuses, drawn in, marked ✕, then the route it should take. */}
       <g data-show="1" style={{ "--d": "0.2s" } as CSSProperties}>
-        <path d={shortcut} mask="url(#hero-shortcut-mask)" fill="none" strokeWidth="1.75" strokeDasharray="5 4" style={{ stroke: "var(--invalid)" }} />
+        <path d={shortcut} mask={`url(#${id}-shortcut-mask)`} fill="none" strokeWidth="1.75" strokeDasharray="5 4" style={{ stroke: "var(--invalid)" }} />
       </g>
       <g data-show="1" style={{ "--d": "1.2s" } as CSSProperties}>
         <circle cx={NODE_X + NODE_W + 16} cy={yH} r="7" style={{ fill: "var(--invalid)" }} />

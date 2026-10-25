@@ -1,6 +1,8 @@
 import type { CSSProperties } from "react";
 import { HeroDiagram } from "@/components/HeroDiagram";
-import { HeroFigures } from "@/components/HeroFigures";
+import { heroFigures } from "@/components/heroFigures";
+import { IsoStack } from "@/components/IsoStack";
+import { ARCHIMATE_TRADEMARK } from "@/frameworks";
 import { site } from "@/lib/site";
 import { classById, type ClassId } from "@/metamodel";
 
@@ -22,27 +24,55 @@ export default function Home() {
             Model application architecture the CSDM way.
           </h1>
           <p className="mt-6 max-w-2xl text-lg text-ink-soft">{site.description}</p>
-          <div className="mt-8 flex flex-wrap gap-3">
-            <a
-              href="/editor"
-              className="inline-flex min-h-11 items-center gap-2 bg-accent px-5 font-medium text-accent-ink hover:opacity-90"
-            >
-              Open the modeler <span aria-hidden="true">→</span>
+          <div className="mt-8 flex flex-wrap items-end gap-3">
+            <a href="/editor" className="cta-extrude">
+              <span>
+                Open the modeler <span aria-hidden="true">→</span>
+              </span>
             </a>
-            <a
-              href="/guide"
-              className="inline-flex min-h-11 items-center gap-2 border border-border px-5 font-medium hover:border-accent hover:text-accent"
-            >
+            <a href="/guide" className="cta-trace inline-flex min-h-11 items-center gap-2 border border-border px-5 font-medium hover:text-accent">
+              <svg aria-hidden="true" focusable="false">
+                <rect x="0" y="0" width="100%" height="100%" fill="none" stroke="var(--accent)" strokeWidth="2" pathLength={100} strokeDasharray="14 86" />
+              </svg>
               Read the class guide
             </a>
           </div>
         </div>
         <figure className="mx-auto w-full max-w-md lg:max-w-none">
-          <HeroFigures>
-            <HeroDiagram />
-          </HeroFigures>
+          <IsoStack />
         </figure>
       </div>
+
+      <section aria-labelledby="figures" className="mt-16">
+        <h2 id="figures" className="font-mono text-sm tracking-[0.14em] text-accent uppercase">
+          {"// The same chain, three ways"}
+        </h2>
+        <ul className="mt-4 grid gap-4 md:grid-cols-3">
+          {heroFigures.map((f, i) => (
+            <li key={f.label}>
+              {/* The figure in words, as the card's description (its name stays short). */}
+              <span id={`fig-desc-${i}`} hidden>
+                {f.desc}
+              </span>
+              <a href={f.href} aria-labelledby={`fig-label-${i}`} aria-describedby={`fig-desc-${i}`} className="fig-card flex h-full flex-col border border-border bg-surface-raised text-ink">
+                <span className="block overflow-hidden border-b border-border p-3" aria-hidden="true">
+                  <span className="fig-tilt hero-sheet block" data-fig={i}>
+                    <HeroDiagram id={`fig-${i}`} />
+                  </span>
+                </span>
+                <span className="flex flex-col gap-2 p-5">
+                  <span className="font-mono text-xs tracking-[0.12em] text-ink-muted uppercase">Fig. {String(i + 1).padStart(2, "0")}</span>
+                  <span id={`fig-label-${i}`} className="text-lg font-medium">
+                    {f.label}
+                  </span>
+                  <span className="text-sm text-ink-soft">{f.summary}</span>
+                  {f.href === "/guide#archimate" && <span className="text-xs text-ink-muted">{ARCHIMATE_TRADEMARK}</span>}
+                </span>
+              </a>
+            </li>
+          ))}
+        </ul>
+      </section>
 
       <ol className="mt-12 grid gap-px border border-border bg-border sm:grid-cols-2 lg:grid-cols-4">
         {layers.map((l) => (
