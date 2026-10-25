@@ -4,3 +4,4 @@ export * from "./schema";
 export * from "./hints";
 export * from "./impact";
 export * from "./views";
+export * from "./compare";

@@ -31,6 +31,8 @@ export type ClassNodeData = {
   faded?: boolean;
   /** Reached by the open blast radius: the start (hop 0) or an element reached at `hop`. */
   blast?: { hop: number; current: boolean; impact: boolean; /** A data flow rather than a blast radius: the flow color throughout. */ flow?: boolean };
+  /** M58: added or changed since the model it is compared with. */
+  diff?: "added" | "changed";
 };
 
 /** ArchiMate-only lens: the element's fill follows its ArchiMate layer (tokens in globals.css). */
@@ -168,6 +170,9 @@ function ClassNodeView({ id, data, selected, dragging }: NodeProps<ClassFlowNode
       ? "ring-2 ring-status ring-offset-2 ring-offset-surface"
       : selected
         ? "outline-2 outline-offset-2 outline-accent"
+        : data.diff
+        ? // Compare (M58): added solid, changed dashed, so the outline's style carries it, not its color alone. A selection's outline wins; the badge stays.
+          `outline-2 outline-offset-2 ${data.diff === "added" ? "outline-valid" : "outline-dashed outline-status"}`
         : data.neighbor
           ? "outline-4 outline-offset-2 outline-neighbor"
           : focus
@@ -184,6 +189,7 @@ function ClassNodeView({ id, data, selected, dragging }: NodeProps<ClassFlowNode
       data-archimate-layer={data.archimateOnly ? data.alt?.layer : undefined}
       data-hovered={focus || undefined}
       data-blast={blast ? (blast.hop === 0 ? "start" : "reached") : undefined}
+      data-diff={!blast ? data.diff : undefined}
       data-blast-hop={blast?.hop}
       data-blast-current={blast?.current || undefined}
       data-flow={blast?.flow || undefined}
@@ -240,6 +246,17 @@ function ClassNodeView({ id, data, selected, dragging }: NodeProps<ClassFlowNode
           }`}
         >
           {blast.hop > 0 ? blast.hop : blast.flow ? "▶" : blast.impact ? "×" : "◎"}
+        </span>
+      )}
+      {data.diff && !blast && (
+        // The node's accessible name says it ("added since …"), so the badge is hidden from it.
+        <span
+          aria-hidden="true"
+          data-testid="diff-badge"
+          data-diff={data.diff}
+          className={`absolute -top-2.5 -left-2.5 flex size-5 items-center justify-center rounded-full font-mono text-[0.75rem] font-semibold text-accent-ink ${data.diff === "added" ? "bg-valid" : "bg-status"}`}
+        >
+          {data.diff === "added" ? "+" : "~"}
         </span>
       )}
       {data.hint && (

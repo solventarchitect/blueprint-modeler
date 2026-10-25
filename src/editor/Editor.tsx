@@ -55,7 +55,7 @@ import { distributeEvenly } from "@/layout/distribute";
 import { autoLayout, DEFAULT_SIZE, fillSpace, type LayoutMode } from "@/layout/layout";
 import { createWorkerEngine } from "@/layout/worker-engine";
 import { classById, classes, isClassId, isExtended, type ClassId, type Layer } from "@/metamodel";
-import { ALL_ELEMENTS, SIDES, attrValue, blastRadius, COLOR_BY_LABEL, evaluateHints, filterActive, formatModelDate, impactEnds, inView, isBusinessAnchor as isAnchor, modelDate, slotMap, UNTITLED_MODEL, type BlastDirection, type Edge, type ColorBy, type HintResult, type Model, type ViewFilter } from "@/model";
+import { ALL_ELEMENTS, FIELD_LABEL, SIDES, attrValue, compareModels, parseModel, blastRadius, COLOR_BY_LABEL, evaluateHints, filterActive, formatModelDate, impactEnds, inView, isBusinessAnchor as isAnchor, modelDate, slotMap, UNTITLED_MODEL, type BlastDirection, type Edge, type ColorBy, type HintResult, type Model, type ViewFilter } from "@/model";
 import { site } from "@/lib/site";
 import { ClassNode, SuggestContext, type ClassFlowNode } from "./ClassNode";
 import { ConnectionLine, ConnectionModelContext, ReconnectingContext } from "./ConnectionLine";
@@ -63,6 +63,7 @@ import { exportItems, ExportMenu, type ExportKind } from "./ExportMenu";
 import { CommandPalette } from "./CommandPalette";
 import type { Command } from "./commands";
 import { ShortcutMap } from "./ShortcutMap";
+import { CompareBar, CompareDialog, compareSummary } from "./Compare";
 import { ARRANGE, SelectionPanel, type ArrangeKind } from "./SelectionPanel";
 import { ViewDialog, ViewLegend, ViewsMenu, type ShownView } from "./Views";
 import { ExamplesMenu } from "./ExamplesMenu";
@@ -305,6 +306,10 @@ function EditorInner() {
   const [palette, setPalette] = useState(false);
   const [shortcuts, setShortcuts] = useState(false);
   const [viewDialog, setViewDialog] = useState(false);
+  /** M58: the Compare dialog, why a chosen file could not be compared, and the open comparison. */
+  const [compareDialog, setCompareDialog] = useState(false);
+  const [compareError, setCompareError] = useState<string | null>(null);
+  const [compare, setCompare] = useState<{ base: Model; label: string } | null>(null);
   const dialogReturn = useRef<HTMLElement | null>(null);
   const [presenting, setPresenting] = useState(false);
   const [step, setStep] = useState(0);
@@ -361,6 +366,18 @@ function EditorInner() {
   const playButton = useRef<HTMLButtonElement>(null);
   const radius = useMemo(() => (blast ? blastRadius(model, blast.start, blast.direction) : null), [model, blast?.start, blast?.direction]); // eslint-disable-line react-hooks/exhaustive-deps -- step and playing do not change the radius
   const blastShown = useMemo(() => (blast && radius ? blastView(model, radius, blast.step, blast.kind) : null), [model, radius, blast]);
+  /** What changed since the compared model (M58), and how each element and relationship shows it. */
+  const comparison = useMemo(() => (compare ? compareModels(model, compare.base) : null), [model, compare]);
+  const diffOf = useMemo(() => {
+    const nodes = new Map<string, { kind: "added" | "changed"; words: string }>();
+    const edges = new Map<string, "added" | "changed">();
+    if (!comparison || !compare) return { nodes, edges };
+    for (const e of comparison.added) nodes.set(e.id, { kind: "added", words: ` (added since “${compare.label}”)` });
+    for (const e of comparison.changed) nodes.set(e.id, { kind: "changed", words: ` (changed since “${compare.label}”: ${e.changes.map((c) => FIELD_LABEL[c.field].toLowerCase()).join(", ")})` });
+    for (const e of comparison.edgesAdded) edges.set(e.id, "added");
+    for (const e of comparison.edgesChanged) edges.set(e.id, "changed");
+    return { nodes, edges };
+  }, [comparison, compare]);
   const isFlow = blast?.kind === "flow";
   /** The open blast radius or data flow, as the isometric picture marks it. */
   const isoHighlight = useMemo(
@@ -512,14 +529,16 @@ function EditorInner() {
           // M54: the view's coloring (a palette slot; none when coloring by layer) and whether it filters this out.
           slot: slotFor?.(n),
           faded: fadedIds.has(n.id) || undefined,
+          // M58: added or changed since the compared model (a blast radius, while open, is the only highlight).
+          diff: blastShown ? undefined : diffOf.nodes.get(n.id)?.kind,
         },
         selected: n.id === selectedId || multiSet.has(n.id),
         // Filtered out: in place and faded, but out of reach (no select, drag, connect or Tab stop).
         ...(fadedIds.has(n.id) ? { selectable: false, draggable: false, connectable: false, focusable: false, deletable: false, className: "bm-faded" } : {}),
-        ariaLabel: `${classById(n.class)?.label ?? n.class}: ${n.name || "Untitled"}${shown.colorBy !== "layer" ? `, ${COLOR_BY_LABEL[shown.colorBy]}: ${attrValue(n, shown.colorBy) || "Not set"}` : ""}${!blastShown && hintLevel.get(n.id) ? " (has hints)" : ""}${!blastShown && neighbors.has(n.id) ? " (connected to the selected element)" : ""}${blastLabel(n.id)}`,
+        ariaLabel: `${classById(n.class)?.label ?? n.class}: ${n.name || "Untitled"}${shown.colorBy !== "layer" ? `, ${COLOR_BY_LABEL[shown.colorBy]}: ${attrValue(n, shown.colorBy) || "Not set"}` : ""}${!blastShown && hintLevel.get(n.id) ? " (has hints)" : ""}${!blastShown && neighbors.has(n.id) ? " (connected to the selected element)" : ""}${blastLabel(n.id)}${blastShown ? "" : (diffOf.nodes.get(n.id)?.words ?? "")}`,
       })),
     // eslint-disable-next-line react-hooks/exhaustive-deps -- drag and measured are refs; dragTick re-runs this
-    [model, selectedId, multiSet, dragTick, hintLevel, highlighted, lens, wide, presenting, dismissed, neighbors, blastShown, fadedIds, shown.colorBy, slotFor],
+    [model, selectedId, multiSet, dragTick, hintLevel, highlighted, lens, wide, presenting, dismissed, neighbors, blastShown, fadedIds, shown.colorBy, slotFor, diffOf],
   );
 
   // Layers as columns (a left-to-right layout): relationships then run sideways between layers.
@@ -597,6 +616,7 @@ function EditorInner() {
           label: view.labels ? edgeLabelOf(e) : undefined,
           className:
             ((fadedIds.has(e.from) || fadedIds.has(e.to) ? "faded " : "") +
+            (!blastShown && diffOf.edges.get(e.id) ? `diff-${diffOf.edges.get(e.id)} ` : "") +
             (carried
               ? `blast${isFlow ? " flow" : ""}${carried.current ? " blast-now" : ""}${carried.forward ? "" : " blast-reverse"}`
               : hinted
@@ -624,7 +644,7 @@ function EditorInner() {
           ariaLabel: `${e.type} from ${model.nodes.find((n) => n.id === e.from)?.name} to ${model.nodes.find((n) => n.id === e.to)?.name}${carried ? (isFlow ? " (carries data)" : " (carries impact)") : ""}`,
         };
       }),
-    [model, hintedEdges, selectedId, lens, blastShown, columns, isFlow, hoveredId, view.labels, edgeLabelOf, fadedIds],
+    [model, hintedEdges, selectedId, lens, blastShown, columns, isFlow, hoveredId, view.labels, edgeLabelOf, fadedIds, diffOf],
   );
 
   /** Several elements selected at once (M57); one or none falls back to the single selection. */
@@ -1485,6 +1505,55 @@ function EditorInner() {
     }
   };
 
+  // Compare (M58): this model against another saved model or a model file.
+  const showComparison = (base: Model, label: string) => {
+    setBlast(null);
+    setCompareError(null);
+    if (compareDialog) dialogClosed(setCompareDialog);
+    setCompare({ base, label });
+    setMessage(`Comparing with “${label}”: ${compareSummary(compareModels(model, base))}.`);
+  };
+  const compareWithModel = async (id: string) => {
+    const base = await doc.read(id);
+    if (!base) return setCompareError("That model could not be read.");
+    showComparison(base, base.name || UNTITLED_MODEL);
+  };
+  const compareWithFile = async (file: File) => {
+    // As Import: bytes first (a character can take up to four), then characters.
+    const tooLarge = "That file is too large to be a model.";
+    if (file.size > MAX_FILE_CHARS * 4) return setCompareError(tooLarge);
+    const text = await file.text();
+    if (text.length > MAX_FILE_CHARS) return setCompareError(tooLarge);
+    let data: unknown;
+    try {
+      data = JSON.parse(text);
+    } catch {
+      return setCompareError("That file is not a model file (it is not JSON).");
+    }
+    const r = parseModel(data);
+    if (!r.ok) return setCompareError(r.error);
+    showComparison(r.model, file.name);
+  };
+  const closeCompare = useCallback(() => {
+    setCompare(null);
+    setMessage("Compare closed.");
+  }, []);
+  // Another model opened: the comparison was of the one before.
+  useEffect(() => setCompare(null), [model.id]);
+  // Escape ends it, unless a menu, dialog, text field or a blast radius has the key.
+  useEffect(() => {
+    if (!compare || presenting || blast || menu || managing || palette || shortcuts || viewDialog || compareDialog) return;
+    const onKey = (e: KeyboardEvent) => {
+      const el = e.target as HTMLElement | null;
+      if (e.key !== "Escape" || e.defaultPrevented) return;
+      if (el && (el.tagName === "INPUT" || el.tagName === "TEXTAREA" || el.tagName === "SELECT" || el.isContentEditable)) return;
+      e.preventDefault();
+      closeCompare();
+    };
+    window.addEventListener("keydown", onKey);
+    return () => window.removeEventListener("keydown", onKey);
+  }, [compare, presenting, blast, menu, managing, palette, shortcuts, viewDialog, compareDialog, closeCompare]);
+
   // Blast radius: the start element, then each hop it reaches, played or stepped by hand.
   const nameOf = (id: string) => model.nodes.find((n) => n.id === id)?.name || "Untitled";
   const openBlast = (id: string, returnTo: HTMLElement | null, direction: BlastDirection = "impact", moveFocus = true, kind: BlastKind = "blast") => {
@@ -1783,6 +1852,8 @@ function EditorInner() {
       ...lineStyles
         .filter((l) => l.id !== view.lines)
         .map((l): Command => ({ id: `lines-${l.id}`, group: "View", label: `Line style: ${l.label}`, keywords: "relationship", run: () => setView({ ...view, lines: l.id }) })),
+      { id: "compare", group: "Model", label: "Compare with…", keywords: "diff changes difference version file saved model", run: () => openDialog(setCompareDialog) },
+      ...(compare ? [{ id: "compare-close", group: "Model", label: "Close compare", keys: "Esc", keywords: "diff", run: closeCompare }] : []),
       { id: "view-edit", group: "Views", label: "Filter and color…", keywords: "view legend color by lifecycle environment owner", run: () => openDialog(setViewDialog) },
       {
         id: "view-all",
@@ -1861,6 +1932,7 @@ function EditorInner() {
           models={doc.models}
           currentId={model.id}
           currentName={model.name}
+          onCompare={() => openDialog(setCompareDialog)}
           onOpen={(id) => {
             setSelectedId(null);
             setActiveHint(null);
@@ -2031,6 +2103,9 @@ function EditorInner() {
         </div>
       )}
 
+      {compare && comparison && !presenting && (
+        <CompareBar base={compare} comparison={comparison} onGo={(id) => goToElement(id, true)} onClose={closeCompare} buttonClass={toolbarButton} />
+      )}
       {blast && radius && !presenting && (
         <div role="region" aria-label={isFlow ? "Data flow" : "Blast radius"} className="flex flex-col gap-1.5 border-b border-border px-4 py-2">
           <div className="flex flex-wrap items-center gap-2">
@@ -2465,6 +2540,19 @@ function EditorInner() {
       />
       {palette && <CommandPalette commands={paletteCommands()} onClose={(chosen) => dialogClosed(setPalette, chosen)} />}
       {shortcuts && <ShortcutMap onClose={() => dialogClosed(setShortcuts)} />}
+      {compareDialog && (
+        <CompareDialog
+          models={doc.models}
+          currentId={model.id}
+          error={compareError}
+          onModel={(id) => void compareWithModel(id)}
+          onFile={(f) => void compareWithFile(f)}
+          onClose={() => {
+            setCompareError(null);
+            dialogClosed(setCompareDialog);
+          }}
+        />
+      )}
       {viewDialog && (
         <ViewDialog
           model={model}
