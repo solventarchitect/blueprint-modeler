@@ -1,6 +1,6 @@
 "use client";
 
-import { useCallback, useEffect, useId, useRef, useState } from "react";
+import { useCallback, useEffect, useId, useMemo, useRef, useState } from "react";
 import type { Layer } from "@/metamodel";
 import { decodeEnds, itemMatches, type ClassKind, type GuideFilter } from "@/guide";
 
@@ -26,6 +26,20 @@ const toggle = <T,>(set: ReadonlySet<T>, v: T) => {
   return next;
 };
 
+/** Whether an entry of the guide's markup matches the filter (its data attributes never change). */
+const matches = (el: HTMLElement, f: GuideFilter) => itemMatches({ text: el.dataset.text ?? "", ends: decodeEnds(el.dataset.ends ?? "") }, f);
+
+/** How many entries each section has that match the filter, read from the guide's static markup. */
+function matchCounts(f: GuideFilter): Record<string, number> {
+  const counts: Record<string, number> = {};
+  for (const section of document.querySelectorAll<HTMLElement>("[data-guide-section]")) {
+    let n = 0;
+    for (const el of section.querySelectorAll<HTMLElement>("[data-guide-item]")) if (matches(el, f)) n++;
+    counts[section.dataset.guideSection ?? ""] = n;
+  }
+  return counts;
+}
+
 /**
  * The guide's tools: a filter box and layer/kind chips that narrow every section, and the section
  * list with how many entries each shows. Sticky beside the guide on wide screens, a bar at the top on
@@ -35,7 +49,6 @@ export function GuideRail({ sections }: { sections: Section[] }) {
   const [query, setQuery] = useState("");
   const [layers, setLayers] = useState<ReadonlySet<Layer>>(new Set());
   const [kinds, setKinds] = useState<ReadonlySet<ClassKind>>(new Set());
-  const [shown, setShown] = useState<Record<string, number>>(() => Object.fromEntries(sections.map((s) => [s.id, s.total])));
   const [current, setCurrent] = useState(sections[0]?.id ?? "");
   const [chipsOpen, setChipsOpen] = useState(false);
   const input = useRef<HTMLInputElement>(null);
@@ -47,6 +60,12 @@ export function GuideRail({ sections }: { sections: Section[] }) {
   const [status, setStatus] = useState("");
   const chipsId = useId();
   const active = query.trim() !== "" || layers.size > 0 || kinds.size > 0;
+  // Counts while filtering, worked out from the markup (no filter is active on the server, nor at
+  // hydration: a query typed before the script loaded is picked up after it).
+  const shown = useMemo(
+    () => (active ? matchCounts({ query, layers, kinds }) : Object.fromEntries(sections.map((s) => [s.id, s.total]))),
+    [active, query, layers, kinds, sections],
+  );
 
   const clear = useCallback(() => {
     if (input.current) input.current.value = "";
@@ -63,11 +82,10 @@ export function GuideRail({ sections }: { sections: Section[] }) {
   // Apply the filter to the page.
   useEffect(() => {
     const f: GuideFilter = { query, layers, kinds };
-    const counts: Record<string, number> = {};
     for (const section of document.querySelectorAll<HTMLElement>("[data-guide-section]")) {
       let n = 0;
       for (const el of section.querySelectorAll<HTMLElement>("[data-guide-item]")) {
-        const match = itemMatches({ text: el.dataset.text ?? "", ends: decodeEnds(el.dataset.ends ?? "") }, f);
+        const match = matches(el, f);
         el.hidden = !match;
         if (match) n++;
       }
@@ -77,9 +95,7 @@ export function GuideRail({ sections }: { sections: Section[] }) {
       }
       const empty = section.querySelector<HTMLElement>("[data-guide-empty]");
       if (empty) empty.hidden = n > 0;
-      counts[section.dataset.guideSection ?? ""] = n;
     }
-    setShown(counts);
     if (pendingHash.current) {
       const id = pendingHash.current;
       pendingHash.current = null;

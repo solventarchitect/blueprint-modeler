@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useEffect, useSyncExternalStore } from "react";
 
 export type Theme = "auto" | "light" | "dark";
 export const THEME_KEY = "bm-theme";
@@ -10,25 +10,39 @@ const label: Record<Theme, string> = { auto: "Auto", light: "Light", dark: "Dark
 /** Runs before first paint (first thing in <body>) so a saved theme never flashes the wrong one. */
 export const themeBootScript = `try{var t=localStorage.getItem("${THEME_KEY}");if(t==="light"||t==="dark")document.documentElement.dataset.theme=t}catch(e){}`;
 
+const CHANGED = "bm-theme-change";
+/** The saved choice; storage blocked (or nothing saved) is Auto, as is a choice made while blocked, kept on the page. */
+let unsaved: Theme | null = null;
+const stored = (): string | null => {
+  try {
+    return localStorage.getItem(THEME_KEY);
+  } catch {
+    return null;
+  }
+};
+const readTheme = (): Theme => {
+  if (unsaved) return unsaved;
+  const t = stored() ?? document.documentElement.dataset.theme ?? null;
+  return t === "light" || t === "dark" ? t : "auto";
+};
+/** This page's own choice (another tab's applies here on the next page load, as before). */
+const subscribe = (onChange: () => void) => {
+  addEventListener(CHANGED, onChange);
+  return () => removeEventListener(CHANGED, onChange);
+};
+
 /** Cycles Auto (OS setting) → Light → Dark. The choice is kept in this browser only. */
 export function ThemeToggle() {
-  const [theme, setTheme] = useState<Theme>("auto");
+  // Read after hydration (the server can't know it): the button says Auto until then.
+  const theme = useSyncExternalStore(subscribe, readTheme, () => "auto" as Theme);
 
   // Storage is the source of truth: re-apply it on mount, and again if anything resets <html>
   // (React rebuilds it after a recoverable hydration error, which drops data-theme).
   useEffect(() => {
-    const stored = () => {
-      try {
-        return localStorage.getItem(THEME_KEY);
-      } catch {
-        return null;
-      }
-    };
     const root = document.documentElement;
     const t = stored() ?? root.dataset.theme ?? null;
     if (t !== "light" && t !== "dark") return;
     root.dataset.theme = t;
-    setTheme(t);
     const observer = new MutationObserver(() => {
       const current = stored();
       if ((current === "light" || current === "dark") && root.dataset.theme !== current) root.dataset.theme = current;
@@ -38,15 +52,17 @@ export function ThemeToggle() {
   }, []);
 
   const choose = (t: Theme) => {
-    setTheme(t);
     if (t === "auto") delete document.documentElement.dataset.theme;
     else document.documentElement.dataset.theme = t;
+    unsaved = null;
     try {
       if (t === "auto") localStorage.removeItem(THEME_KEY);
       else localStorage.setItem(THEME_KEY, t);
     } catch {
       // Storage blocked: the choice still applies until the page is closed.
+      unsaved = t;
     }
+    dispatchEvent(new Event(CHANGED));
   };
 
   return (
