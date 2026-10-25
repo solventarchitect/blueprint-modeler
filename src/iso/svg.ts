@@ -22,8 +22,10 @@ export type IsoOptions = {
   /** Measured element sizes (the canvas's); the export uses the defaults. */
   sizes?: Record<string, Size | undefined>;
   selectedId?: string | null;
-  /** Leave out the title block (the screen shows the canvas title elsewhere). */
+  /** Leave out the title block. */
   untitled?: boolean;
+  /** Prefix for the title and description ids, when the picture shares a page. */
+  idPrefix?: string;
 };
 
 /**
@@ -138,12 +140,13 @@ export function isoToSvg(model: Model, theme: SvgTheme, opts: IsoOptions = {}): 
   const minY = (ys.length ? Math.min(...ys) : 0) - PAD - (tb ? tb.height : 0);
   const maxY = (ys.length ? Math.max(...ys) : 2 * PAD) + PAD;
   const height = Math.ceil(maxY - minY);
+  const ids = opts.idPrefix ?? "";
   const name = model.name || UNTITLED_MODEL;
   const desc = `CSDM model with ${model.nodes.length} elements and ${model.edges.length} relationships, drawn in isometric${mode === "exploded" ? " with its layers spread apart" : ""}: one slab per CSDM layer, Infrastructure lowest, Business highest. Exported from Blueprint Modeler.`;
   return [
     `<?xml version="1.0" encoding="UTF-8"?>`,
-    `<svg xmlns="http://www.w3.org/2000/svg" viewBox="${r1(minX)} ${r1(minY)} ${width} ${height}" width="${width}" height="${height}" role="img" aria-labelledby="t d" data-iso="${mode}">`,
-    `<title id="t">${esc(name)}</title><desc id="d">${esc(desc)}</desc>`,
+    `<svg xmlns="http://www.w3.org/2000/svg" viewBox="${r1(minX)} ${r1(minY)} ${width} ${height}" width="${width}" height="${height}" role="img" aria-labelledby="${ids}t ${ids}d" data-iso="${mode}">`,
+    `<title id="${ids}t">${esc(name)}</title><desc id="${ids}d">${esc(desc)}</desc>`,
     `<defs><marker id="iso-arrow" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse"><path d="M0 0L10 5L0 10z" fill="${p.line}"/></marker>${
       hl ? `<marker id="iso-arrow-blast" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="6" markerHeight="6" orient="auto-start-reverse"><path d="M0 0L10 5L0 10z" fill="${hl.flow ? p.ai : p.status}"/></marker>` : ""
     }</defs>`,

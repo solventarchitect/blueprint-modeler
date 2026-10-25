@@ -13,8 +13,10 @@ export type ZoomCommand = "fit" | "selection" | (typeof ZOOM_PRESETS)[number];
  * Toolbar menu over the viewport: the current zoom as its label, then Fit, Zoom to selection and
  * the presets. The same commands answer Shift+1, Shift+2 and Shift+0 on the canvas (see Editor).
  */
-export function ZoomMenu({ onCommand, canZoomToSelection, buttonClass }: { onCommand: (c: ZoomCommand) => void; canZoomToSelection: boolean; buttonClass: string }) {
-  const zoom = useStore((s) => s.transform[2]);
+export function ZoomMenu({ onCommand, canZoomToSelection, buttonClass, level }: { onCommand: (c: ZoomCommand) => void; canZoomToSelection: boolean; buttonClass: string; level?: number }) {
+  const canvasZoom = useStore((s) => s.transform[2]);
+  // `level`: another picture's zoom (the isometric view's, M59) shown instead of the canvas's.
+  const zoom = level ?? canvasZoom;
   const [open, setOpen] = useState(false);
   const root = useRef<HTMLDivElement>(null);
   const button = useRef<HTMLButtonElement>(null);

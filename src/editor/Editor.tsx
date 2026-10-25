@@ -76,6 +76,9 @@ import { ModelMenu } from "./ModelMenu";
 import { LayerOverlay, layerHandleId, type LayerHandlers } from "./LayerOverlay";
 import { DEFAULT_VIEW, lineStyles, readView, saveView, viewItems, ViewMenu, type ViewOptions } from "./ViewMenu";
 import { ZOOM_PRESETS, ZoomMenu, type ZoomCommand } from "./ZoomMenu";
+import { IsoView, type IsoHandle } from "./IsoView";
+import { isoToSvg } from "@/iso/svg";
+import type { IsoMode } from "@/iso/scene";
 import { HintsPanel } from "./HintsPanel";
 import { markerId, NotationLegend, NotationMarkers, type EdgeTone } from "./Notation";
 import { ReadPanel } from "./ReadPanel";
@@ -224,6 +227,10 @@ function EditorInner() {
   // The first fit, before any model is measured: the room at zoom 1 is the most ever needed.
   const firstFitOptions = { maxZoom: 1, padding: { x: FIT_PAD, bottom: FIT_PAD, top: `${titleRoom(!!model.description, 1)}px` } } as const;
   const [selectedId, setSelectedId] = useState<string | null>(null);
+  /** How the canvas shows the model (M59): Plan (the editable canvas), Isometric or Exploded (read-only pictures). */
+  const [projection, setProjection] = useState<"plan" | IsoMode>("plan");
+  const isoRef = useRef<IsoHandle>(null);
+  const [isoZoom, setIsoZoom] = useState(1);
   /** The selection as the zoom shortcuts see it: their listener is bound once, so it reads a ref. */
   const selectedRef = useRef<string | null>(null);
   useEffect(() => {
@@ -232,6 +239,8 @@ function EditorInner() {
   /** Zoom menu and Shift+1/2/0 (M49): fit, the selected element, or a preset level around the center. */
   const zoomCommand = useCallback(
     (c: ZoomCommand) => {
+      // The isometric picture has its own pan and zoom.
+      if (isoRef.current) return isoRef.current.zoom(c);
       const duration = prefersStill() ? 0 : 300;
       if (c === "fit") void flow.fitView({ maxZoom: 1, padding: fitPadding(0.15), duration });
       else if (c === "selection") {
@@ -316,6 +325,16 @@ function EditorInner() {
   const radius = useMemo(() => (blast ? blastRadius(model, blast.start, blast.direction) : null), [model, blast?.start, blast?.direction]); // eslint-disable-line react-hooks/exhaustive-deps -- step and playing do not change the radius
   const blastShown = useMemo(() => (blast && radius ? blastView(model, radius, blast.step, blast.kind) : null), [model, radius, blast]);
   const isFlow = blast?.kind === "flow";
+  /** The open blast radius or data flow, as the isometric picture marks it. */
+  const isoHighlight = useMemo(
+    () => (blastShown && radius ? { impact: !isFlow && radius.direction === "impact", flow: isFlow, nodes: blastShown.nodes, edges: blastShown.edges } : undefined),
+    [blastShown, radius, isFlow],
+  );
+  const PROJECTION_LABEL = { plan: "Plan", iso: "Isometric", exploded: "Exploded" } as const;
+  const chooseProjection = (p: "plan" | IsoMode) => {
+    setProjection(p);
+    setMessage(p === "plan" ? "Plan view: edit the model on the canvas." : `${PROJECTION_LABEL[p]} view, read only: drag or use the arrow keys to pan, the wheel or plus and minus to zoom. Switch to Plan to edit.`);
+  };
   // The words for the open view: a blast radius speaks of hops and impact, a data flow of steps and data.
   const words = (kind: BlastKind) => (kind === "flow" ? { progress: flowProgress, announce: flowAnnouncement, steps: flowSteps } : { progress: blastProgress, announce: blastAnnouncement, steps: blastSteps });
 
@@ -409,7 +428,8 @@ function EditorInner() {
   };
   const shown = activeView.modelId === model.id ? { ...activeView, id: model.views?.some((v) => v.id === activeView.id) ? activeView.id : null } : { modelId: model.id, id: null, ...ALL_ELEMENTS };
   // Images follow the view on screen (M54); data exports always carry the whole model.
-  const imageView = { filter: shown.filter, colorBy: shown.colorBy, name: model.views?.find((v) => v.id === shown.id)?.name };
+  const viewName = model.views?.find((v) => v.id === shown.id)?.name;
+  const imageView = useMemo(() => ({ filter: shown.filter, colorBy: shown.colorBy, name: viewName }), [shown.filter, shown.colorBy, viewName]);
   const showView = (v: ShownView) => setActiveView({ modelId: model.id, ...v });
   /** Switch views from the menu or the palette, and say what it shows. */
   const pickView = (v: ShownView) => {
@@ -912,6 +932,9 @@ function EditorInner() {
     }
   };
 
+  /** The image exports' picture: the plan, or the isometric projection on screen (M59), following the view. */
+  const picture = (theme: "dark" | "light") =>
+    projection === "plan" ? modelToSvg(model, theme, { lens, lines: view.lines, labels: view.labels, view: imageView }) : isoToSvg(model, theme, { mode: projection, view: imageView });
   const exportAs = (kind: ExportKind) => {
     if (kind === "blast-gif" || kind === "flow-gif") {
       void exportBlastGif();
@@ -937,8 +960,8 @@ function EditorInner() {
       });
     } else if (kind === "png-dark" || kind === "png-light") {
       const theme = kind === "png-dark" ? "dark" : "light";
-      const filename = `${fileBase(model)}-${theme}.png`;
-      const svg = modelToSvg(model, theme, { lens, lines: view.lines, labels: view.labels, view: imageView });
+      const filename = `${fileBase(model)}${projection === "plan" ? "" : `-${projection}`}-${theme}.png`;
+      const svg = picture(theme);
       const size = /width="([\d.]+)" height="([\d.]+)"/.exec(svg);
       setMessage(`Making ${filename}…`);
       void svgToPng(svg, size ? pngScale(Number(size[1]), Number(size[2])) : 2)
@@ -948,11 +971,11 @@ function EditorInner() {
         }))
         .catch(() => setMessage("Could not make the PNG in this browser. Nothing was saved."));
     } else if (kind === "print") {
-      printSvg(modelToSvg(model, "light", { lens, lines: view.lines, labels: view.labels, view: imageView }), fileBase(model));
+      printSvg(picture("light"), fileBase(model));
     } else {
       const theme = kind === "svg-dark" ? "dark" : "light";
-      const filename = `${fileBase(model)}-${theme}.svg`;
-      downloadText(filename, modelToSvg(model, theme, { lens, lines: view.lines, labels: view.labels, view: imageView }), "image/svg+xml");
+      const filename = `${fileBase(model)}${projection === "plan" ? "" : `-${projection}`}-${theme}.svg`;
+      downloadText(filename, picture(theme), "image/svg+xml");
       setMessage(`Exported ${filename}.`);
     }
   };
@@ -1555,6 +1578,9 @@ function EditorInner() {
         run: () => pickView({ id: null, filter: {}, colorBy: "layer" }),
       },
       ...(model.views ?? []).map((v): Command => ({ id: `view-${v.id}`, group: "Views", label: `View: ${v.name}`, keywords: "saved view", run: () => pickView({ id: v.id, filter: v.filter, colorBy: v.colorBy }) })),
+      ...(["plan", "iso", "exploded"] as const)
+        .filter((p) => p !== projection)
+        .map((p): Command => ({ id: `projection-${p}`, group: "Projection", label: `${PROJECTION_LABEL[p]} view`, keywords: p === "plan" ? "edit 2d canvas" : "isometric 3d layers stack read only", run: () => chooseProjection(p) })),
       { id: "zoom-fit", group: "Zoom", label: "Fit view", keys: "Shift+1", keywords: "whole model", run: () => zoomCommand("fit") },
       { id: "zoom-selection", group: "Zoom", label: "Zoom to selection", keys: "Shift+2", disabled: selectedId ? undefined : "Select an element first", run: () => zoomCommand("selection") },
       ...ZOOM_PRESETS.map((z): Command => ({ id: `zoom-${z}`, group: "Zoom", label: `Zoom to ${z * 100}%`, keys: z === 1 ? "Shift+0" : undefined, run: () => zoomCommand(z) })),
@@ -1690,7 +1716,7 @@ function EditorInner() {
           {wide && <LayoutMenu busy={layingOut} disabled={model.nodes.length === 0} onChoose={chooseLayout} buttonClass={toolbarButton} />}
           <ViewMenu value={view} onChange={setView} buttonClass={toolbarButton} />
           <ViewsMenu model={model} shown={shown} onShow={pickView} onEdit={() => openDialog(setViewDialog)} buttonClass={toolbarButton} />
-          <ZoomMenu onCommand={zoomCommand} canZoomToSelection={!!selectedId} buttonClass={toolbarButton} />
+          <ZoomMenu onCommand={zoomCommand} canZoomToSelection={!!selectedId} buttonClass={toolbarButton} level={projection === "plan" ? undefined : isoZoom} />
         </div>
         <span className={toolbarDivider} aria-hidden="true" />
         <div role="group" aria-label="Lens" className={toolbarGroup}>
@@ -1707,6 +1733,25 @@ function EditorInner() {
               ))}
             </select>
           </label>
+        </div>
+        {/* Projection (M59): the editable plan, or the model in isometric, layers close or spread. */}
+        <div role="group" aria-label="Projection" className={toolbarGroup}>
+          <span className={groupCaption} aria-hidden="true">
+            Projection
+          </span>
+          <div className="flex">
+            {(["plan", "iso", "exploded"] as const).map((p, i) => (
+              <button
+                key={p}
+                type="button"
+                aria-pressed={projection === p}
+                onClick={() => chooseProjection(p)}
+                className={`${toolbarButton} ${i ? "-ml-px" : ""} ${projection === p ? "relative !border-accent !bg-accent !text-accent-ink" : ""}`}
+              >
+                {p === "plan" ? "Plan" : p === "iso" ? "Iso" : "Exploded"}
+              </button>
+            ))}
+          </div>
         </div>
         {/* Commands and Present wrap together, so Present never sits alone on a second row. */}
         <div className="flex items-center gap-2">
@@ -1856,6 +1901,8 @@ function EditorInner() {
         <div className="relative min-w-0 flex-1 bg-canvas" aria-label="Model canvas" role="region" onKeyDown={onCanvasKeyDown}>
           <ConnectionModelContext.Provider value={model}>
           <SuggestContext.Provider value={suggestCtx}>
+          {/* In an isometric projection the plan canvas stays mounted underneath, out of reach. */}
+          <div className="contents" inert={projection !== "plan" || undefined}>
           <LabelObstacles boxes={boxes} tabsAbove={canMenu} show={(view.boxes || presenting) && !view.lanes} plan={labelPlan}>
           <LineStyleContext.Provider value={view.lines}>
             <ReactFlow<ClassFlowNode, FlowEdge>
@@ -1985,8 +2032,22 @@ function EditorInner() {
             </ReactFlow>
           </LineStyleContext.Provider>
           </LabelObstacles>
+          </div>
           </SuggestContext.Provider>
           </ConnectionModelContext.Provider>
+          {projection !== "plan" && (
+            <IsoView
+              ref={isoRef}
+              model={model}
+              mode={projection}
+              view={imageView}
+              highlight={isoHighlight}
+              sizes={measured.current}
+              selectedId={selectedId}
+              onSelect={(id) => (id ? selectNode(id) : setSelectedId(null))}
+              onZoom={setIsoZoom}
+            />
+          )}
           {model.nodes.length === 0 && doc.status !== "loading" && blankFor !== model.id && (
             <div className="pointer-events-none absolute inset-0 flex items-center justify-center p-6">
               <div data-testid="empty-state" className="pointer-events-auto max-h-full max-w-lg overflow-y-auto border border-border bg-surface-raised p-6">
