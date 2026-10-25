@@ -2,7 +2,8 @@ import { classById } from "@/metamodel";
 import { filterActive, inView, slotColor, slotMap, slotMarker, UNTITLED_MODEL, type Model } from "@/model";
 import { clip, esc, layerColor, MONO, palettes, SANS, svgTitleBlock, type SvgHighlight, type SvgTheme, type SvgView } from "@/io/svg";
 import type { Size } from "@/layout/layout";
-import { behind, boxFaces, drawOrder, isoScene, project, SLAB, type IsoMode, type P3 } from "./scene";
+import { behind, boxFaces, drawOrder, isoScene, project, RANK, SLAB, type IsoMode, type P3 } from "./scene";
+import type { Layer } from "@/metamodel";
 
 /** Mixes `a` into `b` by `t` (sRGB, 0–1); both "#rrggbb". */
 export function mix(a: string, b: string, t: number): string {
@@ -26,6 +27,10 @@ export type IsoOptions = {
   untitled?: boolean;
   /** Prefix for the title and description ids, when the picture shares a page. */
   idPrefix?: string;
+  /** Present: the layer being shown, lifted above its place and outlined. */
+  lift?: Layer;
+  /** On screen: packets running along the relationships a blast radius or data flow carried. */
+  packets?: boolean;
 };
 
 /**
@@ -43,7 +48,7 @@ export function isoToSvg(model: Model, theme: SvgTheme, opts: IsoOptions = {}): 
   const faded = new Set(view ? model.nodes.filter((n) => !inView(n, view.filter)).map((n) => n.id) : []);
   const slotFor = view ? slotMap(model, view.colorBy) : null;
   const hl = opts.highlight;
-  const scene = isoScene(model, mode, opts.sizes);
+  const scene = isoScene(model, mode, opts.sizes, opts.lift);
   const nodeById = new Map(model.nodes.map((n) => [n.id, n]));
 
   const quad = (ps: P3[], fill: string, stroke: string, extra = "") => `<polygon points="${pts(ps)}" fill="${fill}" stroke="${stroke}" stroke-width="1" stroke-linejoin="round"${extra}/>`;
@@ -52,11 +57,15 @@ export function isoToSvg(model: Model, theme: SvgTheme, opts: IsoOptions = {}): 
     const slab = scene.slabs.find((s) => s.layer === layer)!;
     const c = layerColor(p, layer);
     const f = boxFaces(slab.rect, slab.top - SLAB, slab.top);
+    const lifted = opts.lift === layer;
+    const rim = lifted ? p.accent : mix(c, p.bg, 0.5);
+    // Each layer is one group (its slab, pipes and blocks), so the screen can raise it into place.
+    body.push(`<g data-iso-layer="${layer}" data-rank="${RANK[layer]}"${lifted ? ` data-lifted=""` : ""}>`);
     body.push(
       `<g data-iso-slab="${layer}">` +
-        quad(f.left, mix(c, p.bg, 0.05), mix(c, p.bg, 0.5)) +
-        quad(f.right, mix(c, p.bg, 0.08), mix(c, p.bg, 0.5)) +
-        quad(f.top, mix(c, p.bg, 0.1), mix(c, p.bg, 0.5)) +
+        quad(f.left, mix(c, p.bg, 0.05), rim) +
+        quad(f.right, mix(c, p.bg, 0.08), rim) +
+        quad(f.top, mix(c, p.bg, 0.1), rim, lifted ? ` stroke-width="2"` : "") +
         `</g>`,
     );
     // Pipes on this slab, under its blocks.
@@ -79,6 +88,7 @@ export function isoToSvg(model: Model, theme: SvgTheme, opts: IsoOptions = {}): 
           `</g>`,
       );
     }
+    body.push(`</g>`);
   }
   // Lines between layers, over everything they pass.
   for (const e of scene.edges.filter((x) => x.across)) body.push(pipe(e.id, e.from, e.to, e.points));
@@ -161,7 +171,13 @@ export function isoToSvg(model: Model, theme: SvgTheme, opts: IsoOptions = {}): 
     const carried = hl?.edges.get(id);
     const fade = faded.has(from) || faded.has(to);
     const stroke = carried ? `stroke="${hl?.flow ? p.ai : p.status}" stroke-width="2.5"${carried.current ? ` stroke-dasharray="10 6"` : ""}` : `stroke="${p.line}" stroke-width="1.5"`;
-    return `<polyline data-iso-rel="${esc(id)}" points="${pts(points)}" fill="none" ${stroke} stroke-linejoin="round" marker-end="url(#${carried ? "iso-arrow-blast" : "iso-arrow"})"${fade ? ` opacity="0.2" data-faded=""` : ""}/>`;
+    const line = `<polyline data-iso-rel="${esc(id)}" points="${pts(points)}" pathLength="100" fill="none" ${stroke} stroke-linejoin="round" marker-end="url(#${carried ? "iso-arrow-blast" : "iso-arrow"})"${fade ? ` opacity="0.2" data-faded=""` : ""}/>`;
+    // A packet runs the way the impact or the data travels (backward when the walk went against the arrow).
+    const packet =
+      opts.packets && carried
+        ? `<polyline data-iso-packet="${carried.forward === false ? "back" : "on"}" points="${pts(points)}" pathLength="100" fill="none" stroke="${hl?.flow ? p.ai : p.status}" stroke-width="5" stroke-linecap="round" stroke-dasharray="3 97"/>`
+        : "";
+    return line + packet;
   }
 
   function marker(slot: Parameters<typeof slotMarker>[0], top: P3[], ghost: boolean) {

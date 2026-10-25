@@ -7,6 +7,7 @@ import type { SvgHighlight, SvgTheme, SvgView } from "@/io/svg";
 import { isoScene, project, type IsoMode } from "@/iso/scene";
 import { isoToSvg } from "@/iso/svg";
 import type { ZoomCommand } from "./ZoomMenu";
+import type { Layer } from "@/metamodel";
 
 /** What the editor can ask of the isometric view: the Zoom menu's commands. */
 export type IsoHandle = { zoom: (c: ZoomCommand) => void };
@@ -52,6 +53,7 @@ export function IsoView({
   selectedId,
   onSelect,
   onZoom,
+  lift,
   ref,
 }: {
   model: Model;
@@ -63,13 +65,15 @@ export function IsoView({
   onSelect: (id: string | null) => void;
   /** Tells the Zoom menu the picture's zoom. */
   onZoom?: (k: number) => void;
+  /** Present: the layer being shown, lifted. */
+  lift?: Layer;
   ref?: Ref<IsoHandle>;
 }) {
   const theme = useViewedTheme();
   const box = useRef<HTMLDivElement>(null);
   const svg = useMemo(
-    () => isoToSvg(model, theme, { mode, view, highlight, sizes, selectedId, idPrefix: "iso-" }).replace(/^<\?xml[^>]*>\n/, ""),
-    [model, theme, mode, view, highlight, sizes, selectedId],
+    () => isoToSvg(model, theme, { mode, view, highlight, sizes, selectedId, lift, packets: true, idPrefix: "iso-" }).replace(/^<\?xml[^>]*>\n/, ""),
+    [model, theme, mode, view, highlight, sizes, selectedId, lift],
   );
   // The picture's own size and origin, from its viewBox.
   const vb = useMemo(() => {
@@ -87,12 +91,21 @@ export function IsoView({
   }, [vb.w, vb.h]);
   // Fit on entering and when the layers spread or close; not on every edit, so the reader keeps their place.
   const fitted = useRef<string>("");
+  const entering = useRef<ReturnType<typeof setTimeout>>(undefined);
   useLayoutEffect(() => {
     const key = `${model.id}:${mode}`;
     if (fitted.current === key) return;
     fitted.current = key;
     fit();
+    // Raise the layers into place (CSS, on this element only for the moment, so later redraws such
+    // as a new selection do not replay it).
+    const el = box.current;
+    if (!el) return;
+    el.classList.add("iso-entering");
+    clearTimeout(entering.current);
+    entering.current = setTimeout(() => el.classList.remove("iso-entering"), 1300);
   }, [model.id, mode, fit]);
+  useEffect(() => () => clearTimeout(entering.current), []);
 
   const zoomAt = useCallback((k: number, px: number, py: number) => {
     setT((c) => {

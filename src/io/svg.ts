@@ -25,7 +25,8 @@ export type SvgHighlight = {
   /** A data flow: every mark and carried line in the flow color, the source marked ▶. */
   flow?: boolean;
   nodes: ReadonlyMap<string, { hop: number; current: boolean }>;
-  edges: ReadonlyMap<string, { current: boolean }>;
+  /** `forward`: whether the impact or data runs the way the relationship points (the isometric packets use it). */
+  edges: ReadonlyMap<string, { current: boolean; forward?: boolean }>;
   /** `reserve`: characters of width to keep for the caption, so frames with shorter captions match in size. */
   caption?: { label: string; text: string; reserve?: number };
 };

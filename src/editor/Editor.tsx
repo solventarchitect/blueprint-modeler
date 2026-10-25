@@ -119,7 +119,7 @@ const primaryButton =
   "inline-flex min-h-8 cursor-pointer items-center gap-1.5 border border-accent bg-accent px-3 text-sm font-medium text-accent-ink hover:opacity-90 disabled:cursor-not-allowed disabled:opacity-60";
 /** Toolbar groups (Model, Edit, Arrange, Lens): a caption on wide screens, a divider between groups. */
 const toolbarGroup = "flex flex-wrap items-center gap-1.5";
-const groupCaption = "mr-0.5 hidden font-mono text-[0.65rem] tracking-[0.14em] text-ink-muted uppercase min-[1880px]:inline";
+const groupCaption = "mr-0.5 hidden font-mono text-[0.65rem] tracking-[0.14em] text-ink-muted uppercase min-[2120px]:inline";
 const toolbarDivider = "h-6 w-px bg-border-strong/50";
 const toolbarSelect = "min-h-8 max-w-60 border border-border-strong bg-surface-raised px-2 text-sm text-ink";
 /** Minimap node fill per CSDM layer: the same tokens as the nodes' left borders (layerAccent). */
@@ -1383,12 +1383,14 @@ function EditorInner() {
   }, [blast, menu, managing, palette, shortcuts, viewDialog, closeBlast]);
 
   // Present mode: the canvas alone, full screen, stepping through the model layer by layer.
-  const steps = useMemo(() => [{ name: "Overview", nodeIds: [] as string[] }, ...boxes.map((b) => ({ name: b.name, nodeIds: b.nodeIds }))], [boxes]);
+  const steps = useMemo(() => [{ name: "Overview", nodeIds: [] as string[], layer: undefined as Layer | undefined }, ...boxes.map((b) => ({ name: b.name, nodeIds: b.nodeIds, layer: b.layer as Layer | undefined }))], [boxes]);
   const goTo = useCallback(
     (i: number) => {
       const next = Math.max(0, Math.min(i, steps.length - 1));
       setStep(next);
       const target = steps[next]!;
+      // In isometric the step lifts its layer (see IsoView's lift); the picture refits after it redraws.
+      if (isoRef.current) return void setTimeout(() => isoRef.current?.zoom("fit"), 0);
       void flow.fitView(target.nodeIds.length ? { nodes: target.nodeIds.map((id) => ({ id })), padding: 0.25, maxZoom: 1.25, duration: 400 } : { padding: fitPadding(0.12), maxZoom: 1, duration: 400 });
     },
     [steps, flow, fitPadding],
@@ -1406,7 +1408,8 @@ function EditorInner() {
     }
     setTimeout(() => {
       exitButton.current?.focus();
-      void flow.fitView({ padding: fitPadding(0.12), maxZoom: 1, duration: 300 });
+      if (isoRef.current) isoRef.current.zoom("fit");
+      else void flow.fitView({ padding: fitPadding(0.12), maxZoom: 1, duration: 300 });
     }, 60);
   };
   const stopPresenting = useCallback(() => {
@@ -1414,7 +1417,8 @@ function EditorInner() {
     if (document.fullscreenElement) void document.exitFullscreen().catch(() => undefined);
     setTimeout(() => {
       presentButton.current?.focus();
-      void flow.fitView({ maxZoom: 1, padding: fitPadding(0.15) });
+      if (isoRef.current) isoRef.current.zoom("fit");
+      else void flow.fitView({ maxZoom: 1, padding: fitPadding(0.15) });
     }, 60);
   }, [flow, fitPadding]);
   useEffect(() => {
@@ -1755,10 +1759,10 @@ function EditorInner() {
         </div>
         {/* Commands and Present wrap together, so Present never sits alone on a second row. */}
         <div className="flex items-center gap-2">
-          {/* Icon only from 1608 to 1679px: there the word would push Present onto a second row (narrower, the toolbar has two rows anyway). */}
+          {/* Icon only from 1778 to 1847px: there the word would push Present onto a second row (narrower, the toolbar has two rows anyway). */}
           <button type="button" className={toolbarButton} onClick={() => openDialog(setPalette)} aria-label="Commands" title="Commands (Ctrl+K or ⌘K)" aria-keyshortcuts="Control+K Meta+K">
             <ToolbarIcon name="commands" />
-            <span aria-hidden="true" className="min-[1608px]:max-[1679px]:hidden">
+            <span aria-hidden="true" className="min-[1778px]:max-[1847px]:hidden">
               Commands
             </span>
           </button>
@@ -2046,6 +2050,7 @@ function EditorInner() {
               selectedId={selectedId}
               onSelect={(id) => (id ? selectNode(id) : setSelectedId(null))}
               onZoom={setIsoZoom}
+              lift={presenting ? steps[step]?.layer : undefined}
             />
           )}
           {model.nodes.length === 0 && doc.status !== "loading" && blankFor !== model.id && (

@@ -25,12 +25,14 @@ export type IsoEdge = { id: string; from: string; to: string; points: P3[]; acro
 export type IsoScene = { slabs: IsoSlab[]; blocks: IsoBlock[]; edges: IsoEdge[]; mode: IsoMode };
 
 /** Bottom to top: how many steps above the ground each layer stands. */
-const RANK: Record<Layer, number> = { infrastructure: 0, functional: 1, service: 2, design: 3, business: 4 };
+export const RANK: Record<Layer, number> = { infrastructure: 0, functional: 1, service: 2, design: 3, business: 4 };
 /** The rise from one layer to the next, by mode (the design system's elevation scale: z-3 tight, past z-4 exploded). */
 export const STEP: Record<IsoMode, number> = { iso: 48, exploded: 160 };
 /** Block heights by layer: platforms lie flat, things closer to the business stand taller. */
 export const HEIGHT: Record<Layer, number> = { infrastructure: 22, functional: 28, service: 34, design: 40, business: 46 };
 export const SLAB = 8;
+/** How far Present lifts the layer it is showing above its place. */
+export const LIFT = 36;
 /** How far a block stands in from its 2D box, so neighbors read as separate blocks. */
 const INSET = 6;
 
@@ -46,10 +48,11 @@ function exitPoint(r: Rect, from: { x: number; y: number }, to: { x: number; y: 
   return { x: to.x > from.x ? r.x + r.w : r.x, y: from.y };
 }
 
-export function isoScene(model: Model, mode: IsoMode, sizes: Record<string, Size | undefined> = {}): IsoScene {
+/** `lift`: a layer Present is showing, raised above its place. */
+export function isoScene(model: Model, mode: IsoMode, sizes: Record<string, Size | undefined> = {}, lift?: Layer): IsoScene {
   const step = STEP[mode];
   const layerOf = new Map(model.nodes.map((n) => [n.id, classById(n.class)?.layer ?? "design"] as const));
-  const top = (layer: Layer) => RANK[layer] * step;
+  const top = (layer: Layer) => RANK[layer] * step + (layer === lift ? LIFT : 0);
   const slabs: IsoSlab[] = layerBoxes(model, sizes).map((b) => ({ layer: b.layer, rect: { x: b.x, y: b.y, w: b.w, d: b.h }, top: top(b.layer) }));
   const blocks: IsoBlock[] = [];
   for (const n of model.nodes) {

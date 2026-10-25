@@ -858,6 +858,58 @@
   }
 }
 
+/*
+ * The isometric view (M59). On entering it, or switching between Iso and Exploded, the layers rise
+ * into place bottom-up (extrude, 60 ms apart) and the relationships draw in after them; packets run
+ * along a blast radius or data flow. Only transform and stroke-dashoffset animate; reduced motion
+ * shows the end state at once and no packets.
+ */
+.iso-entering [data-iso-layer] {
+  animation: iso-view-rise 600ms cubic-bezier(0.34, 1.32, 0.64, 1) both;
+}
+.iso-entering [data-rank="1"] { animation-delay: 60ms; }
+.iso-entering [data-rank="2"] { animation-delay: 120ms; }
+.iso-entering [data-rank="3"] { animation-delay: 180ms; }
+.iso-entering [data-rank="4"] { animation-delay: 240ms; }
+.iso-entering polyline[data-iso-rel]:not([stroke-dasharray]) {
+  stroke-dasharray: 100;
+  animation: iso-view-draw 900ms cubic-bezier(0.2, 0, 0, 1) 300ms both;
+}
+[data-iso-packet] {
+  animation: iso-view-packet 2.4s linear infinite;
+}
+[data-iso-packet="back"] {
+  animation-direction: reverse;
+}
+@keyframes iso-view-rise {
+  from {
+    transform: translateY(32px);
+  }
+}
+@keyframes iso-view-draw {
+  from {
+    stroke-dashoffset: 100;
+  }
+  to {
+    stroke-dashoffset: 0;
+  }
+}
+@keyframes iso-view-packet {
+  to {
+    stroke-dashoffset: -100;
+  }
+}
+@media (prefers-reduced-motion: reduce) {
+  /* As specific as the rules they stop. */
+  .iso-entering [data-iso-layer],
+  .iso-entering polyline[data-iso-rel]:not([stroke-dasharray]) {
+    animation: none;
+  }
+  [data-iso-packet] {
+    display: none;
+  }
+}
+
 /* Print (M51): while #bm-print is in the page, print only the image; on screen it never shows. */
 #bm-print {
   display: none;
