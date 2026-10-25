@@ -45,8 +45,11 @@ test("with storage blocked, the theme toggle still cycles and says which theme i
   await page.goto("/");
   const toggle = page.getByTestId("theme-toggle");
   await expect(toggle).toHaveAccessibleName(/Color theme: Auto/);
-  await toggle.click();
-  await expect(toggle).toHaveAccessibleName(/Color theme: Light/);
+  // The static page already reads Auto: retry the first click until the page has hydrated.
+  await expect(async () => {
+    await toggle.click();
+    await expect(toggle).toHaveAccessibleName(/Color theme: Light/, { timeout: 1000 });
+  }).toPass();
   await expect(page.locator("html")).toHaveAttribute("data-theme", "light");
   await toggle.click();
   await expect(toggle).toHaveAccessibleName(/Color theme: Dark/);

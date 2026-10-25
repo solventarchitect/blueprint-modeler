@@ -11,8 +11,6 @@ const label: Record<Theme, string> = { auto: "Auto", light: "Light", dark: "Dark
 export const themeBootScript = `try{var t=localStorage.getItem("${THEME_KEY}");if(t==="light"||t==="dark")document.documentElement.dataset.theme=t}catch(e){}`;
 
 const CHANGED = "bm-theme-change";
-/** The saved choice; storage blocked (or nothing saved) is Auto, as is a choice made while blocked, kept on the page. */
-let unsaved: Theme | null = null;
 const stored = (): string | null => {
   try {
     return localStorage.getItem(THEME_KEY);
@@ -20,9 +18,9 @@ const stored = (): string | null => {
     return null;
   }
 };
+/** The theme on the page: the boot script and every choice set it on <html>, so the label always matches it. */
 const readTheme = (): Theme => {
-  if (unsaved) return unsaved;
-  const t = stored() ?? document.documentElement.dataset.theme ?? null;
+  const t = document.documentElement.dataset.theme;
   return t === "light" || t === "dark" ? t : "auto";
 };
 /** This page's own choice (another tab's applies here on the next page load, as before). */
@@ -54,13 +52,11 @@ export function ThemeToggle() {
   const choose = (t: Theme) => {
     if (t === "auto") delete document.documentElement.dataset.theme;
     else document.documentElement.dataset.theme = t;
-    unsaved = null;
     try {
       if (t === "auto") localStorage.removeItem(THEME_KEY);
       else localStorage.setItem(THEME_KEY, t);
     } catch {
       // Storage blocked: the choice still applies until the page is closed.
-      unsaved = t;
     }
     dispatchEvent(new Event(CHANGED));
   };
