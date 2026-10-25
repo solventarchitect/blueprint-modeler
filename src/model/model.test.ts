@@ -190,6 +190,15 @@ describe("saved views in the model file (M54, still format 1)", () => {
     expect(bad(Array.from({ length: 21 }, (_, i) => ({ id: `v${i}`, name: `V${i}`, filter: {}, colorBy: "layer" }))).ok).toBe(false);
     expect(bad([{ id: "v", name: "x", filter: {}, colorBy: "layer" }, { id: "v", name: "y", filter: {}, colorBy: "layer" }]).ok).toBe(false);
   });
+
+  it("keeps a view's grouping (M56); one this version does not know drops the grouping, not the file", () => {
+    const m: Model = { ...withViews(), views: [{ id: "v", name: "By app", filter: {}, colorBy: "layer", groupBy: "business_application" }] };
+    const r = roundTrip(m);
+    expect(r.ok && r.model.views?.[0]?.groupBy).toBe("business_application");
+    const later = parseModel({ ...JSON.parse(serializeModel(m)), views: [{ id: "v", name: "By team", filter: {}, colorBy: "layer", groupBy: "team" }] });
+    expect(later.ok).toBe(true);
+    expect(later.ok && later.model.views?.[0]?.groupBy).toBeUndefined();
+  });
 });
 
 describe("connection points in the file (M61)", () => {

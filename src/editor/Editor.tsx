@@ -52,10 +52,11 @@ import { edgePath } from "@/layout/edgePath";
 import { edgeEnds, type Side } from "@/layout/geometry";
 import { alignNodes, boundsOf, snapToGuides, type Guide } from "@/layout/align";
 import { distributeEvenly } from "@/layout/distribute";
+import { arrangeByGroups, groupFrames, ownGroups, type Frame } from "@/layout/groupLayout";
 import { autoLayout, DEFAULT_SIZE, fillSpace, type LayoutMode } from "@/layout/layout";
 import { createWorkerEngine } from "@/layout/worker-engine";
 import { classById, classes, isClassId, isExtended, type ClassId, type Layer } from "@/metamodel";
-import { ALL_ELEMENTS, FIELD_LABEL, SIDES, attrValue, compareModels, parseModel, blastRadius, COLOR_BY_LABEL, evaluateHints, filterActive, formatModelDate, impactEnds, inView, isBusinessAnchor as isAnchor, modelDate, slotMap, UNTITLED_MODEL, type BlastDirection, type Edge, type ColorBy, type HintResult, type Model, type ViewFilter } from "@/model";
+import { ALL_ELEMENTS, FIELD_LABEL, GROUP_BY_LABEL, groupsOf, primaryGroup, SIDES, attrValue, compareModels, parseModel, blastRadius, COLOR_BY_LABEL, evaluateHints, filterActive, formatModelDate, impactEnds, inView, isBusinessAnchor as isAnchor, modelDate, slotMap, UNTITLED_MODEL, type BlastDirection, type Edge, type HintResult, type Model } from "@/model";
 import { site } from "@/lib/site";
 import { ClassNode, SuggestContext, type ClassFlowNode } from "./ClassNode";
 import { ConnectionLine, ConnectionModelContext, ReconnectingContext } from "./ConnectionLine";
@@ -78,6 +79,7 @@ import { ToolbarIcon } from "./ToolbarIcon";
 import { CanvasTitle, titleRoom } from "./CanvasTitle";
 import { layoutChoices, LayoutMenu, type LayoutChoice } from "./LayoutMenu";
 import { ModelMenu } from "./ModelMenu";
+import { GroupNode, GroupOverlay, type GroupFlowNode } from "./GroupOverlay";
 import { LayerOverlay, layerHandleId, type LayerHandlers } from "./LayerOverlay";
 import { DEFAULT_VIEW, lineStyles, readView, saveView, viewItems, ViewMenu, type ViewOptions } from "./ViewMenu";
 import { ZOOM_PRESETS, ZoomMenu, type ZoomCommand } from "./ZoomMenu";
@@ -94,7 +96,9 @@ import { connectionProblem, modernEdge, SLOT } from "./state";
 import { relatedClasses, suggestionDetail, suggestions, type Suggestion } from "./suggest";
 import { useModelDocument, type SaveStatus } from "./useModelDocument";
 
-const nodeTypes = { csdm: ClassNode };
+const nodeTypes = { csdm: ClassNode, group: GroupNode };
+/** What the canvas draws: elements, and collapsed groups (M56). */
+type CanvasNode = ClassFlowNode | GroupFlowNode;
 const edgeTypes = { csdm: CanvasEdge };
 const newId = () => crypto.randomUUID();
 
@@ -159,6 +163,7 @@ const BLAST_STEP_MS = 1500;
 const GUIDE_SNAP_PX = 6;
 /** Keys that add a clicked element to the selection (M57); one array, so React Flow keeps its key listener. */
 const MULTI_KEYS = ["Shift", "Meta", "Control"];
+const NO_IDS: ReadonlySet<string> = new Set();
 /** Distribute vertically: the closest the tops of selected elements come (an element's height and a gap). */
 const ROW_PITCH = 128;
 const prefersStill = () => typeof window !== "undefined" && window.matchMedia("(prefers-reduced-motion: reduce)").matches;
@@ -301,7 +306,7 @@ function EditorInner() {
   const [managing, setManaging] = useState(false);
   // The view in use (M54): a saved view's id (or null), its filter and its coloring. Kept per model and
   // not stored: a model opens on All elements, and a deleted view leaves its filter showing, unsaved.
-  const [activeView, setActiveView] = useState<{ modelId: string; id: string | null; filter: ViewFilter; colorBy: ColorBy }>({ modelId: "", id: null, ...ALL_ELEMENTS });
+  const [activeView, setActiveView] = useState<{ modelId: string } & ShownView>({ modelId: "", id: null, ...ALL_ELEMENTS });
   // Command palette and shortcut map (M52): modal dialogs, mounted while open; focus goes back where they were opened.
   const [palette, setPalette] = useState(false);
   const [shortcuts, setShortcuts] = useState(false);
@@ -485,7 +490,7 @@ function EditorInner() {
   const shown = activeView.modelId === model.id ? { ...activeView, id: model.views?.some((v) => v.id === activeView.id) ? activeView.id : null } : { modelId: model.id, id: null, ...ALL_ELEMENTS };
   // Images follow the view on screen (M54); data exports always carry the whole model.
   const viewName = model.views?.find((v) => v.id === shown.id)?.name;
-  const imageView = useMemo(() => ({ filter: shown.filter, colorBy: shown.colorBy, name: viewName }), [shown.filter, shown.colorBy, viewName]);
+  const imageView = useMemo(() => ({ filter: shown.filter, colorBy: shown.colorBy, groupBy: shown.groupBy, name: viewName }), [shown.filter, shown.colorBy, shown.groupBy, viewName]);
   const showView = (v: ShownView) => setActiveView({ modelId: model.id, ...v });
   /** Switch views from the menu or the palette, and say what it shows. */
   const pickView = (v: ShownView) => {
@@ -507,6 +512,31 @@ function EditorInner() {
     else setSelectedId(kept[0] ?? null);
   }, [model.nodes, multi, fadedIds, setSelectedId]);
   const slotFor = useMemo(() => slotMap(model, shown.colorBy), [model, shown.colorBy]);
+  // Group by (M56): frames around what belongs together, worked out from the model; a group can
+  // collapse into one block (on screen only, for this model and grouping).
+  const groupBy = shown.groupBy;
+  const groups = useMemo(() => (groupBy ? groupsOf(model, groupBy) : []), [model, groupBy]);
+  const [collapsed, setCollapsed] = useState<{ key: string; ids: ReadonlySet<string> }>({ key: "", ids: NO_IDS });
+  const collapsedKey = `${model.id}|${groupBy ?? ""}`;
+  // Presenting shows every group open (the frames are off too): the slides are about the layers.
+  const collapsedIds = collapsed.key === collapsedKey && !presenting ? collapsed.ids : NO_IDS;
+  const toggleGroup = (key: string) => {
+    const g = groups.find((x) => x.key === key);
+    const next = new Set(collapsedIds);
+    const closing = !next.has(key);
+    if (closing) next.add(key);
+    else next.delete(key);
+    setCollapsed({ key: collapsedKey, ids: next });
+    if (g) setMessage(`${GROUP_BY_LABEL[groupBy!]} “${g.label}” ${closing ? "collapsed into one block" : "expanded"}.`);
+    // Focus follows the control: the block's Expand button, or the frame's tab.
+    setTimeout(() => (document.querySelector<HTMLElement>(closing ? `[data-testid="group-node"][data-group="${CSS.escape(key)}"] button` : `[data-testid="group-frame"][data-group="${CSS.escape(key)}"] button`))?.focus(), 50);
+  };
+  /** Elements inside a collapsed group (their first group, the one they are laid out with). */
+  const hiddenIds = useMemo(() => {
+    if (!collapsedIds.size) return NO_IDS;
+    const primary = primaryGroup(groups);
+    return new Set(model.nodes.filter((n) => collapsedIds.has(primary.get(n.id) ?? "")).map((n) => n.id));
+  }, [groups, collapsedIds, model.nodes]);
   const nodes: ClassFlowNode[] = useMemo(
     () =>
       model.nodes.map((n) => ({
@@ -533,13 +563,64 @@ function EditorInner() {
           diff: blastShown ? undefined : diffOf.nodes.get(n.id)?.kind,
         },
         selected: n.id === selectedId || multiSet.has(n.id),
+        hidden: hiddenIds.has(n.id) || undefined,
         // Filtered out: in place and faded, but out of reach (no select, drag, connect or Tab stop).
         ...(fadedIds.has(n.id) ? { selectable: false, draggable: false, connectable: false, focusable: false, deletable: false, className: "bm-faded" } : {}),
         ariaLabel: `${classById(n.class)?.label ?? n.class}: ${n.name || "Untitled"}${shown.colorBy !== "layer" ? `, ${COLOR_BY_LABEL[shown.colorBy]}: ${attrValue(n, shown.colorBy) || "Not set"}` : ""}${!blastShown && hintLevel.get(n.id) ? " (has hints)" : ""}${!blastShown && neighbors.has(n.id) ? " (connected to the selected element)" : ""}${blastLabel(n.id)}${blastShown ? "" : (diffOf.nodes.get(n.id)?.words ?? "")}`,
       })),
     // eslint-disable-next-line react-hooks/exhaustive-deps -- drag and measured are refs; dragTick re-runs this
-    [model, selectedId, multiSet, dragTick, hintLevel, highlighted, lens, wide, presenting, dismissed, neighbors, blastShown, fadedIds, shown.colorBy, slotFor, diffOf],
+    [model, selectedId, multiSet, dragTick, hintLevel, highlighted, lens, wide, presenting, dismissed, neighbors, blastShown, fadedIds, shown.colorBy, slotFor, diffOf, hiddenIds],
   );
+  /** Where each element is right now (mid-drag included), for the group frames. */
+  const liveLayout = useMemo(
+    () => ({ ...model.layout, ...drag.current }),
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- drag is a ref; dragTick re-runs this
+    [model.layout, dragTick],
+  );
+  const groupLabel = groupBy ? GROUP_BY_LABEL[groupBy] : "";
+  // Frames for the open groups, each around the elements it holds (one shared by two is framed with its first);
+  // a collapsed group's block sits where its frame began.
+  const frames = useMemo(() => {
+    if (!groups.length) return [];
+    return groupFrames(ownGroups(groups).filter((g) => !collapsedIds.has(g.key)), liveLayout, measured.current);
+  }, [groups, collapsedIds, liveLayout]);
+  const groupNodes: GroupFlowNode[] = useMemo(() => {
+    if (!collapsedIds.size) return [];
+    return ownGroups(groups)
+      .filter((g) => collapsedIds.has(g.key))
+      .flatMap((g) => {
+        const own = g.nodeIds;
+        const [f] = groupFrames([g], model.layout, measured.current);
+        if (!f) return [];
+        return [
+          {
+            id: `group:${g.key}`,
+            type: "group" as const,
+            position: { x: f.x, y: f.y },
+            data: { label: g.label, kind: groupLabel, count: own.length, groupKey: g.key, onExpand: () => toggleGroup(g.key) },
+            draggable: false,
+            selectable: false,
+            deletable: false,
+            connectable: false,
+            // Its Expand button is the one stop for it.
+            focusable: false,
+            ariaLabel: `${groupLabel} group ${g.label}, ${own.length} element${own.length === 1 ? "" : "s"}, collapsed`,
+          },
+        ];
+      });
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- measured is a ref; toggleGroup reads current state
+  }, [groups, collapsedIds, model.layout, groupLabel]);
+  // An element folded into a collapsed group is out of reach: it is no longer selected.
+  useEffect(() => {
+    if (!hiddenIds.size) return;
+    if (selectedId && hiddenIds.has(selectedId)) setSelectedId(null);
+    if (multi.some((id) => hiddenIds.has(id))) {
+      const kept = multi.filter((id) => !hiddenIds.has(id));
+      if (kept.length > 1) setMulti(kept);
+      else setSelectedId(kept[0] ?? null);
+    }
+  }, [hiddenIds, selectedId, multi, setSelectedId]);
+  const canvasNodes: CanvasNode[] = useMemo(() => (groupNodes.length ? [...nodes, ...groupNodes] : nodes), [nodes, groupNodes]);
 
   // Layers as columns (a left-to-right layout): relationships then run sideways between layers.
   const columns = useMemo(
@@ -614,6 +695,7 @@ function EditorInner() {
           sourceHandle,
           targetHandle,
           label: view.labels ? edgeLabelOf(e) : undefined,
+          hidden: hiddenIds.has(e.from) || hiddenIds.has(e.to) || undefined,
           className:
             ((fadedIds.has(e.from) || fadedIds.has(e.to) ? "faded " : "") +
             (!blastShown && diffOf.edges.get(e.id) ? `diff-${diffOf.edges.get(e.id)} ` : "") +
@@ -644,8 +726,40 @@ function EditorInner() {
           ariaLabel: `${e.type} from ${model.nodes.find((n) => n.id === e.from)?.name} to ${model.nodes.find((n) => n.id === e.to)?.name}${carried ? (isFlow ? " (carries data)" : " (carries impact)") : ""}`,
         };
       }),
-    [model, hintedEdges, selectedId, lens, blastShown, columns, isFlow, hoveredId, view.labels, edgeLabelOf, fadedIds, diffOf],
+    [model, hintedEdges, selectedId, lens, blastShown, columns, isFlow, hoveredId, view.labels, edgeLabelOf, fadedIds, diffOf, hiddenIds],
   );
+  // A collapsed group stands in for its elements: their relationships with the rest run to its block (dashed, one per pair).
+  const canvasEdges: FlowEdge[] = useMemo(() => {
+    if (!groupNodes.length) return edges;
+    const primary = primaryGroup(groups);
+    const end = (id: string) => (hiddenIds.has(id) ? `group:${primary.get(id)}` : id);
+    const posOf = (id: string) => groupNodes.find((g) => g.id === id)?.position ?? model.layout[id] ?? { x: 0, y: 0 };
+    const seen = new Set<string>();
+    const extra: FlowEdge[] = [];
+    for (const e of model.edges) {
+      if (!hiddenIds.has(e.from) && !hiddenIds.has(e.to)) continue;
+      const [source, target] = [end(e.from), end(e.to)];
+      if (source === target || seen.has(`${source}>${target}`)) continue;
+      seen.add(`${source}>${target}`);
+      const [sourceHandle, targetHandle] = edgeEnds(undefined, posOf(source), posOf(target), columns);
+      const name = (id: string) => groupNodes.find((g) => g.id === id)?.data.label ?? model.nodes.find((n) => n.id === id)?.name;
+      extra.push({
+        id: `group-edge:${source}>${target}`,
+        type: "smoothstep",
+        source,
+        target,
+        sourceHandle,
+        targetHandle,
+        className: `group-edge${fadedIds.has(e.from) || fadedIds.has(e.to) ? " faded" : ""}`,
+        selectable: false,
+        focusable: false,
+        deletable: false,
+        markerEnd: { type: MarkerType.ArrowClosed, color: "var(--border-strong)", width: 24, height: 24, markerUnits: "userSpaceOnUse" },
+        ariaLabel: `Relationships from ${name(source)} to ${name(target)}`,
+      } as FlowEdge);
+    }
+    return [...edges, ...extra];
+  }, [edges, groupNodes, groups, hiddenIds, model, columns, fadedIds]);
 
   /** Several elements selected at once (M57); one or none falls back to the single selection. */
   const selectMany = (ids: string[]) => {
@@ -675,7 +789,9 @@ function EditorInner() {
   };
 
   const onNodesChange = useCallback(
-    (changes: NodeChange<ClassFlowNode>[]) => {
+    (all: NodeChange<CanvasNode>[]) => {
+      // A collapsed group's block (M56) is not an element: nothing about it is stored.
+      const changes = all.filter((c) => !("id" in c && c.id.startsWith("group:")));
       // While dragging, line the moving elements up with the others (smart guides, M57): every
       // element of a group drag moves by the same shift, worked out from the box around them.
       const moving: Record<string, { x: number; y: number }> = {};
@@ -1311,6 +1427,30 @@ function EditorInner() {
     dispatch({ type: "set-layout", layout: positions });
     setMessage(`${kind.startsWith("spread") ? "Spread" : "Aligned"} ${multi.length} elements ${a.done}.${lane ? " Lanes keep each in its own layer." : ""}`);
   };
+  /**
+   * A frame's tab got focus (Tab key): bring it into view as the canvas does for elements. The pane
+   * clips its content, and a browser may scroll it to show the tab, so that scroll is undone first.
+   */
+  const revealFrame = (f: Frame, el: HTMLElement) => {
+    const pane = el.closest<HTMLElement>(".react-flow");
+    if (!pane) return;
+    for (const x of [pane, ...pane.querySelectorAll<HTMLElement>(".react-flow__renderer, .react-flow__pane, .react-flow__viewport")]) x.scrollTop = x.scrollLeft = 0;
+    const r = el.getBoundingClientRect();
+    const p = pane.getBoundingClientRect();
+    if (r.left >= p.left && r.right <= p.right && r.top >= p.top && r.bottom <= p.bottom) return;
+    const { zoom } = flow.getViewport();
+    void flow.setViewport({ x: 48 - f.x * zoom, y: 48 + r.height - f.y * zoom, zoom }, { duration: prefersStill() ? 0 : 200 });
+  };
+  /** Arrange by group (M56): each group in its own band, so its frame holds just its elements. */
+  const arrangeGroups = () => {
+    if (!groupBy) return;
+    if (!groups.length) return setMessage(`No ${GROUP_BY_LABEL[groupBy]} groups in this model.`);
+    const layout = arrangeByGroups(model, groups, measured.current);
+    if (!layout) return setMessage("Already arranged by group.");
+    dispatch({ type: "set-layout", layout: settle(layout).positions });
+    setMessage(`Arranged ${groups.length} ${GROUP_BY_LABEL[groupBy]} group${groups.length === 1 ? "" : "s"} side by side.`);
+    setTimeout(() => zoomCommand("fit"), 50);
+  };
   // The side panel's buttons go with the selection: focus moves on to the Details tab.
   const focusDetails = () => setTimeout(() => document.getElementById("tab-details")?.focus(), 0);
   const deleteSelection = () => {
@@ -1343,6 +1483,8 @@ function EditorInner() {
   const nodeMenu = (id: string): MenuItem[] => {
     // An element in a selection of several: the menu acts on all of them.
     if (multiSet.has(id)) return selectionMenu();
+    // A collapsed group's block (M56): its only action is to open again.
+    if (id.startsWith("group:")) return [{ kind: "item", label: "Expand group", onSelect: () => toggleGroup(id.slice("group:".length)) }];
     const n = model.nodes.find((x) => x.id === id);
     if (!n) return [];
     const name = n.name || "Untitled";
@@ -1450,6 +1592,7 @@ function EditorInner() {
     { kind: "item", label: "Zoom to selection", disabled: !selection.length, onSelect: () => zoomCommand("selection") },
     { kind: "item", label: "Select all", disabled: model.nodes.length < 2, onSelect: selectAll },
     { kind: "item", label: "Auto-layout", disabled: model.nodes.length === 0 || layingOut, onSelect: () => void runLayout() },
+    ...(groupBy ? [{ kind: "item" as const, label: "Arrange by group", disabled: !groups.length, onSelect: arrangeGroups }] : []),
     { kind: "separator" },
     { kind: "check", label: "Layer boxes", checked: view.boxes, onSelect: () => setView({ ...view, boxes: !view.boxes }) },
     { kind: "check", label: "Lanes", checked: view.lanes, onSelect: () => setView({ ...view, lanes: !view.lanes }) },
@@ -1459,6 +1602,7 @@ function EditorInner() {
   ];
   const canMenu = wide && !presenting;
   const labelOf = (id: string) => {
+    if (id.startsWith("group:")) return `${groups.find((g) => `group:${g.key}` === id)?.label ?? "Group"} group menu`;
     const n = model.nodes.find((x) => x.id === id);
     return `${n?.name || "Untitled"} menu`;
   };
@@ -1482,7 +1626,7 @@ function EditorInner() {
       const t = e.target as HTMLElement;
       if (t.isContentEditable || t.closest("input, textarea, select")) return;
       const id = t.closest<HTMLElement>(".react-flow__node")?.dataset.id ?? selectedId;
-      if (!id) return;
+      if (!id || id.startsWith("group:")) return;
       e.preventDefault();
       selectNode(id);
       quickAddAt(id);
@@ -1717,11 +1861,19 @@ function EditorInner() {
   const goToElement = (id: string, keepTab = false) => {
     const n = model.nodes.find((x) => x.id === id);
     if (!n) return;
-    if (fadedIds.has(id)) showView({ id: null, filter: {}, colorBy: shown.colorBy });
+    if (fadedIds.has(id)) showView({ id: null, filter: {}, colorBy: shown.colorBy, groupBy: shown.groupBy });
+    // Folded into a collapsed group (M56): open the group first, so the element can be shown and selected.
+    const folded = hiddenIds.has(id);
+    if (folded) {
+      const ids = new Set(collapsedIds);
+      ids.delete(primaryGroup(groups).get(id) ?? "");
+      setCollapsed({ key: collapsedKey, ids });
+    }
     if (keepTab) setSelectedId(id);
     else selectNode(id);
     // The isometric picture zooms to the selection once it has been drawn with it.
     if (isoRef.current) setTimeout(() => isoRef.current?.zoom("selection"), 0);
+    else if (folded) setTimeout(() => void flow.fitView({ nodes: [{ id }], padding: 0.3, maxZoom: 1.25, duration: prefersStill() ? 0 : 300 }), 50);
     else void flow.fitView({ nodes: [{ id }], padding: 0.3, maxZoom: 1.25, duration: prefersStill() ? 0 : 300 });
     setMessage(`Selected ${classById(n.class)?.label ?? n.class} “${n.name || "Untitled"}”.`);
   };
@@ -1835,6 +1987,7 @@ function EditorInner() {
       ...(wide
         ? [
             { id: "select-all", group: "Arrange", label: "Select all elements", keys: "Ctrl+A", keywords: "selection multiple", disabled: model.nodes.length < 2 ? "Add two or more elements first" : projection !== "plan" ? "Switch to Plan to select elements" : undefined, run: selectAll },
+            { id: "arrange-groups", group: "Arrange", label: "Arrange by group", keywords: "group frames band", disabled: !groupBy ? "Pick a grouping in Views first" : !groups.length ? "This model has no groups for that grouping" : undefined, run: arrangeGroups },
             ...ARRANGE.map((a): Command => ({ id: `arrange-${a.id}`, group: "Arrange", label: a.label, keywords: "selection line up spread", disabled: multi.length < 2 ? "Select two or more elements first (Shift+click)" : undefined, run: () => arrange(a.id) })),
           ]
         : []),
@@ -1860,10 +2013,10 @@ function EditorInner() {
         group: "Views",
         label: "Show all elements",
         keywords: "view reset clear filter",
-        disabled: shown.id === null && !filterActive(shown.filter) && shown.colorBy === "layer" ? "Already showing all elements, in layer colors" : undefined,
+        disabled: shown.id === null && !filterActive(shown.filter) && shown.colorBy === "layer" && !shown.groupBy ? "Already showing all elements, in layer colors" : undefined,
         run: () => pickView({ id: null, filter: {}, colorBy: "layer" }),
       },
-      ...(model.views ?? []).map((v): Command => ({ id: `view-${v.id}`, group: "Views", label: `View: ${v.name}`, keywords: "saved view", run: () => pickView({ id: v.id, filter: v.filter, colorBy: v.colorBy }) })),
+      ...(model.views ?? []).map((v): Command => ({ id: `view-${v.id}`, group: "Views", label: `View: ${v.name}`, keywords: "saved view", run: () => pickView({ id: v.id, filter: v.filter, colorBy: v.colorBy, groupBy: v.groupBy }) })),
       ...(["plan", "iso", "exploded"] as const)
         .filter((p) => p !== projection)
         .map((p): Command => ({ id: `projection-${p}`, group: "Projection", label: `${PROJECTION_LABEL[p]} view`, keywords: p === "plan" ? "edit 2d canvas" : "isometric 3d layers stack read only", run: () => chooseProjection(p) })),
@@ -2198,9 +2351,9 @@ function EditorInner() {
           <div className="contents" inert={projection !== "plan" || undefined}>
           <LabelObstacles boxes={boxes} tabsAbove={canMenu} show={(view.boxes || presenting) && !view.lanes} plan={labelPlan}>
           <LineStyleContext.Provider value={view.lines}>
-            <ReactFlow<ClassFlowNode, FlowEdge>
-              nodes={nodes}
-              edges={edges}
+            <ReactFlow<CanvasNode, FlowEdge>
+              nodes={canvasNodes}
+              edges={canvasEdges}
               nodeTypes={nodeTypes}
               edgeTypes={edgeTypes}
               onNodesChange={onNodesChange}
@@ -2355,6 +2508,8 @@ function EditorInner() {
                 <ViewLegend
                   model={model}
                   shown={shown}
+                  groups={groups.length}
+                  onArrange={presenting ? undefined : arrangeGroups}
                   onEdit={presenting ? undefined : () => openDialog(setViewDialog)}
                   onShowAll={
                     presenting
@@ -2385,6 +2540,7 @@ function EditorInner() {
                   nodeColor={(n) => minimapColor[classById(n.data.cls)?.layer ?? "design"]}
                 />
               )}
+              {frames.length > 0 && !presenting && <GroupOverlay frames={frames} onToggle={toggleGroup} onFocusTab={revealFrame} kind={groupLabel} />}
               <LayerOverlay boxes={boxes} lanes={lanes} showBoxes={view.boxes || presenting} showLanes={view.lanes} handlers={canMenu ? layerHandlers : undefined} />
               <CanvasTitle name={model.name} date={modelDate(model)} description={model.description} artifactId={model.artifactId} boxes={boxes} tabsAbove={(view.boxes && !view.lanes && canMenu) || (view.lanes && columns)} decorative={presenting} />
             </ReactFlow>
@@ -2560,13 +2716,13 @@ function EditorInner() {
           onChange={showView}
           onSave={(name) => {
             const id = newId();
-            dispatch({ type: "save-view", view: { id, name, filter: shown.filter, colorBy: shown.colorBy } });
+            dispatch({ type: "save-view", view: { id, name, filter: shown.filter, colorBy: shown.colorBy, ...(shown.groupBy ? { groupBy: shown.groupBy } : {}) } });
             showView({ ...shown, id });
             setMessage(`Saved the view “${name}”.`);
           }}
           onUpdate={(name) => {
             if (!shown.id) return;
-            dispatch({ type: "save-view", view: { id: shown.id, name, filter: shown.filter, colorBy: shown.colorBy } });
+            dispatch({ type: "save-view", view: { id: shown.id, name, filter: shown.filter, colorBy: shown.colorBy, ...(shown.groupBy ? { groupBy: shown.groupBy } : {}) } });
             setMessage(`Updated the view “${name}”.`);
           }}
           onDelete={() => {
