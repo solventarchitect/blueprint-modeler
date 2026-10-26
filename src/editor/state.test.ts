@@ -179,6 +179,25 @@ describe("editor state", () => {
     expect(reduce(h, { type: "set-attrs", ids: ["zz"], key: "owner", value: "x" }).past).toHaveLength(0);
   });
 
+  it("sets an element's links and record number, one undo step each; no links means none stored (M65)", () => {
+    const model = createModel("T", new Date("2026-09-27T00:00:00Z"), "t");
+    model.nodes = [{ id: "ba", class: "business_application", name: "Checkout" }];
+    model.layout = { ba: { x: 0, y: 0 } };
+    const links = [{ title: "Runbook", url: "https://example.com/runbook" }];
+    let h = reduce(initialHistory(model), { type: "set-links", id: "ba", links });
+    expect(h.present.nodes[0]!.links).toEqual(links);
+    expect(reduce(h, { type: "set-links", id: "ba", links: [...links] }).past).toHaveLength(1);
+    // Never more than five, and only http(s) addresses with a title.
+    const many = Array.from({ length: 7 }, (_, i) => ({ title: `L${i}`, url: `https://example.com/${i}` }));
+    h = reduce(h, { type: "set-links", id: "ba", links: [...many, { title: "x", url: "javascript:alert(1)" }] });
+    expect(h.present.nodes[0]!.links).toHaveLength(5);
+    h = reduce(h, { type: "set-links", id: "ba", links: [] });
+    expect("links" in h.present.nodes[0]!).toBe(false);
+    h = reduce(h, { type: "set-attr", id: "ba", key: "ref", value: " APM0001234 " });
+    expect(h.present.nodes[0]!.attrs).toEqual({ ref: "APM0001234" });
+    expect(h.past).toHaveLength(4);
+  });
+
   it("saves, replaces and deletes views, one undo step each, keeping the list order (M54)", () => {
     const model = createModel("T", new Date("2026-09-27T00:00:00Z"), "t");
     const v = (id: string, name: string) => ({ id, name, filter: { layers: ["business"] }, colorBy: "layer" as const });
