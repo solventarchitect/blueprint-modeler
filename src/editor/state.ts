@@ -1,6 +1,6 @@
 import { acceptedTypes, allowedTypes, classById, relationshipsBetween, type ClassId, type Layer } from "@/metamodel";
 import type { Side } from "@/layout/geometry";
-import { edgeKey, MAX_VIEWS, viewSchema, withDetails, type Edge, type Model, type Node, type View } from "@/model";
+import { edgeKey, linkSchema, MAX_LINKS, MAX_VIEWS, viewSchema, type Link, withDetails, type Edge, type Model, type Node, type View } from "@/model";
 
 /**
  * Editor state: the model plus undo/redo history. Pure functions only, so every rule the
@@ -15,7 +15,8 @@ export type Action =
   | { type: "add-node"; id: string; class: ClassId; name: string }
   | { type: "rename-node"; id: string; name: string }
   | { type: "describe-node"; id: string; description: string }
-  | { type: "set-attr"; id: string; key: "lifecycle" | "environment" | "owner"; value: string }
+  | { type: "set-attr"; id: string; key: "lifecycle" | "environment" | "owner" | "ref"; value: string }
+  | { type: "set-links"; id: string; links: Link[] }
   | { type: "set-attrs"; ids: string[]; key: "lifecycle" | "environment" | "owner"; value: string }
   | { type: "save-view"; view: View }
   | { type: "delete-view"; id: string }
@@ -120,6 +121,25 @@ function apply(model: Model, action: Action): Model | null {
       const node = model.nodes.find((n) => n.id === action.id);
       if (!node || node.name === action.name) return null;
       return { ...model, nodes: model.nodes.map((n) => (n.id === action.id ? { ...n, name: action.name } : n)) };
+    }
+    case "set-links": {
+      // M65: what the file would keep (titled http(s) links, at most five); none removes the key.
+      const node = model.nodes.find((n) => n.id === action.id);
+      if (!node) return null;
+      const links = action.links.flatMap((l) => {
+        const r = linkSchema.safeParse(l);
+        return r.success ? [r.data] : [];
+      }).slice(0, MAX_LINKS);
+      if (JSON.stringify(links) === JSON.stringify(node.links ?? [])) return null;
+      return {
+        ...model,
+        nodes: model.nodes.map((n) => {
+          if (n.id !== action.id) return n;
+          const { links: _old, ...rest } = n;
+          void _old;
+          return links.length ? { ...rest, links } : rest;
+        }),
+      };
     }
     case "set-attr":
     case "set-attrs": {
