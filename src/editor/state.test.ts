@@ -198,6 +198,20 @@ describe("editor state", () => {
     expect(h.past).toHaveLength(4);
   });
 
+  it("restores a snapshot in one undo step, keeping the model's own id and created date (M66)", () => {
+    const model = createModel("T", new Date("2026-09-27T00:00:00Z"), "t");
+    model.nodes = [{ id: "ba", class: "business_application", name: "Checkout" }];
+    model.layout = { ba: { x: 0, y: 0 } };
+    const snap = { ...model, id: "other", created: "2020-01-01T00:00:00.000Z", name: "T then", nodes: [], layout: {} };
+    let h = reduce(initialHistory(model), { type: "restore", model: snap });
+    expect(h.present).toMatchObject({ id: "t", created: model.created, name: "T then", nodes: [] });
+    expect(h.past).toHaveLength(1);
+    // The same again changes nothing.
+    expect(reduce(h, { type: "restore", model: snap }).past).toHaveLength(1);
+    h = reduce(h, { type: "undo" });
+    expect(h.present.nodes.map((n) => n.name)).toEqual(["Checkout"]);
+  });
+
   it("saves, replaces and deletes views, one undo step each, keeping the list order (M54)", () => {
     const model = createModel("T", new Date("2026-09-27T00:00:00Z"), "t");
     const v = (id: string, name: string) => ({ id, name, filter: { layers: ["business"] }, colorBy: "layer" as const });

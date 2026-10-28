@@ -1,6 +1,6 @@
 import { acceptedTypes, allowedTypes, classById, relationshipsBetween, type ClassId, type Layer } from "@/metamodel";
 import type { Side } from "@/layout/geometry";
-import { edgeKey, linkSchema, MAX_LINKS, MAX_VIEWS, viewSchema, type Link, withDetails, type Edge, type Model, type Node, type View } from "@/model";
+import { edgeKey, linkSchema, serializeModel, MAX_LINKS, MAX_VIEWS, viewSchema, type Link, withDetails, type Edge, type Model, type Node, type View } from "@/model";
 
 /**
  * Editor state: the model plus undo/redo history. Pure functions only, so every rule the
@@ -10,6 +10,8 @@ export type History = { past: Model[]; present: Model; future: Model[] };
 
 export type Action =
   | { type: "load"; model: Model }
+  /** M66: put a snapshot's content back into the open model, one undo step. */
+  | { type: "restore"; model: Model }
   | { type: "rename-model"; name: string }
   | { type: "model-details"; date?: string; description?: string; artifactId?: string }
   | { type: "add-node"; id: string; class: ClassId; name: string }
@@ -121,6 +123,11 @@ function apply(model: Model, action: Action): Model | null {
       const node = model.nodes.find((n) => n.id === action.id);
       if (!node || node.name === action.name) return null;
       return { ...model, nodes: model.nodes.map((n) => (n.id === action.id ? { ...n, name: action.name } : n)) };
+    }
+    case "restore": {
+      // The snapshot's content, under this model's own identity; nothing to do when it is the same.
+      const next: Model = { ...action.model, id: model.id, created: model.created, updated: model.updated };
+      return serializeModel(next) === serializeModel(model) ? null : next;
     }
     case "set-links": {
       // M65: what the file would keep (titled http(s) links, at most five); none removes the key.

@@ -2,7 +2,7 @@
 
 import { useCallback, useEffect, useLayoutEffect, useReducer, useRef, useState } from "react";
 import { createModel, UNTITLED_MODEL, type Model } from "@/model";
-import { openBrowserStore, type ModelStore, type ModelSummary } from "@/storage";
+import { MAX_SNAPSHOTS, openBrowserStore, type ModelStore, type ModelSummary, type SnapshotSummary } from "@/storage";
 import { initialHistory, reduce, type Action, type History } from "./state";
 
 export type SaveStatus = "loading" | "saved" | "saving" | "memory-only" | "error";
@@ -93,8 +93,11 @@ export function useModelDocument(firstModel?: (storedIds: () => Promise<Readonly
 
   useEffect(() => {
     let canceled = false;
-    openBrowserStore().then(async (opened) => {
+    openBrowserStore(() => {
+      if (!canceled) setProblem("Blueprint Modeler is open in another tab on an earlier version. Close that tab (or reload it) to finish opening your models here.");
+    }).then(async (opened) => {
       if (canceled) return;
+      setProblem((p) => (p?.startsWith("Blueprint Modeler is open in another tab") ? null : p));
       store.current = opened.store;
       persistent.current = opened.persistent;
       let start: FirstLoad | undefined;
@@ -223,9 +226,40 @@ export function useModelDocument(firstModel?: (storedIds: () => Promise<Readonly
     [open, flushPending],
   );
 
+  /** M66: the open model's snapshots, newest first. */
+  const listSnapshots = useCallback(async (): Promise<SnapshotSummary[]> => (await store.current?.listSnapshots(model.id)) ?? [], [model.id]);
+  /** Keep the open model as it is now, named; an error says why not. */
+  const takeSnapshot = useCallback(
+    async (name: string): Promise<{ ok: true; id: string } | { ok: false; error: string }> => {
+      const s = store.current;
+      if (!s) return { ok: false, error: "Snapshots aren't available yet." };
+      if (!persistent.current) return { ok: false, error: "This browser isn't keeping models (a private window?), so snapshots can't be kept either." };
+      if ((await s.listSnapshots(model.id)).length >= MAX_SNAPSHOTS) return { ok: false, error: `A model keeps up to ${MAX_SNAPSHOTS} snapshots: delete one to take another.` };
+      const id = crypto.randomUUID();
+      try {
+        await s.putSnapshot({ id, modelId: model.id, name, taken: new Date().toISOString(), model });
+      } catch {
+        return { ok: false, error: "This browser could not save the snapshot. Free some space, or delete snapshots or models you no longer need." };
+      }
+      return { ok: true, id };
+    },
+    [model],
+  );
+  const readSnapshot = useCallback(async (id: string): Promise<Model | undefined> => {
+    const got = await store.current?.getSnapshot(id);
+    return got?.ok ? got.model : undefined;
+  }, []);
+  const deleteSnapshot = useCallback(async (id: string) => {
+    await store.current?.removeSnapshot(id);
+  }, []);
+
   return {
     model,
     createFrom,
+    listSnapshots,
+    takeSnapshot,
+    readSnapshot,
+    deleteSnapshot,
     canUndo: history.past.length > 0,
     canRedo: history.future.length > 0,
     dispatch: dispatchRaw,
