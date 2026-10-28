@@ -26,8 +26,9 @@ export function SnapshotsDialog({
   modelName: string;
   list: () => Promise<SnapshotSummary[]>;
   onTake: (name: string) => Promise<{ ok: true; id: string } | { ok: false; error: string }>;
-  onCompare: (s: SnapshotSummary) => void;
-  onRestore: (s: SnapshotSummary) => void;
+  /** False when the snapshot could not be read (the dialog stays open and says so). */
+  onCompare: (s: SnapshotSummary) => Promise<boolean>;
+  onRestore: (s: SnapshotSummary) => Promise<boolean>;
   onDelete: (s: SnapshotSummary) => Promise<void>;
   onClose: () => void;
 }) {
@@ -56,21 +57,29 @@ export function SnapshotsDialog({
   }, []);
 
   const full = (items?.length ?? 0) >= MAX_SNAPSHOTS;
+  const fail = (text: string) => setError((e) => ({ text, n: (e?.n ?? 0) + 1 }));
+  const unreadable = "That snapshot could not be read.";
+  const firstRow = () => listRef.current?.querySelector<HTMLElement>("[data-snapshot-first]");
   const take = async () => {
     if (busy) return;
     setBusy(true);
     const label = name.trim() || `Snapshot, ${takenAt(new Date().toISOString())}`;
     const r = await onTake(label);
     setBusy(false);
-    if (!r.ok) return setError((e) => ({ text: r.error, n: (e?.n ?? 0) + 1 }));
+    if (!r.ok) return fail(r.error);
     setError(null);
     setName("");
     setStatus(`Took snapshot “${label}”.`);
     await reload();
-    nameInput.current?.focus();
+    // The name field, for the next one; when that was the last one allowed, the newest snapshot.
+    setTimeout(() => (nameInput.current ?? firstRow())?.focus(), 0);
   };
   const remove = async (s: SnapshotSummary, at: number) => {
-    await onDelete(s);
+    try {
+      await onDelete(s);
+    } catch {
+      return fail(`The snapshot “${s.name}” could not be deleted.`);
+    }
     setConfirming(null);
     setStatus(`Deleted snapshot “${s.name}”.`);
     await reload();
@@ -179,10 +188,10 @@ export function SnapshotsDialog({
                     <span className="flex flex-wrap gap-1.5">
                       {!s.damaged && (
                         <>
-                          <button type="button" data-snapshot-first className={btn} aria-label={`Compare with snapshot ${s.name}`} onClick={() => onCompare(s)}>
+                          <button type="button" data-snapshot-first className={btn} aria-label={`Compare with snapshot ${s.name}`} onClick={() => void onCompare(s).then((ok) => ok || fail(unreadable))}>
                             Compare
                           </button>
-                          <button type="button" className={btn} aria-label={`Restore snapshot ${s.name}`} onClick={() => onRestore(s)}>
+                          <button type="button" className={btn} aria-label={`Restore snapshot ${s.name}`} onClick={() => void onRestore(s).then((ok) => ok || fail(unreadable))}>
                             Restore
                           </button>
                         </>

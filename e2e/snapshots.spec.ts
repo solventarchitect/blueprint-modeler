@@ -193,9 +193,30 @@ test.describe("the browser's store moves to version 2 (M66, desktop)", () => {
     );
     await page.goto("/editor");
     await expect(page.getByRole("alert").filter({ hasText: "open in another tab on an earlier version" })).toBeVisible();
+    // Meanwhile the editor is out of reach: nothing can be changed that couldn't be kept.
+    await expect(page.locator("[inert]").filter({ has: page.getByTestId("save-status") })).toHaveCount(1);
     await older.evaluate(() => (window as unknown as { __db: IDBDatabase }).__db.close());
     await saved(page);
     await expect(currentModel(page)).toHaveText("Kept from 1.13");
     await expect(page.getByRole("alert").filter({ hasText: "open in another tab" })).toHaveCount(0);
+  });
+
+  test("a newer version upgrading the store from another tab: this tab saves what is waiting, then asks for a reload", async ({ page, context }) => {
+    await page.goto("/editor");
+    await saved(page);
+    const newer = await context.newPage();
+    await newer.goto("/about");
+    await newer.evaluate(
+      () =>
+        new Promise<void>((resolve, reject) => {
+          const req = indexedDB.open("blueprint-modeler", 3);
+          req.onsuccess = () => {
+            req.result.close();
+            resolve();
+          };
+          req.onerror = () => reject(req.error);
+        }),
+    );
+    await expect(page.getByRole("alert").filter({ hasText: "Blueprint Modeler was updated in another tab. Your work so far is saved: reload this tab to keep working." })).toBeVisible();
   });
 });

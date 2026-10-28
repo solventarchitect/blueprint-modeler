@@ -2072,7 +2072,14 @@ function EditorInner() {
   // After `outline` is declared: the step's words read it.
   const shownStep = stepContents(steps[step]);
   return (
-    <div className={presenting ? "fixed inset-0 z-50 flex flex-col bg-surface" : "flex h-[calc(100dvh-3.5rem)] min-h-[34rem] flex-col bg-surface"}>
+    <>
+    {doc.blocked && (
+      // M66: the browser's store is held by a tab on an earlier version; the editor waits, out of reach, so nothing is changed that can't be kept.
+      <div role="alert" className="border-b border-border bg-surface-raised px-4 py-2 text-sm">
+        Blueprint Modeler is open in another tab on an earlier version. Close that tab (or reload it) to open your models here; until then nothing can be changed.
+      </div>
+    )}
+    <div inert={doc.blocked || undefined} className={presenting ? "fixed inset-0 z-50 flex flex-col bg-surface" : "flex h-[calc(100dvh-3.5rem)] min-h-[34rem] flex-col bg-surface"}>
       {presenting && (
         <div role="region" aria-label="Presentation" className="flex flex-wrap items-center gap-2 border-b border-border px-4 py-2">
           <p className="font-mono text-xs tracking-[0.14em] text-accent uppercase">Presenting</p>
@@ -2739,18 +2746,20 @@ function EditorInner() {
           modelName={model.name}
           list={doc.listSnapshots}
           onTake={doc.takeSnapshot}
-          onCompare={(s) =>
-            void doc.readSnapshot(s.id).then((base) => (base ? showComparison(base, `${s.name} (snapshot)`) : setMessage("That snapshot could not be read.")))
-          }
-          onRestore={(s) =>
-            void doc.readSnapshot(s.id).then((base) => {
-              if (!base) return setMessage("That snapshot could not be read.");
-              dialogClosed(setSnapshotsDialog);
-              setSelectedId(null);
-              dispatch({ type: "restore", model: base });
-              setMessage(`Restored snapshot “${s.name}”. Undo puts the model back as it was.`);
-            })
-          }
+          onCompare={async (s) => {
+            const base = await doc.readSnapshot(s.id);
+            if (base) showComparison(base, `${s.name} (snapshot)`);
+            return !!base;
+          }}
+          onRestore={async (s) => {
+            const base = await doc.readSnapshot(s.id);
+            if (!base) return false;
+            dialogClosed(setSnapshotsDialog);
+            setSelectedId(null);
+            dispatch({ type: "restore", model: base });
+            setMessage(`Restored snapshot “${s.name}”. Undo puts the model back as it was.`);
+            return true;
+          }}
           onDelete={(s) => doc.deleteSnapshot(s.id)}
           onClose={() => dialogClosed(setSnapshotsDialog)}
         />
@@ -2840,6 +2849,7 @@ function EditorInner() {
         </div>
       </div>
     </div>
+    </>
   );
 }
 

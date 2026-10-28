@@ -41,12 +41,8 @@ const toSnapshotRow = (s: Snapshot): SnapshotRow => ({ id: s.id, modelId: s.mode
 /** A snapshot row's summary; one whose model can't be read is marked, not trusted. */
 export function snapshotSummary(r: SnapshotRow): SnapshotSummary {
   const base = { id: r.id, modelId: r.modelId, name: r.name, taken: r.taken };
-  try {
-    JSON.parse(r.json);
-  } catch {
-    return { ...base, nodes: 0, edges: 0, damaged: true };
-  }
-  return { ...base, nodes: r.nodes ?? 0, edges: r.edges ?? 0 };
+  const got = fromRow(r);
+  return got.ok ? { ...base, nodes: got.model.nodes.length, edges: got.model.edges.length } : { ...base, nodes: 0, edges: 0, damaged: true };
 }
 const byTakenDesc = (a: SnapshotSummary, b: SnapshotSummary) => b.taken.localeCompare(a.taken);
 
@@ -154,7 +150,18 @@ function request<T>(req: IDBRequest<T>): Promise<T> {
 }
 
 /** IndexedDB store (browser). One object store, keyed by model id; rows hold the serialized model. */
-export function createIndexedDbStore(factory: IDBFactory = indexedDB, onBlocked?: () => void): ModelStore {
+/** What the store tells the app about other tabs (M66). */
+export type StoreEvents = {
+  /** A tab still on an earlier version holds the database: the upgrade waits for it. */
+  onBlocked?: () => void;
+  /** A newer version wants the database: write what is waiting, then this tab's store closes. */
+  onVersionChange?: () => Promise<void>;
+};
+/** The database was closed for a newer version in another tab: this tab must reload to save again. */
+export const STORE_CLOSED = "The browser's store was updated by a newer Blueprint Modeler in another tab.";
+
+export function createIndexedDbStore(factory: IDBFactory = indexedDB, events: StoreEvents = {}): ModelStore {
+  let closed = false;
   const open = new Promise<IDBDatabase>((resolve, reject) => {
     const req = factory.open(DB, DB_VERSION);
     req.onupgradeneeded = () => {
@@ -163,16 +170,29 @@ export function createIndexedDbStore(factory: IDBFactory = indexedDB, onBlocked?
       if (!db.objectStoreNames.contains(SNAPSHOTS)) db.createObjectStore(SNAPSHOTS, { keyPath: "id" }).createIndex("modelId", "modelId");
     };
     req.onsuccess = () => {
-      // Another tab opening a newer version: let it upgrade (this tab keeps working until reload).
-      req.result.onversionchange = () => req.result.close();
-      resolve(req.result);
+      // Another tab opening a newer version: write what is waiting, then let it upgrade. This tab
+      // can't save after that; the app asks for a reload.
+      const db = req.result;
+      db.onversionchange = () => {
+        void (events.onVersionChange?.() ?? Promise.resolve())
+          .catch(() => undefined)
+          .finally(() => {
+            closed = true;
+            db.close();
+          });
+      };
+      resolve(db);
     };
     req.onerror = () => reject(req.error);
     // A tab still on the version before snapshots holds the database open: the upgrade waits for it.
-    req.onblocked = () => onBlocked?.();
+    req.onblocked = () => events.onBlocked?.();
   });
-  const tx = async (mode: IDBTransactionMode) => (await open).transaction(STORE, mode).objectStore(STORE);
-  const snaps = async (mode: IDBTransactionMode) => (await open).transaction(SNAPSHOTS, mode).objectStore(SNAPSHOTS);
+  const db = async () => {
+    if (closed) throw new Error(STORE_CLOSED);
+    return open;
+  };
+  const tx = async (mode: IDBTransactionMode) => (await db()).transaction(STORE, mode).objectStore(STORE);
+  const snaps = async (mode: IDBTransactionMode) => (await db()).transaction(SNAPSHOTS, mode).objectStore(SNAPSHOTS);
   return {
     async list() {
       const rows = (await request((await tx("readonly")).getAll())) as Row[];
@@ -189,7 +209,7 @@ export function createIndexedDbStore(factory: IDBFactory = indexedDB, onBlocked?
     },
     async remove(id) {
       // The model and its snapshots go together, in one transaction.
-      const t = (await open).transaction([STORE, SNAPSHOTS], "readwrite");
+      const t = (await db()).transaction([STORE, SNAPSHOTS], "readwrite");
       t.objectStore(STORE).delete(id);
       const index = t.objectStore(SNAPSHOTS).index("modelId");
       const keys = await request(index.getAllKeys(id));
@@ -218,10 +238,10 @@ export function createIndexedDbStore(factory: IDBFactory = indexedDB, onBlocked?
 }
 
 /** The store to use in the browser: IndexedDB when it opens, memory otherwise. */
-export async function openBrowserStore(onBlocked?: () => void): Promise<{ store: ModelStore; persistent: boolean }> {
+export async function openBrowserStore(events: StoreEvents = {}): Promise<{ store: ModelStore; persistent: boolean }> {
   try {
     if (typeof indexedDB === "undefined") throw new Error("no IndexedDB");
-    const store = createIndexedDbStore(indexedDB, onBlocked);
+    const store = createIndexedDbStore(indexedDB, events);
     await store.list();
     return { store, persistent: true };
   } catch {

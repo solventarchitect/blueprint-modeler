@@ -28,6 +28,8 @@ export function useModelDocument(firstModel?: (storedIds: () => Promise<Readonly
   const [status, setStatus] = useState<SaveStatus>("loading");
   const [models, setModels] = useState<ModelSummary[]>([]);
   const [problem, setProblem] = useState<string | null>(null);
+  /** M66: a tab on an earlier version holds the browser's store; nothing can be opened or saved until it lets go. */
+  const [blocked, setBlocked] = useState(false);
   /** True once the first load has finished: a model is open and the list of stored models is current. */
   const [ready, setReady] = useState(false);
   const store = useRef<ModelStore | null>(null);
@@ -93,11 +95,23 @@ export function useModelDocument(firstModel?: (storedIds: () => Promise<Readonly
 
   useEffect(() => {
     let canceled = false;
-    openBrowserStore(() => {
-      if (!canceled) setProblem("Blueprint Modeler is open in another tab on an earlier version. Close that tab (or reload it) to finish opening your models here.");
+    openBrowserStore({
+      onBlocked: () => {
+        if (!canceled) setBlocked(true);
+      },
+      // A newer version in another tab: write the waiting change first, then ask for a reload.
+      onVersionChange: async () => {
+        const m = pending.current;
+        if (m && store.current && loadedId.current === m.id) {
+          pending.current = null;
+          await store.current.put(m).catch(() => undefined);
+        }
+        setStatus("error");
+        setProblem("Blueprint Modeler was updated in another tab. Your work so far is saved: reload this tab to keep working.");
+      },
     }).then(async (opened) => {
       if (canceled) return;
-      setProblem((p) => (p?.startsWith("Blueprint Modeler is open in another tab") ? null : p));
+      setBlocked(false);
       store.current = opened.store;
       persistent.current = opened.persistent;
       let start: FirstLoad | undefined;
@@ -272,6 +286,7 @@ export function useModelDocument(firstModel?: (storedIds: () => Promise<Readonly
     read,
     remove,
     problem,
+    blocked,
     dismissProblem: () => setProblem(null),
   };
 }
