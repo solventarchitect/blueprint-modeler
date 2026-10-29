@@ -66,6 +66,7 @@ test.describe("table view (M67, desktop)", () => {
     // Go to: the dialog closes and the element is selected, with what was set.
     await dialog(page).getByRole("button", { name: "Go to Checkout web app" }).click();
     await expect(dialog(page)).toHaveCount(0);
+    await expect(page.locator("#tab-details")).toBeFocused();
     await expect(inspector(page).getByLabel("Name", { exact: true })).toHaveValue("Checkout web app");
     await expect(inspector(page).getByLabel("Owner")).toHaveValue("Team Storefront");
     await expect(inspector(page).getByLabel("Life cycle stage")).toHaveValue("Operational");
@@ -78,20 +79,45 @@ test.describe("table view (M67, desktop)", () => {
     await expect(inspector(page).getByLabel("Owner")).toHaveValue("");
   });
 
-  test("renaming in the table renames on the canvas; Close returns focus to the Model menu", async ({ page }) => {
+  test("renaming in the table: trimmed, never empty, the row stays put while edited; Close returns focus", async ({ page }) => {
     await start(page);
     await openTable(page);
     const name = dialog(page).getByLabel("Name of Orders database");
     await name.fill("Order store");
     await name.press("Tab");
     await expect(dialog(page).getByLabel("Name of Order store")).toHaveValue("Order store");
+    // Left empty, a name keeps what it had; spaces around it are not kept.
+    const renamed = dialog(page).getByLabel("Name of Order store");
+    await renamed.fill("");
+    await renamed.press("Enter");
+    await expect(renamed).toHaveValue("Order store");
+    // Filtered, an edit that no longer matches keeps its row (and focus) until focus leaves the rows.
+    await dialog(page).getByLabel("Filter").fill("Order store");
+    await expect(rows(page)).toHaveCount(1);
+    const env = dialog(page).getByLabel("Environment of Order store");
+    await env.fill("  Production ");
+    await env.press("Tab");
+    await expect(env).toHaveValue("Production");
+    await expect(dialog(page).getByLabel("Owner of Order store")).toBeFocused();
+    await renamed.focus();
+    await renamed.fill("Ledger");
+    await renamed.press("Tab");
+    await expect(rows(page)).toHaveCount(1);
+    await expect(dialog(page).getByLabel("Name of Ledger")).toHaveValue("Ledger");
+    await dialog(page).getByLabel("Filter").focus();
+    await expect(rows(page)).toHaveCount(0);
+    await dialog(page).getByLabel("Filter").fill("Ledger");
+    await expect(rows(page)).toHaveCount(1);
+    await dialog(page).getByLabel("Name of Ledger").fill("Order store");
+    await dialog(page).getByLabel("Name of Ledger").press("Enter");
     await dialog(page).getByRole("button", { name: "Close" }).click();
     await expect(dialog(page)).toHaveCount(0);
     await expect(modelButton(page)).toBeFocused();
     const node = (n: string) => page.locator(".react-flow__node-csdm").filter({ has: page.getByText(n, { exact: true }) });
     await expect(node("Order store")).toBeVisible();
+    // Undo takes back the last rename only.
     await page.getByRole("button", { name: "Undo" }).click();
-    await expect(node("Orders database")).toBeVisible();
+    await expect(node("Ledger")).toBeVisible();
   });
 
   test("relationships tab, arrow keys between tabs, and CSV with the rows shown", async ({ page }) => {

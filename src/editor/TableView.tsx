@@ -32,10 +32,11 @@ function sorted<T extends Record<string, string | number>>(rows: T[], sort: Sort
 const matches = (row: Record<string, string | number>, q: string) => !q || Object.entries(row).some(([k, v]) => k !== "id" && String(v).toLowerCase().includes(q));
 
 /**
- * A text cell edited in place: saved when it loses focus or on Enter (one undo step); Escape puts
- * back what it held, and closes the dialog only when there is nothing to put back.
+ * A text cell edited in place: saved trimmed when it loses focus or on Enter (one undo step); Escape
+ * puts back what it held, and closes the dialog only when there is nothing to put back. A required
+ * cell (Name) left empty keeps what it had, as the Inspector does.
  */
-function TextCell({ value, label, list, onCommit }: { value: string; label: string; list?: string; onCommit: (v: string) => void }) {
+function TextCell({ value, label, list, required, onCommit }: { value: string; label: string; list?: string; required?: boolean; onCommit: (v: string) => void }) {
   const [text, setText] = useState(value);
   const [held, setHeld] = useState(value);
   // The model changed under the cell (undo, or a save elsewhere): show what it holds now.
@@ -43,7 +44,12 @@ function TextCell({ value, label, list, onCommit }: { value: string; label: stri
     setHeld(value);
     setText(value);
   }
-  const commit = () => text.trim() !== value.trim() && onCommit(text);
+  const commit = () => {
+    const next = text.trim() || (required ? value : "");
+    if (next !== value) onCommit(next);
+    // What is shown is what was saved (trimmed, or the name put back).
+    setText(next);
+  };
   return (
     <input
       className={cell}
@@ -113,7 +119,16 @@ export function TableView({
   const q = query.trim().toLowerCase();
   const elements = useMemo(() => elementRows(model), [model]);
   const relationships = useMemo(() => relationshipRows(model), [model]);
-  const shownElements = useMemo(() => sorted(elements.filter((r) => matches(r, q)), sorts.elements), [elements, q, sorts.elements]);
+  // While focus is in the rows, they keep their order and membership: a saved edit doesn't move or
+  // hide the row being worked in (and take focus with it). Leaving the rows applies filter and sort.
+  const [frozen, setFrozen] = useState<string[] | null>(null);
+  const shownElements = useMemo(() => {
+    if (frozen) {
+      const byId = new Map(elements.map((r) => [r.id, r]));
+      return frozen.map((id) => byId.get(id)).filter((r) => !!r);
+    }
+    return sorted(elements.filter((r) => matches(r, q)), sorts.elements);
+  }, [elements, q, sorts.elements, frozen]);
   const shownRelationships = useMemo(() => sorted(relationships.filter((r) => matches(r, q)), sorts.relationships), [relationships, q, sorts.relationships]);
   const shown = tab === "elements" ? shownElements.length : shownRelationships.length;
   const total = tab === "elements" ? elements.length : relationships.length;
@@ -129,9 +144,9 @@ export function TableView({
     setStatus(`Saved ${shown} ${shown === 1 ? "row" : "rows"} as ${name}.`);
   };
   const onTabKey = (e: ReactKeyboardEvent) => {
-    if (e.key !== "ArrowRight" && e.key !== "ArrowLeft") return;
+    if (!["ArrowRight", "ArrowLeft", "Home", "End"].includes(e.key)) return;
     e.preventDefault();
-    const next: Tab = tab === "elements" ? "relationships" : "elements";
+    const next: Tab = e.key === "Home" ? "elements" : e.key === "End" ? "relationships" : tab === "elements" ? "relationships" : "elements";
     setTab(next);
     setStatus("");
     document.getElementById(`${uid}-tab-${next}`)?.focus();
@@ -149,7 +164,11 @@ export function TableView({
             {st}
           </option>
         ))}
-        {r.lifecycle && !lc?.stages.includes(r.lifecycle) && <option value={r.lifecycle}>{r.lifecycle} (not a stage for this class)</option>}
+        {r.lifecycle && !lc?.stages.includes(r.lifecycle) && (
+          <option value={r.lifecycle}>
+            {r.lifecycle} ({lc ? "not a stage for this class" : "no life cycle for this class"})
+          </option>
+        )}
       </select>
     );
   };
@@ -195,7 +214,10 @@ export function TableView({
         </div>
         <label className="flex min-w-48 flex-1 flex-col gap-1 text-sm">
           <span className="text-ink-muted">Filter</span>
-          <input type="search" className="min-h-8 border border-border-strong bg-surface-raised px-2 text-sm text-ink" value={query} onChange={(e) => setQuery(e.target.value)} placeholder="Any text in a row" />
+          <input type="search" className="min-h-8 border border-border-strong bg-surface-raised px-2 text-sm text-ink" value={query} onChange={(e) => {
+              setQuery(e.target.value);
+              setStatus("");
+            }} placeholder="Any text in a row" />
         </label>
         <button type="button" className={btn} disabled={shown === 0} onClick={exportCsv}>
           Save as CSV
@@ -220,11 +242,16 @@ export function TableView({
                 </th>
               </tr>
             </thead>
-            <tbody>
+            <tbody
+              onFocus={() => setFrozen((f) => f ?? shownElements.map((r) => r.id))}
+              onBlur={(e) => {
+                if (!e.currentTarget.contains(e.relatedTarget)) setFrozen(null);
+              }}
+            >
               {shownElements.map((r) => (
                 <tr key={r.id} className="border-b border-border align-middle">
                   <th scope="row" className="px-2 py-1 text-left font-normal">
-                    {editable ? <TextCell value={nameOf.get(r.id) ?? ""} label={`Name of ${r.name}`} onCommit={(name) => dispatch({ type: "rename-node", id: r.id, name })} /> : r.name}
+                    {editable ? <TextCell required value={nameOf.get(r.id) ?? ""} label={`Name of ${r.name}`} onCommit={(name) => dispatch({ type: "rename-node", id: r.id, name })} /> : r.name}
                   </th>
                   <td className="px-2 py-1 whitespace-nowrap">{r.cls}</td>
                   <td className="px-2 py-1">{r.layer}</td>

@@ -1720,6 +1720,8 @@ function EditorInner() {
     const onKey = (e: KeyboardEvent) => {
       const el = e.target as HTMLElement | null;
       if (e.key !== "Escape" || e.defaultPrevented) return;
+      // A dialog open over the canvas (the table, snapshots…) has the key.
+      if (document.querySelector("dialog[open]")) return;
       if (el && (el.tagName === "INPUT" || el.tagName === "TEXTAREA" || el.tagName === "SELECT" || el.isContentEditable)) return;
       e.preventDefault();
       closeCompare();
@@ -1791,6 +1793,8 @@ function EditorInner() {
     const onKey = (e: KeyboardEvent) => {
       const el = e.target as HTMLElement | null;
       if (e.key !== "Escape" || e.defaultPrevented) return;
+      // A dialog open over the canvas (the table, snapshots…) has the key.
+      if (document.querySelector("dialog[open]")) return;
       if (el && (el.tagName === "INPUT" || el.tagName === "TEXTAREA" || el.tagName === "SELECT" || el.isContentEditable)) return;
       e.preventDefault();
       closeBlast();
@@ -2751,10 +2755,11 @@ function EditorInner() {
           editable={wide}
           dispatch={dispatch}
           onGoTo={(id) => {
-            // Focus goes to the element, not back to where the table was opened.
+            // Focus goes with the selection (the Details tab), not back to where the table was opened.
             dialogReturn.current = null;
             setTableDialog(false);
             goToElement(id);
+            focusDetails();
           }}
           onClose={() => dialogClosed(setTableDialog)}
         />
