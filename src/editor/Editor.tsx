@@ -67,6 +67,7 @@ import type { Command } from "./commands";
 import { ShortcutMap } from "./ShortcutMap";
 import { CompareBar, CompareDialog, compareSummary } from "./Compare";
 import { SnapshotsDialog } from "./Snapshots";
+import { TableView } from "./TableView";
 import { ARRANGE, batchTargets, SelectionPanel, type ArrangeKind, type BatchKey } from "./SelectionPanel";
 import { ViewDialog, ViewLegend, ViewsMenu, type ShownView } from "./Views";
 import { ExamplesMenu } from "./ExamplesMenu";
@@ -317,6 +318,7 @@ function EditorInner() {
   /** M58: the Compare dialog, why a chosen file could not be compared, and the open comparison. */
   const [compareDialog, setCompareDialog] = useState(false);
   const [snapshotsDialog, setSnapshotsDialog] = useState(false);
+  const [tableDialog, setTableDialog] = useState(false);
   const [compareError, setCompareError] = useState<string | null>(null);
   const [compare, setCompare] = useState<{ base: Model; label: string } | null>(null);
   const dialogReturn = useRef<HTMLElement | null>(null);
@@ -2033,6 +2035,7 @@ function EditorInner() {
       ...lineStyles
         .filter((l) => l.id !== view.lines)
         .map((l): Command => ({ id: `lines-${l.id}`, group: "View", label: `Line style: ${l.label}`, keywords: "relationship", run: () => setView({ ...view, lines: l.id }) })),
+      { id: "table", group: "Model", label: "Table…", keywords: "list grid rows spreadsheet csv elements relationships bulk edit", run: () => openDialog(setTableDialog) },
       { id: "snapshots", group: "Model", label: "Snapshots…", keywords: "version history keep restore save point", run: () => openDialog(setSnapshotsDialog) },
       { id: "compare", group: "Model", label: "Compare with…", keywords: "diff changes difference version file saved model", run: () => openDialog(setCompareDialog) },
       ...(compare ? [{ id: "compare-close", group: "Model", label: "Close compare", keys: "Esc", keywords: "diff", run: closeCompare }] : []),
@@ -2123,6 +2126,7 @@ function EditorInner() {
           currentName={model.name}
           onCompare={() => openDialog(setCompareDialog)}
           onSnapshots={() => openDialog(setSnapshotsDialog)}
+          onTable={() => openDialog(setTableDialog)}
           onOpen={(id) => {
             setSelectedId(null);
             setActiveHint(null);
@@ -2741,6 +2745,20 @@ function EditorInner() {
       />
       {palette && <CommandPalette commands={paletteCommands()} onClose={(chosen) => dialogClosed(setPalette, chosen)} />}
       {shortcuts && <ShortcutMap onClose={() => dialogClosed(setShortcuts)} />}
+      {tableDialog && (
+        <TableView
+          model={model}
+          editable={wide}
+          dispatch={dispatch}
+          onGoTo={(id) => {
+            // Focus goes to the element, not back to where the table was opened.
+            dialogReturn.current = null;
+            setTableDialog(false);
+            goToElement(id);
+          }}
+          onClose={() => dialogClosed(setTableDialog)}
+        />
+      )}
       {snapshotsDialog && (
         <SnapshotsDialog
           modelName={model.name}
