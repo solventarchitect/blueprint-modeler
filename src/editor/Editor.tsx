@@ -66,6 +66,7 @@ import { CommandPalette } from "./CommandPalette";
 import type { Command } from "./commands";
 import { ShortcutMap } from "./ShortcutMap";
 import { CompareBar, CompareDialog, compareSummary } from "./Compare";
+import { SnapshotsDialog } from "./Snapshots";
 import { ARRANGE, batchTargets, SelectionPanel, type ArrangeKind, type BatchKey } from "./SelectionPanel";
 import { ViewDialog, ViewLegend, ViewsMenu, type ShownView } from "./Views";
 import { ExamplesMenu } from "./ExamplesMenu";
@@ -315,6 +316,7 @@ function EditorInner() {
   const [viewDialog, setViewDialog] = useState(false);
   /** M58: the Compare dialog, why a chosen file could not be compared, and the open comparison. */
   const [compareDialog, setCompareDialog] = useState(false);
+  const [snapshotsDialog, setSnapshotsDialog] = useState(false);
   const [compareError, setCompareError] = useState<string | null>(null);
   const [compare, setCompare] = useState<{ base: Model; label: string } | null>(null);
   const dialogReturn = useRef<HTMLElement | null>(null);
@@ -1679,6 +1681,7 @@ function EditorInner() {
     setBlast(null);
     setCompareError(null);
     if (compareDialog) dialogClosed(setCompareDialog);
+    if (snapshotsDialog) dialogClosed(setSnapshotsDialog);
     setCompare({ base, label });
     setMessage(`Comparing with “${label}”: ${compareSummary(compareModels(model, base))}.`);
   };
@@ -2030,6 +2033,7 @@ function EditorInner() {
       ...lineStyles
         .filter((l) => l.id !== view.lines)
         .map((l): Command => ({ id: `lines-${l.id}`, group: "View", label: `Line style: ${l.label}`, keywords: "relationship", run: () => setView({ ...view, lines: l.id }) })),
+      { id: "snapshots", group: "Model", label: "Snapshots…", keywords: "version history keep restore save point", run: () => openDialog(setSnapshotsDialog) },
       { id: "compare", group: "Model", label: "Compare with…", keywords: "diff changes difference version file saved model", run: () => openDialog(setCompareDialog) },
       ...(compare ? [{ id: "compare-close", group: "Model", label: "Close compare", keys: "Esc", keywords: "diff", run: closeCompare }] : []),
       { id: "view-edit", group: "Views", label: "Filter and color…", keywords: "view legend color by lifecycle environment owner", run: () => openDialog(setViewDialog) },
@@ -2068,7 +2072,14 @@ function EditorInner() {
   // After `outline` is declared: the step's words read it.
   const shownStep = stepContents(steps[step]);
   return (
-    <div className={presenting ? "fixed inset-0 z-50 flex flex-col bg-surface" : "flex h-[calc(100dvh-3.5rem)] min-h-[34rem] flex-col bg-surface"}>
+    <>
+    {doc.blocked && (
+      // M66: the browser's store is held by a tab on an earlier version; the editor waits, out of reach, so nothing is changed that can't be kept.
+      <div role="alert" className="border-b border-border bg-surface-raised px-4 py-2 text-sm">
+        Blueprint Modeler is open in another tab on an earlier version. Close that tab (or reload it) to open your models here; until then nothing can be changed.
+      </div>
+    )}
+    <div inert={doc.blocked || undefined} className={presenting ? "fixed inset-0 z-50 flex flex-col bg-surface" : "flex h-[calc(100dvh-3.5rem)] min-h-[34rem] flex-col bg-surface"}>
       {presenting && (
         <div role="region" aria-label="Presentation" className="flex flex-wrap items-center gap-2 border-b border-border px-4 py-2">
           <p className="font-mono text-xs tracking-[0.14em] text-accent uppercase">Presenting</p>
@@ -2111,6 +2122,7 @@ function EditorInner() {
           currentId={model.id}
           currentName={model.name}
           onCompare={() => openDialog(setCompareDialog)}
+          onSnapshots={() => openDialog(setSnapshotsDialog)}
           onOpen={(id) => {
             setSelectedId(null);
             setActiveHint(null);
@@ -2729,6 +2741,29 @@ function EditorInner() {
       />
       {palette && <CommandPalette commands={paletteCommands()} onClose={(chosen) => dialogClosed(setPalette, chosen)} />}
       {shortcuts && <ShortcutMap onClose={() => dialogClosed(setShortcuts)} />}
+      {snapshotsDialog && (
+        <SnapshotsDialog
+          modelName={model.name}
+          list={doc.listSnapshots}
+          onTake={doc.takeSnapshot}
+          onCompare={async (s) => {
+            const base = await doc.readSnapshot(s.id);
+            if (base) showComparison(base, `${s.name} (snapshot)`);
+            return !!base;
+          }}
+          onRestore={async (s) => {
+            const base = await doc.readSnapshot(s.id);
+            if (!base) return false;
+            dialogClosed(setSnapshotsDialog);
+            setSelectedId(null);
+            dispatch({ type: "restore", model: base });
+            setMessage(`Restored snapshot “${s.name}”. Undo puts the model back as it was.`);
+            return true;
+          }}
+          onDelete={(s) => doc.deleteSnapshot(s.id)}
+          onClose={() => dialogClosed(setSnapshotsDialog)}
+        />
+      )}
       {compareDialog && (
         <CompareDialog
           models={doc.models}
@@ -2814,6 +2849,7 @@ function EditorInner() {
         </div>
       </div>
     </div>
+    </>
   );
 }
 

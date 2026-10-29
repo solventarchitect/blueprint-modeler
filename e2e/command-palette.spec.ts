@@ -129,9 +129,9 @@ test.describe("command palette and shortcut map (M52, desktop)", () => {
     await palette(page).getByRole("option", { name: /^Show minimap/ }).click();
     await expect(palette(page)).toHaveCount(0);
     await expect(minimap).toBeVisible();
-    // Snapping is turned on, not shown.
+    // Snapping is turned on, not shown. ("snap" alone now also finds Snapshots…, M66.)
     await openPalette(page);
-    await search(page).fill("snap");
+    await search(page).fill("snap to");
     await expect(options(page).first()).toHaveText(/^Turn on snap to grid/);
   });
 

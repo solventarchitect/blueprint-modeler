@@ -17,12 +17,34 @@ export type ModelSummary = {
 };
 export type StoredModel = { ok: true; model: Model } | { ok: false; error: string };
 
+/** How many snapshots a model keeps (M66). */
+export const MAX_SNAPSHOTS = 20;
+/** A snapshot to keep (M66): a model as it was, named, kept with the model in this browser only. */
+export type Snapshot = { id: string; modelId: string; name: string; taken: string; model: Model };
+/** What the Snapshots dialog lists, without reading each snapshot's model. */
+export type SnapshotSummary = { id: string; modelId: string; name: string; taken: string; nodes: number; edges: number; damaged?: true };
+
 export interface ModelStore {
   list(): Promise<ModelSummary[]>;
   get(id: string): Promise<StoredModel | undefined>;
   put(model: Model): Promise<void>;
+  /** Removes the model and its snapshots. */
   remove(id: string): Promise<void>;
+  listSnapshots(modelId: string): Promise<SnapshotSummary[]>;
+  getSnapshot(id: string): Promise<StoredModel | undefined>;
+  putSnapshot(snapshot: Snapshot): Promise<void>;
+  removeSnapshot(id: string): Promise<void>;
 }
+
+type SnapshotRow = { id: string; modelId: string; name: string; taken: string; json: string; nodes?: number; edges?: number };
+const toSnapshotRow = (s: Snapshot): SnapshotRow => ({ id: s.id, modelId: s.modelId, name: s.name, taken: s.taken, json: serializeModel(s.model), nodes: s.model.nodes.length, edges: s.model.edges.length });
+/** A snapshot row's summary; one whose model can't be read is marked, not trusted. */
+export function snapshotSummary(r: SnapshotRow): SnapshotSummary {
+  const base = { id: r.id, modelId: r.modelId, name: r.name, taken: r.taken };
+  const got = fromRow(r);
+  return got.ok ? { ...base, nodes: got.model.nodes.length, edges: got.model.edges.length } : { ...base, nodes: 0, edges: 0, damaged: true };
+}
+const byTakenDesc = (a: SnapshotSummary, b: SnapshotSummary) => b.taken.localeCompare(a.taken);
 
 /** A stored row: the serialized model, plus its summary so listing never parses every model. */
 type Row = { id: string; name: string; updated: string; json: string; description?: string; artifactId?: string; nodes?: number; edges?: number };
@@ -56,7 +78,7 @@ export const toRow = (m: Model): Row => ({
   edges: m.edges.length,
 });
 
-function fromRow(row: Row): StoredModel {
+function fromRow(row: Pick<Row, "json">): StoredModel {
   let data: unknown;
   try {
     data = JSON.parse(row.json);
@@ -70,6 +92,7 @@ function fromRow(row: Row): StoredModel {
 /** In-memory store: tests, and the fallback when IndexedDB is unavailable (private windows). */
 export function createMemoryStore(): ModelStore {
   const rows = new Map<string, Row>();
+  const snapshots = new Map<string, SnapshotRow>();
   return {
     async list() {
       return [...rows.values()].map(summary).sort(byUpdatedDesc);
@@ -83,12 +106,29 @@ export function createMemoryStore(): ModelStore {
     },
     async remove(id) {
       rows.delete(id);
+      for (const [k, s] of snapshots) if (s.modelId === id) snapshots.delete(k);
+    },
+    async listSnapshots(modelId) {
+      return [...snapshots.values()].filter((s) => s.modelId === modelId).map(snapshotSummary).sort(byTakenDesc);
+    },
+    async getSnapshot(id) {
+      const row = snapshots.get(id);
+      return row ? fromRow(row) : undefined;
+    },
+    async putSnapshot(snapshot) {
+      snapshots.set(snapshot.id, toSnapshotRow(snapshot));
+    },
+    async removeSnapshot(id) {
+      snapshots.delete(id);
     },
   };
 }
 
 const DB = "blueprint-modeler";
 const STORE = "models";
+/** M66: version 2 adds the snapshots store, indexed by the model they belong to. */
+const DB_VERSION = 2;
+const SNAPSHOTS = "snapshots";
 
 /**
  * A write is done when its transaction commits, not when its request succeeds: a quota error can
@@ -110,16 +150,49 @@ function request<T>(req: IDBRequest<T>): Promise<T> {
 }
 
 /** IndexedDB store (browser). One object store, keyed by model id; rows hold the serialized model. */
-export function createIndexedDbStore(factory: IDBFactory = indexedDB): ModelStore {
+/** What the store tells the app about other tabs (M66). */
+export type StoreEvents = {
+  /** A tab still on an earlier version holds the database: the upgrade waits for it. */
+  onBlocked?: () => void;
+  /** A newer version wants the database: write what is waiting, then this tab's store closes. */
+  onVersionChange?: () => Promise<void>;
+};
+/** The database was closed for a newer version in another tab: this tab must reload to save again. */
+export const STORE_CLOSED = "The browser's store was updated by a newer Blueprint Modeler in another tab.";
+
+export function createIndexedDbStore(factory: IDBFactory = indexedDB, events: StoreEvents = {}): ModelStore {
+  let closed = false;
   const open = new Promise<IDBDatabase>((resolve, reject) => {
-    const req = factory.open(DB, 1);
+    const req = factory.open(DB, DB_VERSION);
     req.onupgradeneeded = () => {
-      if (!req.result.objectStoreNames.contains(STORE)) req.result.createObjectStore(STORE, { keyPath: "id" });
+      const db = req.result;
+      if (!db.objectStoreNames.contains(STORE)) db.createObjectStore(STORE, { keyPath: "id" });
+      if (!db.objectStoreNames.contains(SNAPSHOTS)) db.createObjectStore(SNAPSHOTS, { keyPath: "id" }).createIndex("modelId", "modelId");
     };
-    req.onsuccess = () => resolve(req.result);
+    req.onsuccess = () => {
+      // Another tab opening a newer version: write what is waiting, then let it upgrade. This tab
+      // can't save after that; the app asks for a reload.
+      const db = req.result;
+      db.onversionchange = () => {
+        void (events.onVersionChange?.() ?? Promise.resolve())
+          .catch(() => undefined)
+          .finally(() => {
+            closed = true;
+            db.close();
+          });
+      };
+      resolve(db);
+    };
     req.onerror = () => reject(req.error);
+    // A tab still on the version before snapshots holds the database open: the upgrade waits for it.
+    req.onblocked = () => events.onBlocked?.();
   });
-  const tx = async (mode: IDBTransactionMode) => (await open).transaction(STORE, mode).objectStore(STORE);
+  const db = async () => {
+    if (closed) throw new Error(STORE_CLOSED);
+    return open;
+  };
+  const tx = async (mode: IDBTransactionMode) => (await db()).transaction(STORE, mode).objectStore(STORE);
+  const snaps = async (mode: IDBTransactionMode) => (await db()).transaction(SNAPSHOTS, mode).objectStore(SNAPSHOTS);
   return {
     async list() {
       const rows = (await request((await tx("readonly")).getAll())) as Row[];
@@ -135,7 +208,29 @@ export function createIndexedDbStore(factory: IDBFactory = indexedDB): ModelStor
       await committed(store.transaction);
     },
     async remove(id) {
-      const store = await tx("readwrite");
+      // The model and its snapshots go together, in one transaction.
+      const t = (await db()).transaction([STORE, SNAPSHOTS], "readwrite");
+      t.objectStore(STORE).delete(id);
+      const index = t.objectStore(SNAPSHOTS).index("modelId");
+      const keys = await request(index.getAllKeys(id));
+      for (const k of keys) t.objectStore(SNAPSHOTS).delete(k);
+      await committed(t);
+    },
+    async listSnapshots(modelId) {
+      const rows = (await request((await snaps("readonly")).index("modelId").getAll(modelId))) as SnapshotRow[];
+      return rows.map(snapshotSummary).sort(byTakenDesc);
+    },
+    async getSnapshot(id) {
+      const row = (await request((await snaps("readonly")).get(id))) as SnapshotRow | undefined;
+      return row ? fromRow(row) : undefined;
+    },
+    async putSnapshot(snapshot) {
+      const store = await snaps("readwrite");
+      store.put(toSnapshotRow(snapshot));
+      await committed(store.transaction);
+    },
+    async removeSnapshot(id) {
+      const store = await snaps("readwrite");
       store.delete(id);
       await committed(store.transaction);
     },
@@ -143,10 +238,10 @@ export function createIndexedDbStore(factory: IDBFactory = indexedDB): ModelStor
 }
 
 /** The store to use in the browser: IndexedDB when it opens, memory otherwise. */
-export async function openBrowserStore(): Promise<{ store: ModelStore; persistent: boolean }> {
+export async function openBrowserStore(events: StoreEvents = {}): Promise<{ store: ModelStore; persistent: boolean }> {
   try {
     if (typeof indexedDB === "undefined") throw new Error("no IndexedDB");
-    const store = createIndexedDbStore();
+    const store = createIndexedDbStore(indexedDB, events);
     await store.list();
     return { store, persistent: true };
   } catch {
