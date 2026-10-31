@@ -51,14 +51,17 @@ const plan = z.enum(PLANS).optional().catch(undefined);
 /** M69: how many tags an element can carry, and how long each can be. */
 export const MAX_TAGS = 10;
 export const MAX_TAG_LENGTH = 40;
-/** Tags as stored: trimmed, non-empty, at most MAX_TAG_LENGTH characters, once each ignoring case (the first spelling wins), at most MAX_TAGS. */
+/**
+ * Tags as stored: trimmed, non-empty, at most MAX_TAG_LENGTH characters, no comma (tags are typed
+ * and shown as a comma-separated list), once each ignoring case (the first spelling wins), at most MAX_TAGS.
+ */
 export function cleanTags(values: readonly unknown[]): string[] {
   const seen = new Set<string>();
   const out: string[] = [];
   for (const v of values.slice(0, 200)) {
     if (typeof v !== "string") continue;
     const t = v.trim();
-    if (!t || t.length > MAX_TAG_LENGTH || seen.has(t.toLowerCase())) continue;
+    if (!t || t.length > MAX_TAG_LENGTH || t.includes(",") || seen.has(t.toLowerCase())) continue;
     seen.add(t.toLowerCase());
     out.push(t);
     if (out.length === MAX_TAGS) break;

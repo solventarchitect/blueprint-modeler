@@ -72,6 +72,10 @@ test.describe("tags (M69, desktop)", () => {
     await expect(dialog(page).getByTestId("view-count")).toHaveText("Showing 2 of 14 elements");
     await group.getByLabel("Not tagged", { exact: true }).click();
     await expect(dialog(page).getByTestId("view-count")).toHaveText("Showing 14 of 14 elements");
+    // Unticking ignores case too: the filter lets go of the tag.
+    await group.getByLabel("Not tagged", { exact: true }).click();
+    await group.getByLabel("Team Storefront", { exact: true }).click();
+    await expect(dialog(page).getByTestId("view-count")).toHaveText("Showing 14 of 14 elements");
     await dialog(page).getByRole("button", { name: "Close" }).click();
 
     // The palette finds an element by one of its tags.
@@ -87,8 +91,10 @@ test.describe("tags (M69, desktop)", () => {
     const table = page.getByTestId("table-dialog");
     const cell = table.getByLabel("Tags of Orders database");
     await expect(cell).toHaveValue("team storefront, Billing");
-    await cell.fill("Billing, Data");
+    await cell.fill("Billing, Data, billing");
     await cell.press("Enter");
+    // What is shown is what was kept.
+    await expect(cell).toHaveValue("Billing, Data");
     await table.getByRole("button", { name: "Go to Orders database" }).click();
     await expect(chips(page)).toHaveText(["Billing", "Data"]);
   });

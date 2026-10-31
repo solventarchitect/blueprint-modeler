@@ -96,12 +96,13 @@ export function compareModels(current: Model, base: Model): Comparison {
   const added = current.nodes.filter((n) => !matched.has(n.id)).map(ref);
   const removed = base.nodes.filter((n) => !match.has(n.id)).map(ref);
   const changed: Comparison["changed"] = [];
+  // M69: tags compare as a set, so a new order is not a change (a new spelling is).
+  const tagSet = (n: Node) => [...(n.tags ?? [])].sort().join("\n");
   for (const b of base.nodes) {
     const id = match.get(b.id);
     if (!id) continue;
     const n = byId.get(id)!;
     const [was, now] = [fields(b), fields(n)];
-    const tagSet = (n: Node) => (n.tags ?? []).map((t) => t.toLowerCase()).sort().join("\n");
     const differs = (f: CompareField) => (f === "tags" ? tagSet(b) !== tagSet(n) : was[f] !== now[f]);
     const changes = (Object.keys(was) as CompareField[]).filter(differs).map((f) => ({ field: f, before: was[f], after: now[f] }));
     if (changes.length) changed.push({ ...ref(n), changes });

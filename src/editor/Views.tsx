@@ -158,11 +158,18 @@ export function ViewDialog({
     if (!dialog.current?.open) dialog.current?.showModal();
   }, []);
   const kept = model.nodes.filter((n) => inView(n, shown.filter)).length;
+  // Tags match ignoring case (M69), so they are ticked and unticked ignoring case too.
+  const same = (key: keyof ViewFilter, a: string, b: string) => (key === "tags" ? a.toLowerCase() === b.toLowerCase() : a === b);
+  const ticked = (key: keyof ViewFilter, value: string) => (shown.filter[key] ?? []).some((x) => same(key, x, value));
   const toggle = (key: keyof ViewFilter, value: string) => {
     const cur = shown.filter[key] ?? [];
-    const next = cur.includes(value) ? cur.filter((x) => x !== value) : [...cur, value];
+    const next = ticked(key, value) ? cur.filter((x) => !same(key, x, value)) : [...cur, value];
     onChange({ ...shown, filter: { ...shown.filter, [key]: next.length ? next : undefined } });
   };
+  // M69: the model's tags, then Not tagged; and any ticked tag no element carries any more, so it can be unticked.
+  const inModel = modelTags(model);
+  const stale = (shown.filter.tags ?? []).filter((t) => t && !inModel.some((m) => m.toLowerCase() === t.toLowerCase()));
+  const tagValues = inModel.length || stale.length ? [...inModel, ...stale, ...(model.nodes.some((n) => !n.tags?.length) || shown.filter.tags?.includes("") ? [""] : [])] : [];
   const groups: { key: keyof ViewFilter; label: string; values: string[]; text: (v: string) => string }[] = [
     { key: "layers", label: "Layer", values: LAYERS.map((l) => l.id).filter((l) => model.nodes.some((n) => classById(n.class)?.layer === l)), text: (v) => LAYERS.find((l) => l.id === v)?.name ?? v },
     { key: "classes", label: "Class", values: [...new Set(model.nodes.map((n) => n.class))].sort((a, b) => (classById(a)?.label ?? a).localeCompare(classById(b)?.label ?? b)), text: (v) => classById(v)?.label ?? v },
@@ -171,7 +178,7 @@ export function ViewDialog({
     { key: "owner", label: "Owner", values: present(model, (n) => attrValue(n, "owner")), text: (v) => v || "Not set" },
     // M68: only when something is Planned or Retiring (everything Live leaves nothing to choose between).
     // M69: every tag in the model (one spelling each, ignoring case), then Not tagged; only once something is tagged.
-    { key: "tags", label: "Tag", values: model.nodes.some((n) => n.tags?.length) ? [...modelTags(model), ...(model.nodes.some((n) => !n.tags?.length) ? [""] : [])] : [], text: (v) => v || "Not tagged" },
+    { key: "tags", label: "Tag", values: tagValues, text: (v) => v || "Not tagged" },
     { key: "plan", label: "Plan status", values: model.nodes.some((n) => n.plan) ? PLAN_STATUSES.filter((p) => model.nodes.some((n) => planOf(n) === p)) : [], text: (v) => PLAN_LABEL[v as PlanStatus] ?? v },
   ];
   const btn = "inline-flex min-h-8 cursor-pointer items-center border border-border-strong bg-surface-raised px-2.5 text-sm text-ink hover:border-accent hover:text-accent disabled:cursor-not-allowed disabled:opacity-50";
@@ -231,7 +238,7 @@ export function ViewDialog({
                     {g.values.map((v) => (
                       <li key={v || "(not set)"}>
                         <label className="flex min-h-6 items-center gap-1.5 text-sm">
-                          <input type="checkbox" checked={shown.filter[g.key]?.includes(v) ?? false} onChange={() => toggle(g.key, v)} />
+                          <input type="checkbox" checked={ticked(g.key, v)} onChange={() => toggle(g.key, v)} />
                           <span className={v ? "" : "text-ink-muted"}>{g.text(v)}</span>
                         </label>
                       </li>

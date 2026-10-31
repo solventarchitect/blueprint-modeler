@@ -59,12 +59,26 @@ describe("filter by tag (M69)", () => {
 });
 
 describe("compare sees tags (M69)", () => {
-  it("tags that changed are a change, compared ignoring order", () => {
+  it("tags that changed are a change; a new order is not", () => {
     const base = checkout();
     base.nodes = base.nodes.map((n, i) => (i === 0 ? { ...n, tags: ["A", "B"] } : n));
     const reordered = { ...base, nodes: base.nodes.map((n, i) => (i === 0 ? { ...n, tags: ["B", "A"] } : n)) };
     expect(compareModels(reordered, base).changed).toEqual([]);
     const now = { ...base, nodes: base.nodes.map((n, i) => (i === 0 ? { ...n, tags: ["A"] } : n)) };
     expect(compareModels(now, base).changed[0]!.changes).toEqual([{ field: "tags", before: "A, B", after: "A" }]);
+  });
+});
+
+describe("tags and commas, and a new spelling (M69 review)", () => {
+  it("a tag with a comma is dropped (tags are typed and shown as a comma-separated list)", () => {
+    const json = JSON.parse(JSON.stringify(checkout()));
+    json.nodes[0].tags = ["Cost center 1,200", "Billing"];
+    expect(modelSchema.parse(json).nodes[0]!.tags).toEqual(["Billing"]);
+  });
+  it("Compare sees a tag's new spelling", () => {
+    const base = checkout();
+    base.nodes = base.nodes.map((n, i) => (i === 0 ? { ...n, tags: ["team a"] } : n));
+    const now = { ...base, nodes: base.nodes.map((n, i) => (i === 0 ? { ...n, tags: ["Team A"] } : n)) };
+    expect(compareModels(now, base).changed[0]!.changes).toEqual([{ field: "tags", before: "team a", after: "Team A" }]);
   });
 });

@@ -216,7 +216,11 @@ function TagsField({ id, tags, suggestions, onChange }: { id: string; tags: stri
   const uid = useId();
   const section = useRef<HTMLElement>(null);
   const full = tags.length >= MAX_TAGS;
-  const say = (t: string) => setNote((e) => ({ text: t, n: (e?.n ?? 0) + 1 }));
+  // Emptied first, then set: the same message said twice is announced twice.
+  const say = (t: string) => {
+    setNote(null);
+    setTimeout(() => setNote((e) => ({ text: t, n: (e?.n ?? 0) + 1 })), 50);
+  };
   /** Focus, once the list has redrawn: the given Remove button (or the one before), else the tag field, else the heading. */
   const focusAfter = (removeAt: number | null) =>
     setTimeout(() => {
@@ -227,20 +231,25 @@ function TagsField({ id, tags, suggestions, onChange }: { id: string; tags: stri
       target?.focus();
     }, 0);
   const add = () => {
+    const parts = text.split(",").map((p) => p.trim()).filter(Boolean);
+    const tooLong = parts.filter((p) => p.length > MAX_TAG_LENGTH).length;
     const typed = parseTags(text);
-    if (!typed.length) return say(text.trim() ? `A tag is at most ${MAX_TAG_LENGTH} characters.` : "Type a tag first.");
+    if (!parts.length) return say("Type a tag first.");
+    if (!typed.length) return say(`A tag is at most ${MAX_TAG_LENGTH} characters.`);
     const have = new Set(tags.map((t) => t.toLowerCase()));
     const fresh = typed.filter((t) => !have.has(t.toLowerCase()));
     const next = [...tags, ...fresh].slice(0, MAX_TAGS);
-    const added = next.length - tags.length;
+    const added = next.slice(tags.length);
     setText("");
-    if (!added) return say("Already tagged with that.");
+    if (!added.length) return say("Already tagged with that.");
     onChange(next);
-    say(added < fresh.length ? `Added ${added}: an element holds up to ${MAX_TAGS} tags.` : "");
+    const left = [tooLong && `${tooLong} longer than ${MAX_TAG_LENGTH} characters left out`, added.length < fresh.length && `an element holds up to ${MAX_TAGS} tags`].filter(Boolean).join("; ");
+    say(`Added ${added.join(", ")}.${left ? ` ${left.charAt(0).toUpperCase()}${left.slice(1)}.` : ""}`);
     focusAfter(null);
   };
   const remove = (i: number) => {
     onChange(tags.filter((_, k) => k !== i));
+    say(`Removed tag ${tags[i]}.`);
     focusAfter(i);
   };
   const noteId = `${uid}-note`;
@@ -252,12 +261,12 @@ function TagsField({ id, tags, suggestions, onChange }: { id: string; tags: stri
       {tags.length ? (
         <ul className="flex flex-wrap gap-1.5" aria-label="Tags">
           {tags.map((t, i) => (
-            <li key={t} className="inline-flex items-center gap-1 border border-border-strong bg-surface px-2 py-0.5 text-xs text-ink">
+            <li key={t} className="inline-flex items-center gap-1 border border-border-strong bg-surface pl-2 text-xs text-ink">
               <span>{t}</span>
               <button
                 type="button"
                 data-remove-tag
-                className="flex size-5 cursor-pointer items-center justify-center text-ink-muted hover:text-accent"
+                className="flex size-6 cursor-pointer items-center justify-center text-ink-muted hover:text-accent"
                 aria-label={`Remove tag ${t}`}
                 onClick={() => remove(i)}
               >
@@ -304,7 +313,7 @@ function TagsField({ id, tags, suggestions, onChange }: { id: string; tags: stri
         </div>
       )}
       <span id={`${uid}-help`} className="text-xs text-ink-muted">
-        Several at once: separate them with commas.
+        Several at once: separate them with commas. A suggestion fills in one tag.
       </span>
       <p id={noteId} role="status" className="text-xs text-ink-muted">
         {note?.text}

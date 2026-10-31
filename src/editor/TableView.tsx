@@ -37,7 +37,24 @@ const matches = (row: Record<string, string | number>, q: string) => !q || Objec
  * puts back what it held, and closes the dialog only when there is nothing to put back. A required
  * cell (Name) left empty keeps what it had, as the Inspector does.
  */
-function TextCell({ value, label, list, required, onCommit }: { value: string; label: string; list?: string; required?: boolean; onCommit: (v: string) => void }) {
+function TextCell({
+  value,
+  label,
+  list,
+  required,
+  normalize,
+  maxLength = 200,
+  onCommit,
+}: {
+  value: string;
+  label: string;
+  list?: string;
+  required?: boolean;
+  /** What is kept of what was typed (M69: tags, cleaned as the file keeps them). */
+  normalize?: (v: string) => string;
+  maxLength?: number;
+  onCommit: (v: string) => void;
+}) {
   const [text, setText] = useState(value);
   const [held, setHeld] = useState(value);
   // The model changed under the cell (undo, or a save elsewhere): show what it holds now.
@@ -46,7 +63,8 @@ function TextCell({ value, label, list, required, onCommit }: { value: string; l
     setText(value);
   }
   const commit = () => {
-    const next = text.trim() || (required ? value : "");
+    const typed = normalize ? normalize(text) : text.trim();
+    const next = typed || (required ? value : "");
     if (next !== value) onCommit(next);
     // What is shown is what was saved (trimmed, or the name put back).
     setText(next);
@@ -57,7 +75,7 @@ function TextCell({ value, label, list, required, onCommit }: { value: string; l
       aria-label={label}
       list={list}
       value={text}
-      maxLength={200}
+      maxLength={maxLength}
       onChange={(e) => setText(e.target.value)}
       onBlur={commit}
       onKeyDown={(e) => {
@@ -277,7 +295,17 @@ export function TableView({
                     )}
                   </td>
                   <td className="px-2 py-1">
-                    {editable ? <TextCell value={r.tags} label={`Tags of ${r.name}`} onCommit={(value) => dispatch({ type: "set-tags", id: r.id, tags: parseTags(value) })} /> : r.tags}
+                    {editable ? (
+                      <TextCell
+                        value={r.tags}
+                        label={`Tags of ${r.name}`}
+                        maxLength={2000}
+                        normalize={(v) => parseTags(v).join(", ")}
+                        onCommit={(value) => dispatch({ type: "set-tags", id: r.id, tags: parseTags(value) })}
+                      />
+                    ) : (
+                      r.tags
+                    )}
                   </td>
                   <td className="px-2 py-1">
                     <button type="button" className={btn} aria-label={`Go to ${r.name}`} onClick={() => onGoTo(r.id)}>
