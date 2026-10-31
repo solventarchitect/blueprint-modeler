@@ -301,7 +301,7 @@ function TagsField({ id, tags, suggestions, onChange }: { id: string; tags: stri
             />
           </label>
           <button type="button" className={button} onClick={add}>
-            Add
+            Add tag
           </button>
           <datalist id={`${uid}-tags`}>
             {suggestions
@@ -315,7 +315,8 @@ function TagsField({ id, tags, suggestions, onChange }: { id: string; tags: stri
       <span id={`${uid}-help`} className="text-xs text-ink-muted">
         Several at once: separate them with commas. A suggestion fills in one tag.
       </span>
-      <p id={noteId} role="status" className="text-xs text-ink-muted">
+      {/* A polite live region (not role="status": the editor has one status line, its announcer). */}
+      <p id={noteId} aria-live="polite" className="text-xs text-ink-muted">
         {note?.text}
       </p>
     </section>

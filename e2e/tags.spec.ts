@@ -39,7 +39,7 @@ test.describe("tags (M69, desktop)", () => {
     await expect(tagInput(page)).toBeFocused();
     await tagInput(page).fill("program x");
     await tagInput(page).press("Enter");
-    await expect(inspector(page).getByRole("status").filter({ hasText: "Already tagged with that." })).toBeAttached();
+    await expect(inspector(page).getByText("Already tagged with that.")).toBeAttached();
     await expect(chips(page)).toHaveCount(2);
     expect(await new AxeBuilder({ page }).withTags(axeTags).include('[aria-label="Inspector"]').analyze().then((r) => r.violations)).toEqual([]);
 
