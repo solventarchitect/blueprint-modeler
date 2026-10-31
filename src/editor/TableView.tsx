@@ -260,6 +260,9 @@ export function TableView({
                   <td className="px-2 py-1">{lifecycleCell(r)}</td>
                   <td className="px-2 py-1">{editable ? <TextCell value={r.environment} label={`Environment of ${r.name}`} list={`${uid}-environments`} onCommit={(value) => dispatch({ type: "set-attr", id: r.id, key: "environment", value })} /> : r.environment}</td>
                   <td className="px-2 py-1">{editable ? <TextCell value={r.owner} label={`Owner of ${r.name}`} list={`${uid}-owners`} onCommit={(value) => dispatch({ type: "set-attr", id: r.id, key: "owner", value })} /> : r.owner}</td>
+                  <td className="px-2 py-1">{r.ref}</td>
+                  <td className="px-2 py-1 text-right tabular-nums">{r.relationships}</td>
+                  <td className="px-2 py-1 text-right tabular-nums">{r.hints}</td>
                   <td className="px-2 py-1">
                     {editable ? (
                       <select className={cell} aria-label={`Plan status of ${r.name}`} value={planOf({ plan: planOfId.get(r.id) })} onChange={(e) => dispatch({ type: "set-plan", target: "node", id: r.id, plan: e.target.value as PlanStatus })}>
@@ -273,9 +276,6 @@ export function TableView({
                       r.plan
                     )}
                   </td>
-                  <td className="px-2 py-1">{r.ref}</td>
-                  <td className="px-2 py-1 text-right tabular-nums">{r.relationships}</td>
-                  <td className="px-2 py-1 text-right tabular-nums">{r.hints}</td>
                   <td className="px-2 py-1">
                     <button type="button" className={btn} aria-label={`Go to ${r.name}`} onClick={() => onGoTo(r.id)}>
                       Go to

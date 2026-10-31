@@ -186,7 +186,7 @@ function ClassNodeView({ id, data, selected, dragging }: NodeProps<ClassFlowNode
       // nokey: Shift+press on an element is a Shift+click (add to the selection), never the start of a
       // Shift+drag box selection, which React Flow would otherwise begin on any pointer jitter (M57).
       data-plan={data.plan}
-      className={`nokey relative w-56 border border-border-strong border-l-4 ${data.plan === "planned" ? "border-dashed" : ""} px-3 py-2.5 text-left ${data.neighbor && !selected ? "bg-neighbor-tint" : data.archimateOnly && data.alt ? archimateBg[data.alt.layer] : "bg-surface-raised"} ${layerAccent[def?.layer ?? "design"]} ${ring} ${focus ? "shadow-lg" : ""}`}
+      className={`nokey relative w-56 border border-border-strong border-l-4 ${data.plan === "planned" ? "border-dotted" : ""} px-3 py-2.5 text-left ${data.neighbor && !selected ? "bg-neighbor-tint" : data.archimateOnly && data.alt ? archimateBg[data.alt.layer] : "bg-surface-raised"} ${layerAccent[def?.layer ?? "design"]} ${ring} ${focus ? "shadow-lg" : ""}`}
       data-connect-target={target || undefined}
       data-neighbor={data.neighbor || undefined}
       data-archimate-layer={data.archimateOnly ? data.alt?.layer : undefined}
@@ -221,10 +221,11 @@ function ClassNodeView({ id, data, selected, dragging }: NodeProps<ClassFlowNode
         >
           <ArchimateGlyph type={data.alt.type} />
           <span className="truncate">{data.alt.label}</span>
+          {data.plan && <span className="shrink-0" data-testid="plan-tag">· {data.plan === "planned" ? "Planned" : "Retiring"}</span>}
         </p>
       ) : (
         // Over the neighbor tint, the muted gray falls below 4.5:1; the softer ink keeps it readable.
-        <p className={`font-mono text-[0.65rem] tracking-[0.12em] uppercase ${data.neighbor && !selected ? "text-ink-soft" : "text-ink-muted"}`}>{def?.label ?? data.cls}
+        <p className={`truncate font-mono text-[0.65rem] tracking-[0.12em] uppercase ${data.neighbor && !selected ? "text-ink-soft" : "text-ink-muted"}`}>{def?.label ?? data.cls}
           {data.plan && <span data-testid="plan-tag"> · {data.plan === "planned" ? "Planned" : "Retiring"}</span>}
         </p>
       )}

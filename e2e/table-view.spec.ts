@@ -147,7 +147,7 @@ test.describe("table view (M67, desktop)", () => {
     await dialog(page).getByLabel("Filter").fill("");
     const [els] = await Promise.all([page.waitForEvent("download"), dialog(page).getByRole("button", { name: "Save as CSV" }).click()]);
     const elCsv = await readFile((await els.path())!, "utf8");
-    expect(elCsv.split("\r\n")[0]).toBe("﻿Name,Class,Layer,Life cycle stage,Environment,Owner,Plan status,Record number,Relationships,Hints");
+    expect(elCsv.split("\r\n")[0]).toBe("﻿Name,Class,Layer,Life cycle stage,Environment,Owner,Record number,Relationships,Hints,Plan status");
     expect(elCsv.split("\r\n").filter(Boolean)).toHaveLength(15);
   });
 

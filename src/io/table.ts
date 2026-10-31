@@ -72,10 +72,11 @@ export const ELEMENT_COLUMNS: { key: keyof ElementRow; label: string }[] = [
   { key: "lifecycle", label: "Life cycle stage" },
   { key: "environment", label: "Environment" },
   { key: "owner", label: "Owner" },
-  { key: "plan", label: "Plan status" },
   { key: "ref", label: "Record number" },
   { key: "relationships", label: "Relationships" },
   { key: "hints", label: "Hints" },
+  // M68: last, so the columns before it keep their places in a CSV.
+  { key: "plan", label: "Plan status" },
 ];
 
 export const elementsCsv = (rows: ElementRow[]) => toCsv(ELEMENT_COLUMNS.map((c) => c.label), rows.map((r) => ELEMENT_COLUMNS.map((c) => String(r[c.key]))));

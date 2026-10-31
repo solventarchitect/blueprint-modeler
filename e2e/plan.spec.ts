@@ -100,4 +100,25 @@ test.describe("plan status and current or target state (M68, desktop)", () => {
     await expect(inspector(page).getByLabel("Name", { exact: true })).toHaveValue("Checkout web app");
     await expect(node(page, "Orders database").locator("[data-plan]")).toHaveAttribute("data-plan", "planned");
   });
+
+  test("marking the selected element so the state shown leaves it out says so and keeps focus in the side panel; another model opens on both", async ({ page }) => {
+    await start(page);
+    await stateShown(page, "Current");
+    await expect(bar(page)).toContainText("Nothing is planned: everything shows.");
+    await node(page, "Orders database").click();
+    await inspector(page).getByRole("combobox", { name: "Plan status", exact: true }).selectOption("planned");
+    await expect(node(page, "Orders database")).toBeHidden();
+    await expect(page.locator("#tab-details")).toBeFocused();
+    await expect(page.getByText("“Orders database” is planned: left out of the current state.")).toBeAttached();
+    await expect(bar(page)).toContainText("Leaves out 1 element");
+    // The Read panel reads what the state shown has.
+    await page.getByRole("tab", { name: "Read" }).click();
+    await expect(page.getByRole("tabpanel", { name: "Read" })).not.toContainText("Orders database");
+    // Another model opens on both.
+    await page.goto("/editor");
+    await saved(page);
+    await openExample(page, "Online Store Checkout");
+    await saved(page);
+    await expect(bar(page)).toHaveCount(0);
+  });
 });

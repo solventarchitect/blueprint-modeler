@@ -95,3 +95,14 @@ describe("compare sees plan status (M68)", () => {
     expect(c.edgesChanged[0]!.before).toBe(base.edges[0]!.type);
   });
 });
+
+describe("a saved view's plan status filter (M68)", () => {
+  it("keeps the values this version knows; others are dropped, not the file", () => {
+    const json = JSON.parse(JSON.stringify(checkout()));
+    json.views = [{ id: "v1", name: "Changes", filter: { plan: ["planned", "someday", "planned", "a", "b", "c"] }, colorBy: "layer" }];
+    const parsed = modelSchema.parse(json);
+    expect(parsed.views![0]!.filter.plan).toEqual(["planned"]);
+    json.views[0].filter.plan = ["later"];
+    expect(modelSchema.parse(json).views![0]!.filter.plan).toBeUndefined();
+  });
+});

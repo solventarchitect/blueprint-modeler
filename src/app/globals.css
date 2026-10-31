@@ -1085,13 +1085,14 @@
 }
 
 /*
- * M68 plan status on relationships: Planned dashed, Retiring dotted and lighter. The relationship's
- * name (and the table, Inspector and Compare) say it in words, so the line style is extra.
+ * M68 plan status on relationships: Planned in a dash-dot no other state uses, Retiring dotted (both
+ * keep the line's color, so its contrast). The relationship's name (and the table, Inspector, Read panel and Compare) say it in words,
+ * so the line style is extra. A blast hop, a hover or a Compare change keeps its own dash over it.
  */
-.react-flow__edge.plan-planned .react-flow__edge-path {
-  stroke-dasharray: 10 6;
+.react-flow__edge.plan-planned:not(.blast-now, .hover, .diff-changed) .react-flow__edge-path {
+  stroke-dasharray: 14 4 2 4;
 }
-.react-flow__edge.plan-retiring .react-flow__edge-path {
+.react-flow__edge.plan-retiring:not(.blast-now, .hover, .diff-changed) .react-flow__edge-path {
   stroke-dasharray: 2 5;
   stroke-linecap: round;
 }

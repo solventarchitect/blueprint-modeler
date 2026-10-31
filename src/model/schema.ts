@@ -106,8 +106,15 @@ export const viewFilterSchema = z.object({
   lifecycle: values(50),
   environment: values(200),
   owner: values(200),
-  /** M68: plan status ("live", "planned", "retiring"); older versions ignore it and keep every element. */
-  plan: values(3),
+  /** M68: plan status ("live", "planned", "retiring"); older versions ignore it and keep every element. A value this version doesn't know is dropped, not the file. */
+  plan: z
+    .unknown()
+    .transform((v): string[] | undefined => {
+      if (!Array.isArray(v)) return undefined;
+      const kept = [...new Set(v.filter((x): x is string => x === "live" || x === "planned" || x === "retiring"))];
+      return kept.length ? kept : undefined;
+    })
+    .optional(),
 });
 /** What a view can group elements by (M56), worked out from the model; see groups.ts. */
 export const GROUP_BY = ["business_application", "service_offering", "environment"] as const;

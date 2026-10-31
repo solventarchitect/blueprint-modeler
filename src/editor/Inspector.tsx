@@ -137,7 +137,6 @@ function LifecycleField({ cls, value, onCommit }: { cls: string; value: string; 
   );
 }
 
-/** A CI's description: saved when the field loses focus (Ctrl+Enter also saves; Escape reverts). */
 /** M68: plan status, Live (default), Planned or Retiring. Saved on change, one undo step. */
 function PlanSelect({ value, label, help, onCommit, compact }: { value: PlanStatus; label: string; help?: string; onCommit: (v: PlanStatus) => void; compact?: boolean }) {
   const helpId = useId();
@@ -162,6 +161,7 @@ function PlanSelect({ value, label, help, onCommit, compact }: { value: PlanStat
   );
 }
 
+/** A CI's description: saved when the field loses focus (Ctrl+Enter also saves; Escape reverts). */
 function DescriptionField({
   id,
   value,
