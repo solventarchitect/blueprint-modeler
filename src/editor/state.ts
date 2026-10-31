@@ -1,6 +1,6 @@
 import { acceptedTypes, allowedTypes, classById, relationshipsBetween, type ClassId, type Layer } from "@/metamodel";
 import type { Side } from "@/layout/geometry";
-import { edgeKey, linkSchema, serializeModel, MAX_LINKS, MAX_VIEWS, viewSchema, type Link, withDetails, type Edge, type Model, type Node, type View } from "@/model";
+import { edgeKey, linkSchema, type PlanStatus, serializeModel, MAX_LINKS, MAX_VIEWS, viewSchema, type Link, withDetails, type Edge, type Model, type Node, type View } from "@/model";
 
 /**
  * Editor state: the model plus undo/redo history. Pure functions only, so every rule the
@@ -19,6 +19,8 @@ export type Action =
   | { type: "describe-node"; id: string; description: string }
   | { type: "set-attr"; id: string; key: "lifecycle" | "environment" | "owner" | "ref"; value: string }
   | { type: "set-links"; id: string; links: Link[] }
+  /** M68: an element's or a relationship's plan status; Live removes the key. */
+  | { type: "set-plan"; target: "node" | "edge"; id: string; plan: PlanStatus }
   | { type: "set-attrs"; ids: string[]; key: "lifecycle" | "environment" | "owner"; value: string }
   | { type: "save-view"; view: View }
   | { type: "delete-view"; id: string }
@@ -147,6 +149,19 @@ function apply(model: Model, action: Action): Model | null {
           return links.length ? { ...rest, links } : rest;
         }),
       };
+    }
+    case "set-plan": {
+      const withPlan = <T extends Node | Edge>(x: T): T => {
+        const { plan: _old, ...rest } = x;
+        void _old;
+        return (action.plan === "live" ? rest : { ...rest, plan: action.plan }) as T;
+      };
+      const list: (Node | Edge)[] = action.target === "node" ? model.nodes : model.edges;
+      const item = list.find((x) => x.id === action.id);
+      if (!item || (item.plan ?? "live") === action.plan) return null;
+      return action.target === "node"
+        ? { ...model, nodes: model.nodes.map((n) => (n.id === action.id ? withPlan(n) : n)) }
+        : { ...model, edges: model.edges.map((e) => (e.id === action.id ? withPlan(e) : e)) };
     }
     case "set-attr":
     case "set-attrs": {

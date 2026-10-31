@@ -5,7 +5,7 @@ import { ARCHIMATE_TRADEMARK, archimateElements, archimateRelationshipFor, archi
 import { ArchimateGlyph } from "@/frameworks/ArchimateGlyph";
 import { classSlug } from "@/guide";
 import { allowedTypes, classById, ENVIRONMENT_EXAMPLES, isClassId, isCsdmCore, LIFE_CYCLE, lifecycleFor, sources } from "@/metamodel";
-import { MAX_LINKS, modelDate, toWebAddress, type Link, type Model } from "@/model";
+import { MAX_LINKS, modelDate, PLAN_LABEL, PLAN_STATUSES, planOf, toWebAddress, type Link, type Model, type PlanStatus } from "@/model";
 import type { Action } from "./state";
 import { suggestionDetail, suggestionLabel, type Suggestion } from "./suggest";
 
@@ -134,6 +134,30 @@ function LifecycleField({ cls, value, onCommit }: { cls: string; value: string; 
         , {pages}.
       </span>
     </label>
+  );
+}
+
+/** M68: plan status, Live (default), Planned or Retiring. Saved on change, one undo step. */
+function PlanSelect({ value, label, help, onCommit, compact }: { value: PlanStatus; label: string; help?: string; onCommit: (v: PlanStatus) => void; compact?: boolean }) {
+  const helpId = useId();
+  return (
+    <div className={compact ? "flex items-center gap-1.5 text-xs" : "flex flex-col gap-1 text-sm"}>
+      <label className={compact ? "contents" : "flex flex-col gap-1"}>
+        <span className={compact ? "sr-only" : "text-ink-muted"}>{label}</span>
+        <select className={compact ? `${input} min-h-6 py-0 text-xs` : input} value={value} aria-describedby={help ? helpId : undefined} onChange={(e) => onCommit(e.target.value as PlanStatus)}>
+          {PLAN_STATUSES.map((p) => (
+            <option key={p} value={p}>
+              {PLAN_LABEL[p]}
+            </option>
+          ))}
+        </select>
+      </label>
+      {help && (
+        <span id={helpId} className="text-xs text-ink-muted">
+          {help}
+        </span>
+      )}
+    </div>
   );
 }
 
@@ -448,6 +472,12 @@ export function Inspector({ model, selectedId, dispatch, focusName, focusConnect
       <NameField id={node.id} value={node.name} label="Name" focusToken={focusName} onCommit={(name) => dispatch({ type: "rename-node", id: node.id, name })} />
       <DescriptionField id={node.id} value={node.attrs?.description ?? ""} onCommit={(description) => dispatch({ type: "describe-node", id: node.id, description })} />
       <LifecycleField cls={node.class} value={node.attrs?.lifecycle ?? ""} onCommit={(value) => dispatch({ type: "set-attr", id: node.id, key: "lifecycle", value })} />
+      <PlanSelect
+        value={planOf(node)}
+        label="Plan status"
+        help="Planned: not there yet. Retiring: going away. Current state leaves out what is planned, target state what is retiring."
+        onCommit={(plan) => dispatch({ type: "set-plan", target: "node", id: node.id, plan })}
+      />
       <NameField
         id={node.id}
         value={node.attrs?.environment ?? ""}
@@ -507,6 +537,7 @@ export function Inspector({ model, selectedId, dispatch, focusName, focusConnect
                 <span>{text}</span>
                 <span className="font-mono text-xs text-ink-muted">{e.type}</span>
                 {showsArchimate(lens) && archimateRel(e.from, e.to) && <span className="text-xs text-ai">ArchiMate: {archimateRel(e.from, e.to)}</span>}
+                <PlanSelect compact value={planOf(e)} label={`Plan status of relationship ${text} ${e.type}`} onCommit={(plan) => dispatch({ type: "set-plan", target: "edge", id: e.id, plan })} />
               </span>
               <button type="button" className={button} onClick={() => dispatch({ type: "delete-edge", id: e.id })} aria-label={`Remove relationship ${text} ${e.type}`}>
                 Remove

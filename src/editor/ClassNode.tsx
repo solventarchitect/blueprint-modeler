@@ -33,6 +33,8 @@ export type ClassNodeData = {
   blast?: { hop: number; current: boolean; impact: boolean; /** A data flow rather than a blast radius: the flow color throughout. */ flow?: boolean };
   /** M58: added or changed since the model it is compared with. */
   diff?: "added" | "changed";
+  /** M68: Planned (dashed border) or Retiring (name struck through); said in words beside the class too. */
+  plan?: "planned" | "retiring";
 };
 
 /** ArchiMate-only lens: the element's fill follows its ArchiMate layer (tokens in globals.css). */
@@ -183,7 +185,8 @@ function ClassNodeView({ id, data, selected, dragging }: NodeProps<ClassFlowNode
       ref={box}
       // nokey: Shift+press on an element is a Shift+click (add to the selection), never the start of a
       // Shift+drag box selection, which React Flow would otherwise begin on any pointer jitter (M57).
-      className={`nokey relative w-56 border border-border-strong border-l-4 px-3 py-2.5 text-left ${data.neighbor && !selected ? "bg-neighbor-tint" : data.archimateOnly && data.alt ? archimateBg[data.alt.layer] : "bg-surface-raised"} ${layerAccent[def?.layer ?? "design"]} ${ring} ${focus ? "shadow-lg" : ""}`}
+      data-plan={data.plan}
+      className={`nokey relative w-56 border border-border-strong border-l-4 ${data.plan === "planned" ? "border-dotted" : ""} px-3 py-2.5 text-left ${data.neighbor && !selected ? "bg-neighbor-tint" : data.archimateOnly && data.alt ? archimateBg[data.alt.layer] : "bg-surface-raised"} ${layerAccent[def?.layer ?? "design"]} ${ring} ${focus ? "shadow-lg" : ""}`}
       data-connect-target={target || undefined}
       data-neighbor={data.neighbor || undefined}
       data-archimate-layer={data.archimateOnly ? data.alt?.layer : undefined}
@@ -218,12 +221,15 @@ function ClassNodeView({ id, data, selected, dragging }: NodeProps<ClassFlowNode
         >
           <ArchimateGlyph type={data.alt.type} />
           <span className="truncate">{data.alt.label}</span>
+          {data.plan && <span className="shrink-0" data-testid="plan-tag">· {data.plan === "planned" ? "Planned" : "Retiring"}</span>}
         </p>
       ) : (
         // Over the neighbor tint, the muted gray falls below 4.5:1; the softer ink keeps it readable.
-        <p className={`font-mono text-[0.65rem] tracking-[0.12em] uppercase ${data.neighbor && !selected ? "text-ink-soft" : "text-ink-muted"}`}>{def?.label ?? data.cls}</p>
+        <p className={`font-mono text-[0.65rem] tracking-[0.12em] uppercase ${data.neighbor && !selected ? "text-ink-soft" : "text-ink-muted"}`}>{def?.label ?? data.cls}
+          {data.plan && <span data-testid="plan-tag"> · {data.plan === "planned" ? "Planned" : "Retiring"}</span>}
+        </p>
       )}
-      <p className="mt-0.5 truncate text-sm font-medium text-ink">{data.name || "Untitled"}</p>
+      <p className={`mt-0.5 truncate text-sm font-medium text-ink ${data.plan === "retiring" ? "line-through decoration-2" : ""}`}>{data.name || "Untitled"}</p>
       {focus && data.description && (
         // Out of flow, so showing it never changes the element's measured size (edges and boxes stay put).
         <p data-testid="node-description" className="absolute top-full right-0 left-0 -mt-px border border-t-0 border-border-strong bg-surface-raised px-3 py-2 text-xs text-ink-soft">

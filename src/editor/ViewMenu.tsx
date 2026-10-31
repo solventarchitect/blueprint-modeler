@@ -2,6 +2,7 @@
 
 import { useEffect, useId, useRef, useState } from "react";
 import { LINE_STYLES, type LineStyle } from "@/layout/edgePath";
+import type { PlanView } from "@/model";
 import { ToolbarIcon } from "./ToolbarIcon";
 
 export type ViewOptions = { boxes: boolean; lanes: boolean; snap: boolean; guides: boolean; extended: boolean; minimap: boolean; labels: boolean; lines: LineStyle };
@@ -56,7 +57,20 @@ export const viewItems: { key: "boxes" | "lanes" | "snap" | "guides" | "extended
 ];
 
 /** Disclosure menu of view toggles. Escape or a click outside closes it. */
-export function ViewMenu({ value, onChange, buttonClass }: { value: ViewOptions; onChange: (v: ViewOptions) => void; buttonClass: string }) {
+export function ViewMenu({
+  value,
+  onChange,
+  buttonClass,
+  plan,
+  onPlan,
+}: {
+  value: ViewOptions;
+  onChange: (v: ViewOptions) => void;
+  buttonClass: string;
+  /** M68: current state, target state or both (on screen only). */
+  plan?: PlanView;
+  onPlan?: (v: PlanView) => void;
+}) {
   const [open, setOpen] = useState(false);
   const root = useRef<HTMLDivElement>(null);
   const button = useRef<HTMLButtonElement>(null);
@@ -125,6 +139,27 @@ export function ViewMenu({ value, onChange, buttonClass }: { value: ViewOptions;
             ))}
           </span>
         </li>
+        {plan && onPlan && (
+          <li className="mt-1 border-t border-border px-3 pt-2 pb-1">
+            <span id={`${listId}-plan`} className="text-sm text-ink">
+              State shown
+            </span>
+            <span className="block text-xs text-ink-muted">Current leaves out what is planned, target what is retiring. On screen only.</span>
+            <span role="group" aria-labelledby={`${listId}-plan`} className="mt-1.5 inline-flex flex-wrap">
+              {(["both", "current", "target"] as const).map((p, i) => (
+                <button
+                  key={p}
+                  type="button"
+                  aria-pressed={plan === p}
+                  className={`inline-flex min-h-8 cursor-pointer items-center border border-border-strong px-2.5 text-xs text-ink-soft hover:border-accent hover:text-accent aria-pressed:border-accent aria-pressed:bg-accent aria-pressed:text-accent-ink aria-pressed:hover:text-accent-ink ${i ? "-ml-px" : ""}`}
+                  onClick={() => onPlan(p)}
+                >
+                  {p === "both" ? "Both" : p === "current" ? "Current" : "Target"}
+                </button>
+              ))}
+            </span>
+          </li>
+        )}
       </ul>
     </div>
   );

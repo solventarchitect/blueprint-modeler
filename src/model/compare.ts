@@ -9,9 +9,10 @@
  */
 import { classById } from "@/metamodel";
 import { attrValue } from "./views";
+import { PLAN_LABEL, planOf } from "./plan";
 import type { Edge, Model, Node } from "./schema";
 
-export type CompareField = "name" | "class" | "description" | "lifecycle" | "environment" | "owner" | "ref" | "links";
+export type CompareField = "name" | "class" | "description" | "lifecycle" | "environment" | "owner" | "ref" | "links" | "plan";
 export type FieldChange = { field: CompareField; before: string; after: string };
 export type ElementRef = { id: string; name: string; kind: string };
 export type EdgeRef = { id: string; from: string; to: string; type: string };
@@ -27,8 +28,8 @@ export type Comparison = {
   edgesAdded: EdgeRef[];
   /** Relationships in the base only; ends named by element name. */
   edgesRemoved: EdgeRef[];
-  /** Relationships in both whose type differs (ids in this model). */
-  edgesChanged: (EdgeRef & { before: string })[];
+  /** Relationships in both whose type or plan status differs (ids in this model): `before` is the base type; `plan` the plan status before and after, when it changed (M68). */
+  edgesChanged: (EdgeRef & { before: string; plan?: { before: string; after: string } })[];
 };
 
 export const FIELD_LABEL: Record<CompareField, string> = {
@@ -40,6 +41,7 @@ export const FIELD_LABEL: Record<CompareField, string> = {
   owner: "Owner",
   ref: "Record number",
   links: "Links",
+  plan: "Plan status",
 };
 
 const kindOf = (n: Node) => classById(n.class)?.label ?? n.class;
@@ -57,6 +59,7 @@ function fields(n: Node): Record<CompareField, string> {
     // M65: the record number, and the links by title and address (titles shown when they differ).
     ref: (n.attrs?.ref ?? "").trim(),
     links: (n.links ?? []).map((l) => `${l.title} (${l.url})`).join(", "),
+    plan: PLAN_LABEL[planOf(n)],
   };
 }
 
@@ -110,17 +113,23 @@ export function compareModels(current: Model, base: Model): Comparison {
   const seen = new Set<string>();
   const edgesRemoved: EdgeRef[] = [];
   const edgesChanged: Comparison["edgesChanged"] = [];
+  /** A matched relationship whose type or plan status differs from the base's. */
+  const note = (now: Edge, was: Edge) => {
+    const [pb, pa] = [PLAN_LABEL[planOf(was)], PLAN_LABEL[planOf(now)]];
+    if (now.type !== was.type || pb !== pa) edgesChanged.push({ ...named(now, byId), before: was.type, ...(pb !== pa ? { plan: { before: pb, after: pa } } : {}) });
+  };
   for (const e of base.edges) {
     const { from, to } = mapped(e);
     const same = edgeById.get(e.id);
     if (same && !seen.has(same.id) && same.from === from && same.to === to) {
       seen.add(same.id);
-      if (same.type !== e.type) edgesChanged.push({ ...named(same, byId), before: e.type });
+      note(same, e);
       continue;
     }
     const byEnds = from && to ? edgeAt.get(`${from}|${to}|${e.type}`)?.find((x) => !seen.has(x.id)) : undefined;
     if (byEnds) {
       seen.add(byEnds.id);
+      note(byEnds, e);
       continue;
     }
     edgesRemoved.push(named(e, baseById));

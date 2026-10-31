@@ -41,6 +41,13 @@ export const linkSchema = z.object({
 });
 export type Link = z.infer<typeof linkSchema>;
 
+/**
+ * M68: plan status, Planned (not there yet) or Retiring (going away); absent is Live. Optional and
+ * additive in format 1: older versions ignore it. A value this version doesn't know is dropped, not the file.
+ */
+export const PLANS = ["planned", "retiring"] as const;
+const plan = z.enum(PLANS).optional().catch(undefined);
+
 export const nodeSchema = z.object({
   id,
   class: z.string().min(1).max(64),
@@ -65,6 +72,7 @@ export const nodeSchema = z.object({
       return kept.length ? kept : undefined;
     })
     .optional(),
+  plan,
 });
 
 /** The sides of an element a relationship can leave or reach. */
@@ -82,6 +90,7 @@ export const edgeSchema = z.object({
    * older versions ignore it and pick both.
    */
   ports: z.object({ from: side.optional(), to: side.optional() }).optional(),
+  plan,
 });
 
 export const positionSchema = z.object({ x: z.number().finite(), y: z.number().finite() });
@@ -97,6 +106,15 @@ export const viewFilterSchema = z.object({
   lifecycle: values(50),
   environment: values(200),
   owner: values(200),
+  /** M68: plan status ("live", "planned", "retiring"); older versions ignore it and keep every element. A value this version doesn't know is dropped, not the file. */
+  plan: z
+    .unknown()
+    .transform((v): string[] | undefined => {
+      if (!Array.isArray(v)) return undefined;
+      const kept = [...new Set(v.filter((x): x is string => x === "live" || x === "planned" || x === "retiring"))];
+      return kept.length ? kept : undefined;
+    })
+    .optional(),
 });
 /** What a view can group elements by (M56), worked out from the model; see groups.ts. */
 export const GROUP_BY = ["business_application", "service_offering", "environment"] as const;
@@ -144,6 +162,7 @@ export type View = z.infer<typeof viewSchema>;
 export type ViewFilter = z.infer<typeof viewFilterSchema>;
 export type ColorBy = (typeof COLOR_BY)[number];
 export type GroupBy = (typeof GROUP_BY)[number];
+export type Plan = (typeof PLANS)[number];
 
 /** Edge identity: two edges with the same endpoints and type are the same relationship. */
 export const edgeKey = (e: Pick<Edge, "from" | "type" | "to">) => `${e.from}|${e.type}|${e.to}`;

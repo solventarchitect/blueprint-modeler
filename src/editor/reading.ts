@@ -1,7 +1,7 @@
 import { archimateElements, archimateRelationshipFor, archimateVerb, type Lens } from "@/frameworks";
 import { LAYERS } from "@/layout/bands";
 import { classById, isClassId, type Layer } from "@/metamodel";
-import { attrValue, type Model } from "@/model";
+import { attrValue, PLAN_LABEL, type Model } from "@/model";
 
 /** One relationship as a sentence, subject first. */
 export type Sentence = { edgeId: string; subjectId: string; objectId: string; text: string };
@@ -32,7 +32,9 @@ export function readModel(model: Model, lens: Lens, scopeId?: string | null): Re
     if (archimate && isClassId(cls)) return archimateElements[cls].label;
     return classById(cls)?.label ?? cls;
   };
-  const term = (id: string) => `${kindOf(id)} ${nameOf(nodes.get(id)?.name ?? "")}`;
+  // M68: a Planned or Retiring element or relationship says so.
+  const status = (plan?: "planned" | "retiring") => (plan ? ` (${PLAN_LABEL[plan].toLowerCase()})` : "");
+  const term = (id: string) => `${kindOf(id)} ${nameOf(nodes.get(id)?.name ?? "")}${status(nodes.get(id)?.plan)}`;
 
   const sentences: Sentence[] = [];
   for (const e of model.edges) {
@@ -41,10 +43,10 @@ export function readModel(model: Model, lens: Lens, scopeId?: string | null): Re
     if (archimate) {
       const m = archimateRelationshipFor(nodes.get(e.from)!.class, nodes.get(e.to)!.class);
       const [subject, object] = m?.reverse ? [e.to, e.from] : [e.from, e.to];
-      sentences.push({ edgeId: e.id, subjectId: subject, objectId: object, text: `${term(subject)} ${archimateVerb[m?.type ?? "Association"]} ${term(object)}.` });
+      sentences.push({ edgeId: e.id, subjectId: subject, objectId: object, text: `${term(subject)} ${archimateVerb[m?.type ?? "Association"]} ${term(object)}.${e.plan ? ` This relationship is ${PLAN_LABEL[e.plan].toLowerCase()}.` : ""}` });
     } else {
       const field = e.type.startsWith("reference:") ? ` through its “${e.type.slice("reference:".length)}” field` : "";
-      sentences.push({ edgeId: e.id, subjectId: e.from, objectId: e.to, text: `${term(e.from)} ${csdmVerb(e.type)} ${term(e.to)}${field}.` });
+      sentences.push({ edgeId: e.id, subjectId: e.from, objectId: e.to, text: `${term(e.from)} ${csdmVerb(e.type)} ${term(e.to)}${field}.${e.plan ? ` This relationship is ${PLAN_LABEL[e.plan].toLowerCase()}.` : ""}` });
     }
   }
 
@@ -91,7 +93,7 @@ export function outlineModel(model: Model, lens: Lens): OutlineLayer[] {
         id: n.id,
         name: n.name || "Untitled",
         kind: kindOf(n.class),
-        details: [attrValue(n, "lifecycle"), attrValue(n, "environment"), attrValue(n, "owner") && `Owner: ${attrValue(n, "owner")}`].filter(Boolean),
+        details: [n.plan ? PLAN_LABEL[n.plan] : "", attrValue(n, "lifecycle"), attrValue(n, "environment"), attrValue(n, "owner") && `Owner: ${attrValue(n, "owner")}`].filter(Boolean),
         links: links.get(n.id) ?? 0,
       }))
       .sort((a, b) => a.name.localeCompare(b.name) || a.kind.localeCompare(b.kind) || a.id.localeCompare(b.id)),

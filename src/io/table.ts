@@ -2,7 +2,7 @@
  * The model as tables (M67): the rows the table view shows, and CSV for a spreadsheet. Pure.
  */
 import { classById } from "@/metamodel";
-import { attrValue, evaluateHints, type Model } from "@/model";
+import { attrValue, evaluateHints, PLAN_LABEL, planOf, type Model } from "@/model";
 
 const LAYER_NAME: Record<string, string> = { business: "Business", design: "Design", service: "Service", functional: "Functional", infrastructure: "Infrastructure" };
 
@@ -14,11 +14,13 @@ export type ElementRow = {
   lifecycle: string;
   environment: string;
   owner: string;
+  /** M68: Live, Planned or Retiring. */
+  plan: string;
   ref: string;
   relationships: number;
   hints: number;
 };
-export type RelationshipRow = { id: string; from: string; type: string; to: string };
+export type RelationshipRow = { id: string; from: string; type: string; to: string; plan: string };
 
 export function elementRows(model: Model): ElementRow[] {
   const hintsOf = new Map<string, number>();
@@ -35,6 +37,7 @@ export function elementRows(model: Model): ElementRow[] {
       lifecycle: attrValue(n, "lifecycle"),
       environment: attrValue(n, "environment"),
       owner: attrValue(n, "owner"),
+      plan: PLAN_LABEL[planOf(n)],
       ref: (n.attrs?.ref ?? "").trim(),
       relationships: related.get(n.id) ?? 0,
       hints: hintsOf.get(n.id) ?? 0,
@@ -44,7 +47,7 @@ export function elementRows(model: Model): ElementRow[] {
 
 export function relationshipRows(model: Model): RelationshipRow[] {
   const name = (id: string) => model.nodes.find((n) => n.id === id)?.name || "Untitled";
-  return model.edges.map((e) => ({ id: e.id, from: name(e.from), type: e.type, to: name(e.to) }));
+  return model.edges.map((e) => ({ id: e.id, from: name(e.from), type: e.type, to: name(e.to), plan: PLAN_LABEL[planOf(e)] }));
 }
 
 /**
@@ -72,7 +75,9 @@ export const ELEMENT_COLUMNS: { key: keyof ElementRow; label: string }[] = [
   { key: "ref", label: "Record number" },
   { key: "relationships", label: "Relationships" },
   { key: "hints", label: "Hints" },
+  // M68: last, so the columns before it keep their places in a CSV.
+  { key: "plan", label: "Plan status" },
 ];
 
 export const elementsCsv = (rows: ElementRow[]) => toCsv(ELEMENT_COLUMNS.map((c) => c.label), rows.map((r) => ELEMENT_COLUMNS.map((c) => String(r[c.key]))));
-export const relationshipsCsv = (rows: RelationshipRow[]) => toCsv(["From", "Relationship", "To"], rows.map((r) => [r.from, r.type, r.to]));
+export const relationshipsCsv = (rows: RelationshipRow[]) => toCsv(["From", "Relationship", "To", "Plan status"], rows.map((r) => [r.from, r.type, r.to, r.plan]));

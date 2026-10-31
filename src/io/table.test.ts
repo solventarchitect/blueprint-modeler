@@ -19,7 +19,7 @@ describe("table rows (M67)", () => {
     const m = checkout();
     const rows = relationshipRows(m);
     expect(rows).toHaveLength(13);
-    expect(rows[0]).toEqual({ id: m.edges[0]!.id, from: expect.any(String), type: m.edges[0]!.type, to: expect.any(String) });
+    expect(rows[0]).toEqual({ id: m.edges[0]!.id, from: expect.any(String), type: m.edges[0]!.type, to: expect.any(String), plan: "Live" });
   });
 });
 
