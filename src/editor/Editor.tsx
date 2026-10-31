@@ -570,7 +570,7 @@ function EditorInner() {
   /** The view as the pictures draw it: with the state shown, which they leave out and name (M71). */
   const pictureView = useMemo(() => ({ ...imageView, state: planView }), [imageView, planView]);
   const count = (n: number, one: string) => `${n} ${one}${n === 1 ? "" : "s"}`;
-  /** What the plan view leaves out, in words. */
+  /** What the state shown leaves out of the canvas, the isometric view and the images, in words. */
   const planLeftOut = (v: PlanView) => {
     if (v === "both") return "";
     const h = planHidden(model, v);
@@ -592,7 +592,7 @@ function EditorInner() {
   };
   const pickPlanView = (v: PlanView) => {
     setPlanView(v);
-    setMessage(v === "both" ? "Showing current and target: planned elements dashed, retiring ones struck through." : `${PLAN_VIEW_LABEL[v]}. ${planLeftOut(v)}`);
+    setMessage(v === "both" ? "Showing current and target: planned elements dotted, retiring ones struck through. Images follow the state shown." : `${PLAN_VIEW_LABEL[v]}. ${planLeftOut(v)}`);
   };
   const nodes: ClassFlowNode[] = useMemo(
     () =>

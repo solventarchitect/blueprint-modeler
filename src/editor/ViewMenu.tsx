@@ -67,7 +67,7 @@ export function ViewMenu({
   value: ViewOptions;
   onChange: (v: ViewOptions) => void;
   buttonClass: string;
-  /** M68: current state, target state or both (on screen only). */
+  /** M68: current state, target state or both; M71: the isometric view and the images follow it. */
   plan?: PlanView;
   onPlan?: (v: PlanView) => void;
 }) {

@@ -232,6 +232,18 @@ describe("the state shown in the isometric picture (M71)", () => {
     expect(cur).toMatch(/data-title="view"[^>]*>Current state · showing \d+ of \d+ elements</);
     const both = isoToSvg(pm, "light", { view: { filter: {}, colorBy: "layer", state: "both" } });
     expect(both).toMatch(new RegExp(`data-iso-label="${web}"[^]*?PLANNED</text>`));
-    expect(both).toMatch(/data-title="view"[^>]*>Current and target: planned and retiring tagged · showing \d+ of \d+ elements</);
+    expect(both).toMatch(/data-title="view"[^>]*>Current and target: planned and retiring elements tagged · showing \d+ of \d+ elements</);
+  });
+});
+
+describe("the state shown in the isometric picture (M71 review)", () => {
+  it("Target leaves out what is retiring; only relationships marked says nothing (the picture doesn't mark them); the description names the state", () => {
+    const m = checkout();
+    const host = m.nodes.find((n) => n.name === "web-prod-01")!.id;
+    const tgt = isoToSvg({ ...m, nodes: m.nodes.map((n) => (n.id === host ? { ...n, plan: "retiring" as const } : n)) }, "light", { view: { filter: {}, colorBy: "layer", state: "target" } });
+    expect(tgt).not.toContain(`data-iso-label="${host}"`);
+    expect(tgt).toMatch(/<desc[^>]*>[^<]*Target state \(1 of \d+ elements/);
+    const edgesOnly = { ...m, edges: m.edges.map((e, i) => (i === 0 ? { ...e, plan: "planned" as const } : e)) };
+    expect(isoToSvg(edgesOnly, "light", { view: { filter: {}, colorBy: "layer", state: "both" } })).not.toContain('data-title="view"');
   });
 });

@@ -243,7 +243,7 @@ describe("the state shown in images (M71)", () => {
     expect(svg).toMatch(new RegExp(`data-node="${host}" data-plan="retiring"`));
     expect(svg).toMatch(/data-strike=""/);
     expect(svg).toMatch(new RegExp(`data-edge="${loose}" data-plan="planned"`));
-    expect(svg).toMatch(/data-title="view"[^>]*>Current and target: planned dotted, retiring struck through · showing \d+ of \d+ elements</);
+    expect(svg).toMatch(/data-title="view"[^>]*>Current and target: planned dotted, retiring struck through, each labeled · showing \d+ of \d+ elements</);
     const plain = modelToSvg(checkout(), "light", { view: view("both") });
     expect(plain).not.toContain('data-title="view"');
     expect(plain).not.toContain("data-plan=");
@@ -256,5 +256,37 @@ describe("the state's count (M71)", () => {
     const pm = { ...m, nodes: m.nodes.map((n, i) => (i === 0 ? { ...n, plan: "planned" as const } : n)) };
     const svg = modelToSvg(pm, "light", { view: { filter: {}, colorBy: "layer", state: "current" } });
     expect(svg).toMatch(new RegExp(`Current state · showing ${m.nodes.length - 1} of ${m.nodes.length} elements<`));
+  });
+});
+
+describe("the state shown in images, in words (M71 review)", () => {
+  const view = (state: "both" | "current" | "target") => ({ filter: {}, colorBy: "layer" as const, state });
+  it("planned and retiring are said in words: on the class line, and on a relationship's label (even where ArchiMate notation takes the dash)", () => {
+    const m = checkout();
+    const web = idOf(m, "Checkout web app");
+    const e = m.edges[0]!;
+    const pm = { ...m, nodes: m.nodes.map((n) => (n.id === web ? { ...n, plan: "planned" as const } : n)), edges: m.edges.map((x) => (x.id === e.id ? { ...x, plan: "retiring" as const } : x)) };
+    const svg = modelToSvg(pm, "light", { view: view("both") });
+    expect(svg).toContain("· PLANNED");
+    expect(svg).toMatch(/ · Retiring<\/text>/);
+    expect(svg).toMatch(new RegExp(`stroke-dasharray="2 5" stroke-linecap="round"[^>]*data-edge="${e.id}" data-plan="retiring"`));
+    const am = modelToSvg(pm, "light", { lens: "archimate-only", view: view("both") });
+    expect(am).toMatch(/ · Retiring<\/text>/);
+  });
+
+  it("the image's description names the state and what it leaves out", () => {
+    const m = checkout();
+    const pm = { ...m, nodes: m.nodes.map((n, i) => (i === 0 ? { ...n, plan: "planned" as const } : n)) };
+    const svg = modelToSvg(pm, "light", { view: view("current") });
+    expect(svg).toMatch(new RegExp(`<desc id="d">[^<]*Current state \\(1 of ${m.nodes.length} elements and \\d+ of ${m.edges.length} relationships left out: what is planned\\)\\.</desc>`));
+  });
+
+  it("a model with nothing planned still names Current; everything left out still draws a picture", () => {
+    expect(modelToSvg(checkout(), "light", { view: view("current") })).toMatch(/data-title="view"[^>]*>Current state · showing (\d+) of \1 elements</);
+    const m = checkout();
+    const gone = { ...m, nodes: m.nodes.map((n) => ({ ...n, plan: "retiring" as const })) };
+    const svg = modelToSvg(gone, "light", { view: view("target") });
+    expect(svg).toMatch(new RegExp(`Target state · showing 0 of ${m.nodes.length} elements<`));
+    expect(svg).not.toContain("NaN");
   });
 });

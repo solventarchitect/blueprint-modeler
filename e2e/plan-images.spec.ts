@@ -39,7 +39,7 @@ test.describe("current and target in pictures (M71, desktop)", () => {
     let svg = await exportSvg(page);
     expect(svg).toContain(">Orders database<");
     expect(svg).toMatch(/data-plan="planned"/);
-    expect(svg).toMatch(/data-title="view"[^>]*>Current and target: planned dotted, retiring struck through · /);
+    expect(svg).toMatch(/data-title="view"[^>]*>Current and target: planned dotted, retiring struck through, each labeled · /);
 
     // Current: left out of the SVG, named in the title block.
     await stateShown(page, "Current");
@@ -61,5 +61,24 @@ test.describe("current and target in pictures (M71, desktop)", () => {
     await bar(page).getByRole("button", { name: "Show current and target" }).click();
     await expect(picture(page).locator("[data-iso-el]")).toHaveCount(14);
     await expect(picture(page).locator("[data-iso-label]").filter({ hasText: "Orders database" })).toContainText("PLANNED");
+  });
+
+  test("in the isometric view, Go to an element the state leaves out shows both again and selects it", async ({ page }) => {
+    await page.goto("/editor");
+    await saved(page);
+    await openExample(page, "Online Store Checkout");
+    await node(page, "Orders database").click();
+    await inspector(page).getByRole("combobox", { name: "Plan status", exact: true }).selectOption("planned");
+    await stateShown(page, "Current");
+    await choose(page, "Iso");
+    await expect(picture(page).locator("[data-iso-el]")).toHaveCount(13);
+
+    await page.getByTestId("model-menu-button").click();
+    await page.getByRole("button", { name: "Table…" }).click();
+    await page.getByTestId("table-dialog").getByRole("button", { name: "Go to Orders database" }).click();
+    await expect(bar(page)).toHaveCount(0);
+    await expect(picture(page).locator("[data-iso-el]")).toHaveCount(14);
+    await expect(picture(page).locator("[data-selected]")).toHaveCount(1);
+    await expect(inspector(page).getByLabel("Name", { exact: true })).toHaveValue("Orders database");
   });
 });

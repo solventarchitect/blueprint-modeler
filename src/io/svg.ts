@@ -1,6 +1,6 @@
 import { archimateElements, archimateFill, archimateRelationshipFor, archimateTypeInk, edgeNotation, markerSvg, type Lens, type MarkerShape, showsArchimate } from "@/frameworks";
 import { classById, isClassId, type Layer } from "@/metamodel";
-import { COLOR_BY_LABEL, filterActive, GROUP_BY_LABEL, groupsOf, type GroupBy, formatModelDate, inView, legend, modelDate, PALETTE, slotColor, slotMap, slotMarker, UNTITLED_MODEL, PLAN_VIEW_LABEL, planHidden, type ColorBy, type Model, type PlanView, type ViewFilter } from "@/model";
+import { COLOR_BY_LABEL, filterActive, GROUP_BY_LABEL, groupsOf, type GroupBy, formatModelDate, inView, legend, modelDate, PALETTE, slotColor, slotMap, slotMarker, UNTITLED_MODEL, PLAN_LABEL, PLAN_VIEW_LABEL, planHidden, type ColorBy, type Model, type PlanView, type ViewFilter } from "@/model";
 import { layoutOrientation } from "@/layout/bands";
 import { groupFrames, ownGroups } from "@/layout/groupLayout";
 import { planLabels } from "@/layout/edgeLabel";
@@ -40,14 +40,17 @@ export type SvgView = { filter: ViewFilter; colorBy: ColorBy; groupBy?: GroupBy;
  * title block names it. Current and target keeps everything and, when anything is planned or retiring,
  * says how the picture marks them (`marks`).
  */
-export function stateShown(model: Model, state: PlanView | undefined, marks: string): { model: Model; label: string } {
+export function stateShown(model: Model, state: PlanView | undefined, marks: string, edgesMarked = true): { model: Model; label: string; desc: string } {
   if (state === "current" || state === "target") {
     const out = planHidden(model, state);
     const shown = out.nodes.size || out.edges.size ? { ...model, nodes: model.nodes.filter((n) => !out.nodes.has(n.id)), edges: model.edges.filter((e) => !out.edges.has(e.id)) } : model;
-    return { model: shown, label: PLAN_VIEW_LABEL[state] };
+    const left = out.nodes.size || out.edges.size ? ` (${out.nodes.size} of ${model.nodes.length} elements and ${out.edges.size} of ${model.edges.length} relationships left out: what is ${state === "current" ? "planned" : "retiring"})` : "";
+    return { model: shown, label: PLAN_VIEW_LABEL[state], desc: ` ${PLAN_VIEW_LABEL[state]}${left}.` };
   }
-  const marked = model.nodes.some((n) => n.plan) || model.edges.some((e) => e.plan);
-  return { model, label: marked ? `${PLAN_VIEW_LABEL.both}: ${marks}` : "" };
+  // A picture that doesn't mark relationships (the isometric one) says nothing when only they are marked.
+  const marked = model.nodes.some((n) => n.plan) || (edgesMarked && model.edges.some((e) => e.plan));
+  const label = marked ? `${PLAN_VIEW_LABEL.both}: ${marks}` : "";
+  return { model, label, desc: label ? ` ${label}.` : "" };
 }
 /** A group frame's name tab (M56), on the frame's top edge. */
 const GROUP_TAB_H = 18;
@@ -222,7 +225,7 @@ export function svgTitleBlock(model: Model, theme: SvgTheme, view: SvgView | und
  * canvas, system fonts (IBM Plex if installed), no scripts, no external references.
  */
 export function modelToSvg(whole: Model, theme: SvgTheme, opts: { lens?: Lens; highlight?: SvgHighlight; lines?: LineStyle; labels?: boolean; view?: SvgView } = {}): string {
-  const { model, label: stateLabel } = stateShown(whole, opts.view?.state, "planned dotted, retiring struck through");
+  const { model, label: stateLabel, desc: stateDesc } = stateShown(whole, opts.view?.state, "planned dotted, retiring struck through, each labeled");
   const lens = opts.lens ?? "csdm";
   // "All elements" colored by layer draws exactly as without a view.
   const view = opts.view && (filterActive(opts.view.filter) || opts.view.colorBy !== "layer" || opts.view.groupBy) ? opts.view : undefined;
@@ -241,7 +244,8 @@ export function modelToSvg(whole: Model, theme: SvgTheme, opts: { lens?: Lens; h
   const boxes = new Map<string, Box & { lines: string[] }>();
   for (const n of model.nodes) {
     const pos = model.layout[n.id] ?? { x: 0, y: 0 };
-    const lines = wrap(headOf(n.class).toUpperCase(), CLASS_CHARS);
+    // Planned or Retiring said in words too (M71), as on the canvas: a dash or a strike can be lost in print.
+    const lines = wrap(`${headOf(n.class)}${n.plan ? ` · ${PLAN_LABEL[n.plan]}` : ""}`.toUpperCase(), CLASS_CHARS);
     boxes.set(n.id, { x: pos.x, y: pos.y, w: W, h: 20 + lines.length * 14 + 22 + (altOf(n.class) ? 20 : 0), lines });
   }
 
@@ -284,7 +288,9 @@ export function modelToSvg(whole: Model, theme: SvgTheme, opts: { lens?: Lens; h
     // The same router as the canvas, so the image matches the screen.
     const { path: pathD, label: mid } = edgePath({ x: s.x, y: s.y, side: ss }, { x: t.x, y: t.y, side: ts }, lines);
     const am = amOnly ? edgeNotation(archimateRelationshipFor(classOf(e.from), classOf(e.to))) : undefined;
-    const label = am ? am.type : e.type.startsWith("reference:") ? "reference" : (e.type.split("::")[0] ?? e.type);
+    const type = am ? am.type : e.type.startsWith("reference:") ? "reference" : (e.type.split("::")[0] ?? e.type);
+    // Its plan status in words (M71): the notation or the current hop may already take the line's dash.
+    const label = e.plan ? `${type} · ${PLAN_LABEL[e.plan]}` : type;
     return [{ e, pathD, mid, am, label, span: Math.hypot(t.x - s.x, t.y - s.y) }];
   });
   // Labels keep clear of element boxes and of each other, as on the canvas (M50).
@@ -374,8 +380,8 @@ export function modelToSvg(whole: Model, theme: SvgTheme, opts: { lens?: Lens; h
   const title = esc(name);
   const desc = esc(
     amOnly
-      ? `CSDM model with ${model.nodes.length} elements and ${model.edges.length} relationships, shown as an ArchiMate 3.2 view (ArchiMate element types, relationship notation and layer colors), exported from Blueprint Modeler.`
-      : `CSDM model with ${model.nodes.length} elements and ${model.edges.length} relationships${showsArchimate(lens) ? ", with ArchiMate 3.2 element names" : ""}, exported from Blueprint Modeler.`,
+      ? `CSDM model with ${model.nodes.length} elements and ${model.edges.length} relationships, shown as an ArchiMate 3.2 view (ArchiMate element types, relationship notation and layer colors), exported from Blueprint Modeler.${stateDesc}`
+      : `CSDM model with ${model.nodes.length} elements and ${model.edges.length} relationships${showsArchimate(lens) ? ", with ArchiMate 3.2 element names" : ""}, exported from Blueprint Modeler.${stateDesc}`,
   );
   return [
     `<?xml version="1.0" encoding="UTF-8"?>`,

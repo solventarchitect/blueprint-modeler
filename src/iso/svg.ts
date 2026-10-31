@@ -43,7 +43,7 @@ export type IsoOptions = {
  */
 export function isoToSvg(whole: Model, theme: SvgTheme, opts: IsoOptions = {}): string {
   // The state shown (M71): Current or Target leaves elements out; current and target tags each label.
-  const { model, label: stateLabel } = stateShown(whole, opts.view?.state, "planned and retiring tagged");
+  const { model, label: stateLabel, desc: stateDesc } = stateShown(whole, opts.view?.state, "planned and retiring elements tagged", false);
   const mode = opts.mode ?? "iso";
   const p = palettes[theme];
   const view = opts.view && (filterActive(opts.view.filter) || opts.view.colorBy !== "layer") ? opts.view : undefined;
@@ -161,7 +161,7 @@ export function isoToSvg(whole: Model, theme: SvgTheme, opts: IsoOptions = {}): 
   const maxY = (ys.length ? Math.max(...ys) : 2 * PAD) + PAD;
   const height = Math.ceil(maxY - minY);
   const name = model.name || UNTITLED_MODEL;
-  const desc = `CSDM model with ${model.nodes.length} elements and ${model.edges.length} relationships, drawn in isometric${mode === "exploded" ? " with its layers spread apart" : ""}: one slab per CSDM layer, Infrastructure lowest, Business highest. Exported from Blueprint Modeler.`;
+  const desc = `CSDM model with ${model.nodes.length} elements and ${model.edges.length} relationships, drawn in isometric${mode === "exploded" ? " with its layers spread apart" : ""}: one slab per CSDM layer, Infrastructure lowest, Business highest. Exported from Blueprint Modeler.${stateDesc}`;
   return [
     `<?xml version="1.0" encoding="UTF-8"?>`,
     `<svg xmlns="http://www.w3.org/2000/svg" viewBox="${r1(minX)} ${r1(minY)} ${width} ${height}" width="${width}" height="${height}" role="img" aria-labelledby="${ids}t ${ids}d" data-iso="${mode}">`,
