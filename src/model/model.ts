@@ -16,7 +16,7 @@ export function withDetails(model: Model, details: { date?: string; description?
   const date = details.date?.trim() ?? "";
   const description = details.description?.trim() ?? "";
   const artifactId = details.artifactId?.trim() ?? "";
-  const { schema, id, name, created, updated, nodes, edges, layout, views } = model;
+  const { schema, id, name, created, updated, nodes, edges, layout, views, flows } = model;
   return {
     schema,
     id,
@@ -31,6 +31,8 @@ export function withDetails(model: Model, details: { date?: string; description?
     layout,
     // Saved views (M54) last, and only when there are some, so files without them are unchanged.
     ...(views?.length ? { views } : {}),
+    // M70: saved flows after them, the same way.
+    ...(flows?.length ? { flows } : {}),
   };
 }
 

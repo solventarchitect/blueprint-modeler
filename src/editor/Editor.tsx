@@ -57,7 +57,7 @@ import { arrangeByGroups, groupFrames, ownGroups, type Frame } from "@/layout/gr
 import { autoLayout, DEFAULT_SIZE, fillSpace, type LayoutMode } from "@/layout/layout";
 import { createWorkerEngine } from "@/layout/worker-engine";
 import { classById, classes, ENVIRONMENT_EXAMPLES, isClassId, isExtended, type ClassId, type Layer } from "@/metamodel";
-import { ALL_ELEMENTS, FIELD_LABEL, healthReport, localDay, GROUP_BY_LABEL, groupsOf, primaryGroup, SIDES, attrValue, compareModels, parseModel, blastRadius, COLOR_BY_LABEL, evaluateHints, filterActive, formatModelDate, impactEnds, inView, isBusinessAnchor as isAnchor, modelDate, slotMap, UNTITLED_MODEL, PLAN_LABEL, PLAN_VIEW_LABEL, planHidden, type PlanView, type BlastDirection, type Edge, type HintResult, type Model } from "@/model";
+import { ALL_ELEMENTS, FIELD_LABEL, healthReport, localDay, GROUP_BY_LABEL, groupsOf, primaryGroup, SIDES, attrValue, compareModels, parseModel, blastRadius, COLOR_BY_LABEL, evaluateHints, filterActive, formatModelDate, impactEnds, inView, isBusinessAnchor as isAnchor, modelDate, slotMap, UNTITLED_MODEL, flowRadius, PLAN_LABEL, PLAN_VIEW_LABEL, planHidden, type PlanView, type BlastDirection, type Edge, type HintResult, type Model } from "@/model";
 import { site } from "@/lib/site";
 import { ClassNode, SuggestContext, type ClassFlowNode } from "./ClassNode";
 import { ConnectionLine, ConnectionModelContext, ReconnectingContext } from "./ConnectionLine";
@@ -68,11 +68,12 @@ import { ShortcutMap } from "./ShortcutMap";
 import { CompareBar, CompareDialog, compareSummary } from "./Compare";
 import { SnapshotsDialog } from "./Snapshots";
 import { TableView } from "./TableView";
+import { FlowsDialog } from "./Flows";
 import { ARRANGE, batchTargets, SelectionPanel, type ArrangeKind, type BatchKey } from "./SelectionPanel";
 import { ViewDialog, ViewLegend, ViewsMenu, type ShownView } from "./Views";
 import { ExamplesMenu } from "./ExamplesMenu";
 import { ContextMenu, type MenuItem } from "./ContextMenu";
-import { blastAnnouncement, blastProgress, blastSteps, blastView, flowAnnouncement, flowProgress, flowSteps, type BlastKind } from "./blast";
+import { blastAnnouncement, blastProgress, blastSteps, blastView, flowAnnouncement, flowProgress, flowSteps, scenarioWords, type BlastKind } from "./blast";
 import { blastFrames, GIF_MAX_SIDE, gifScale } from "./blastGif";
 import { renderGif } from "@/io/gif/render";
 import { CanvasEdge, LabelObstacles, LineStyleContext, type LabelPlanInput } from "./CanvasEdge";
@@ -321,6 +322,7 @@ function EditorInner() {
   const [compareDialog, setCompareDialog] = useState(false);
   const [snapshotsDialog, setSnapshotsDialog] = useState(false);
   const [tableDialog, setTableDialog] = useState(false);
+  const [flowsDialog, setFlowsDialog] = useState(false);
   const [compareError, setCompareError] = useState<string | null>(null);
   const [compare, setCompare] = useState<{ base: Model; label: string } | null>(null);
   const dialogReturn = useRef<HTMLElement | null>(null);
@@ -374,10 +376,15 @@ function EditorInner() {
   );
 
   // Blast radius: view-only. The radius follows the model, so an edit while it is open updates it.
-  const [blast, setBlast] = useState<{ start: string; direction: BlastDirection; kind: BlastKind; step: number; playing: boolean } | null>(null);
+  // M70: a saved flow plays here too (kind "scenario", with its id).
+  const [blast, setBlast] = useState<{ start: string; direction: BlastDirection; kind: BlastKind; step: number; playing: boolean; flowId?: string } | null>(null);
   const blastReturn = useRef<HTMLElement | null>(null);
   const playButton = useRef<HTMLButtonElement>(null);
-  const radius = useMemo(() => (blast ? blastRadius(model, blast.start, blast.direction) : null), [model, blast?.start, blast?.direction]); // eslint-disable-line react-hooks/exhaustive-deps -- step and playing do not change the radius
+  const playedFlow = blast?.kind === "scenario" ? model.flows?.find((f) => f.id === blast.flowId) : undefined;
+  const radius = useMemo(
+    () => (!blast ? null : blast.kind === "scenario" ? (playedFlow ? flowRadius(model, playedFlow) : null) : blastRadius(model, blast.start, blast.direction)),
+    [model, blast?.start, blast?.direction, blast?.kind, playedFlow], // eslint-disable-line react-hooks/exhaustive-deps -- step and playing do not change the radius
+  );
   const blastShown = useMemo(() => (blast && radius ? blastView(model, radius, blast.step, blast.kind) : null), [model, radius, blast]);
   /** What changed since the compared model (M58), and how each element and relationship shows it. */
   const comparison = useMemo(() => (compare ? compareModels(model, compare.base) : null), [model, compare]);
@@ -392,10 +399,13 @@ function EditorInner() {
     return { nodes, edges };
   }, [comparison, compare]);
   const isFlow = blast?.kind === "flow";
+  const isScenario = blast?.kind === "scenario";
+  // A saved flow is drawn as a data flow is: data traveling the way the walk goes.
+  const flowLike = isFlow || isScenario;
   /** The open blast radius or data flow, as the isometric picture marks it. */
   const isoHighlight = useMemo(
-    () => (blastShown && radius ? { impact: !isFlow && radius.direction === "impact", flow: isFlow, nodes: blastShown.nodes, edges: blastShown.edges } : undefined),
-    [blastShown, radius, isFlow],
+    () => (blastShown && radius ? { impact: !flowLike && radius.direction === "impact", flow: flowLike, nodes: blastShown.nodes, edges: blastShown.edges } : undefined),
+    [blastShown, radius, flowLike],
   );
   const PROJECTION_LABEL = { plan: "Plan", iso: "Isometric", exploded: "Exploded" } as const;
   const chooseProjection = (p: "plan" | IsoMode) => {
@@ -405,7 +415,7 @@ function EditorInner() {
     setMessage(p === "plan" ? "Plan view: edit the model on the canvas." : `${PROJECTION_LABEL[p]} view, read only: drag or use the arrow keys to pan, the wheel or plus and minus to zoom. Switch to Plan to edit.`);
   };
   // The words for the open view: a blast radius speaks of hops and impact, a data flow of steps and data.
-  const words = (kind: BlastKind) => (kind === "flow" ? { progress: flowProgress, announce: flowAnnouncement, steps: flowSteps } : { progress: blastProgress, announce: blastAnnouncement, steps: blastSteps });
+  const words = (kind: BlastKind) => (kind === "scenario" ? scenarioWords(playedFlow?.name ?? "") : kind === "flow" ? { progress: flowProgress, announce: flowAnnouncement, steps: flowSteps } : { progress: blastProgress, announce: blastAnnouncement, steps: blastSteps });
 
   // A focused hint that no longer applies (fixed, undone, model switched) stops highlighting.
   useEffect(() => {
@@ -490,6 +500,7 @@ function EditorInner() {
   const blastLabel = (id: string) => {
     const b = blastShown?.nodes.get(id);
     if (!b || !blast) return "";
+    if (isScenario) return b.hop === 0 ? " (start of the flow)" : ` (step ${b.hop} of the flow)`;
     if (isFlow) return b.hop === 0 ? " (source of the data flow)" : ` (data reaches it at step ${b.hop})`;
     const impact = blast.direction === "impact";
     if (b.hop === 0) return impact ? " (failed: start of the blast radius)" : " (start of the dependencies view)";
@@ -595,7 +606,7 @@ function EditorInner() {
           hint: blastShown ? undefined : hintLevel.get(n.id),
           highlight: !blastShown && highlighted.has(n.id),
           neighbor: !blastShown && neighbors.has(n.id),
-          blast: blastShown?.nodes.has(n.id) ? { ...blastShown.nodes.get(n.id)!, impact: blast!.direction === "impact", flow: isFlow } : undefined,
+          blast: blastShown?.nodes.has(n.id) ? { ...blastShown.nodes.get(n.id)!, impact: !flowLike && blast!.direction === "impact", flow: flowLike } : undefined,
           description: n.attrs?.description,
           alt: showsArchimate(lens) && isClassId(n.class) ? { type: archimateElements[n.class].type, label: archimateElements[n.class].label, layer: archimateElements[n.class].layer } : undefined,
           archimateOnly: lens === "archimate-only",
@@ -761,7 +772,7 @@ function EditorInner() {
             (e.plan ? `plan-${e.plan} ` : "") +
             (!blastShown && diffOf.edges.get(e.id) ? `diff-${diffOf.edges.get(e.id)} ` : "") +
             (carried
-              ? `blast${isFlow ? " flow" : ""}${carried.current ? " blast-now" : ""}${carried.forward ? "" : " blast-reverse"}`
+              ? `blast${flowLike ? " flow" : ""}${carried.current ? " blast-now" : ""}${carried.forward ? "" : " blast-reverse"}`
               : hinted
                 ? "hinted"
                 : connected
@@ -784,10 +795,10 @@ function EditorInner() {
                   markerUnits: "userSpaceOnUse",
                 },
               }),
-          ariaLabel: `${e.type} from ${model.nodes.find((n) => n.id === e.from)?.name} to ${model.nodes.find((n) => n.id === e.to)?.name}${e.plan ? ` (${PLAN_LABEL[e.plan].toLowerCase()})` : ""}${carried ? (isFlow ? " (carries data)" : " (carries impact)") : ""}`,
+          ariaLabel: `${e.type} from ${model.nodes.find((n) => n.id === e.from)?.name} to ${model.nodes.find((n) => n.id === e.to)?.name}${e.plan ? ` (${PLAN_LABEL[e.plan].toLowerCase()})` : ""}${carried ? (isScenario ? " (a step of the flow)" : isFlow ? " (carries data)" : " (carries impact)") : ""}`,
         };
       }),
-    [model, hintedEdges, selectedId, lens, blastShown, columns, isFlow, hoveredId, view.labels, edgeLabelOf, fadedIds, diffOf, hiddenIds, planHide],
+    [model, hintedEdges, selectedId, lens, blastShown, columns, flowLike, isFlow, isScenario, hoveredId, view.labels, edgeLabelOf, fadedIds, diffOf, hiddenIds, planHide],
   );
   // A collapsed group stands in for its elements: their relationships with the rest run to its block (dashed, one per pair).
   const canvasEdges: FlowEdge[] = useMemo(() => {
@@ -1145,8 +1156,8 @@ function EditorInner() {
   useEffect(() => () => gifAbort.current?.abort(), []);
   const exportBlastGif = async () => {
     if (!blast || !radius || !radius.steps.length || makingGif) return;
-    const frames = blastFrames(model, radius, viewedTheme(), lens, blast.kind, view.lines, view.labels, imageView);
-    const filename = `${fileBase(model)}-${isFlow ? "data-flow" : "blast-radius"}.gif`;
+    const frames = blastFrames(model, radius, viewedTheme(), lens, blast.kind, view.lines, view.labels, imageView, playedFlow?.name);
+    const filename = `${fileBase(model)}-${isScenario ? `flow-${fileBase({ name: playedFlow?.name ?? "" })}` : isFlow ? "data-flow" : "blast-radius"}.gif`;
     const count = `${frames.svgs.length} frame${frames.svgs.length === 1 ? "" : "s"}`;
     setMakingGif(true);
     // Pause the playing view: its hop announcements would replace the export's result on the status line.
@@ -1237,7 +1248,7 @@ function EditorInner() {
   const picture = (theme: "dark" | "light") =>
     projection === "plan" ? modelToSvg(model, theme, { lens, lines: view.lines, labels: view.labels, view: imageView }) : isoToSvg(model, theme, { mode: projection, view: imageView });
   const exportAs = (kind: ExportKind) => {
-    if (kind === "blast-gif" || kind === "flow-gif") {
+    if (kind === "blast-gif" || kind === "flow-gif" || kind === "scenario-gif") {
       void exportBlastGif();
     } else if (kind === "link") {
       void copyLink();
@@ -1806,11 +1817,26 @@ function EditorInner() {
   };
   const closeBlast = useCallback(() => {
     setBlast(null);
-    setMessage(isFlow ? "Data flow closed." : "Blast radius closed.");
+    setMessage(isScenario ? "Flow closed." : isFlow ? "Data flow closed." : "Blast radius closed.");
     const el = blastReturn.current;
     blastReturn.current = null;
     if (el?.isConnected) setTimeout(() => el.focus(), 0);
-  }, [isFlow]);
+  }, [isFlow, isScenario]);
+  /** M70: play a saved flow in the strip, as a data flow plays; each element numbered by its step. */
+  const playFlow = (flowId: string, returnTo: HTMLElement | null) => {
+    const f = model.flows?.find((x) => x.id === flowId);
+    if (!f) return;
+    const r = flowRadius(model, f);
+    if (!r.steps.length) return setMessage(`Flow “${f.name}” has no steps yet.`);
+    const still = prefersStill();
+    blastReturn.current = returnTo;
+    setActiveHint(null);
+    setReadEdgeId(null);
+    setBlast({ start: r.start, direction: "dependencies", kind: "scenario", flowId, step: still ? r.steps.length - 1 : 0, playing: !still && r.steps.length > 1 });
+    setMessage(scenarioWords(f.name).announce(r, 0, nameOf));
+    void flow.fitView({ nodes: r.steps.flatMap((st) => st.nodeIds).map((n) => ({ id: n })), padding: 0.3, maxZoom: 1, duration: still ? 0 : 300 });
+    setTimeout(() => playButton.current?.focus(), 0);
+  };
   // Auto-play: one hop every BLAST_STEP_MS, stopping on the last.
   useEffect(() => {
     if (!blast?.playing || !radius) return;
@@ -1827,8 +1853,10 @@ function EditorInner() {
   }, [blast, radius]); // eslint-disable-line react-hooks/exhaustive-deps -- nameOf reads the same model as radius
   // It closes when its element is deleted or another model opens.
   useEffect(() => {
-    if (blast && !model.nodes.some((n) => n.id === blast.start)) setBlast(null);
-  }, [model.nodes, blast]);
+    if (blast && blast.kind !== "scenario" && !model.nodes.some((n) => n.id === blast.start)) setBlast(null);
+    // A saved flow closes when it is deleted or has no steps left to play.
+    if (blast?.kind === "scenario" && (!radius || !radius.steps.length)) setBlast(null);
+  }, [model.nodes, blast, radius]);
   useEffect(() => {
     setBlast(null);
     blastReturn.current = null;
@@ -2017,11 +2045,17 @@ function EditorInner() {
               : blast && radius && isFlow
                 ? `${radius.steps.length} frame${radius.steps.length === 1 ? "" : "s"}, up to ${GIF_MAX_SIDE} px, in the theme you are viewing`
                 : "Show a data flow first: right-click a Business Capability or Business Process",
+            "scenario-gif": makingGif
+              ? "Making the GIF…"
+              : blast && radius && isScenario
+                ? `${radius.steps.length} frame${radius.steps.length === 1 ? "" : "s"}, up to ${GIF_MAX_SIDE} px, in the theme you are viewing`
+                : "Play a saved flow first: Model menu › Saved flows…",
           };
   const exportDisabled: Partial<Record<ExportKind, boolean>> = {
             link: !canShare || (share?.model === model && share.size === "too-large"),
             "blast-gif": !blast || !radius || isFlow || makingGif,
             "flow-gif": !blast || !radius || !isFlow || makingGif,
+            "scenario-gif": !blast || !radius || !isScenario || makingGif,
           };
 
   const openDialog = (open: (v: boolean) => void) => {
@@ -2103,6 +2137,10 @@ function EditorInner() {
       ...(["both", "current", "target"] as const)
         .filter((p) => p !== chosenPlan)
         .map((p): Command => ({ id: `plan-${p}`, group: "View", label: `Show ${p === "both" ? "current and target state" : PLAN_VIEW_LABEL[p].toLowerCase()}`, keywords: "plan planned retiring roadmap transition future as-is to-be", run: () => pickPlanView(p) })),
+      { id: "flows", group: "Model", label: "Saved flows…", keywords: "scenario use case walkthrough story steps play sequence", run: () => openDialog(setFlowsDialog) },
+      ...(model.flows ?? [])
+        .filter((f) => f.steps.length)
+        .map((f): Command => ({ id: `play-flow-${f.id}`, group: "Model", label: `Play flow: ${f.name}`, keywords: "saved flow scenario", run: () => playFlow(f.id, null) })),
       { id: "table", group: "Model", label: "Table…", keywords: "list grid rows spreadsheet csv elements relationships bulk edit", run: () => openDialog(setTableDialog) },
       { id: "snapshots", group: "Model", label: "Snapshots…", keywords: "version history keep restore save point", run: () => openDialog(setSnapshotsDialog) },
       { id: "compare", group: "Model", label: "Compare with…", keywords: "diff changes difference version file saved model", run: () => openDialog(setCompareDialog) },
@@ -2195,6 +2233,7 @@ function EditorInner() {
           onCompare={() => openDialog(setCompareDialog)}
           onSnapshots={() => openDialog(setSnapshotsDialog)}
           onTable={() => openDialog(setTableDialog)}
+          onFlows={() => openDialog(setFlowsDialog)}
           onOpen={(id) => {
             setSelectedId(null);
             setActiveHint(null);
@@ -2378,13 +2417,13 @@ function EditorInner() {
         <CompareBar base={compare} comparison={comparison} onGo={(id) => goToElement(id, true)} onClose={closeCompare} buttonClass={toolbarButton} />
       )}
       {blast && radius && !presenting && (
-        <div role="region" aria-label={isFlow ? "Data flow" : "Blast radius"} className="flex flex-col gap-1.5 border-b border-border px-4 py-2">
+        <div role="region" aria-label={isScenario ? "Saved flow" : isFlow ? "Data flow" : "Blast radius"} className="flex flex-col gap-1.5 border-b border-border px-4 py-2">
           <div className="flex flex-wrap items-center gap-2">
-            <p className={`font-mono text-xs tracking-[0.14em] uppercase ${isFlow ? "text-ai" : "text-status"}`}>{isFlow ? "Data flow" : "Blast radius"}</p>
+            <p className={`font-mono text-xs tracking-[0.14em] uppercase ${flowLike ? "text-ai" : "text-status"}`}>{isScenario ? "Saved flow" : isFlow ? "Data flow" : "Blast radius"}</p>
             <h2 className="text-sm font-medium">
-              {isFlow ? `Data flow from ${nameOf(blast.start)}` : blast.direction === "impact" ? `If ${nameOf(blast.start)} fails` : `What ${nameOf(blast.start)} needs`}
+              {isScenario ? playedFlow?.name : isFlow ? `Data flow from ${nameOf(blast.start)}` : blast.direction === "impact" ? `If ${nameOf(blast.start)} fails` : `What ${nameOf(blast.start)} needs`}
             </h2>
-            {!isFlow && (
+            {!flowLike && (
             <div role="group" aria-label="Direction" className="inline-flex">
               {(["impact", "dependencies"] as const).map((d, i) => (
                 <button
@@ -2443,6 +2482,7 @@ function EditorInner() {
               ))}
             </ol>
             {radius.truncated && <p className="mt-1 text-xs text-ink-muted">Stopped after {radius.steps.length - 1} {isFlow ? "steps" : "hops"}; more elements lie beyond.</p>}
+            {!isScenario && (
             <p className="mt-1 text-xs text-ink-muted">
               Follows the impact rules in the{" "}
               <Link className="text-accent underline underline-offset-4" href="/guide#impact">
@@ -2450,6 +2490,7 @@ function EditorInner() {
               </Link>
               {isFlow ? ", read as dependencies" : ""}. Not ServiceNow&apos;s Impacted Services calculation.
             </p>
+            )}
           </details>
         </div>
       )}
@@ -2822,6 +2863,22 @@ function EditorInner() {
       />
       {palette && <CommandPalette commands={paletteCommands()} onClose={(chosen) => dialogClosed(setPalette, chosen)} />}
       {shortcuts && <ShortcutMap onClose={() => dialogClosed(setShortcuts)} />}
+      {flowsDialog && (
+        <FlowsDialog
+          model={model}
+          editable={wide}
+          dispatch={dispatch}
+          newId={newId}
+          onPlay={(id) => {
+            // Focus goes to the strip's Play button, then back where the dialog was opened when the flow closes.
+            const back = dialogReturn.current;
+            dialogReturn.current = null;
+            setFlowsDialog(false);
+            playFlow(id, back);
+          }}
+          onClose={() => dialogClosed(setFlowsDialog)}
+        />
+      )}
       {tableDialog && (
         <TableView
           model={model}

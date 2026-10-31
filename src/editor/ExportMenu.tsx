@@ -3,7 +3,7 @@
 import { useEffect, useId, useRef, useState } from "react";
 import { ToolbarIcon } from "./ToolbarIcon";
 
-export type ExportKind = "json" | "link" | "svg-dark" | "svg-light" | "png-dark" | "png-light" | "print" | "report" | "blast-gif" | "flow-gif" | "archimate" | "drawio" | "servicenow";
+export type ExportKind = "json" | "link" | "svg-dark" | "svg-light" | "png-dark" | "png-light" | "print" | "report" | "blast-gif" | "flow-gif" | "scenario-gif" | "archimate" | "drawio" | "servicenow";
 
 export const exportItems: { kind: ExportKind; label: string; note: string }[] = [
   { kind: "json", label: "Model file (JSON)", note: "Back up, move or version it" },
@@ -16,6 +16,7 @@ export const exportItems: { kind: ExportKind; label: string; note: string }[] = 
   { kind: "report", label: "Health report…", note: "Hints, layers and missing details on one page, printed or saved as a PDF" },
   { kind: "blast-gif", label: "Blast radius animation (GIF)", note: "The open blast radius, one frame a hop" },
   { kind: "flow-gif", label: "Data flow animation (GIF)", note: "The open data flow, one frame a step" },
+  { kind: "scenario-gif", label: "Saved flow animation (GIF)", note: "The saved flow playing, one frame a step" },
   { kind: "archimate", label: "ArchiMate model (XML)", note: "Open in Archi or another ArchiMate tool" },
   { kind: "drawio", label: "draw.io / Lucidchart (.drawio)", note: "Open in draw.io, or import into Lucidchart" },
   { kind: "servicenow", label: "ServiceNow import (Excel)", note: "One sheet per CMDB table, plus relationships" },
