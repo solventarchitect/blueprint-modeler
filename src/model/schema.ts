@@ -166,6 +166,25 @@ export const viewSchema = z.object({
   groupBy: z.enum(GROUP_BY).optional().catch(undefined),
 });
 
+/** M70: how many saved flows a model can hold, and how many steps a flow can have. */
+export const MAX_FLOWS = 20;
+export const MAX_FLOW_STEPS = 50;
+/** One step of a saved flow: along a relationship, from its From end to its To end, or against it (`back`). */
+export const flowStepSchema = z.object({ edge: id, back: z.literal(true).optional().catch(undefined) });
+/** A saved flow (M70): a named walk through the model, one relationship a step, played like a data flow. */
+export const flowSchema = z.object({
+  id,
+  name: z.string().trim().min(1).max(80),
+  steps: z
+    .array(z.unknown())
+    .transform((xs) => xs.slice(0, 500).flatMap((x) => {
+      const r = flowStepSchema.safeParse(x);
+      return r.success ? [r.data.back ? { edge: r.data.edge, back: true as const } : { edge: r.data.edge }] : [];
+    }).slice(0, MAX_FLOW_STEPS)),
+});
+export type FlowStep = z.infer<typeof flowStepSchema>;
+export type Flow = z.infer<typeof flowSchema>;
+
 export const modelSchema = z.object({
   schema: z.literal(CURRENT_SCHEMA),
   id,
@@ -187,6 +206,26 @@ export const modelSchema = z.object({
     .array(viewSchema)
     .max(MAX_VIEWS)
     .refine((vs) => new Set(vs.map((v) => v.id)).size === vs.length, "Two views share an id")
+    .optional(),
+  /**
+   * M70: saved flows. Optional and additive in format 1: older versions ignore it. A flow or step
+   * this version can't read is dropped, not the file; a second flow with the same id too; at most MAX_FLOWS.
+   */
+  flows: z
+    .unknown()
+    .transform((value): Flow[] | undefined => {
+      if (!Array.isArray(value)) return undefined;
+      const seen = new Set<string>();
+      const kept: Flow[] = [];
+      for (const x of value.slice(0, 200)) {
+        const r = flowSchema.safeParse(x);
+        if (!r.success || seen.has(r.data.id)) continue;
+        seen.add(r.data.id);
+        kept.push(r.data);
+        if (kept.length === MAX_FLOWS) break;
+      }
+      return kept.length ? kept : undefined;
+    })
     .optional(),
 });
 

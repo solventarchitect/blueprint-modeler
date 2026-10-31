@@ -1,6 +1,6 @@
 import { acceptedTypes, allowedTypes, classById, relationshipsBetween, type ClassId, type Layer } from "@/metamodel";
 import type { Side } from "@/layout/geometry";
-import { cleanTags, edgeKey, linkSchema, type PlanStatus, serializeModel, MAX_LINKS, MAX_VIEWS, viewSchema, type Link, withDetails, type Edge, type Model, type Node, type View } from "@/model";
+import { cleanTags, edgeKey, flowSchema, withUnbrokenFlows, linkSchema, MAX_FLOWS, type Flow, type PlanStatus, serializeModel, MAX_LINKS, MAX_VIEWS, viewSchema, type Link, withDetails, type Edge, type Model, type Node, type View } from "@/model";
 
 /**
  * Editor state: the model plus undo/redo history. Pure functions only, so every rule the
@@ -23,6 +23,9 @@ export type Action =
   | { type: "set-plan"; target: "node" | "edge"; id: string; plan: PlanStatus }
   /** M69: an element's tags (cleaned as the file keeps them); none removes the key. */
   | { type: "set-tags"; id: string; tags: string[] }
+  /** M70: add, or replace in place, a saved flow; and delete one. */
+  | { type: "save-flow"; flow: Flow }
+  | { type: "delete-flow"; id: string }
   | { type: "set-attrs"; ids: string[]; key: "lifecycle" | "environment" | "owner"; value: string }
   | { type: "save-view"; view: View }
   | { type: "delete-view"; id: string }
@@ -198,6 +201,24 @@ function apply(model: Model, action: Action): Model | null {
         }),
       };
     }
+    case "save-flow": {
+      const flows = model.flows ?? [];
+      const parsed = flowSchema.safeParse(action.flow);
+      if (!parsed.success) return null;
+      const flow = parsed.data;
+      const i = flows.findIndex((f) => f.id === flow.id);
+      if (i >= 0 && JSON.stringify(flows[i]) === JSON.stringify(flow)) return null;
+      if (i < 0 && flows.length >= MAX_FLOWS) return null;
+      return { ...model, flows: i >= 0 ? flows.map((f, k) => (k === i ? flow : f)) : [...flows, flow] };
+    }
+    case "delete-flow": {
+      const flows = model.flows ?? [];
+      if (!flows.some((f) => f.id === action.id)) return null;
+      const rest = flows.filter((f) => f.id !== action.id);
+      const { flows: _gone, ...without } = model;
+      void _gone;
+      return rest.length ? { ...model, flows: rest } : without;
+    }
     case "save-view": {
       // Add, or replace in place a view with the same id (rename, new filter or coloring).
       const views = model.views ?? [];
@@ -291,8 +312,12 @@ function apply(model: Model, action: Action): Model | null {
       if (connectionProblem(others, action.from, action.to, action.edgeType)) return null;
       // A relationship turned round keeps no chosen sides: they belonged to the other ends.
       const turned = action.from !== edge.from || action.to !== edge.to;
+      // A relationship turned exactly round (M70): its flow steps turn too, so they still walk the same way.
+      const flipped = action.from === edge.to && action.to === edge.from;
+      const flows = flipped && model.flows ? model.flows.map((f) => ({ ...f, steps: f.steps.map((s) => (s.edge !== edge.id ? s : s.back ? { edge: s.edge } : { edge: s.edge, back: true as const })) })) : model.flows;
       return {
         ...model,
+        ...(flows ? { flows } : {}),
         edges: model.edges.map((e) => {
           if (e.id !== action.id) return e;
           const { ports, ...rest } = e;
@@ -329,6 +354,11 @@ function apply(model: Model, action: Action): Model | null {
 }
 
 /** Reducer with history. `now` stamps `updated` on every real change. */
+/** M70: every saved flow is cut where its walk breaks (one undo step with the change that broke it). */
+function withFlowsPruned(model: Model | null): Model | null {
+  return model ? withUnbrokenFlows(model) : model;
+}
+
 export function reduce(state: History, action: Action, now: () => string = () => new Date().toISOString()): History {
   switch (action.type) {
     case "load":
@@ -342,7 +372,7 @@ export function reduce(state: History, action: Action, now: () => string = () =>
       return next ? { past: [...state.past, state.present], present: next, future: state.future.slice(1) } : state;
     }
     default: {
-      const changed = apply(state.present, action);
+      const changed = withFlowsPruned(apply(state.present, action));
       if (!changed) return state;
       return { past: [...state.past, state.present].slice(-HISTORY_LIMIT), present: { ...changed, updated: now() }, future: [] };
     }

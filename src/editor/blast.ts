@@ -19,7 +19,7 @@ export type BlastView = {
  * Business Process, the same walk as its dependencies, shown as data traveling toward each element
  * it reaches.
  */
-export type BlastKind = "blast" | "flow";
+export type BlastKind = "blast" | "flow" | "scenario";
 
 const clamp = (r: BlastRadius, k: number) => Math.max(0, Math.min(k, r.steps.length - 1));
 
@@ -30,11 +30,15 @@ export function blastView(model: Model, r: BlastRadius, step: number, kind: Blas
   const to = new Map(model.edges.map((e) => [e.id, e.to]));
   for (const s of r.steps.slice(0, k + 1)) {
     const current = s.hop === k;
-    for (const id of s.nodeIds) view.nodes.set(id, { hop: s.hop, current });
+    for (const id of s.nodeIds) {
+      // A saved flow can come back to an element: it keeps the number of the step that first reached it.
+      const was = view.nodes.get(id);
+      view.nodes.set(id, kind === "scenario" && was ? { hop: was.hop, current: was.current || current } : { hop: s.hop, current });
+    }
     for (const id of s.edgeIds) {
       const towardReached = s.nodeIds.includes(to.get(id) ?? "");
       // Impact belongs to the relationship (toward the dependent); data travels with the walk.
-      const forward = kind === "flow" ? towardReached : r.direction === "impact" ? towardReached : !towardReached;
+      const forward = kind === "flow" || kind === "scenario" ? towardReached : r.direction === "impact" ? towardReached : !towardReached;
       view.edges.set(id, { current, forward });
     }
   }
@@ -99,4 +103,24 @@ export function flowAnnouncement(r: BlastRadius, step: number, nameOf: (id: stri
 /** Every step of a data flow with the names it reached, for the step list. */
 export function flowSteps(r: BlastRadius, nameOf: (id: string) => string): { hop: number; label: string; names: string[] }[] {
   return r.steps.map((s) => ({ hop: s.hop, label: s.hop === 0 ? "Source" : `Step ${s.hop}`, names: s.nodeIds.map(nameOf) }));
+}
+
+/**
+ * M70: the words for playing a saved flow called `title`: "Step 2 of 3", what each step reaches, and
+ * the step list. Each element is numbered by the step that reaches it.
+ */
+export function scenarioWords(title: string) {
+  return {
+    progress: (r: BlastRadius, step: number) => {
+      const k = clamp(r, step);
+      return k === 0 ? `Start · ${plural(hops(r), "step")}` : `Step ${k} of ${hops(r)}`;
+    },
+    announce: (r: BlastRadius, step: number, nameOf: (id: string) => string) => {
+      const k = clamp(r, step);
+      if (!r.steps.length) return `Flow “${title}” has no steps yet.`;
+      if (k > 0) return `Step ${k}: ${nameOf(r.steps[k - 1]!.nodeIds[0]!)} to ${nameOf(r.steps[k]!.nodeIds[0]!)}.`;
+      return `Flow “${title}”: ${plural(hops(r), "step")}, starting at ${nameOf(r.start)}.`;
+    },
+    steps: (r: BlastRadius, nameOf: (id: string) => string) => r.steps.map((s) => ({ hop: s.hop, label: s.hop === 0 ? "Start" : `Step ${s.hop}`, names: s.nodeIds.map(nameOf) })),
+  };
 }
