@@ -140,18 +140,25 @@ function LifecycleField({ cls, value, onCommit }: { cls: string; value: string; 
 /** A CI's description: saved when the field loses focus (Ctrl+Enter also saves; Escape reverts). */
 /** M68: plan status, Live (default), Planned or Retiring. Saved on change, one undo step. */
 function PlanSelect({ value, label, help, onCommit, compact }: { value: PlanStatus; label: string; help?: string; onCommit: (v: PlanStatus) => void; compact?: boolean }) {
+  const helpId = useId();
   return (
-    <label className={compact ? "flex items-center gap-1.5 text-xs" : "flex flex-col gap-1 text-sm"}>
-      <span className={compact ? "sr-only" : "text-ink-muted"}>{label}</span>
-      <select className={compact ? `${input} min-h-6 py-0 text-xs` : input} value={value} onChange={(e) => onCommit(e.target.value as PlanStatus)}>
-        {PLAN_STATUSES.map((p) => (
-          <option key={p} value={p}>
-            {PLAN_LABEL[p]}
-          </option>
-        ))}
-      </select>
-      {help && <span className="text-xs text-ink-muted">{help}</span>}
-    </label>
+    <div className={compact ? "flex items-center gap-1.5 text-xs" : "flex flex-col gap-1 text-sm"}>
+      <label className={compact ? "contents" : "flex flex-col gap-1"}>
+        <span className={compact ? "sr-only" : "text-ink-muted"}>{label}</span>
+        <select className={compact ? `${input} min-h-6 py-0 text-xs` : input} value={value} aria-describedby={help ? helpId : undefined} onChange={(e) => onCommit(e.target.value as PlanStatus)}>
+          {PLAN_STATUSES.map((p) => (
+            <option key={p} value={p}>
+              {PLAN_LABEL[p]}
+            </option>
+          ))}
+        </select>
+      </label>
+      {help && (
+        <span id={helpId} className="text-xs text-ink-muted">
+          {help}
+        </span>
+      )}
+    </div>
   );
 }
 
