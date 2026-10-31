@@ -20,11 +20,19 @@ const dims = (f: ViewFilter) => [
   [f.plan, (n: Node) => n.plan ?? "live"],
 ] as const;
 
+/** M69: an element carrying any tag listed (ignoring case); "" keeps the untagged. */
+const tagsMatch = (n: Node, vals: string[]) => {
+  const tags = n.tags ?? [];
+  if (!tags.length) return vals.includes("");
+  const want = new Set(vals.map((v) => v.toLowerCase()));
+  return tags.some((t) => want.has(t.toLowerCase()));
+};
+
 /** Whether the filter narrows anything. */
-export const filterActive = (f: ViewFilter) => dims(f).some(([vals]) => !!vals?.length);
+export const filterActive = (f: ViewFilter) => dims(f).some(([vals]) => !!vals?.length) || !!f.tags?.length;
 
 /** Whether an element is in the view: every dimension that lists values must contain the element's. */
-export const inView = (n: Node, f: ViewFilter) => dims(f).every(([vals, get]) => !vals?.length || vals.includes(get(n)));
+export const inView = (n: Node, f: ViewFilter) => dims(f).every(([vals, get]) => !vals?.length || vals.includes(get(n))) && (!f.tags?.length || tagsMatch(n, f.tags));
 
 /**
  * Categorical colors for "color by", as literal hex (they go into exported images too), each at

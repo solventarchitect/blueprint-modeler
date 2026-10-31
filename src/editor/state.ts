@@ -1,6 +1,6 @@
 import { acceptedTypes, allowedTypes, classById, relationshipsBetween, type ClassId, type Layer } from "@/metamodel";
 import type { Side } from "@/layout/geometry";
-import { edgeKey, linkSchema, type PlanStatus, serializeModel, MAX_LINKS, MAX_VIEWS, viewSchema, type Link, withDetails, type Edge, type Model, type Node, type View } from "@/model";
+import { cleanTags, edgeKey, linkSchema, type PlanStatus, serializeModel, MAX_LINKS, MAX_VIEWS, viewSchema, type Link, withDetails, type Edge, type Model, type Node, type View } from "@/model";
 
 /**
  * Editor state: the model plus undo/redo history. Pure functions only, so every rule the
@@ -21,6 +21,8 @@ export type Action =
   | { type: "set-links"; id: string; links: Link[] }
   /** M68: an element's or a relationship's plan status; Live removes the key. */
   | { type: "set-plan"; target: "node" | "edge"; id: string; plan: PlanStatus }
+  /** M69: an element's tags (cleaned as the file keeps them); none removes the key. */
+  | { type: "set-tags"; id: string; tags: string[] }
   | { type: "set-attrs"; ids: string[]; key: "lifecycle" | "environment" | "owner"; value: string }
   | { type: "save-view"; view: View }
   | { type: "delete-view"; id: string }
@@ -147,6 +149,21 @@ function apply(model: Model, action: Action): Model | null {
           const { links: _old, ...rest } = n;
           void _old;
           return links.length ? { ...rest, links } : rest;
+        }),
+      };
+    }
+    case "set-tags": {
+      const node = model.nodes.find((n) => n.id === action.id);
+      if (!node) return null;
+      const tags = cleanTags(action.tags);
+      if (JSON.stringify(tags) === JSON.stringify(node.tags ?? [])) return null;
+      return {
+        ...model,
+        nodes: model.nodes.map((n) => {
+          if (n.id !== action.id) return n;
+          const { tags: _old, ...rest } = n;
+          void _old;
+          return tags.length ? { ...rest, tags } : rest;
         }),
       };
     }

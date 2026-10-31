@@ -12,7 +12,7 @@ import { attrValue } from "./views";
 import { PLAN_LABEL, planOf } from "./plan";
 import type { Edge, Model, Node } from "./schema";
 
-export type CompareField = "name" | "class" | "description" | "lifecycle" | "environment" | "owner" | "ref" | "links" | "plan";
+export type CompareField = "name" | "class" | "description" | "lifecycle" | "environment" | "owner" | "ref" | "links" | "plan" | "tags";
 export type FieldChange = { field: CompareField; before: string; after: string };
 export type ElementRef = { id: string; name: string; kind: string };
 export type EdgeRef = { id: string; from: string; to: string; type: string };
@@ -42,6 +42,7 @@ export const FIELD_LABEL: Record<CompareField, string> = {
   ref: "Record number",
   links: "Links",
   plan: "Plan status",
+  tags: "Tags",
 };
 
 const kindOf = (n: Node) => classById(n.class)?.label ?? n.class;
@@ -60,6 +61,8 @@ function fields(n: Node): Record<CompareField, string> {
     ref: (n.attrs?.ref ?? "").trim(),
     links: (n.links ?? []).map((l) => `${l.title} (${l.url})`).join(", "),
     plan: PLAN_LABEL[planOf(n)],
+    // M69: compared as a set, so a new order is not a change; shown in the element's own order.
+    tags: (n.tags ?? []).join(", "),
   };
 }
 
@@ -93,12 +96,15 @@ export function compareModels(current: Model, base: Model): Comparison {
   const added = current.nodes.filter((n) => !matched.has(n.id)).map(ref);
   const removed = base.nodes.filter((n) => !match.has(n.id)).map(ref);
   const changed: Comparison["changed"] = [];
+  // M69: tags compare as a set, so a new order is not a change (a new spelling is).
+  const tagSet = (n: Node) => [...(n.tags ?? [])].sort().join("\n");
   for (const b of base.nodes) {
     const id = match.get(b.id);
     if (!id) continue;
     const n = byId.get(id)!;
     const [was, now] = [fields(b), fields(n)];
-    const changes = (Object.keys(was) as CompareField[]).filter((f) => was[f] !== now[f]).map((f) => ({ field: f, before: was[f], after: now[f] }));
+    const differs = (f: CompareField) => (f === "tags" ? tagSet(b) !== tagSet(n) : was[f] !== now[f]);
+    const changes = (Object.keys(was) as CompareField[]).filter(differs).map((f) => ({ field: f, before: was[f], after: now[f] }));
     if (changes.length) changed.push({ ...ref(n), changes });
   }
 

@@ -16,6 +16,8 @@ export type ElementRow = {
   owner: string;
   /** M68: Live, Planned or Retiring. */
   plan: string;
+  /** M69: the element's tags, separated by commas. */
+  tags: string;
   ref: string;
   relationships: number;
   hints: number;
@@ -38,6 +40,7 @@ export function elementRows(model: Model): ElementRow[] {
       environment: attrValue(n, "environment"),
       owner: attrValue(n, "owner"),
       plan: PLAN_LABEL[planOf(n)],
+      tags: (n.tags ?? []).join(", "),
       ref: (n.attrs?.ref ?? "").trim(),
       relationships: related.get(n.id) ?? 0,
       hints: hintsOf.get(n.id) ?? 0,
@@ -77,6 +80,7 @@ export const ELEMENT_COLUMNS: { key: keyof ElementRow; label: string }[] = [
   { key: "hints", label: "Hints" },
   // M68: last, so the columns before it keep their places in a CSV.
   { key: "plan", label: "Plan status" },
+  { key: "tags", label: "Tags" },
 ];
 
 export const elementsCsv = (rows: ElementRow[]) => toCsv(ELEMENT_COLUMNS.map((c) => c.label), rows.map((r) => ELEMENT_COLUMNS.map((c) => String(r[c.key]))));

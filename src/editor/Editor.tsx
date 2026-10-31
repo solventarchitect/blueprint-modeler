@@ -2134,7 +2134,7 @@ function EditorInner() {
       id: `go-${n.id}`,
       group: "Go to",
       label: `${n.name || "Untitled"}`,
-      keywords: `${className(n.id)} element select find`,
+      keywords: `${className(n.id)} element select find${n.tags?.length ? ` ${n.tags.join(" ")}` : ""}`,
       run: () => goToElement(n.id),
     }));
     return [...list, ...goTo];

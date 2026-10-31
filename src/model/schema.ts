@@ -48,6 +48,27 @@ export type Link = z.infer<typeof linkSchema>;
 export const PLANS = ["planned", "retiring"] as const;
 const plan = z.enum(PLANS).optional().catch(undefined);
 
+/** M69: how many tags an element can carry, and how long each can be. */
+export const MAX_TAGS = 10;
+export const MAX_TAG_LENGTH = 40;
+/**
+ * Tags as stored: trimmed, non-empty, at most MAX_TAG_LENGTH characters, no comma (tags are typed
+ * and shown as a comma-separated list), once each ignoring case (the first spelling wins), at most MAX_TAGS.
+ */
+export function cleanTags(values: readonly unknown[]): string[] {
+  const seen = new Set<string>();
+  const out: string[] = [];
+  for (const v of values.slice(0, 200)) {
+    if (typeof v !== "string") continue;
+    const t = v.trim();
+    if (!t || t.length > MAX_TAG_LENGTH || t.includes(",") || seen.has(t.toLowerCase())) continue;
+    seen.add(t.toLowerCase());
+    out.push(t);
+    if (out.length === MAX_TAGS) break;
+  }
+  return out;
+}
+
 export const nodeSchema = z.object({
   id,
   class: z.string().min(1).max(64),
@@ -73,6 +94,18 @@ export const nodeSchema = z.object({
     })
     .optional(),
   plan,
+  /**
+   * M69: free labels (a team, program or cost center). Optional and additive in format 1: older
+   * versions ignore it. A tag that is not text or is too long is dropped, not the file.
+   */
+  tags: z
+    .unknown()
+    .transform((value): string[] | undefined => {
+      if (!Array.isArray(value)) return undefined;
+      const kept = cleanTags(value);
+      return kept.length ? kept : undefined;
+    })
+    .optional(),
 });
 
 /** The sides of an element a relationship can leave or reach. */
@@ -115,6 +148,8 @@ export const viewFilterSchema = z.object({
       return kept.length ? kept : undefined;
     })
     .optional(),
+  /** M69: tags; an element carrying any of them is kept ("" keeps the untagged). Older versions ignore it. */
+  tags: values(200),
 });
 /** What a view can group elements by (M56), worked out from the model; see groups.ts. */
 export const GROUP_BY = ["business_application", "service_offering", "environment"] as const;
