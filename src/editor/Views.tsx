@@ -3,7 +3,7 @@
 import { useCallback, useEffect, useId, useRef, useState } from "react";
 import { classById, LIFE_CYCLE } from "@/metamodel";
 import { LAYERS } from "@/layout/bands";
-import { attrValue, COLOR_BY, COLOR_BY_LABEL, filterActive, GROUP_BY, GROUP_BY_LABEL, type GroupBy, inView, legend, MAX_VIEWS, PLAN_LABEL, PLAN_STATUSES, planOf, type PlanStatus, slotMarker, type ColorBy, type LegendEntry, type Model, type ViewFilter } from "@/model";
+import { attrValue, COLOR_BY, COLOR_BY_LABEL, filterActive, GROUP_BY, GROUP_BY_LABEL, type GroupBy, inView, legend, MAX_VIEWS, modelTags, PLAN_LABEL, PLAN_STATUSES, planOf, type PlanStatus, slotMarker, type ColorBy, type LegendEntry, type Model, type ViewFilter } from "@/model";
 import { ToolbarIcon } from "./ToolbarIcon";
 import { useDismiss } from "./useDismiss";
 
@@ -170,6 +170,8 @@ export function ViewDialog({
     { key: "environment", label: "Environment", values: present(model, (n) => attrValue(n, "environment")), text: (v) => v || "Not set" },
     { key: "owner", label: "Owner", values: present(model, (n) => attrValue(n, "owner")), text: (v) => v || "Not set" },
     // M68: only when something is Planned or Retiring (everything Live leaves nothing to choose between).
+    // M69: every tag in the model (one spelling each, ignoring case), then Not tagged; only once something is tagged.
+    { key: "tags", label: "Tag", values: model.nodes.some((n) => n.tags?.length) ? [...modelTags(model), ...(model.nodes.some((n) => !n.tags?.length) ? [""] : [])] : [], text: (v) => v || "Not tagged" },
     { key: "plan", label: "Plan status", values: model.nodes.some((n) => n.plan) ? PLAN_STATUSES.filter((p) => model.nodes.some((n) => planOf(n) === p)) : [], text: (v) => PLAN_LABEL[v as PlanStatus] ?? v },
   ];
   const btn = "inline-flex min-h-8 cursor-pointer items-center border border-border-strong bg-surface-raised px-2.5 text-sm text-ink hover:border-accent hover:text-accent disabled:cursor-not-allowed disabled:opacity-50";

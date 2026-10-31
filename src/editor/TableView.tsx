@@ -2,7 +2,7 @@
 
 import { useEffect, useId, useMemo, useRef, useState, type KeyboardEvent as ReactKeyboardEvent } from "react";
 import { ENVIRONMENT_EXAMPLES, lifecycleFor } from "@/metamodel";
-import { PLAN_LABEL, PLAN_STATUSES, planOf, UNTITLED_MODEL, type Model, type PlanStatus } from "@/model";
+import { parseTags, PLAN_LABEL, PLAN_STATUSES, planOf, UNTITLED_MODEL, type Model, type PlanStatus } from "@/model";
 import { downloadText } from "@/io/download";
 import { fileBase } from "@/io/file";
 import { ELEMENT_COLUMNS, elementRows, elementsCsv, relationshipRows, relationshipsCsv, type ElementRow, type RelationshipRow } from "@/io/table";
@@ -275,6 +275,9 @@ export function TableView({
                     ) : (
                       r.plan
                     )}
+                  </td>
+                  <td className="px-2 py-1">
+                    {editable ? <TextCell value={r.tags} label={`Tags of ${r.name}`} onCommit={(value) => dispatch({ type: "set-tags", id: r.id, tags: parseTags(value) })} /> : r.tags}
                   </td>
                   <td className="px-2 py-1">
                     <button type="button" className={btn} aria-label={`Go to ${r.name}`} onClick={() => onGoTo(r.id)}>

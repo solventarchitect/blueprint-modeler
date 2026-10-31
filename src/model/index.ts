@@ -8,3 +8,4 @@ export * from "./compare";
 export * from "./groups";
 export * from "./health";
 export * from "./plan";
+export * from "./tags";

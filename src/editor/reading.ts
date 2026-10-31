@@ -93,7 +93,7 @@ export function outlineModel(model: Model, lens: Lens): OutlineLayer[] {
         id: n.id,
         name: n.name || "Untitled",
         kind: kindOf(n.class),
-        details: [n.plan ? PLAN_LABEL[n.plan] : "", attrValue(n, "lifecycle"), attrValue(n, "environment"), attrValue(n, "owner") && `Owner: ${attrValue(n, "owner")}`].filter(Boolean),
+        details: [n.plan ? PLAN_LABEL[n.plan] : "", attrValue(n, "lifecycle"), attrValue(n, "environment"), attrValue(n, "owner") && `Owner: ${attrValue(n, "owner")}`, n.tags?.length ? `Tags: ${n.tags.join(", ")}` : ""].filter(Boolean),
         links: links.get(n.id) ?? 0,
       }))
       .sort((a, b) => a.name.localeCompare(b.name) || a.kind.localeCompare(b.kind) || a.id.localeCompare(b.id)),

@@ -5,7 +5,7 @@ import { ARCHIMATE_TRADEMARK, archimateElements, archimateRelationshipFor, archi
 import { ArchimateGlyph } from "@/frameworks/ArchimateGlyph";
 import { classSlug } from "@/guide";
 import { allowedTypes, classById, ENVIRONMENT_EXAMPLES, isClassId, isCsdmCore, LIFE_CYCLE, lifecycleFor, sources } from "@/metamodel";
-import { MAX_LINKS, modelDate, PLAN_LABEL, PLAN_STATUSES, planOf, toWebAddress, type Link, type Model, type PlanStatus } from "@/model";
+import { MAX_LINKS, MAX_TAG_LENGTH, MAX_TAGS, modelDate, modelTags, parseTags, PLAN_LABEL, PLAN_STATUSES, planOf, toWebAddress, type Link, type Model, type PlanStatus } from "@/model";
 import type { Action } from "./state";
 import { suggestionDetail, suggestionLabel, type Suggestion } from "./suggest";
 
@@ -197,6 +197,119 @@ function DescriptionField({
       />
       <span className="text-xs text-ink-muted">{help}</span>
     </label>
+  );
+}
+
+/**
+ * An element's tags (M69): free labels such as a team, program or cost center, up to MAX_TAGS. Typed
+ * one at a time or several separated by commas; each change saved at once, one undo step.
+ */
+function TagsField({ id, tags, suggestions, onChange }: { id: string; tags: string[]; suggestions: string[]; onChange: (tags: string[]) => void }) {
+  const [text, setText] = useState("");
+  const [note, setNote] = useState<{ text: string; n: number } | null>(null);
+  const [formFor, setFormFor] = useState(id);
+  if (formFor !== id) {
+    setFormFor(id);
+    setText("");
+    setNote(null);
+  }
+  const uid = useId();
+  const section = useRef<HTMLElement>(null);
+  const full = tags.length >= MAX_TAGS;
+  const say = (t: string) => setNote((e) => ({ text: t, n: (e?.n ?? 0) + 1 }));
+  /** Focus, once the list has redrawn: the given Remove button (or the one before), else the tag field, else the heading. */
+  const focusAfter = (removeAt: number | null) =>
+    setTimeout(() => {
+      const root = section.current;
+      if (!root) return;
+      const removes = root.querySelectorAll<HTMLElement>("[data-remove-tag]");
+      const target = (removeAt !== null && (removes[removeAt] ?? removes[removes.length - 1])) || root.querySelector<HTMLElement>("[data-tag-input]") || root.querySelector<HTMLElement>("h2");
+      target?.focus();
+    }, 0);
+  const add = () => {
+    const typed = parseTags(text);
+    if (!typed.length) return say(text.trim() ? `A tag is at most ${MAX_TAG_LENGTH} characters.` : "Type a tag first.");
+    const have = new Set(tags.map((t) => t.toLowerCase()));
+    const fresh = typed.filter((t) => !have.has(t.toLowerCase()));
+    const next = [...tags, ...fresh].slice(0, MAX_TAGS);
+    const added = next.length - tags.length;
+    setText("");
+    if (!added) return say("Already tagged with that.");
+    onChange(next);
+    say(added < fresh.length ? `Added ${added}: an element holds up to ${MAX_TAGS} tags.` : "");
+    focusAfter(null);
+  };
+  const remove = (i: number) => {
+    onChange(tags.filter((_, k) => k !== i));
+    focusAfter(i);
+  };
+  const noteId = `${uid}-note`;
+  return (
+    <section ref={section} aria-labelledby={`${uid}-head`} className="flex flex-col gap-2">
+      <h2 id={`${uid}-head`} tabIndex={-1} className="text-sm font-medium">
+        Tags
+      </h2>
+      {tags.length ? (
+        <ul className="flex flex-wrap gap-1.5" aria-label="Tags">
+          {tags.map((t, i) => (
+            <li key={t} className="inline-flex items-center gap-1 border border-border-strong bg-surface px-2 py-0.5 text-xs text-ink">
+              <span>{t}</span>
+              <button
+                type="button"
+                data-remove-tag
+                className="flex size-5 cursor-pointer items-center justify-center text-ink-muted hover:text-accent"
+                aria-label={`Remove tag ${t}`}
+                onClick={() => remove(i)}
+              >
+                <span aria-hidden="true">×</span>
+              </button>
+            </li>
+          ))}
+        </ul>
+      ) : (
+        <p className="text-xs text-ink-muted">No tags yet: a team, a program or a cost center, for filtering.</p>
+      )}
+      {full ? (
+        <p className="text-xs text-ink-muted">An element holds up to {MAX_TAGS} tags: remove one to add another.</p>
+      ) : (
+        <div className="flex items-end gap-2">
+          <label className="flex min-w-0 flex-1 flex-col gap-1 text-sm">
+            <span className="text-ink-muted">Add a tag</span>
+            <input
+              data-tag-input
+              className={input}
+              value={text}
+              maxLength={200}
+              list={`${uid}-tags`}
+              aria-describedby={note?.text ? noteId : `${uid}-help`}
+              onChange={(e) => setText(e.target.value)}
+              onKeyDown={(e) => {
+                if (e.key === "Enter") {
+                  e.preventDefault();
+                  add();
+                }
+              }}
+            />
+          </label>
+          <button type="button" className={button} onClick={add}>
+            Add
+          </button>
+          <datalist id={`${uid}-tags`}>
+            {suggestions
+              .filter((s) => !tags.some((t) => t.toLowerCase() === s.toLowerCase()))
+              .map((s) => (
+                <option key={s} value={s} />
+              ))}
+          </datalist>
+        </div>
+      )}
+      <span id={`${uid}-help`} className="text-xs text-ink-muted">
+        Several at once: separate them with commas.
+      </span>
+      <p id={noteId} role="status" className="text-xs text-ink-muted">
+        {note?.text}
+      </p>
+    </section>
   );
 }
 
@@ -496,6 +609,12 @@ export function Inspector({ model, selectedId, dispatch, focusName, focusConnect
         maxLength={40}
         help="For example APM0001234. Text only: the modeler never connects to ServiceNow."
         onCommit={(value) => dispatch({ type: "set-attr", id: node.id, key: "ref", value })}
+      />
+      <TagsField
+        id={node.id}
+        tags={node.tags ?? []}
+        suggestions={modelTags(model)}
+        onChange={(tags) => dispatch({ type: "set-tags", id: node.id, tags })}
       />
       <LinksField id={node.id} links={node.links ?? []} onChange={(links) => dispatch({ type: "set-links", id: node.id, links })} />
       {/* Suggestions: the white paper's environment examples and every value already used in this model. */}
