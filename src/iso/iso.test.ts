@@ -221,3 +221,17 @@ describe("isometric edge cases (M59 review)", () => {
     expect(svg).toContain("&lt;script&gt;");
   });
 });
+
+describe("the state shown in the isometric picture (M71)", () => {
+  it("Current leaves out what is planned and names the state; current and target tags each label", () => {
+    const m = checkout();
+    const web = m.nodes.find((n) => n.name === "Checkout web app")!.id;
+    const pm = { ...m, nodes: m.nodes.map((n) => (n.id === web ? { ...n, plan: "planned" as const } : n)) };
+    const cur = isoToSvg(pm, "light", { view: { filter: {}, colorBy: "layer", state: "current" } });
+    expect(cur).not.toContain(`data-iso-label="${web}"`);
+    expect(cur).toMatch(/data-title="view"[^>]*>Current state · showing \d+ of \d+ elements</);
+    const both = isoToSvg(pm, "light", { view: { filter: {}, colorBy: "layer", state: "both" } });
+    expect(both).toMatch(new RegExp(`data-iso-label="${web}"[^]*?PLANNED</text>`));
+    expect(both).toMatch(/data-title="view"[^>]*>Current and target: planned and retiring tagged · showing \d+ of \d+ elements</);
+  });
+});

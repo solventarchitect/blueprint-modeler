@@ -144,7 +144,7 @@ export function ViewMenu({
             <span id={`${listId}-plan`} className="text-sm text-ink">
               State shown
             </span>
-            <span className="block text-xs text-ink-muted">Current leaves out what is planned, target what is retiring. On screen only.</span>
+            <span className="block text-xs text-ink-muted">Current leaves out what is planned, target what is retiring. Images follow it.</span>
             <span role="group" aria-labelledby={`${listId}-plan`} className="mt-1.5 inline-flex flex-wrap">
               {(["both", "current", "target"] as const).map((p, i) => (
                 <button

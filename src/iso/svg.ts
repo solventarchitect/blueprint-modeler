@@ -1,6 +1,6 @@
 import { classById } from "@/metamodel";
 import { filterActive, inView, slotColor, slotMap, slotMarker, UNTITLED_MODEL, type Model } from "@/model";
-import { clip, esc, layerColor, MONO, palettes, SANS, svgTitleBlock, type SvgHighlight, type SvgTheme, type SvgView } from "@/io/svg";
+import { clip, esc, layerColor, MONO, palettes, SANS, stateShown, svgTitleBlock, type SvgHighlight, type SvgTheme, type SvgView } from "@/io/svg";
 import type { Size } from "@/layout/layout";
 import { boxFaces, drawOrder, isoScene, paintOrder, project, RANK, SLAB, type IsoMode, type P3 } from "./scene";
 import type { Layer } from "@/metamodel";
@@ -41,7 +41,9 @@ export type IsoOptions = {
  * (M54) the filtered-out elements are ghosts and color-by colors the blocks; a blast radius or data
  * flow marks what it reaches. Literal colors only, no scripts, nothing remote.
  */
-export function isoToSvg(model: Model, theme: SvgTheme, opts: IsoOptions = {}): string {
+export function isoToSvg(whole: Model, theme: SvgTheme, opts: IsoOptions = {}): string {
+  // The state shown (M71): Current or Target leaves elements out; current and target tags each label.
+  const { model, label: stateLabel } = stateShown(whole, opts.view?.state, "planned and retiring tagged");
   const mode = opts.mode ?? "iso";
   const p = palettes[theme];
   const view = opts.view && (filterActive(opts.view.filter) || opts.view.colorBy !== "layer") ? opts.view : undefined;
@@ -106,7 +108,7 @@ export function isoToSvg(model: Model, theme: SvgTheme, opts: IsoOptions = {}): 
     const ghost = faded.has(b.id);
     const at = project({ ...mid(b.rect), z: b.z + b.h });
     const name = clip(n.name || "Untitled", NAME_CHARS);
-    const cls = (classById(n.class)?.label ?? n.class).toUpperCase();
+    const cls = `${classById(n.class)?.label ?? n.class}${n.plan === "planned" ? " · Planned" : n.plan === "retiring" ? " · Retiring" : ""}`.toUpperCase();
     const w = Math.max(name.length * 7.2, cls.length * 6.4) + 12;
     body.push(
       // Labels let clicks through to the blocks underneath.
@@ -153,7 +155,7 @@ export function isoToSvg(model: Model, theme: SvgTheme, opts: IsoOptions = {}): 
   for (const e of scene.edges) e.points.forEach(add);
   const minX = (xs.length ? Math.min(...xs) : 0) - PAD;
   const maxX = (xs.length ? Math.max(...xs) : 2 * PAD) + PAD;
-  const tb = opts.untitled ? null : svgTitleBlock(model, theme, view, model.nodes.length - faded.size, maxX - minX - 2 * PAD);
+  const tb = opts.untitled ? null : svgTitleBlock(model, theme, view, model.nodes.length - faded.size, maxX - minX - 2 * PAD, stateLabel, whole.nodes.length);
   const width = Math.ceil(Math.max(maxX - minX, tb ? tb.width + 2 * PAD : 0));
   const minY = (ys.length ? Math.min(...ys) : 0) - PAD - (tb ? tb.height : 0);
   const maxY = (ys.length ? Math.max(...ys) : 2 * PAD) + PAD;

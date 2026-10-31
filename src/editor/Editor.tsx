@@ -303,7 +303,7 @@ function EditorInner() {
   const [message, setMessage] = useState("");
   const [tab, setTab] = useState<Tab>("details");
   const [view, setViewState] = useState<ViewOptions>(DEFAULT_VIEW);
-  // M68: current state, target state or both. On screen only and per model, not stored: a model always opens on both.
+  // M68: current state, target state or both. Per model, not stored (M71: the pictures follow it too): a model always opens on both.
   const [planChoice, setPlanChoice] = useState<{ modelId: string; view: PlanView }>({ modelId: "", view: "both" });
   useEffect(() => setViewState(readView()), []);
   const setView = (v: ViewOptions) => {
@@ -563,10 +563,12 @@ function EditorInner() {
   }, [groups, collapsedIds, model.nodes]);
   const chosenPlan: PlanView = planChoice.modelId === model.id ? planChoice.view : "both";
   const setPlanView = (v: PlanView) => setPlanChoice({ modelId: model.id, view: v });
-  // It leaves things out of the plan canvas only: the isometric picture shows everything, and a blast
+  // It leaves things out of the canvas, the isometric picture and the image exports (M71); a blast
   // radius or data flow (which walks the whole model) shows both while it is open.
-  const planView: PlanView = projection === "plan" && !blast ? chosenPlan : "both";
+  const planView: PlanView = !blast ? chosenPlan : "both";
   const planHide = useMemo(() => planHidden(model, planView), [model, planView]);
+  /** The view as the pictures draw it: with the state shown, which they leave out and name (M71). */
+  const pictureView = useMemo(() => ({ ...imageView, state: planView }), [imageView, planView]);
   const count = (n: number, one: string) => `${n} ${one}${n === 1 ? "" : "s"}`;
   /** What the plan view leaves out, in words. */
   const planLeftOut = (v: PlanView) => {
@@ -1156,7 +1158,7 @@ function EditorInner() {
   useEffect(() => () => gifAbort.current?.abort(), []);
   const exportBlastGif = async () => {
     if (!blast || !radius || !radius.steps.length || makingGif) return;
-    const frames = blastFrames(model, radius, viewedTheme(), lens, blast.kind, view.lines, view.labels, imageView, playedFlow?.name);
+    const frames = blastFrames(model, radius, viewedTheme(), lens, blast.kind, view.lines, view.labels, pictureView, playedFlow?.name);
     const filename = `${fileBase(model)}-${isScenario ? `flow-${fileBase({ name: playedFlow?.name ?? "" })}` : isFlow ? "data-flow" : "blast-radius"}.gif`;
     const count = `${frames.svgs.length} frame${frames.svgs.length === 1 ? "" : "s"}`;
     setMakingGif(true);
@@ -1244,9 +1246,9 @@ function EditorInner() {
     }
   };
 
-  /** The image exports' picture: the plan, or the isometric projection on screen (M59), following the view. */
+  /** The image exports' picture: the plan, or the isometric projection on screen (M59), following the view and the state shown (M71). */
   const picture = (theme: "dark" | "light") =>
-    projection === "plan" ? modelToSvg(model, theme, { lens, lines: view.lines, labels: view.labels, view: imageView }) : isoToSvg(model, theme, { mode: projection, view: imageView });
+    projection === "plan" ? modelToSvg(model, theme, { lens, lines: view.lines, labels: view.labels, view: pictureView }) : isoToSvg(model, theme, { mode: projection, view: pictureView });
   const exportAs = (kind: ExportKind) => {
     if (kind === "blast-gif" || kind === "flow-gif" || kind === "scenario-gif") {
       void exportBlastGif();
@@ -2712,9 +2714,9 @@ function EditorInner() {
           {projection !== "plan" && (
             <IsoView
               ref={isoRef}
-              model={model}
+              model={shownModel}
               mode={projection}
-              view={imageView}
+              view={pictureView}
               highlight={isoHighlight}
               sizes={measured.current}
               selectedId={selectedId}

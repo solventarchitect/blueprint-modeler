@@ -1,6 +1,6 @@
 import { archimateElements, archimateFill, archimateRelationshipFor, archimateTypeInk, edgeNotation, markerSvg, type Lens, type MarkerShape, showsArchimate } from "@/frameworks";
 import { classById, isClassId, type Layer } from "@/metamodel";
-import { COLOR_BY_LABEL, filterActive, GROUP_BY_LABEL, groupsOf, type GroupBy, formatModelDate, inView, legend, modelDate, PALETTE, slotColor, slotMap, slotMarker, UNTITLED_MODEL, type ColorBy, type Model, type ViewFilter } from "@/model";
+import { COLOR_BY_LABEL, filterActive, GROUP_BY_LABEL, groupsOf, type GroupBy, formatModelDate, inView, legend, modelDate, PALETTE, slotColor, slotMap, slotMarker, UNTITLED_MODEL, PLAN_VIEW_LABEL, planHidden, type ColorBy, type Model, type PlanView, type ViewFilter } from "@/model";
 import { layoutOrientation } from "@/layout/bands";
 import { groupFrames, ownGroups } from "@/layout/groupLayout";
 import { planLabels } from "@/layout/edgeLabel";
@@ -33,7 +33,22 @@ export type SvgHighlight = {
 };
 
 /** A view (M54) drawn into the picture: elements outside the filter fade; color by puts a colored bar and a marker on each element, with a legend in the title block. */
-export type SvgView = { filter: ViewFilter; colorBy: ColorBy; groupBy?: GroupBy; name?: string };
+export type SvgView = { filter: ViewFilter; colorBy: ColorBy; groupBy?: GroupBy; name?: string; state?: PlanView };
+
+/**
+ * The state shown (M71) in a picture: Current or Target leaves out what the canvas leaves out, and the
+ * title block names it. Current and target keeps everything and, when anything is planned or retiring,
+ * says how the picture marks them (`marks`).
+ */
+export function stateShown(model: Model, state: PlanView | undefined, marks: string): { model: Model; label: string } {
+  if (state === "current" || state === "target") {
+    const out = planHidden(model, state);
+    const shown = out.nodes.size || out.edges.size ? { ...model, nodes: model.nodes.filter((n) => !out.nodes.has(n.id)), edges: model.edges.filter((e) => !out.edges.has(e.id)) } : model;
+    return { model: shown, label: PLAN_VIEW_LABEL[state] };
+  }
+  const marked = model.nodes.some((n) => n.plan) || model.edges.some((e) => e.plan);
+  return { model, label: marked ? `${PLAN_VIEW_LABEL.both}: ${marks}` : "" };
+}
 /** A group frame's name tab (M56), on the frame's top edge. */
 const GROUP_TAB_H = 18;
 
@@ -117,7 +132,7 @@ function anchor(b: Box, side: Side) {
  * its description and, with a view (M54), the view's head line and legend. `avail` is the drawing's
  * width, which the description and legend wrap to. Shared by the plan and isometric pictures.
  */
-export function svgTitleBlock(model: Model, theme: SvgTheme, view: SvgView | undefined, shownCount: number, avail: number) {
+export function svgTitleBlock(model: Model, theme: SvgTheme, view: SvgView | undefined, shownCount: number, avail: number, state = "", total = model.nodes.length) {
   const p = palettes[theme];
   const name = model.name || UNTITLED_MODEL;
   const artifactId = model.artifactId?.trim() ?? "";
@@ -126,9 +141,11 @@ export function svgTitleBlock(model: Model, theme: SvgTheme, view: SvgView | und
   const aboutChars = Math.min(110, Math.max(40, Math.floor(avail / TITLE.textChar)));
   const aboutLines = about ? wrapText(about, aboutChars, 3) : [];
   // The view legend: entries wrap into rows as wide as the diagram (at least 480px).
-  const legendHead = view
-    ? [view.name ? `View: ${view.name}` : "View", view.colorBy !== "layer" ? `colored by ${COLOR_BY_LABEL[view.colorBy].toLowerCase()}` : "", view.groupBy ? `grouped by ${GROUP_BY_LABEL[view.groupBy]}` : "", `showing ${shownCount} of ${model.nodes.length} elements`].filter(Boolean).join(" · ")
-    : "";
+  // The head line: the view (when there is one), the state shown (M71), and how many elements show.
+  const legendHead =
+    view || state
+      ? [...(view ? [view.name ? `View: ${view.name}` : "View", view.colorBy !== "layer" ? `colored by ${COLOR_BY_LABEL[view.colorBy].toLowerCase()}` : "", view.groupBy ? `grouped by ${GROUP_BY_LABEL[view.groupBy]}` : ""] : []), state, `showing ${shownCount} of ${total} elements`].filter(Boolean).join(" · ")
+      : "";
   const legendRows: { label: string; slot: Parameters<typeof slotColor>[0]; w: number }[][] = [];
   if (view) {
     const rowWidth = Math.max(480, avail);
@@ -147,7 +164,7 @@ export function svgTitleBlock(model: Model, theme: SvgTheme, view: SvgView | und
     }
     if (row.length) legendRows.push(row);
   }
-  const legendH = view ? LEGEND.head + legendRows.length * LEGEND.row : 0;
+  const legendH = legendHead ? LEGEND.head + legendRows.length * LEGEND.row : 0;
   // The title block sets a minimum width: name (22px sans), Artifact ID (12px mono after its icon),
   // description lines and the legend.
   const width = Math.max(
@@ -180,7 +197,7 @@ export function svgTitleBlock(model: Model, theme: SvgTheme, view: SvgView | und
           `</text>`,
       );
     }
-    if (view) {
+    if (legendHead) {
       let ly = ty + 6 + aboutLines.length * TITLE.line + LEGEND.head;
       out.push(`<text data-title="view" x="${tx}" y="${ly - 6}" font-family="${SANS}" font-size="13" fill="${p.muted}">${esc(legendHead)}</text>`);
       for (const row of legendRows) {
@@ -204,7 +221,8 @@ export function svgTitleBlock(model: Model, theme: SvgTheme, view: SvgView | und
  * The model as a standalone SVG in the chosen theme: same boxes, lanes and edge routing as the
  * canvas, system fonts (IBM Plex if installed), no scripts, no external references.
  */
-export function modelToSvg(model: Model, theme: SvgTheme, opts: { lens?: Lens; highlight?: SvgHighlight; lines?: LineStyle; labels?: boolean; view?: SvgView } = {}): string {
+export function modelToSvg(whole: Model, theme: SvgTheme, opts: { lens?: Lens; highlight?: SvgHighlight; lines?: LineStyle; labels?: boolean; view?: SvgView } = {}): string {
+  const { model, label: stateLabel } = stateShown(whole, opts.view?.state, "planned dotted, retiring struck through");
   const lens = opts.lens ?? "csdm";
   // "All elements" colored by layer draws exactly as without a view.
   const view = opts.view && (filterActive(opts.view.filter) || opts.view.colorBy !== "layer" || opts.view.groupBy) ? opts.view : undefined;
@@ -238,7 +256,7 @@ export function modelToSvg(model: Model, theme: SvgTheme, opts: { lens?: Lens; h
   const minX = all.length ? Math.min(...extent.map((b) => b.x)) - PAD : 0;
   const name = model.name || UNTITLED_MODEL;
   const diagramMaxX = all.length ? Math.max(...extent.map((b) => b.x + b.w)) + PAD : 2 * PAD;
-  const tb = svgTitleBlock(model, theme, view, model.nodes.length - faded.size, diagramMaxX - minX - 2 * PAD);
+  const tb = svgTitleBlock(model, theme, view, model.nodes.length - faded.size, diagramMaxX - minX - 2 * PAD, stateLabel, whole.nodes.length);
   const titleWidth = tb.width;
   const maxX = Math.max(
     diagramMaxX,
@@ -285,11 +303,13 @@ export function modelToSvg(model: Model, theme: SvgTheme, opts: { lens?: Lens; h
       if (am.atFrom) shapes.add(am.atFrom);
       if (am.atTo) shapes.add(am.atTo);
     }
-    const stroke = carried ? `stroke="${hl?.flow ? p.ai : p.status}" stroke-width="2.5"${carried.current ? ` stroke-dasharray="10 6"` : ""}` : `stroke="${p.line}" stroke-width="1.25"`;
+    // Planned and retiring (M71) dash as on the canvas, unless the notation or the current hop dashes it.
+    const planDash = !am?.dash && !carried?.current ? (e.plan === "planned" ? ` stroke-dasharray="14 4 2 4"` : e.plan === "retiring" ? ` stroke-dasharray="2 5" stroke-linecap="round"` : "") : "";
+    const stroke = (carried ? `stroke="${hl?.flow ? p.ai : p.status}" stroke-width="2.5"${carried.current ? ` stroke-dasharray="10 6"` : ""}` : `stroke="${p.line}" stroke-width="1.25"`) + planDash;
     // A relationship to a faded element fades with it, as on the canvas: the line only, so its label
     // (muted ink on the background) stays readable.
     const fade = faded.has(e.from) || faded.has(e.to);
-    edges.push(`<path d="${pathD}" fill="none" ${stroke}${ends}${fade ? ` opacity="0.2" data-faded=""` : ""}/>`);
+    edges.push(`<path d="${pathD}" fill="none" ${stroke}${ends}${fade ? ` opacity="0.2" data-faded=""` : ""} data-edge="${esc(e.id)}"${e.plan ? ` data-plan="${e.plan}"` : ""}/>`);
     if (showLabels)
       edges.push(
         `<rect x="${r1(mid.x - lw / 2)}" y="${r1(mid.y - 8)}" width="${r1(lw)}" height="16" fill="${p.bg}"/>`,
@@ -309,12 +329,16 @@ export function modelToSvg(model: Model, theme: SvgTheme, opts: { lens?: Lens; h
       .map((l, i) => `<text x="${b.x + 14}" y="${b.y + 22 + i * 14}" font-family="${MONO}" font-size="10" letter-spacing="1.2" fill="${ghost ? p.muted : amOnly ? (fillOf(n.class) ? archimateTypeInk[theme] : p.ai) : p.muted}">${esc(l)}</text>`)
       .join("");
     const slot = slotFor?.(n) ?? null;
+    // Planned (M71): a dotted outline, as on the canvas; Retiring: the name struck through.
+    const shownName = clip(n.name || "Untitled", NAME_CHARS);
+    const nameY = b.y + b.h - 14 - (alt ? 20 : 0);
     nodes.push(
-      `<g${ghost ? ` data-faded=""` : ""}><rect x="${b.x}" y="${b.y}" width="${b.w}" height="${b.h}" fill="${ghost ? p.bg : (fillOf(n.class) ?? p.node)}" stroke="${p.line}"${ghost ? ` stroke-dasharray="4 3"` : ""}/>` +
+      `<g${ghost ? ` data-faded=""` : ""}><rect x="${b.x}" y="${b.y}" width="${b.w}" height="${b.h}" fill="${ghost ? p.bg : (fillOf(n.class) ?? p.node)}" stroke="${p.line}"${ghost ? ` stroke-dasharray="4 3"` : n.plan === "planned" ? ` stroke-dasharray="2 3" stroke-width="1.5"` : ""} data-node="${esc(n.id)}"${n.plan ? ` data-plan="${n.plan}"` : ""}/>` +
         `<rect x="${b.x}" y="${b.y}" width="4" height="${b.h}" fill="${ghost ? p.line : slot === null ? layerColor(p, layer) : slotColor(slot, theme)}"/>` +
         (slot === null ? "" : `<path data-slot="${slot}" d="${slotMarker(slot)}" transform="translate(${b.x + b.w - 18} ${b.y + 8})" fill="${slotColor(slot, theme)}" fill-rule="evenodd"${ghost ? ` opacity="0.4"` : ""}/>`) +
         cls +
-        `<text x="${b.x + 14}" y="${b.y + b.h - 14 - (alt ? 20 : 0)}" font-family="${SANS}" font-size="14" font-weight="500" fill="${ghost ? p.muted : p.ink}">${esc(clip(n.name || "Untitled", NAME_CHARS))}</text>` +
+        `<text x="${b.x + 14}" y="${nameY}" font-family="${SANS}" font-size="14" font-weight="500" fill="${ghost ? p.muted : p.ink}">${esc(shownName)}</text>` +
+        (n.plan === "retiring" ? `<line data-strike="" x1="${b.x + 14}" y1="${nameY - 5}" x2="${r1(b.x + 14 + Math.min(shownName.length * 7.8, b.w - 24))}" y2="${nameY - 5}" stroke="${ghost ? p.muted : p.ink}" stroke-width="1.5"/>` : "") +
         (alt
           ? `<line x1="${b.x + 14}" y1="${b.y + b.h - 26}" x2="${b.x + b.w - 10}" y2="${b.y + b.h - 26}" stroke="${p.line}" stroke-opacity="0.4"/>` +
             `<text x="${b.x + 14}" y="${b.y + b.h - 10}" font-family="${MONO}" font-size="10" fill="${ghost ? p.muted : p.ai}">ArchiMate · ${esc(alt)}</text>`
