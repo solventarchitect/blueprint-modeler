@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useId, useRef, useState } from "react";
-import { DETAIL_LABEL, FIELD_LABEL, UNTITLED_MODEL, type Comparison, type NamedChanges } from "@/model";
+import { DETAIL_LABEL, FIELD_LABEL, formatModelDate, UNTITLED_MODEL, type Comparison, type DetailChange, type NamedChanges } from "@/model";
 import type { ModelSummary } from "@/storage";
 import { when } from "./ModelManager";
 
@@ -116,9 +116,14 @@ const namedSummary = (n: NamedChanges, one: string) => [
 /** A long value (a description) shortened for the change list. */
 const short = (s: string) => (s.length > 80 ? `${s.slice(0, 79)}…` : s) || "not set";
 
+/** A detail's value as the app shows it: a date in words. */
+const detailText = (d: DetailChange, v: string) => (d.field === "date" && v ? formatModelDate(v) : short(v));
+
 /** The counts in words: "2 added, 1 changed, 1 relationship removed", or that nothing differs. */
 export function compareSummary(c: Comparison) {
   const parts = [
+    // M72: the model's details first, as the list shows them.
+    c.details.length && "model details changed",
     c.added.length && `${count(c.added.length, "element")} added`,
     c.changed.length && `${count(c.changed.length, "element")} changed`,
     c.removed.length && `${count(c.removed.length, "element")} removed`,
@@ -128,7 +133,6 @@ export function compareSummary(c: Comparison) {
     // M72: saved views and flows, and the model's details.
     ...namedSummary(c.views, "view"),
     ...namedSummary(c.flows, "flow"),
-    c.details.length && "model details changed",
   ].filter(Boolean);
   return parts.length ? parts.join(", ") : "No differences";
 }
@@ -155,7 +159,14 @@ export function CompareBar({ base, comparison, onGo, onClose, buttonClass }: { b
     xs.map((x) => (
       <li key={`${kind}-${x.id}`} className="text-sm text-ink-soft">
         {kind} “{x.name}”
-        <span className="block text-xs text-ink-muted">{x.changes.map((f) => `${f.field}: ${f.before} → ${f.after}`).join("; ")}</span>
+        {/* One line each: a filter's own words use colons and semicolons. */}
+        <ul className="text-xs text-ink-muted">
+          {x.changes.map((f) => (
+            <li key={f.field}>
+              {f.field}: {f.before} → {f.after}
+            </li>
+          ))}
+        </ul>
       </li>
     ));
   return (
@@ -185,7 +196,7 @@ export function CompareBar({ base, comparison, onGo, onClose, buttonClass }: { b
               <ul className="mt-1 flex flex-col gap-0.5" data-testid="compare-details">
                 {c.details.map((d) => (
                   <li key={d.field} className="text-sm text-ink-soft">
-                    {DETAIL_LABEL[d.field]}: {short(d.before)} → {short(d.after)}
+                    {DETAIL_LABEL[d.field]}: {detailText(d, d.before)} → {detailText(d, d.after)}
                   </li>
                 ))}
               </ul>

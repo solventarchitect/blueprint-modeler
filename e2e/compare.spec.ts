@@ -128,7 +128,7 @@ test.describe("compare covers everything saved (M72, desktop)", () => {
 
     await compareWith(page);
     await page.getByTestId("compare-file").setInputFiles({ name: "before-review.json", mimeType: "application/json", buffer: Buffer.from(JSON.stringify(base)) });
-    await expect(page.getByTestId("compare-summary")).toHaveText("1 view removed, 1 flow removed, model details changed");
+    await expect(page.getByTestId("compare-summary")).toHaveText("model details changed, 1 view removed, 1 flow removed");
     const list = page.getByTestId("compare-list");
     await expect(list).toContainText("View “Production”");
     await expect(list).toContainText("Flow “Customer places an order”");
