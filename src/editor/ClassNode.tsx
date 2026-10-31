@@ -225,7 +225,7 @@ function ClassNodeView({ id, data, selected, dragging }: NodeProps<ClassFlowNode
         </p>
       ) : (
         // Over the neighbor tint, the muted gray falls below 4.5:1; the softer ink keeps it readable.
-        <p className={`truncate font-mono text-[0.65rem] tracking-[0.12em] uppercase ${data.neighbor && !selected ? "text-ink-soft" : "text-ink-muted"}`}>{def?.label ?? data.cls}
+        <p className={`font-mono text-[0.65rem] tracking-[0.12em] uppercase ${data.neighbor && !selected ? "text-ink-soft" : "text-ink-muted"}`}>{def?.label ?? data.cls}
           {data.plan && <span data-testid="plan-tag"> · {data.plan === "planned" ? "Planned" : "Retiring"}</span>}
         </p>
       )}
