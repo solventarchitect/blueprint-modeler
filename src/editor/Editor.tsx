@@ -57,7 +57,7 @@ import { arrangeByGroups, groupFrames, ownGroups, type Frame } from "@/layout/gr
 import { autoLayout, DEFAULT_SIZE, fillSpace, type LayoutMode } from "@/layout/layout";
 import { createWorkerEngine } from "@/layout/worker-engine";
 import { classById, classes, ENVIRONMENT_EXAMPLES, isClassId, isExtended, type ClassId, type Layer } from "@/metamodel";
-import { ALL_ELEMENTS, FIELD_LABEL, healthReport, localDay, GROUP_BY_LABEL, groupsOf, primaryGroup, SIDES, attrValue, compareModels, parseModel, blastRadius, COLOR_BY_LABEL, evaluateHints, filterActive, formatModelDate, impactEnds, inView, isBusinessAnchor as isAnchor, modelDate, slotMap, UNTITLED_MODEL, type BlastDirection, type Edge, type HintResult, type Model } from "@/model";
+import { ALL_ELEMENTS, FIELD_LABEL, healthReport, localDay, GROUP_BY_LABEL, groupsOf, primaryGroup, SIDES, attrValue, compareModels, parseModel, blastRadius, COLOR_BY_LABEL, evaluateHints, filterActive, formatModelDate, impactEnds, inView, isBusinessAnchor as isAnchor, modelDate, slotMap, UNTITLED_MODEL, PLAN_LABEL, PLAN_VIEW_LABEL, planHidden, type PlanView, type BlastDirection, type Edge, type HintResult, type Model } from "@/model";
 import { site } from "@/lib/site";
 import { ClassNode, SuggestContext, type ClassFlowNode } from "./ClassNode";
 import { ConnectionLine, ConnectionModelContext, ReconnectingContext } from "./ConnectionLine";
@@ -302,6 +302,8 @@ function EditorInner() {
   const [message, setMessage] = useState("");
   const [tab, setTab] = useState<Tab>("details");
   const [view, setViewState] = useState<ViewOptions>(DEFAULT_VIEW);
+  // M68: current state, target state or both. On screen only, not stored: the editor always opens on both.
+  const [planView, setPlanView] = useState<PlanView>("both");
   useEffect(() => setViewState(readView()), []);
   const setView = (v: ViewOptions) => {
     setViewState(v);
@@ -548,6 +550,20 @@ function EditorInner() {
     const primary = primaryGroup(groups);
     return new Set(model.nodes.filter((n) => collapsedIds.has(primary.get(n.id) ?? "")).map((n) => n.id));
   }, [groups, collapsedIds, model.nodes]);
+  const planHide = useMemo(() => planHidden(model, planView), [model, planView]);
+  const count = (n: number, one: string) => `${n} ${one}${n === 1 ? "" : "s"}`;
+  /** What the plan view leaves out, in words. */
+  const planLeftOut = (v: PlanView) => {
+    if (v === "both") return "";
+    const h = planHidden(model, v);
+    const what = v === "current" ? "planned" : "retiring";
+    return h.nodes.size || h.edges.size ? `Leaves out ${count(h.nodes.size, "element")} and ${count(h.edges.size, "relationship")}: what is ${what}, and what connects to it.` : `Nothing is ${what}: everything shows.`;
+  };
+  const planBarText = planLeftOut(planView);
+  const pickPlanView = (v: PlanView) => {
+    setPlanView(v);
+    setMessage(v === "both" ? "Showing current and target: planned elements dashed, retiring ones struck through." : `${PLAN_VIEW_LABEL[v]}. ${planLeftOut(v)}`);
+  };
   const nodes: ClassFlowNode[] = useMemo(
     () =>
       model.nodes.map((n) => ({
@@ -572,15 +588,16 @@ function EditorInner() {
           faded: fadedIds.has(n.id) || undefined,
           // M58: added or changed since the compared model (a blast radius, while open, is the only highlight).
           diff: blastShown ? undefined : diffOf.nodes.get(n.id)?.kind,
+          plan: n.plan,
         },
         selected: n.id === selectedId || multiSet.has(n.id),
-        hidden: hiddenIds.has(n.id) || undefined,
+        hidden: hiddenIds.has(n.id) || planHide.nodes.has(n.id) || undefined,
         // Filtered out: in place and faded, but out of reach (no select, drag, connect or Tab stop).
         ...(fadedIds.has(n.id) ? { selectable: false, draggable: false, connectable: false, focusable: false, deletable: false, className: "bm-faded" } : {}),
-        ariaLabel: `${classById(n.class)?.label ?? n.class}: ${n.name || "Untitled"}${shown.colorBy !== "layer" ? `, ${COLOR_BY_LABEL[shown.colorBy]}: ${attrValue(n, shown.colorBy) || "Not set"}` : ""}${!blastShown && hintLevel.get(n.id) ? " (has hints)" : ""}${!blastShown && neighbors.has(n.id) ? " (connected to the selected element)" : ""}${blastLabel(n.id)}${blastShown ? "" : (diffOf.nodes.get(n.id)?.words ?? "")}`,
+        ariaLabel: `${classById(n.class)?.label ?? n.class}: ${n.name || "Untitled"}${shown.colorBy !== "layer" ? `, ${COLOR_BY_LABEL[shown.colorBy]}: ${attrValue(n, shown.colorBy) || "Not set"}` : ""}${!blastShown && hintLevel.get(n.id) ? " (has hints)" : ""}${!blastShown && neighbors.has(n.id) ? " (connected to the selected element)" : ""}${n.plan ? ` (${PLAN_LABEL[n.plan].toLowerCase()})` : ""}${blastLabel(n.id)}${blastShown ? "" : (diffOf.nodes.get(n.id)?.words ?? "")}`,
       })),
     // eslint-disable-next-line react-hooks/exhaustive-deps -- drag and measured are refs; dragTick re-runs this
-    [model, selectedId, multiSet, dragTick, hintLevel, highlighted, lens, wide, presenting, dismissed, neighbors, blastShown, fadedIds, shown.colorBy, slotFor, diffOf, hiddenIds],
+    [model, selectedId, multiSet, dragTick, hintLevel, highlighted, lens, wide, presenting, dismissed, neighbors, blastShown, fadedIds, shown.colorBy, slotFor, diffOf, hiddenIds, planHide],
   );
   /** Where each element is right now (mid-drag included), for the group frames. */
   const liveLayout = useMemo(
@@ -621,6 +638,16 @@ function EditorInner() {
       });
     // eslint-disable-next-line react-hooks/exhaustive-deps -- measured is a ref; toggleGroup reads current state
   }, [groups, collapsedIds, model.layout, groupLabel]);
+  // An element the plan view leaves out is out of reach too (M68).
+  useEffect(() => {
+    if (!planHide.nodes.size) return;
+    if (selectedId && planHide.nodes.has(selectedId)) setSelectedId(null);
+    if (multi.some((id) => planHide.nodes.has(id))) {
+      const kept = multi.filter((id) => !planHide.nodes.has(id));
+      if (kept.length > 1) setMulti(kept);
+      else setSelectedId(kept[0] ?? null);
+    }
+  }, [planHide, selectedId, multi, setSelectedId]);
   // An element folded into a collapsed group is out of reach: it is no longer selected.
   useEffect(() => {
     if (!hiddenIds.size) return;
@@ -706,9 +733,10 @@ function EditorInner() {
           sourceHandle,
           targetHandle,
           label: view.labels ? edgeLabelOf(e) : undefined,
-          hidden: hiddenIds.has(e.from) || hiddenIds.has(e.to) || undefined,
+          hidden: hiddenIds.has(e.from) || hiddenIds.has(e.to) || planHide.edges.has(e.id) || undefined,
           className:
             ((fadedIds.has(e.from) || fadedIds.has(e.to) ? "faded " : "") +
+            (e.plan ? `plan-${e.plan} ` : "") +
             (!blastShown && diffOf.edges.get(e.id) ? `diff-${diffOf.edges.get(e.id)} ` : "") +
             (carried
               ? `blast${isFlow ? " flow" : ""}${carried.current ? " blast-now" : ""}${carried.forward ? "" : " blast-reverse"}`
@@ -734,10 +762,10 @@ function EditorInner() {
                   markerUnits: "userSpaceOnUse",
                 },
               }),
-          ariaLabel: `${e.type} from ${model.nodes.find((n) => n.id === e.from)?.name} to ${model.nodes.find((n) => n.id === e.to)?.name}${carried ? (isFlow ? " (carries data)" : " (carries impact)") : ""}`,
+          ariaLabel: `${e.type} from ${model.nodes.find((n) => n.id === e.from)?.name} to ${model.nodes.find((n) => n.id === e.to)?.name}${e.plan ? ` (${PLAN_LABEL[e.plan].toLowerCase()})` : ""}${carried ? (isFlow ? " (carries data)" : " (carries impact)") : ""}`,
         };
       }),
-    [model, hintedEdges, selectedId, lens, blastShown, columns, isFlow, hoveredId, view.labels, edgeLabelOf, fadedIds, diffOf, hiddenIds],
+    [model, hintedEdges, selectedId, lens, blastShown, columns, isFlow, hoveredId, view.labels, edgeLabelOf, fadedIds, diffOf, hiddenIds, planHide],
   );
   // A collapsed group stands in for its elements: their relationships with the rest run to its block (dashed, one per pair).
   const canvasEdges: FlowEdge[] = useMemo(() => {
@@ -749,6 +777,8 @@ function EditorInner() {
     const extra: FlowEdge[] = [];
     for (const e of model.edges) {
       if (!hiddenIds.has(e.from) && !hiddenIds.has(e.to)) continue;
+      // Left out of the plan view shown: not drawn to the group's block either.
+      if (planHide.edges.has(e.id)) continue;
       const [source, target] = [end(e.from), end(e.to)];
       if (source === target || seen.has(`${source}>${target}`)) continue;
       seen.add(`${source}>${target}`);
@@ -770,7 +800,7 @@ function EditorInner() {
       } as FlowEdge);
     }
     return [...edges, ...extra];
-  }, [edges, groupNodes, groups, hiddenIds, model, columns, fadedIds]);
+  }, [edges, groupNodes, groups, hiddenIds, model, columns, fadedIds, planHide]);
 
   /** Several elements selected at once (M57); one or none falls back to the single selection. */
   const selectMany = (ids: string[]) => {
@@ -1896,6 +1926,8 @@ function EditorInner() {
     const n = model.nodes.find((x) => x.id === id);
     if (!n) return;
     if (fadedIds.has(id)) showView({ id: null, filter: {}, colorBy: shown.colorBy, groupBy: shown.groupBy });
+    // Left out of the plan view shown (M68): back to current and target, so it can be shown.
+    if (planHide.nodes.has(id)) setPlanView("both");
     // Folded into a collapsed group (M56): open the group first, so the element can be shown and selected.
     const folded = hiddenIds.has(id);
     if (folded) {
@@ -2039,6 +2071,9 @@ function EditorInner() {
       ...lineStyles
         .filter((l) => l.id !== view.lines)
         .map((l): Command => ({ id: `lines-${l.id}`, group: "View", label: `Line style: ${l.label}`, keywords: "relationship", run: () => setView({ ...view, lines: l.id }) })),
+      ...(["both", "current", "target"] as const)
+        .filter((p) => p !== planView)
+        .map((p): Command => ({ id: `plan-${p}`, group: "View", label: `Show ${p === "both" ? "current and target state" : PLAN_VIEW_LABEL[p].toLowerCase()}`, keywords: "plan planned retiring roadmap transition future as-is to-be", run: () => pickPlanView(p) })),
       { id: "table", group: "Model", label: "Table…", keywords: "list grid rows spreadsheet csv elements relationships bulk edit", run: () => openDialog(setTableDialog) },
       { id: "snapshots", group: "Model", label: "Snapshots…", keywords: "version history keep restore save point", run: () => openDialog(setSnapshotsDialog) },
       { id: "compare", group: "Model", label: "Compare with…", keywords: "diff changes difference version file saved model", run: () => openDialog(setCompareDialog) },
@@ -2201,7 +2236,7 @@ function EditorInner() {
             Arrange
           </span>
           {wide && <LayoutMenu busy={layingOut} disabled={model.nodes.length === 0} onChoose={chooseLayout} buttonClass={toolbarButton} />}
-          <ViewMenu value={view} onChange={setView} buttonClass={toolbarButton} />
+          <ViewMenu value={view} onChange={setView} buttonClass={toolbarButton} plan={planView} onPlan={pickPlanView} />
           <ViewsMenu model={model} shown={shown} onShow={pickView} onEdit={() => openDialog(setViewDialog)} buttonClass={toolbarButton} />
           <ZoomMenu onCommand={zoomCommand} canZoomToSelection={selection.length > 0} buttonClass={toolbarButton} level={projection === "plan" ? undefined : isoZoom} />
         </div>
@@ -2301,6 +2336,15 @@ function EditorInner() {
         </div>
       )}
 
+      {planView !== "both" && (
+        <div role="region" aria-label="Plan view" data-testid="plan-bar" className="flex flex-wrap items-center gap-2 border-b border-border px-4 py-2 text-sm">
+          <p className="font-medium">{PLAN_VIEW_LABEL[planView]}</p>
+          <p className="text-ink-muted">{planBarText}</p>
+          <button type="button" className={toolbarButton} onClick={() => pickPlanView("both")}>
+            Show current and target
+          </button>
+        </div>
+      )}
       {compare && comparison && !presenting && (
         <CompareBar base={compare} comparison={comparison} onGo={(id) => goToElement(id, true)} onClose={closeCompare} buttonClass={toolbarButton} />
       )}

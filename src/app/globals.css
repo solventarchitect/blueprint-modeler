@@ -1083,3 +1083,15 @@
 .react-flow__edge.group-edge .react-flow__edge-path {
   stroke-dasharray: 6 4;
 }
+
+/*
+ * M68 plan status on relationships: Planned dashed, Retiring dotted and lighter. The relationship's
+ * name (and the table, Inspector and Compare) say it in words, so the line style is extra.
+ */
+.react-flow__edge.plan-planned .react-flow__edge-path {
+  stroke-dasharray: 10 6;
+}
+.react-flow__edge.plan-retiring .react-flow__edge-path {
+  stroke-dasharray: 2 5;
+  stroke-linecap: round;
+}

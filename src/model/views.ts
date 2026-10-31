@@ -17,6 +17,7 @@ const dims = (f: ViewFilter) => [
   [f.lifecycle, (n: Node) => attrValue(n, "lifecycle")],
   [f.environment, (n: Node) => attrValue(n, "environment")],
   [f.owner, (n: Node) => attrValue(n, "owner")],
+  [f.plan, (n: Node) => n.plan ?? "live"],
 ] as const;
 
 /** Whether the filter narrows anything. */

@@ -2,7 +2,7 @@
 
 import { useEffect, useId, useMemo, useRef, useState, type KeyboardEvent as ReactKeyboardEvent } from "react";
 import { ENVIRONMENT_EXAMPLES, lifecycleFor } from "@/metamodel";
-import { UNTITLED_MODEL, type Model } from "@/model";
+import { PLAN_LABEL, PLAN_STATUSES, planOf, UNTITLED_MODEL, type Model, type PlanStatus } from "@/model";
 import { downloadText } from "@/io/download";
 import { fileBase } from "@/io/file";
 import { ELEMENT_COLUMNS, elementRows, elementsCsv, relationshipRows, relationshipsCsv, type ElementRow, type RelationshipRow } from "@/io/table";
@@ -14,6 +14,7 @@ const RELATIONSHIP_COLUMNS: { key: keyof RelationshipRow; label: string }[] = [
   { key: "from", label: "From" },
   { key: "type", label: "Relationship" },
   { key: "to", label: "To" },
+  { key: "plan", label: "Plan status" },
 ];
 type Tab = "elements" | "relationships";
 type Sort = { key: string; dir: "ascending" | "descending" };
@@ -134,6 +135,7 @@ export function TableView({
   const total = tab === "elements" ? elements.length : relationships.length;
   const noun = tab === "elements" ? (total === 1 ? "element" : "elements") : total === 1 ? "relationship" : "relationships";
   const classOf = useMemo(() => new Map(model.nodes.map((n) => [n.id, n.class])), [model]);
+  const planOfId = useMemo(() => new Map(model.nodes.map((n) => [n.id, n.plan])), [model]);
   const nameOf = useMemo(() => new Map(model.nodes.map((n) => [n.id, n.name])), [model]);
   const owners = useMemo(() => [...new Set(elements.map((r) => r.owner).filter(Boolean))].sort(), [elements]);
 
@@ -258,6 +260,19 @@ export function TableView({
                   <td className="px-2 py-1">{lifecycleCell(r)}</td>
                   <td className="px-2 py-1">{editable ? <TextCell value={r.environment} label={`Environment of ${r.name}`} list={`${uid}-environments`} onCommit={(value) => dispatch({ type: "set-attr", id: r.id, key: "environment", value })} /> : r.environment}</td>
                   <td className="px-2 py-1">{editable ? <TextCell value={r.owner} label={`Owner of ${r.name}`} list={`${uid}-owners`} onCommit={(value) => dispatch({ type: "set-attr", id: r.id, key: "owner", value })} /> : r.owner}</td>
+                  <td className="px-2 py-1">
+                    {editable ? (
+                      <select className={cell} aria-label={`Plan status of ${r.name}`} value={planOf({ plan: planOfId.get(r.id) })} onChange={(e) => dispatch({ type: "set-plan", target: "node", id: r.id, plan: e.target.value as PlanStatus })}>
+                        {PLAN_STATUSES.map((p) => (
+                          <option key={p} value={p}>
+                            {PLAN_LABEL[p]}
+                          </option>
+                        ))}
+                      </select>
+                    ) : (
+                      r.plan
+                    )}
+                  </td>
                   <td className="px-2 py-1">{r.ref}</td>
                   <td className="px-2 py-1 text-right tabular-nums">{r.relationships}</td>
                   <td className="px-2 py-1 text-right tabular-nums">{r.hints}</td>
@@ -286,6 +301,7 @@ export function TableView({
                   <td className="px-2 py-1.5">{r.from}</td>
                   <td className="px-2 py-1.5">{r.type}</td>
                   <td className="px-2 py-1.5">{r.to}</td>
+                  <td className="px-2 py-1.5">{r.plan}</td>
                 </tr>
               ))}
             </tbody>

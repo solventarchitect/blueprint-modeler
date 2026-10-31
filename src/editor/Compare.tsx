@@ -188,7 +188,9 @@ export function CompareBar({ base, comparison, onGo, onClose, buttonClass }: { b
               ))}
               {c.edgesChanged.map((e) => (
                 <li key={e.id} className="text-sm text-ink-soft">
-                  {edgeText(e)}, was {e.before.split("::")[0]}
+                  {edgeText(e)}
+                  {e.before !== e.type && `, was ${e.before.split("::")[0]}`}
+                  {e.plan && `, plan status ${e.plan.before} → ${e.plan.after}`}
                 </li>
               ))}
               {!c.changed.length && !c.edgesChanged.length && <li className="text-sm text-ink-muted">Nothing</li>}
