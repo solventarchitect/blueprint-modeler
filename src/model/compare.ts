@@ -8,9 +8,12 @@
  * re-layout is not a change to the model.
  */
 import { classById } from "@/metamodel";
-import { attrValue } from "./views";
-import { PLAN_LABEL, planOf } from "./plan";
-import type { Edge, Model, Node } from "./schema";
+import { attrValue, COLOR_BY_LABEL } from "./views";
+import { GROUP_BY_LABEL } from "./groups";
+import { PLAN_LABEL, planOf, type PlanStatus } from "./plan";
+import { flowStepText } from "./flows";
+import { modelDate } from "./model";
+import type { Edge, Flow, Model, Node, View, ViewFilter } from "./schema";
 
 export type CompareField = "name" | "class" | "description" | "lifecycle" | "environment" | "owner" | "ref" | "links" | "plan" | "tags";
 export type FieldChange = { field: CompareField; before: string; after: string };
@@ -30,7 +33,21 @@ export type Comparison = {
   edgesRemoved: EdgeRef[];
   /** Relationships in both whose type or plan status differs (ids in this model): `before` is the base type; `plan` the plan status before and after, when it changed (M68). */
   edgesChanged: (EdgeRef & { before: string; plan?: { before: string; after: string } })[];
+  /** M72: the model's own details that differ (name, date, description, artifact ID). */
+  details: DetailChange[];
+  /** M72: saved views added, removed and changed. */
+  views: NamedChanges;
+  /** M72: saved flows added, removed and changed. */
+  flows: NamedChanges;
 };
+
+export type DetailField = "name" | "date" | "description" | "artifactId";
+export type DetailChange = { field: DetailField; before: string; after: string };
+/** A saved view or flow by id and name, and what differs on one in both (each field in words). */
+export type NamedRef = { id: string; name: string };
+export type NamedChanges = { added: NamedRef[]; removed: NamedRef[]; changed: (NamedRef & { changes: { field: string; before: string; after: string }[] })[] };
+
+export const DETAIL_LABEL: Record<DetailField, string> = { name: "Model name", date: "Date", description: "Description", artifactId: "Artifact ID" };
 
 export const FIELD_LABEL: Record<CompareField, string> = {
   name: "Name",
@@ -87,6 +104,84 @@ export function matchElements(current: Model, base: Model): Map<string, string> 
   return match;
 }
 
+const DETAIL_FIELDS: DetailField[] = ["name", "date", "description", "artifactId"];
+function detailOf(m: Model, f: DetailField): string {
+  if (f === "date") return modelDate(m);
+  return (m[f] ?? "").trim();
+}
+
+/** Saved views or flows in both: by id first, then by name (ignoring case), one to one. */
+function matchNamed<T extends NamedRef>(current: readonly T[], base: readonly T[]): Map<T, T> {
+  const out = new Map<T, T>();
+  const free = [...current];
+  const take = (i: number, b: T) => out.set(b, free.splice(i, 1)[0]!);
+  const rest: T[] = [];
+  for (const b of base) {
+    const i = free.findIndex((c) => c.id === b.id);
+    if (i >= 0) take(i, b);
+    else rest.push(b);
+  }
+  for (const b of rest) {
+    const i = free.findIndex((c) => norm(c.name) === norm(b.name));
+    if (i >= 0) take(i, b);
+  }
+  return out;
+}
+
+function namedChanges<T extends NamedRef>(current: readonly T[], base: readonly T[], differences: (now: T, was: T) => { field: string; before: string; after: string }[]): NamedChanges {
+  const match = matchNamed(current, base);
+  const matched = new Set(match.values());
+  const r = (x: T): NamedRef => ({ id: x.id, name: x.name });
+  return {
+    added: current.filter((c) => !matched.has(c)).map(r),
+    removed: base.filter((b) => !match.has(b)).map(r),
+    changed: [...match].flatMap(([was, now]) => {
+      const changes = differences(now, was);
+      return changes.length ? [{ ...r(now), changes }] : [];
+    }),
+  };
+}
+
+const LAYER_WORD: Record<string, string> = { business: "Business", design: "Design", service: "Service", functional: "Functional", infrastructure: "Infrastructure" };
+/** A view's filter in words, each dimension's values in a fixed order so a new order is not a change. */
+export function filterText(f: ViewFilter): string {
+  const list = (vals: string[] | undefined, word: (v: string) => string) => [...new Set((vals ?? []).map((v) => (v === "" ? "not set" : word(v))))].sort((a, b) => a.localeCompare(b)).join(", ");
+  const dims: [string, string[] | undefined, (v: string) => string][] = [
+    ["Layer", f.layers, (v) => LAYER_WORD[v] ?? v],
+    ["Class", f.classes, (v) => classById(v)?.label ?? v],
+    ["Life cycle stage", f.lifecycle, (v) => v],
+    ["Environment", f.environment, (v) => v],
+    ["Owner", f.owner, (v) => v],
+    ["Plan status", f.plan, (v) => PLAN_LABEL[v as PlanStatus] ?? v],
+    ["Tags", f.tags, (v) => v],
+  ];
+  const parts = dims.filter(([, vals]) => vals?.length).map(([label, vals, word]) => `${label}: ${list(vals, word)}`);
+  return parts.length ? parts.join("; ") : "All elements";
+}
+
+function viewChanges(now: View, was: View) {
+  const pairs: [string, string, string][] = [
+    ["Name", was.name, now.name],
+    ["Filter", filterText(was.filter), filterText(now.filter)],
+    ["Color by", COLOR_BY_LABEL[was.colorBy], COLOR_BY_LABEL[now.colorBy]],
+    ["Group by", was.groupBy ? GROUP_BY_LABEL[was.groupBy] : "None", now.groupBy ? GROUP_BY_LABEL[now.groupBy] : "None"],
+  ];
+  return pairs.filter(([, b, a]) => b !== a).map(([field, before, after]) => ({ field, before, after }));
+}
+
+/** A flow's steps compared by what they walk (each step in words), so other relationship ids are not a change. */
+function flowChanges(current: Model, base: Model) {
+  return (now: Flow, was: Flow) => {
+    const out: { field: string; before: string; after: string }[] = [];
+    if (now.name !== was.name) out.push({ field: "Name", before: was.name, after: now.name });
+    const [b, a] = [was.steps.map((s) => flowStepText(base, s)), now.steps.map((s) => flowStepText(current, s))];
+    const first = Array.from({ length: Math.max(a.length, b.length) }, (_, i) => i).find((i) => a[i] !== b[i]);
+    const steps = (n: number) => `${n} step${n === 1 ? "" : "s"}`;
+    if (first !== undefined) out.push({ field: "Steps", before: steps(b.length), after: `${steps(a.length)}, different from step ${first + 1}` });
+    return out;
+  };
+}
+
 export function compareModels(current: Model, base: Model): Comparison {
   const match = matchElements(current, base);
   const matched = new Set(match.values());
@@ -141,8 +236,14 @@ export function compareModels(current: Model, base: Model): Comparison {
     edgesRemoved.push(named(e, baseById));
   }
   const edgesAdded = current.edges.filter((e) => !seen.has(e.id)).map((e) => named(e, byId));
-  return { added, removed, changed, edgesAdded, edgesRemoved, edgesChanged };
+  const details = DETAIL_FIELDS.map((field) => ({ field, before: detailOf(base, field), after: detailOf(current, field) })).filter((d) => d.before !== d.after);
+  const views = namedChanges(current.views ?? [], base.views ?? [], viewChanges);
+  const flows = namedChanges(current.flows ?? [], base.flows ?? [], flowChanges(current, base));
+  return { added, removed, changed, edgesAdded, edgesRemoved, edgesChanged, details, views, flows };
 }
 
+const none = (n: NamedChanges) => !n.added.length && !n.removed.length && !n.changed.length;
+
 /** Whether two models are the same, as far as compare looks. */
-export const sameModel = (c: Comparison) => !c.added.length && !c.removed.length && !c.changed.length && !c.edgesAdded.length && !c.edgesRemoved.length && !c.edgesChanged.length;
+export const sameModel = (c: Comparison) =>
+  !c.added.length && !c.removed.length && !c.changed.length && !c.edgesAdded.length && !c.edgesRemoved.length && !c.edgesChanged.length && !c.details.length && none(c.views) && none(c.flows);

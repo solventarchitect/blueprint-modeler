@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useId, useRef, useState } from "react";
-import { FIELD_LABEL, UNTITLED_MODEL, type Comparison } from "@/model";
+import { DETAIL_LABEL, FIELD_LABEL, UNTITLED_MODEL, type Comparison, type NamedChanges } from "@/model";
 import type { ModelSummary } from "@/storage";
 import { when } from "./ModelManager";
 
@@ -108,6 +108,14 @@ export function CompareDialog({
   );
 }
 
+const namedSummary = (n: NamedChanges, one: string) => [
+  n.added.length && `${count(n.added.length, one)} added`,
+  n.changed.length && `${count(n.changed.length, one)} changed`,
+  n.removed.length && `${count(n.removed.length, one)} removed`,
+];
+/** A long value (a description) shortened for the change list. */
+const short = (s: string) => (s.length > 80 ? `${s.slice(0, 79)}…` : s) || "not set";
+
 /** The counts in words: "2 added, 1 changed, 1 relationship removed", or that nothing differs. */
 export function compareSummary(c: Comparison) {
   const parts = [
@@ -117,6 +125,10 @@ export function compareSummary(c: Comparison) {
     c.edgesAdded.length && `${count(c.edgesAdded.length, "relationship")} added`,
     c.edgesChanged.length && `${count(c.edgesChanged.length, "relationship")} changed`,
     c.edgesRemoved.length && `${count(c.edgesRemoved.length, "relationship")} removed`,
+    // M72: saved views and flows, and the model's details.
+    ...namedSummary(c.views, "view"),
+    ...namedSummary(c.flows, "flow"),
+    c.details.length && "model details changed",
   ].filter(Boolean);
   return parts.length ? parts.join(", ") : "No differences";
 }
@@ -132,6 +144,20 @@ export function CompareBar({ base, comparison, onGo, onClose, buttonClass }: { b
   const c = comparison;
   const item = "cursor-pointer text-left text-sm text-ink underline underline-offset-2 hover:text-accent";
   const edgeText = (e: { from: string; to: string; type: string }) => `${e.from} → ${e.to} (${e.type.split("::")[0]})`;
+  // M72: saved views and flows, by kind and name.
+  const named = (xs: NamedChanges["added"], kind: string) =>
+    xs.map((x) => (
+      <li key={`${kind}-${x.id}`} className="text-sm text-ink-soft">
+        {kind} “{x.name}”
+      </li>
+    ));
+  const namedChanged = (xs: NamedChanges["changed"], kind: string) =>
+    xs.map((x) => (
+      <li key={`${kind}-${x.id}`} className="text-sm text-ink-soft">
+        {kind} “{x.name}”
+        <span className="block text-xs text-ink-muted">{x.changes.map((f) => `${f.field}: ${f.before} → ${f.after}`).join("; ")}</span>
+      </li>
+    ));
   return (
     <div role="region" aria-label="Compare" data-testid="compare-bar" className="flex flex-col gap-1.5 border-b border-border px-4 py-2">
       <div className="flex flex-wrap items-center gap-2">
@@ -151,6 +177,20 @@ export function CompareBar({ base, comparison, onGo, onClose, buttonClass }: { b
       </div>
       {open && (
         <div id={`${id}-list`} data-testid="compare-list" className="grid max-h-48 gap-x-6 gap-y-2 overflow-y-auto pb-1 sm:grid-cols-3">
+          {c.details.length > 0 && (
+            <section aria-labelledby={`${id}-details`} className="sm:col-span-3">
+              <h3 id={`${id}-details`} className="text-xs font-medium text-ink-muted">
+                <span aria-hidden="true">~ </span>Model details
+              </h3>
+              <ul className="mt-1 flex flex-col gap-0.5" data-testid="compare-details">
+                {c.details.map((d) => (
+                  <li key={d.field} className="text-sm text-ink-soft">
+                    {DETAIL_LABEL[d.field]}: {short(d.before)} → {short(d.after)}
+                  </li>
+                ))}
+              </ul>
+            </section>
+          )}
           <section aria-labelledby={`${id}-added`}>
             <h3 id={`${id}-added`} className="text-xs font-medium text-ink-muted">
               <span aria-hidden="true">+ </span>Added
@@ -168,7 +208,9 @@ export function CompareBar({ base, comparison, onGo, onClose, buttonClass }: { b
                   {edgeText(e)}
                 </li>
               ))}
-              {!c.added.length && !c.edgesAdded.length && <li className="text-sm text-ink-muted">Nothing</li>}
+              {named(c.views.added, "View")}
+              {named(c.flows.added, "Flow")}
+              {!c.added.length && !c.edgesAdded.length && !c.views.added.length && !c.flows.added.length && <li className="text-sm text-ink-muted">Nothing</li>}
             </ul>
           </section>
           <section aria-labelledby={`${id}-changed`}>
@@ -193,7 +235,9 @@ export function CompareBar({ base, comparison, onGo, onClose, buttonClass }: { b
                   {e.plan && `, plan status ${e.plan.before} → ${e.plan.after}`}
                 </li>
               ))}
-              {!c.changed.length && !c.edgesChanged.length && <li className="text-sm text-ink-muted">Nothing</li>}
+              {namedChanged(c.views.changed, "View")}
+              {namedChanged(c.flows.changed, "Flow")}
+              {!c.changed.length && !c.edgesChanged.length && !c.views.changed.length && !c.flows.changed.length && <li className="text-sm text-ink-muted">Nothing</li>}
             </ul>
           </section>
           <section aria-labelledby={`${id}-removed`}>
@@ -211,7 +255,9 @@ export function CompareBar({ base, comparison, onGo, onClose, buttonClass }: { b
                   {edgeText(e)}
                 </li>
               ))}
-              {!c.removed.length && !c.edgesRemoved.length && <li className="text-sm text-ink-muted">Nothing</li>}
+              {named(c.views.removed, "View")}
+              {named(c.flows.removed, "Flow")}
+              {!c.removed.length && !c.edgesRemoved.length && !c.views.removed.length && !c.flows.removed.length && <li className="text-sm text-ink-muted">Nothing</li>}
             </ul>
           </section>
         </div>
