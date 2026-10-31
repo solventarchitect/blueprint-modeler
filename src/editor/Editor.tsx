@@ -999,7 +999,7 @@ function EditorInner() {
   const sharedOpened = (r: Extract<ShareResult, { ok: true }>) => {
     const warn = r.issues.length ? ` ${r.issues.length} relationship${r.issues.length === 1 ? " breaks" : "s break"} the CSDM rules; see Hints.` : "";
     const name = shownText(r.model.name, 200) || UNTITLED_MODEL;
-    setMessage(`Opened the shared model “${name}” ${r.copied ? "as a copy (a model with the same id is already here)" : "as a new model"}.${warn}`);
+    setMessage(`Opened the shared model “${name}” ${r.copied ? "as a copy (a model with the same id is already here)" : "as a new model"}.${warn}${r.notes ? ` ${r.notes.join(" ")}` : ""}`);
     setTimeout(() => void flow.fitView({ maxZoom: 1, padding: fitPadding(0.15) }), 50);
   };
   // Shown as text and cut short: a small link can carry a validation message megabytes long.
@@ -1146,7 +1146,7 @@ function EditorInner() {
     setActiveHint(null);
     if (!(await doc.createFrom(r.model))) return;
     const warn = r.issues.length ? ` ${r.issues.length} relationship${r.issues.length === 1 ? " breaks" : "s break"} the CSDM rules; see Hints.` : "";
-    setMessage(`Imported “${r.model.name || UNTITLED_MODEL}”${r.copied ? " as a copy (a model with the same id is already here)" : ""}.${warn}`);
+    setMessage(`Imported “${r.model.name || UNTITLED_MODEL}”${r.copied ? " as a copy (a model with the same id is already here)" : ""}.${warn}${r.notes ? ` ${r.notes.join(" ")}` : ""}`);
     setTimeout(() => void flow.fitView({ maxZoom: 1, padding: fitPadding(0.15) }), 50);
   };
 
@@ -2140,7 +2140,7 @@ function EditorInner() {
       { id: "flows", group: "Model", label: "Saved flows…", keywords: "scenario use case walkthrough story steps play sequence", run: () => openDialog(setFlowsDialog) },
       ...(model.flows ?? [])
         .filter((f) => f.steps.length)
-        .map((f): Command => ({ id: `play-flow-${f.id}`, group: "Model", label: `Play flow: ${f.name}`, keywords: "saved flow scenario", run: () => playFlow(f.id, null) })),
+        .map((f): Command => ({ id: `play-flow-${f.id}`, group: "Model", label: `Play flow: ${f.name}`, keywords: "saved flow scenario", run: () => playFlow(f.id, document.activeElement instanceof HTMLElement && document.activeElement !== document.body ? document.activeElement : null) })),
       { id: "table", group: "Model", label: "Table…", keywords: "list grid rows spreadsheet csv elements relationships bulk edit", run: () => openDialog(setTableDialog) },
       { id: "snapshots", group: "Model", label: "Snapshots…", keywords: "version history keep restore save point", run: () => openDialog(setSnapshotsDialog) },
       { id: "compare", group: "Model", label: "Compare with…", keywords: "diff changes difference version file saved model", run: () => openDialog(setCompareDialog) },
@@ -2627,7 +2627,7 @@ function EditorInner() {
               nodesConnectable={wide && !presenting}
               elementsSelectable={!presenting}
               // React Flow listens for Delete on the document, past `inert`: the isometric projections are read only.
-              deleteKeyCode={wide && !presenting && projection === "plan" && !palette && !shortcuts && !managing && !viewDialog ? ["Delete", "Backspace"] : null}
+              deleteKeyCode={wide && !presenting && projection === "plan" && !palette && !shortcuts && !managing && !viewDialog && !flowsDialog && !tableDialog && !snapshotsDialog && !compareDialog ? ["Delete", "Backspace"] : null}
               // Delete and Backspace: the selected elements, their relationships and any selected
               // relationship go together, as one undo step (React Flow would report each on its own).
               onBeforeDelete={async ({ nodes: gone, edges: lines }) => {

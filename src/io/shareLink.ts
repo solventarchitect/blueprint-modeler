@@ -14,7 +14,7 @@ export const SHARE_WARN_CHARS = 8_000;
 /** Payloads longer than this are not made, and not read: a model file travels better. */
 export const SHARE_MAX_CHARS = 100_000;
 
-export type ShareResult = { ok: true; model: Model; issues: Issue[]; copied: boolean } | { ok: false; error: string };
+export type ShareResult = { ok: true; model: Model; issues: Issue[]; notes?: string[]; copied: boolean } | { ok: false; error: string };
 
 const DAMAGED = "The link is incomplete or damaged; it may have been cut short when it was copied.";
 const UNSUPPORTED = "This browser cannot open model links; update it, or ask for the model file instead.";

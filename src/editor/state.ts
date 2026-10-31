@@ -1,6 +1,6 @@
 import { acceptedTypes, allowedTypes, classById, relationshipsBetween, type ClassId, type Layer } from "@/metamodel";
 import type { Side } from "@/layout/geometry";
-import { cleanTags, edgeKey, flowSchema, linkSchema, MAX_FLOWS, type Flow, type PlanStatus, serializeModel, MAX_LINKS, MAX_VIEWS, viewSchema, type Link, withDetails, type Edge, type Model, type Node, type View } from "@/model";
+import { cleanTags, edgeKey, flowSchema, withUnbrokenFlows, linkSchema, MAX_FLOWS, type Flow, type PlanStatus, serializeModel, MAX_LINKS, MAX_VIEWS, viewSchema, type Link, withDetails, type Edge, type Model, type Node, type View } from "@/model";
 
 /**
  * Editor state: the model plus undo/redo history. Pure functions only, so every rule the
@@ -312,8 +312,12 @@ function apply(model: Model, action: Action): Model | null {
       if (connectionProblem(others, action.from, action.to, action.edgeType)) return null;
       // A relationship turned round keeps no chosen sides: they belonged to the other ends.
       const turned = action.from !== edge.from || action.to !== edge.to;
+      // A relationship turned exactly round (M70): its flow steps turn too, so they still walk the same way.
+      const flipped = action.from === edge.to && action.to === edge.from;
+      const flows = flipped && model.flows ? model.flows.map((f) => ({ ...f, steps: f.steps.map((s) => (s.edge !== edge.id ? s : s.back ? { edge: s.edge } : { edge: s.edge, back: true as const })) })) : model.flows;
       return {
         ...model,
+        ...(flows ? { flows } : {}),
         edges: model.edges.map((e) => {
           if (e.id !== action.id) return e;
           const { ports, ...rest } = e;
@@ -350,12 +354,9 @@ function apply(model: Model, action: Action): Model | null {
 }
 
 /** Reducer with history. `now` stamps `updated` on every real change. */
-/** M70: a saved flow keeps only steps whose relationship is still in the model (one undo step with the change that removed it). */
+/** M70: every saved flow is cut where its walk breaks (one undo step with the change that broke it). */
 function withFlowsPruned(model: Model | null): Model | null {
-  if (!model?.flows?.length) return model;
-  const edges = new Set(model.edges.map((e) => e.id));
-  if (model.flows.every((f) => f.steps.every((s) => edges.has(s.edge)))) return model;
-  return { ...model, flows: model.flows.map((f) => ({ ...f, steps: f.steps.filter((s) => edges.has(s.edge)) })) };
+  return model ? withUnbrokenFlows(model) : model;
 }
 
 export function reduce(state: History, action: Action, now: () => string = () => new Date().toISOString()): History {

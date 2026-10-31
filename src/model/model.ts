@@ -1,9 +1,11 @@
 import { acceptedTypes, allowedTypes, isClassId, relationshipsBetween } from "@/metamodel";
 import { migrate } from "./migrate";
 import { CURRENT_SCHEMA, edgeKey, modelSchema, type Model } from "./schema";
+import { withUnbrokenFlows } from "./flows";
 
 export type Issue = { level: "warning"; code: "disallowed-relationship" | "legacy-type"; edgeId: string; message: string };
-export type ParseResult = { ok: true; model: Model; issues: Issue[] } | { ok: false; error: string };
+/** `notes`: what loading changed, in words (M70: a saved flow cut where its walk breaks). */
+export type ParseResult = { ok: true; model: Model; issues: Issue[]; notes?: string[] } | { ok: false; error: string };
 
 /** The name a new model starts with. */
 export const UNTITLED_MODEL = "Untitled Model";
@@ -107,7 +109,13 @@ export function parseModel(input: unknown): ParseResult {
   for (const nodeId of Object.keys(model.layout)) {
     if (!nodeIds.has(nodeId)) return { ok: false, error: `Layout refers to an element that does not exist ("${nodeId}").` };
   }
-  return { ok: true, model, issues };
+  // M70: a saved flow whose walk breaks (a relationship missing or turned round) is cut there, and said.
+  const whole = withUnbrokenFlows(model);
+  const notes = (model.flows ?? []).flatMap((f) => {
+    const kept = whole.flows?.find((x) => x.id === f.id)?.steps.length ?? 0;
+    return kept < f.steps.length ? [`Flow “${f.name}” was cut after step ${kept}: its next relationship isn't in the model, or doesn't leave where the flow had reached.`] : [];
+  });
+  return { ok: true, model: whole, issues, ...(notes.length ? { notes } : {}) };
 }
 
 /** Stable, human-readable file content (the JSON export). */

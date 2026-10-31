@@ -11,14 +11,40 @@ const ends = (model: Model, s: FlowStep) => {
 };
 
 /**
+ * The steps of a flow that still make one unbroken walk: each along a relationship in the model,
+ * each leaving where the one before arrived. The walk is cut at the first step that doesn't.
+ */
+export function unbrokenSteps(model: Model, flow: Flow): FlowStep[] {
+  const kept: FlowStep[] = [];
+  let at: string | null = null;
+  for (const s of flow.steps) {
+    const e = ends(model, s);
+    if (!e || (at !== null && e.from !== at)) break;
+    kept.push(s);
+    at = e.to;
+  }
+  return kept;
+}
+
+/** The model with every flow cut where its walk breaks (a relationship gone or turned round); the same model when none does. */
+export function withUnbrokenFlows(model: Model): Model {
+  if (!model.flows?.length) return model;
+  let changed = false;
+  const flows = model.flows.map((f) => {
+    const steps = unbrokenSteps(model, f);
+    if (steps.length === f.steps.length) return f;
+    changed = true;
+    return { ...f, steps };
+  });
+  return changed ? { ...model, flows } : model;
+}
+
+/**
  * A flow as a walk the blast radius strip can play: step 0 is where the first step leaves, step k the
- * element the k-th step reaches, along its relationship. A step whose relationship is gone is skipped.
+ * element the k-th step reaches, along its relationship. It stops where the walk breaks.
  */
 export function flowRadius(model: Model, flow: Flow): BlastRadius {
-  const walked = flow.steps.flatMap((s) => {
-    const e = ends(model, s);
-    return e ? [{ ...e, edge: s.edge }] : [];
-  });
+  const walked = unbrokenSteps(model, flow).map((s) => ({ ...ends(model, s)!, edge: s.edge }));
   if (!walked.length) return { start: "", direction: "dependencies", steps: [], reached: 0, truncated: false };
   const start = walked[0]!.from;
   return {

@@ -38,7 +38,6 @@ export function FlowsDialog({
   const picked = flows.find((f) => f.id === pickedId) ?? flows[0] ?? null;
   const [newName, setNewName] = useState("");
   const [status, setStatus] = useState("");
-  const [confirming, setConfirming] = useState(false);
   useEffect(() => {
     if (!dialog.current?.open) dialog.current?.showModal();
   }, []);
@@ -115,12 +114,9 @@ export function FlowsDialog({
             uid={uid}
             nameOf={nameOf}
             save={save}
-            confirming={confirming}
-            setConfirming={setConfirming}
             onDelete={() => {
               dispatch({ type: "delete-flow", id: picked.id });
-              setStatus(`Deleted flow “${picked.name}”.`);
-              setConfirming(false);
+              setStatus(`Deleted flow “${picked.name}”. Undo brings it back.`);
               setPickedId(null);
               setTimeout(() => document.getElementById(`${uid}-new`)?.focus(), 0);
             }}
@@ -143,7 +139,7 @@ export function FlowsDialog({
               </h3>
               <div className="flex flex-wrap items-end gap-2">
                 <label className="flex min-w-0 flex-1 flex-col gap-1 text-sm">
-                  <span className="text-ink-muted">Name</span>
+                  <span className="text-ink-muted">New flow name</span>
                   <input
                     id={`${uid}-new`}
                     className={field}
@@ -182,8 +178,6 @@ function FlowEditor({
   uid,
   nameOf,
   save,
-  confirming,
-  setConfirming,
   onDelete,
 }: {
   model: Model;
@@ -191,12 +185,18 @@ function FlowEditor({
   uid: string;
   nameOf: (id: string) => string;
   save: (f: Flow, said: string) => void;
-  confirming: boolean;
-  setConfirming: (v: boolean) => void;
   onDelete: () => void;
 }) {
   const [name, setName] = useState(flow.name);
-  const [start, setStart] = useState("");
+  // Where a flow with steps began, so taking them all back keeps its start.
+  const first = flow.steps[0] && model.edges.find((e) => e.id === flow.steps[0]!.edge);
+  const [start, setStart] = useState(first ? (flow.steps[0]!.back ? first.to : first.from) : "");
+  // Asked here, so it belongs to this flow only; Delete takes focus once, when the question appears.
+  const [confirming, setConfirming] = useState(false);
+  const deleteButton = useRef<HTMLButtonElement>(null);
+  useEffect(() => {
+    if (confirming) deleteButton.current?.focus();
+  }, [confirming]);
   const [next, setNext] = useState("");
   const last = flow.steps.at(-1);
   const lastEdge = last && model.edges.find((e) => e.id === last.edge);
@@ -227,7 +227,7 @@ function FlowEditor({
         Flow “{flow.name}”
       </h3>
       <label className="flex flex-col gap-1 text-sm">
-        <span className="text-ink-muted">Name</span>
+        <span className="text-ink-muted">Flow name</span>
         <input
           className={field}
           value={name}
@@ -293,7 +293,7 @@ function FlowEditor({
         {confirming ? (
           <span className="flex flex-wrap items-center gap-2 text-sm">
             <span>Delete this flow? Undo brings it back.</span>
-            <button type="button" className={btn} ref={(el) => el?.focus()} onClick={onDelete}>
+            <button type="button" className={btn} ref={deleteButton} onClick={onDelete}>
               Delete
             </button>
             <button type="button" className={btn} onClick={() => setConfirming(false)}>

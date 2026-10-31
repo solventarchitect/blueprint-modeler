@@ -50,16 +50,29 @@ describe("save-flow and delete-flow (M70)", () => {
     expect(h.past).toHaveLength(3);
   });
 
-  it("deleting a relationship (or an element) takes its steps out of every flow, in the same undo step", () => {
+  it("deleting a relationship (or an element) cuts every flow where its walk breaks, in the same undo step", () => {
     const m = checkout();
     let h = reduce(initialHistory(m), { type: "save-flow", flow: order });
+    h = reduce(h, { type: "delete-edge", id: "e12" });
+    expect(h.present.flows![0]!.steps).toEqual([{ edge: "e6" }, { edge: "e9" }]);
+    h = reduce(h, { type: "undo" });
+    // A step gone from the middle: the walk can't jump on, so it stops there.
     h = reduce(h, { type: "delete-edge", id: "e9" });
-    expect(h.present.flows![0]!.steps).toEqual([{ edge: "e6" }, { edge: "e12" }]);
+    expect(h.present.flows![0]!.steps).toEqual([{ edge: "e6" }]);
     h = reduce(h, { type: "undo" });
     expect(h.present.flows![0]!.steps).toEqual(order.steps);
     const web = m.nodes.find((n) => n.name === "Checkout web app")!.id;
     h = reduce(h, { type: "delete-node", id: web });
     expect(h.present.flows![0]!.steps).toEqual([{ edge: "e6" }]);
+  });
+
+  it("a relationship turned round (Update to CSDM 5) turns its steps too, so the walk still goes the same way", () => {
+    const m = checkout();
+    const e12 = m.edges.find((e) => e.id === "e12")!;
+    // Pretend e12 was drawn the legacy way round, then put back.
+    const legacy = { ...m, edges: m.edges.map((e) => (e.id === "e12" ? { ...e, from: e12.to, to: e12.from } : e)), flows: [{ ...order, steps: [{ edge: "e6" }, { edge: "e9" }, { edge: "e12", back: true as const }] }] };
+    const h = reduce(initialHistory(legacy), { type: "update-edge", id: "e12", from: e12.from, to: e12.to, edgeType: e12.type });
+    expect(h.present.flows![0]!.steps).toEqual(order.steps);
   });
 });
 
@@ -88,10 +101,28 @@ describe("playing a flow (M70)", () => {
     expect([...blastView(m, r, 2, "scenario").edges.values()].every((e) => !e.forward)).toBe(true);
   });
 
-  it("a step whose relationship is gone is skipped; no steps left plays nothing", () => {
+  it("it stops where the walk breaks: a relationship gone, or one that doesn't leave where the flow is; no steps plays nothing", () => {
     const m = checkout();
-    expect(flowRadius(m, { id: "f", name: "x", steps: [{ edge: "gone" }, { edge: "e12" }] }).steps).toHaveLength(2);
+    expect(flowRadius(m, { id: "f", name: "x", steps: [{ edge: "gone" }, { edge: "e12" }] }).steps).toEqual([]);
+    expect(flowRadius(m, { id: "f", name: "x", steps: [{ edge: "e6" }, { edge: "e12" }] }).steps).toHaveLength(2);
     expect(flowRadius(m, { id: "f", name: "x", steps: [] }).steps).toEqual([]);
+  });
+
+  it("an element the flow comes back to keeps the number of the step that first reached it", () => {
+    const m = checkout();
+    const there: Flow = { id: "f", name: "There and back", steps: [{ edge: "e12" }, { edge: "e12", back: true }] };
+    const r = flowRadius(m, there);
+    const web = m.nodes.find((n) => n.name === "Checkout web app")!.id;
+    expect(blastView(m, r, 2, "scenario").nodes.get(web)).toEqual({ hop: 0, current: true });
+  });
+
+  it("loading a file cuts a flow where its walk breaks, and says so", async () => {
+    const { parseModel } = await import("./model");
+    const json = JSON.parse(JSON.stringify(checkout()));
+    json.flows = [{ id: "f", name: "Broken", steps: [{ edge: "e6" }, { edge: "gone" }, { edge: "e9" }] }];
+    const r = parseModel(json);
+    expect(r.ok && r.model.flows![0]!.steps).toEqual([{ edge: "e6" }]);
+    expect(r.ok && r.notes).toEqual(["Flow “Broken” was cut after step 1: its next relationship isn't in the model, or doesn't leave where the flow had reached."]);
   });
 
   it("what can come next: the relationships at the flow's end, either way; and each step in words", () => {

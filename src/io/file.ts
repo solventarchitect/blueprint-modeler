@@ -3,7 +3,7 @@ import { parseModel, serializeModel, type Issue, type Model } from "@/model";
 /** Largest model file we will read (characters). Well above the schema's node/edge caps. */
 export const MAX_FILE_CHARS = 5_000_000;
 
-export type ImportResult = { ok: true; model: Model; issues: Issue[]; copied: boolean } | { ok: false; error: string };
+export type ImportResult = { ok: true; model: Model; issues: Issue[]; notes?: string[]; copied: boolean } | { ok: false; error: string };
 
 /** A safe file name from the model name: lowercase words joined by hyphens. */
 export function fileBase(model: Pick<Model, "name">): string {
@@ -34,5 +34,5 @@ export function importJson(text: string, existingIds: ReadonlySet<string>, newId
   const r = parseModel(data);
   if (!r.ok) return r;
   const copied = existingIds.has(r.model.id);
-  return { ok: true, model: copied ? { ...r.model, id: newId() } : r.model, issues: r.issues, copied };
+  return { ok: true, model: copied ? { ...r.model, id: newId() } : r.model, issues: r.issues, ...(r.notes ? { notes: r.notes } : {}), copied };
 }

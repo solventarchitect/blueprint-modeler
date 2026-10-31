@@ -30,7 +30,11 @@ export function blastView(model: Model, r: BlastRadius, step: number, kind: Blas
   const to = new Map(model.edges.map((e) => [e.id, e.to]));
   for (const s of r.steps.slice(0, k + 1)) {
     const current = s.hop === k;
-    for (const id of s.nodeIds) view.nodes.set(id, { hop: s.hop, current });
+    for (const id of s.nodeIds) {
+      // A saved flow can come back to an element: it keeps the number of the step that first reached it.
+      const was = view.nodes.get(id);
+      view.nodes.set(id, kind === "scenario" && was ? { hop: was.hop, current: was.current || current } : { hop: s.hop, current });
+    }
     for (const id of s.edgeIds) {
       const towardReached = s.nodeIds.includes(to.get(id) ?? "");
       // Impact belongs to the relationship (toward the dependent); data travels with the walk.

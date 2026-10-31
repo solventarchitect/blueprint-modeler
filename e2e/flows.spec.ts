@@ -34,7 +34,7 @@ async function step(page: Page, text: string) {
 /** "Customer places an order": the offering, its service, the app, its host. */
 async function makeOrderFlow(page: Page) {
   await openFlows(page);
-  await dialog(page).getByLabel("Name", { exact: true }).fill("Customer places an order");
+  await dialog(page).getByLabel("New flow name").fill("Customer places an order");
   await dialog(page).getByRole("button", { name: "Make flow" }).click();
   await expect(dialog(page).getByLabel("Starts at")).toBeFocused();
   await dialog(page).getByLabel("Starts at").selectOption({ label: "Online shopping — North America (Business Service Offering)" });
