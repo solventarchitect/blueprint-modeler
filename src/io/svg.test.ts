@@ -290,3 +290,14 @@ describe("the state shown in images, in words (M71 review)", () => {
     expect(svg).not.toContain("NaN");
   });
 });
+
+describe("focus in images (M74)", () => {
+  it("the rest fades, as a filter fades it, and the title block says what is in focus", () => {
+    const m = checkout();
+    const web = idOf(m, "Checkout web app");
+    const ids = [web, idOf(m, "web-prod-01")];
+    const svg = modelToSvg(m, "light", { view: { filter: {}, colorBy: "layer", focus: { name: "Checkout web app", depth: 1, ids } } });
+    expect((svg.match(/<g data-faded="">/g) ?? []).length).toBe(m.nodes.length - 2);
+    expect(svg).toMatch(/data-title="view"[^>]*>Focus: Checkout web app, within 1 relationship · showing 2 of \d+ elements</);
+  });
+});
