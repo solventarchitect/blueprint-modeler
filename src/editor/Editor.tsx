@@ -1973,7 +1973,8 @@ function EditorInner() {
       // Full screen refused: present mode still fills the window.
     }
     setTimeout(() => {
-      exitButton.current?.focus();
+      // Unless the presenter is already in the bar (a quick choice of flow moved focus to Next).
+      if (!document.activeElement?.closest('[aria-label="Presentation"]')) exitButton.current?.focus();
       if (flowId) return presentFlow(flowId);
       if (isoRef.current) isoRef.current.zoom("fit");
       else void flow.fitView({ padding: fitPadding(0.12), maxZoom: 1, duration: 300 });
