@@ -143,3 +143,14 @@ describe("flows survive what rebuilds a model (M70)", () => {
     expect(withDetails(m, { description: "x" }).flows).toEqual([order]);
   });
 });
+
+describe("flows Present can show (M73)", () => {
+  it("only flows with at least one step that plays, in the model's order", async () => {
+    const { playableFlows } = await import("./flows");
+    const m = checkout();
+    expect(playableFlows(m)).toEqual([]);
+    const empty: Flow = { id: "f0", name: "Empty", steps: [] };
+    const broken: Flow = { id: "f9", name: "Broken", steps: [{ edge: "gone" }] };
+    expect(playableFlows({ ...m, flows: [empty, order, broken] }).map((f) => f.id)).toEqual(["f1"]);
+  });
+});

@@ -75,3 +75,6 @@ export function flowStepText(model: Model, s: FlowStep): string {
   const name = (id: string) => model.nodes.find((n) => n.id === id)?.name || "Untitled";
   return `${name(e.from)} → ${name(e.to)} (${label(e.type, s.back)})`;
 }
+
+/** M73: the saved flows Present can step through: those with at least one step that plays. */
+export const playableFlows = (model: Model): Flow[] => (model.flows ?? []).filter((f) => flowRadius(model, f).steps.length > 1);
