@@ -62,6 +62,18 @@ export async function encodeShare(model: Model): Promise<string> {
 
 /** The link itself: always on /editor, the model in the fragment. */
 export const shareUrl = (origin: string, payload: string) => `${origin}/editor#${SHARE_KEY}=${payload}`;
+/** M75: the view-only link: /view opens the model read only, saving nothing; the same payload. */
+export const VIEW_PATH = "/view";
+export const viewUrl = (origin: string, payload: string) => `${origin}${VIEW_PATH}#${SHARE_KEY}=${payload}`;
+/** M75: Save a copy from the view page: the editor's own link, which saves a copy as any model link does. */
+export const editUrlFor = (payload: string) => `/editor#${SHARE_KEY}=${payload}`;
+
+/**
+ * M75: an inline script in every page's <head>: on /view inside a frame (a wiki page, mikereams.com),
+ * the page is marked so the site's header and footer step aside. A frame the browser won't let us
+ * look out of counts as a frame.
+ */
+export const framedScript = `(function(){try{if(location.pathname!=="/view"&&location.pathname!=="/view/")return;var f;try{f=self!==top}catch(e){f=true}if(f)document.documentElement.setAttribute("data-framed","")}catch(e){}})()`;
 
 /** Whether a link can be shared as is, should come with a warning, or is too large to make. */
 export function shareSize(url: string, payload: string): "ok" | "long" | "too-large" {
@@ -155,12 +167,14 @@ const prefix = `#${SHARE_KEY}=`;
 /**
  * An inline script in every page's <head>, so it runs while the page is parsed, before any other
  * script. On /editor it takes a model link's payload off the address and leaves it for the editor,
- * and marks the page so the visit counter is never loaded on it: the browser's navigation-timing
+ * and marks the page so the visit counter is never loaded on it (on any other page that arrives with a
+ * model in its address, such as /view, M75, where it stays for a reload or a frame, the page is marked
+ * too, whatever the path it was served at): the browser's navigation-timing
  * record keeps the address the page arrived with, and a performance beacon could read it there.
  * It also listens (first, so before any listener added later) for a link pasted into the address
  * bar of an open editor, which changes only the fragment.
  */
-export const shareCaptureScript = `(function(){function t(){try{var p=location.pathname;if((p==="/editor"||p==="/editor/")&&location.hash.indexOf(${JSON.stringify(prefix)})===0){window.__bmShared=location.hash.slice(${prefix.length});window.__bmNoBeacon=true;history.replaceState(null,"",location.pathname+location.search)}}catch(e){}}t();addEventListener("popstate",t,true);addEventListener("hashchange",t,true)})()`;
+export const shareCaptureScript = `(function(){function t(){try{var p=location.pathname;if((p==="/editor"||p==="/editor/")&&location.hash.indexOf(${JSON.stringify(prefix)})===0){window.__bmShared=location.hash.slice(${prefix.length});window.__bmNoBeacon=true;history.replaceState(null,"",location.pathname+location.search)}else if(location.hash.indexOf(${JSON.stringify(prefix)})===0){window.__bmNoBeacon=true}}catch(e){}}t();addEventListener("popstate",t,true);addEventListener("hashchange",t,true)})()`;
 
 /**
  * The model link's payload, once: from the capture script, or (after a client-side navigation or a

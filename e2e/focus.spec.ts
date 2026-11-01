@@ -86,7 +86,8 @@ test.describe("focus on an element (M74, desktop)", () => {
     // From the bar: Show everything ends it, and keyboard focus lands on the element, not the page body.
     await bar(page).getByRole("button", { name: "Show everything" }).click();
     await expect(bar(page)).toHaveCount(0);
-    expect(await page.evaluate(() => document.activeElement?.tagName)).not.toBe("BODY");
+    // Focus moves once the bar has gone (on the next tick).
+    await expect.poll(() => page.evaluate(() => document.activeElement?.tagName)).not.toBe("BODY");
   });
 
   test("a new element added while focused joins the focus; the context menu focuses too", async ({ page }) => {

@@ -1,0 +1,9 @@
+{
+  "$schema": "https://openapi.vercel.sh/vercel.json",
+  "headers": [
+    {
+      "source": "/((?!view).*)",
+      "headers": [{ "key": "Content-Security-Policy", "value": "frame-ancestors 'self'" }]
+    }
+  ]
+}

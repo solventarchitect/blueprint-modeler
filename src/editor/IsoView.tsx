@@ -13,7 +13,7 @@ import type { Layer } from "@/metamodel";
 export type IsoHandle = { zoom: (c: ZoomCommand) => void };
 
 /** The theme being viewed, kept current: the header toggle's choice (data-theme), else the system's. */
-function useViewedTheme(): SvgTheme {
+export function useViewedTheme(): SvgTheme {
   const read = (): SvgTheme => {
     const chosen = document.documentElement.dataset.theme;
     if (chosen === "light" || chosen === "dark") return chosen;

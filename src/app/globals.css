@@ -1096,3 +1096,10 @@
   stroke-dasharray: 2 5;
   stroke-linecap: round;
 }
+
+/* M75: a view-only page in a frame (a wiki page, mikereams.com): the model alone. */
+html[data-framed] body > header,
+html[data-framed] body > footer,
+html[data-framed] body > a[href="#main-content"] {
+  display: none;
+}
