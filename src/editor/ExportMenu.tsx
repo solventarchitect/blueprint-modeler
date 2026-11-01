@@ -1,7 +1,8 @@
 "use client";
 
-import { useEffect, useId, useLayoutEffect, useRef, useState } from "react";
+import { useCallback, useId, useRef, useState } from "react";
 import { ToolbarIcon } from "./ToolbarIcon";
+import { useDismiss } from "./useDismiss";
 
 export type ExportKind = "json" | "link" | "view-link" | "svg-dark" | "svg-light" | "png-dark" | "png-light" | "print" | "report" | "book" | "blast-gif" | "flow-gif" | "scenario-gif" | "archimate" | "drawio" | "servicenow";
 
@@ -57,58 +58,38 @@ export function ExportMenu({
   const [open, setOpen] = useState(false);
   const root = useRef<HTMLDivElement>(null);
   const button = useRef<HTMLButtonElement>(null);
-  const listId = useId();
-  const panel = useRef<HTMLDivElement>(null);
-  // The panel opens under the button and is kept inside the window: shifted left when it would run off the right edge.
-  const [shift, setShift] = useState(0);
-  useLayoutEffect(() => {
-    if (!open || !panel.current || !root.current) return;
-    const left = root.current.getBoundingClientRect().left;
-    const width = panel.current.offsetWidth;
-    setShift(Math.min(0, window.innerWidth - 16 - (left + width)));
-  }, [open]);
-
-  useEffect(() => {
-    if (!open) return;
-    const onDown = (e: PointerEvent) => {
-      if (!root.current?.contains(e.target as Node)) setOpen(false);
-    };
-    document.addEventListener("pointerdown", onDown);
-    return () => document.removeEventListener("pointerdown", onDown);
-  }, [open]);
+  const panelId = useId();
+  const close = useCallback(() => setOpen(false), []);
+  // As the other toolbar panels: a press outside or Escape (wherever focus is) closes it.
+  useDismiss(open, close, root, button);
 
   return (
     <div
       ref={root}
-      className="relative"
-      onKeyDown={(e) => {
-        if (e.key === "Escape" && open) {
-          e.stopPropagation();
-          setOpen(false);
-          button.current?.focus();
-        }
+      onBlur={(e) => {
+        // Tabbing out of the panel closes it, so it never sits over the control that has focus.
+        if (open && e.relatedTarget && !root.current?.contains(e.relatedTarget as Node)) setOpen(false);
       }}
     >
-      <button ref={button} type="button" className={buttonClass} aria-expanded={open} aria-controls={listId} onClick={() => {
+      <button ref={button} type="button" className={buttonClass} aria-expanded={open} aria-controls={panelId} onClick={() => {
           if (!open) onOpen?.();
           setOpen(!open);
         }}>
         <ToolbarIcon name="export" />
         Export <span aria-hidden="true">▾</span>
       </button>
+      {/* Anchored to the toolbar, as the Examples and Model panels are: always inside the window. */}
       <div
-        ref={panel}
-        id={listId}
+        id={panelId}
         hidden={!open}
-        style={{ left: shift }}
         data-testid="export-panel"
-        className="absolute z-20 mt-1 max-h-[calc(100dvh-8rem)] w-[min(60rem,calc(100vw-2rem))] overflow-y-auto border border-border-strong bg-surface-raised p-2 md:grid md:grid-cols-3 md:gap-x-2"
+        className="absolute inset-x-4 top-full z-30 mt-1 max-h-[min(70vh,40rem)] max-w-5xl overflow-y-auto border border-border-strong bg-surface-raised p-2 shadow-lg md:columns-3 md:gap-x-2"
       >
-        {EXPORT_GROUPS.map((g) => (
-          <div key={g.label} role="group" aria-labelledby={`${listId}-${g.label}`} className="py-1">
-            <h3 id={`${listId}-${g.label}`} className="px-3 pt-1 pb-0.5 font-mono text-xs tracking-[0.14em] text-accent uppercase">
+        {EXPORT_GROUPS.map((g, i) => (
+          <section key={g.label} aria-labelledby={`${panelId}-g${i}`} className="break-inside-avoid py-1">
+            <h2 id={`${panelId}-g${i}`} className="px-3 pt-1 pb-0.5 font-mono text-xs tracking-[0.14em] text-accent uppercase">
               {g.label}
-            </h3>
+            </h2>
             <ul>
               {g.items.map((it) => (
                 <li key={it.kind}>
@@ -135,7 +116,7 @@ export function ExportMenu({
                 </li>
               ))}
             </ul>
-          </div>
+          </section>
         ))}
       </div>
     </div>

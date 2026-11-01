@@ -124,7 +124,8 @@ test.describe("import, export and layout (desktop)", () => {
     await page.keyboard.press("Enter");
     await expect(button).toHaveAttribute("aria-expanded", "true");
     await page.keyboard.press("Tab");
-    await expect(page.getByRole("button", { name: /Model file \(JSON\)/ })).toBeFocused();
+    // M79: the first group is Share.
+    await expect(page.getByRole("button", { name: /Copy link to this model/ })).toBeFocused();
     await page.keyboard.press("Escape");
     await expect(button).toHaveAttribute("aria-expanded", "false");
     await expect(button).toBeFocused();
