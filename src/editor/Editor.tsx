@@ -57,7 +57,7 @@ import { arrangeByGroups, groupFrames, ownGroups, type Frame } from "@/layout/gr
 import { autoLayout, DEFAULT_SIZE, fillSpace, type LayoutMode } from "@/layout/layout";
 import { createWorkerEngine } from "@/layout/worker-engine";
 import { classById, classes, ENVIRONMENT_EXAMPLES, isClassId, isExtended, type ClassId, type Layer } from "@/metamodel";
-import { ALL_ELEMENTS, FIELD_LABEL, healthReport, localDay, GROUP_BY_LABEL, groupsOf, primaryGroup, SIDES, attrValue, compareModels, parseModel, blastRadius, COLOR_BY_LABEL, evaluateHints, filterActive, formatModelDate, impactEnds, inView, isBusinessAnchor as isAnchor, modelDate, slotMap, UNTITLED_MODEL, flowRadius, PLAN_LABEL, PLAN_VIEW_LABEL, planHidden, type PlanView, type BlastDirection, type Edge, type HintResult, type Model } from "@/model";
+import { ALL_ELEMENTS, FIELD_LABEL, healthReport, localDay, GROUP_BY_LABEL, groupsOf, primaryGroup, SIDES, attrValue, compareModels, parseModel, blastRadius, COLOR_BY_LABEL, evaluateHints, filterActive, formatModelDate, impactEnds, inView, isBusinessAnchor as isAnchor, modelDate, slotMap, UNTITLED_MODEL, flowRadius, flowStepText, playableFlows, PLAN_LABEL, PLAN_VIEW_LABEL, planHidden, type PlanView, type BlastDirection, type Edge, type HintResult, type Model } from "@/model";
 import { site } from "@/lib/site";
 import { ClassNode, SuggestContext, type ClassFlowNode } from "./ClassNode";
 import { ConnectionLine, ConnectionModelContext, ReconnectingContext } from "./ConnectionLine";
@@ -328,8 +328,11 @@ function EditorInner() {
   const dialogReturn = useRef<HTMLElement | null>(null);
   const [presenting, setPresenting] = useState(false);
   const [step, setStep] = useState(0);
+  /** M73: the saved flow Present steps through instead of the layers; null for the layers. */
+  const [presentFlowId, setPresentFlowId] = useState<string | null>(null);
   const presentButton = useRef<HTMLButtonElement>(null);
   const exitButton = useRef<HTMLButtonElement>(null);
+  const presentNext = useRef<HTMLButtonElement>(null);
   const [lens, setLensState] = useState<Lens>("csdm");
   useEffect(() => setLensState(readLens()), []);
   const setLens = (l: Lens) => {
@@ -453,6 +456,8 @@ function EditorInner() {
         return;
       }
       if (!mod) return;
+      // Present is read only (M55): undo and redo wait until it ends (M73 review).
+      if (presenting) return;
       const k = e.key.toLowerCase();
       if (k === "z" && !e.shiftKey) {
         e.preventDefault();
@@ -1872,7 +1877,8 @@ function EditorInner() {
   }, [blast, radius]); // eslint-disable-line react-hooks/exhaustive-deps -- nameOf reads the same model as radius
   // Escape closes it, unless a menu, dialog or text field has the key.
   useEffect(() => {
-    if (!blast || menu || managing || palette || shortcuts || viewDialog) return;
+    // While presenting (M73), Escape ends Present, which closes the flow with it.
+    if (!blast || presenting || menu || managing || palette || shortcuts || viewDialog) return;
     const onKey = (e: KeyboardEvent) => {
       const el = e.target as HTMLElement | null;
       if (e.key !== "Escape" || e.defaultPrevented) return;
@@ -1884,7 +1890,7 @@ function EditorInner() {
     };
     window.addEventListener("keydown", onKey);
     return () => window.removeEventListener("keydown", onKey);
-  }, [blast, menu, managing, palette, shortcuts, viewDialog, closeBlast]);
+  }, [blast, presenting, menu, managing, palette, shortcuts, viewDialog, closeBlast]);
 
   // Present mode: the canvas alone, full screen, stepping through the model layer by layer.
   const steps = useMemo(() => [{ name: "Overview", nodeIds: [] as string[], layer: undefined as Layer | undefined }, ...boxes.map((b) => ({ name: b.name, nodeIds: b.nodeIds, layer: b.layer as Layer | undefined }))], [boxes]);
@@ -1895,7 +1901,8 @@ function EditorInner() {
       const target = steps[next]!;
       // In isometric the step lifts its layer (see IsoView's lift); the picture refits after it redraws.
       if (isoRef.current) return void setTimeout(() => isoRef.current?.zoom("fit"), 0);
-      void flow.fitView(target.nodeIds.length ? { nodes: target.nodeIds.map((id) => ({ id })), padding: 0.25, maxZoom: 1.25, duration: 400 } : { padding: fitPadding(0.12), maxZoom: 1, duration: 400 });
+      const duration = prefersStill() ? 0 : 400;
+      void flow.fitView(target.nodeIds.length ? { nodes: target.nodeIds.map((id) => ({ id })), padding: 0.25, maxZoom: 1.25, duration } : { padding: fitPadding(0.12), maxZoom: 1, duration });
     },
     [steps, flow, fitPadding],
   );
@@ -1914,25 +1921,70 @@ function EditorInner() {
     const items = st.nodeIds.map((id) => outline.flatMap((l) => l.items).find((i) => i.id === id)).filter((i) => !!i);
     return { count: `${count(items.length)}.`, list: `The ${st.name} layer: ${items.map((i) => `${i.name} (${i.kind})`).join(", ")}.` };
   };
-  const startPresenting = () => {
+  /** M73: Present is stepping through a saved flow (shown as the editor plays it), not the layers. */
+  const presentingFlow = presenting && !!presentFlowId && blast?.kind === "scenario" && blast.flowId === presentFlowId && !!radius && !!playedFlow;
+  const presentable = useMemo(() => playableFlows(model), [model]);
+  /** Present a saved flow (M73), or the layers again (null): from its first step, the whole flow in view. */
+  const presentFlow = (flowId: string | null) => {
+    const f = flowId ? presentable.find((x) => x.id === flowId) : undefined;
+    if (!f) {
+      setPresentFlowId(null);
+      setBlast(null);
+      goTo(0);
+      return;
+    }
+    const r = flowRadius(model, f);
+    setPresentFlowId(f.id);
+    setStep(0);
+    setBlast({ start: r.start, direction: "dependencies", kind: "scenario", flowId: f.id, step: 0, playing: false });
+    const ids = r.steps.flatMap((st) => st.nodeIds);
+    setTimeout(() => {
+      if (isoRef.current) isoRef.current.zoom("fit");
+      else void flow.fitView({ nodes: ids.map((n) => ({ id: n })), padding: 0.25, maxZoom: 1.25, duration: prefersStill() ? 0 : 400 });
+    }, 0);
+  };
+  // A flow closed under Present (its steps broke, another model opened): back to the layers, refitted.
+  useEffect(() => {
+    if (!presenting || !presentFlowId || presentingFlow) return;
+    setPresentFlowId(null);
+    goTo(0);
+  }, [presenting, presentFlowId, presentingFlow, goTo]);
+  /** Next and Previous: a flow's steps, or the layers. */
+  const presentStep = useCallback(
+    (delta: number | "first") => {
+      if (presentingFlow && blast && radius) {
+        const k = delta === "first" ? 0 : blast.step + delta;
+        if (k < 0 || k > radius.steps.length - 1) return;
+        setBlast({ ...blast, step: k, playing: false });
+      } else goTo(delta === "first" ? 0 : step + delta);
+    },
+    [presentingFlow, blast, radius, goTo, step],
+  );
+  const startPresenting = (flowId?: string) => {
     setBlast(null);
     setSelectedId(null);
     setActiveHint(null);
     setPresenting(true);
     setStep(0);
+    setPresentFlowId(null);
     try {
       void document.documentElement.requestFullscreen?.().catch(() => undefined);
     } catch {
       // Full screen refused: present mode still fills the window.
     }
     setTimeout(() => {
-      exitButton.current?.focus();
+      // Unless the presenter is already in the bar (a quick choice of flow moved focus to Next).
+      if (!document.activeElement?.closest('[aria-label="Presentation"]')) exitButton.current?.focus();
+      if (flowId) return presentFlow(flowId);
       if (isoRef.current) isoRef.current.zoom("fit");
       else void flow.fitView({ padding: fitPadding(0.12), maxZoom: 1, duration: 300 });
     }, 60);
   };
   const stopPresenting = useCallback(() => {
     setPresenting(false);
+    // A flow shown in Present ends with it (M73): Present starts with none open.
+    setPresentFlowId(null);
+    setBlast(null);
     if (document.fullscreenElement) void document.exitFullscreen().catch(() => undefined);
     setTimeout(() => {
       presentButton.current?.focus();
@@ -1948,15 +2000,17 @@ function EditorInner() {
         stopPresenting();
       } else if (e.key === " " && (e.target as HTMLElement | null)?.closest("button")) {
         // Space on a focused button presses that button.
+      } else if ((e.target as HTMLElement | null)?.tagName === "SELECT" && (e.key === "ArrowUp" || e.key === "ArrowDown" || e.key === " " || e.key === "Enter")) {
+        // The Show choice (M73) keeps the keys that pick from it; a clicker's keys still step.
       } else if (e.key === "ArrowRight" || e.key === "PageDown" || e.key === " ") {
         e.preventDefault();
-        goTo(step + 1);
+        presentStep(1);
       } else if (e.key === "ArrowLeft" || e.key === "PageUp") {
         e.preventDefault();
-        goTo(step - 1);
+        presentStep(-1);
       } else if (e.key === "Home") {
         e.preventDefault();
-        goTo(0);
+        presentStep("first");
       }
     };
     const onFullscreen = () => {
@@ -1968,7 +2022,7 @@ function EditorInner() {
       window.removeEventListener("keydown", onKey);
       document.removeEventListener("fullscreenchange", onFullscreen);
     };
-  }, [presenting, step, goTo, stopPresenting]);
+  }, [presenting, step, goTo, stopPresenting, presentStep]);
 
   const selected = model.nodes.find((n) => n.id === selectedId);
   /**
@@ -2166,7 +2220,9 @@ function EditorInner() {
       ...lenses
         .filter((l) => l.id !== lens)
         .map((l): Command => ({ id: `lens-${l.id}`, group: "Lens", label: `Lens: ${l.label}`, keywords: "framework", run: () => setLens(l.id) })),
-      { id: "present", group: "Present", label: "Present", keywords: "slides full screen", disabled: empty, run: startPresenting },
+      { id: "present", group: "Present", label: "Present", keywords: "slides full screen", disabled: empty, run: () => startPresenting() },
+      // M73: present a saved flow, step by step.
+      ...presentable.map((f): Command => ({ id: `present-flow-${f.id}`, group: "Present", label: `Present flow “${f.name}”`, keywords: "slides full screen saved flow scenario walk", run: () => startPresenting(f.id) })),
       { id: "shortcuts", group: "Help", label: "Keyboard shortcuts", keys: "?", keywords: "keys help", run: () => openDialog(setShortcuts) },
     ];
     const className = (id: string) => classById(model.nodes.find((n) => n.id === id)?.class ?? "")?.label ?? "";
@@ -2200,19 +2256,73 @@ function EditorInner() {
           <p className="sr-only">Dated {formatModelDate(modelDate(model))}</p>
           {model.description && <p className="sr-only">{model.description}</p>}
           {/* The step, announced whole on each change; with how many elements it shows (M55). */}
-          <p className="text-sm text-ink-muted" aria-live="polite" aria-atomic="true" data-testid="present-step">
-            {`${steps[step]?.name} · ${step + 1} of ${steps.length}`}
-            <span className="sr-only">{`. ${shownStep.count}`}</span>
-          </p>
-          {/* What the step shows, by name, for screen readers to read when they choose (the canvas is a picture to them). */}
-          <p className="sr-only" data-testid="present-contents">
-            {shownStep.list}
-          </p>
+          {/* M73: the layers, or a saved flow, step by step. */}
+          {presentable.length > 0 && (
+            <label className="flex items-center gap-1.5 text-sm text-ink-muted">
+              Show
+              <select
+                className="min-h-8 max-w-[60vw] min-w-0 border border-border-strong bg-surface-raised px-1.5 text-sm text-ink"
+                value={presentingFlow ? presentFlowId! : ""}
+                onChange={(e) => {
+                  presentFlow(e.target.value || null);
+                  // On to Next, so a clicker's keys step rather than change the choice.
+                  setTimeout(() => presentNext.current?.focus(), 0);
+                }}
+              >
+                <option value="">Layers</option>
+                {presentable.map((f) => (
+                  <option key={f.id} value={f.id}>
+                    Flow: {f.name}
+                  </option>
+                ))}
+              </select>
+            </label>
+          )}
+          {presentingFlow ? (
+            <>
+              {/* The flow's step, announced whole on each change, with what it reaches. */}
+              <p className="text-sm text-ink-muted" aria-live="polite" aria-atomic="true" data-testid="present-step">
+                {`${playedFlow!.name} · ${words("scenario").progress(radius!, blast!.step)}`}
+                {/* Start: the name and count are in the line already; say only where it starts. */}
+                <span className="sr-only">{blast!.step === 0 ? `. Starting at ${nameOf(radius!.start)}.` : `. ${words("scenario").announce(radius!, blast!.step, nameOf)}`}</span>
+              </p>
+              <p className="sr-only" data-testid="present-contents">
+                {`The flow “${playedFlow!.name}”: starts at ${nameOf(radius!.start)}. ${playedFlow!.steps
+                  .slice(0, radius!.steps.length - 1)
+                  .map((st, i) => `Step ${i + 1}: ${flowStepText(model, st)}`)
+                  .join(". ")}.`}
+              </p>
+            </>
+          ) : (
+            <>
+              <p className="text-sm text-ink-muted" aria-live="polite" aria-atomic="true" data-testid="present-step">
+                {`${steps[step]?.name} · ${step + 1} of ${steps.length}`}
+                <span className="sr-only">{`. ${shownStep.count}`}</span>
+              </p>
+              {/* What the step shows, by name, for screen readers to read when they choose (the canvas is a picture to them). */}
+              <p className="sr-only" data-testid="present-contents">
+                {shownStep.list}
+              </p>
+            </>
+          )}
           <span className="ml-auto flex gap-2">
-            <button type="button" className={toolbarButton} disabled={step === 0} onClick={() => goTo(step - 1)} aria-keyshortcuts="ArrowLeft">
+            <button
+              type="button"
+              className={toolbarButton}
+              disabled={presentingFlow ? blast!.step === 0 : step === 0}
+              onClick={() => presentStep(-1)}
+              aria-keyshortcuts="ArrowLeft"
+            >
               <span aria-hidden="true">←</span> Previous
             </button>
-            <button type="button" className={toolbarButton} disabled={step >= steps.length - 1} onClick={() => goTo(step + 1)} aria-keyshortcuts="ArrowRight">
+            <button
+              ref={presentNext}
+              type="button"
+              className={toolbarButton}
+              disabled={presentingFlow ? blast!.step >= radius!.steps.length - 1 : step >= steps.length - 1}
+              onClick={() => presentStep(1)}
+              aria-keyshortcuts="ArrowRight"
+            >
               Next <span aria-hidden="true">→</span>
             </button>
             <button ref={exitButton} type="button" className={toolbarButton} onClick={stopPresenting} aria-keyshortcuts="Escape">
@@ -2354,7 +2464,7 @@ function EditorInner() {
               Commands
             </span>
           </button>
-          <button ref={presentButton} type="button" className={primaryButton} disabled={model.nodes.length === 0} onClick={startPresenting}>
+          <button ref={presentButton} type="button" className={primaryButton} disabled={model.nodes.length === 0} onClick={() => startPresenting()}>
             <ToolbarIcon name="present" />
             Present
           </button>
