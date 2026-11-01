@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useId, useRef, useState } from "react";
+import { useEffect, useId, useLayoutEffect, useRef, useState } from "react";
 import { ToolbarIcon } from "./ToolbarIcon";
 
 export type ExportKind = "json" | "link" | "view-link" | "svg-dark" | "svg-light" | "png-dark" | "png-light" | "print" | "report" | "book" | "blast-gif" | "flow-gif" | "scenario-gif" | "archimate" | "drawio" | "servicenow";
@@ -24,7 +24,20 @@ export const exportItems: { kind: ExportKind; label: string; note: string }[] = 
   { kind: "servicenow", label: "ServiceNow import (Excel)", note: "One sheet per CMDB table, plus relationships" },
 ];
 
-/** Disclosure menu: a button that shows the export actions. Escape or a click outside closes it. */
+/**
+ * M79: the menu's groups, as columns in one wide panel (one scrolling column on small screens). Every
+ * item is in exactly one; the palette keeps the flat list above.
+ */
+const GROUPS: { label: string; kinds: ExportKind[] }[] = [
+  { label: "Share", kinds: ["link", "view-link", "json"] },
+  { label: "Images", kinds: ["svg-dark", "svg-light", "png-dark", "png-light", "print"] },
+  { label: "Documents", kinds: ["book", "report"] },
+  { label: "Animations", kinds: ["blast-gif", "flow-gif", "scenario-gif"] },
+  { label: "Other tools", kinds: ["archimate", "drawio", "servicenow"] },
+];
+export const EXPORT_GROUPS = GROUPS.map((g) => ({ label: g.label, items: g.kinds.map((k) => exportItems.find((i) => i.kind === k)!) }));
+
+/** Disclosure menu (M79: a mega menu): a button that shows the export actions in labeled groups. Escape or a click outside closes it. */
 export function ExportMenu({
   onExport,
   onOpen,
@@ -45,6 +58,15 @@ export function ExportMenu({
   const root = useRef<HTMLDivElement>(null);
   const button = useRef<HTMLButtonElement>(null);
   const listId = useId();
+  const panel = useRef<HTMLDivElement>(null);
+  // The panel opens under the button and is kept inside the window: shifted left when it would run off the right edge.
+  const [shift, setShift] = useState(0);
+  useLayoutEffect(() => {
+    if (!open || !panel.current || !root.current) return;
+    const left = root.current.getBoundingClientRect().left;
+    const width = panel.current.offsetWidth;
+    setShift(Math.min(0, window.innerWidth - 16 - (left + width)));
+  }, [open]);
 
   useEffect(() => {
     if (!open) return;
@@ -74,32 +96,48 @@ export function ExportMenu({
         <ToolbarIcon name="export" />
         Export <span aria-hidden="true">▾</span>
       </button>
-      <ul id={listId} hidden={!open} className="absolute left-0 z-20 mt-1 w-60 border border-border-strong bg-surface-raised py-1">
-        {exportItems.map((it) => (
-          <li key={it.kind}>
-            <button
-              type="button"
-              // aria-disabled, not disabled: the item stays reachable by keyboard, so its note can say why.
-              aria-disabled={disabled[it.kind] || undefined}
-              className="flex w-full cursor-pointer flex-col px-3 py-2 text-left hover:bg-surface hover:text-accent focus-visible:bg-surface aria-disabled:cursor-not-allowed aria-disabled:hover:bg-transparent"
-              onClick={() => {
-                if (disabled[it.kind]) return;
-                setOpen(false);
-                button.current?.focus();
-                onExport(it.kind);
-              }}
-            >
-              <span className={`text-sm ${disabled[it.kind] ? "text-ink-muted" : "text-ink"}`}>{it.label}</span>
-              <span className="text-xs text-ink-muted">{it.note}</span>
-              {notes[it.kind] && (
-                <span className="text-xs text-ink-muted" data-testid={`export-note-${it.kind}`}>
-                  {notes[it.kind]}
-                </span>
-              )}
-            </button>
-          </li>
+      <div
+        ref={panel}
+        id={listId}
+        hidden={!open}
+        style={{ left: shift }}
+        data-testid="export-panel"
+        className="absolute z-20 mt-1 max-h-[calc(100dvh-8rem)] w-[min(60rem,calc(100vw-2rem))] overflow-y-auto border border-border-strong bg-surface-raised p-2 md:grid md:grid-cols-3 md:gap-x-2"
+      >
+        {EXPORT_GROUPS.map((g) => (
+          <div key={g.label} role="group" aria-labelledby={`${listId}-${g.label}`} className="py-1">
+            <h3 id={`${listId}-${g.label}`} className="px-3 pt-1 pb-0.5 font-mono text-xs tracking-[0.14em] text-accent uppercase">
+              {g.label}
+            </h3>
+            <ul>
+              {g.items.map((it) => (
+                <li key={it.kind}>
+                  <button
+                    type="button"
+                    // aria-disabled, not disabled: the item stays reachable by keyboard, so its note can say why.
+                    aria-disabled={disabled[it.kind] || undefined}
+                    className="flex w-full cursor-pointer flex-col px-3 py-2 text-left hover:bg-surface hover:text-accent focus-visible:bg-surface aria-disabled:cursor-not-allowed aria-disabled:hover:bg-transparent"
+                    onClick={() => {
+                      if (disabled[it.kind]) return;
+                      setOpen(false);
+                      button.current?.focus();
+                      onExport(it.kind);
+                    }}
+                  >
+                    <span className={`text-sm ${disabled[it.kind] ? "text-ink-muted" : "text-ink"}`}>{it.label}</span>
+                    <span className="text-xs text-ink-muted">{it.note}</span>
+                    {notes[it.kind] && (
+                      <span className="text-xs text-ink-muted" data-testid={`export-note-${it.kind}`}>
+                        {notes[it.kind]}
+                      </span>
+                    )}
+                  </button>
+                </li>
+              ))}
+            </ul>
+          </div>
         ))}
-      </ul>
+      </div>
     </div>
   );
 }
