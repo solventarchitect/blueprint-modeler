@@ -31,8 +31,8 @@ export function reportSummary(r: HealthReport): string {
 }
 
 /** A table with a caption and a header row; every cell is text or our own nodes. */
-export const table = (caption: string, head: string[], rows: Child[][]) =>
-  el("table", {}, el("caption", {}, caption), el("thead", {}, el("tr", {}, ...head.map((h) => el("th", { scope: "col" }, h)))), el("tbody", {}, ...rows.map((row) => el("tr", {}, ...row.map((c) => el("td", {}, c))))));
+export const table = (caption: string, head: string[], rows: Child[][], attrs: Record<string, string> = {}) =>
+  el("table", attrs, el("caption", {}, caption), el("thead", {}, el("tr", {}, ...head.map((h) => el("th", { scope: "col" }, h)))), el("tbody", {}, ...rows.map((row) => el("tr", {}, ...row.map((c) => el("td", {}, c))))));
 
 export function reportSheet(model: Model, r: HealthReport, today: string): HTMLElement {
   return el(
@@ -47,13 +47,16 @@ export function reportSheet(model: Model, r: HealthReport, today: string): HTMLE
 }
 
 /** The health report's body (M64), also the model book's Health section (M76). */
-export function healthSections(r: HealthReport): HTMLElement[] {
+export function healthSections(r: HealthReport, sub: "h2" | "h3" = "h2"): HTMLElement[] {
+  // Short tables stay on one page.
+  const keep = { class: "bm-keep" };
   return [
     el("p", { class: "bm-report-summary" }, reportSummary(r)),
     table(
       "Elements by CSDM layer",
       ["Layer", "Elements"],
       r.layers.map((l) => [l.name, l.count ? String(l.count) : "None"]),
+      keep,
     ),
     r.hints.length
       ? table(
@@ -66,9 +69,10 @@ export function healthSections(r: HealthReport): HTMLElement[] {
       "Details filled in",
       ["Detail", "Set", "Of", "Share"],
       r.details.map((d) => [d.label, String(d.set), String(d.of), pct(d.set, d.of)]),
+      keep,
     ),
     el("p", {}, "Life cycle stage counts only elements whose class has a CSDM life cycle."),
-    el("h2", {}, "Elements without relationships"),
+    el(sub, {}, "Elements without relationships"),
     el("p", {}, r.unconnected.length ? names(r.unconnected) : "None: every element is related to another."),
   ];
 }

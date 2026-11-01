@@ -43,6 +43,9 @@ export type SvgView = {
   focus?: { name: string; depth: number; ids: readonly string[] };
 };
 
+/** A relationship type as pictures and the model book name it: the forward name, "reference" for a reference. */
+export const relationshipWord = (type: string) => (type.startsWith("reference:") ? "reference" : (type.split("::")[0] ?? type));
+
 /** The focus (M74) in words, for an image's description. */
 export const focusDesc = (view: SvgView | undefined) =>
   view?.focus ? ` Focused on ${view.focus.name}, within ${view.focus.depth} relationship${view.focus.depth === 1 ? "" : "s"}; the rest is faded.` : "";
@@ -321,7 +324,7 @@ export function modelToSvg(whole: Model, theme: SvgTheme, opts: { lens?: Lens; h
     // The same router as the canvas, so the image matches the screen.
     const { path: pathD, label: mid } = edgePath({ x: s.x, y: s.y, side: ss }, { x: t.x, y: t.y, side: ts }, lines);
     const am = amOnly ? edgeNotation(archimateRelationshipFor(classOf(e.from), classOf(e.to))) : undefined;
-    const type = am ? am.type : e.type.startsWith("reference:") ? "reference" : (e.type.split("::")[0] ?? e.type);
+    const type = am ? am.type : relationshipWord(e.type);
     // Its plan status in words (M71): the notation or the current hop may already take the line's dash.
     const label = e.plan ? `${type} · ${PLAN_LABEL[e.plan]}` : type;
     return [{ e, pathD, mid, am, label, span: Math.hypot(t.x - s.x, t.y - s.y) }];

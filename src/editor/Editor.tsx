@@ -1332,8 +1332,20 @@ function EditorInner() {
       printSvg(picture("light"), fileBase(model));
     } else if (kind === "book") {
       // M76: the whole model in one document; the picture as the editor draws it, in light.
-      printNode(bookSheet(model, picture("light"), localDay(new Date())), `${fileBase(model)}-model-book`);
-      setMessage(`Model book: ${model.nodes.length} elements, ${model.edges.length} relationships and ${model.flows?.length ?? 0} saved flows, ready to print or save as a PDF.`);
+      // What the picture shows, when it is less than (or other than) the whole model, said under it.
+      const shownParts = [
+        projection !== "plan" ? (projection === "iso" ? "isometric" : "isometric, exploded") : "",
+        lens !== "csdm" ? `lens: ${lenses.find((l) => l.id === lens)?.label ?? lens}` : "",
+        viewName ? `view “${viewName}”` : filterActive(shown.filter) ? "filtered" : "",
+        shown.colorBy !== "layer" ? `colored by ${COLOR_BY_LABEL[shown.colorBy].toLowerCase()}` : "",
+        planView !== "both" ? PLAN_VIEW_LABEL[planView].toLowerCase() : "",
+        focusOn ? `focused on ${nameOf(focusOn.id)}, within ${focusOn.depth} relationship${focusOn.depth === 1 ? "" : "s"}` : "",
+      ].filter(Boolean);
+      const shownNote = shownParts.length ? `As the editor shows it: ${shownParts.join(", ")}. The lists and tables below cover the whole model.` : "";
+      printNode(bookSheet(model, picture("light"), localDay(new Date()), shownNote), `${fileBase(model)}-model-book`);
+      const n = (k: number, one: string) => `${k} ${one}${k === 1 ? "" : "s"}`;
+      const f = model.flows?.length ?? 0;
+      setMessage(`Model book: ${n(model.nodes.length, "element")}, ${n(model.edges.length, "relationship")}, ${f ? n(f, "saved flow") : "no saved flows"}.`);
     } else if (kind === "report") {
       // M64: a page on the model's hints and missing details, always the whole model.
       const report = healthReport(model);
@@ -2270,7 +2282,7 @@ function EditorInner() {
         id: `export-${it.kind}`,
         group: "Export",
         label: it.kind === "link" || it.kind === "view-link" || it.kind === "print" || it.kind === "report" || it.kind === "book" ? it.label : `Export ${it.label}`,
-        keywords: "export download save",
+        keywords: it.kind === "book" ? "print pdf review document handoff export" : it.kind === "report" || it.kind === "print" ? "print pdf export" : "export download save",
         disabled: exportDisabled[it.kind] ? exportNotes[it.kind] : undefined,
         run: () => exportAs(it.kind),
       })),

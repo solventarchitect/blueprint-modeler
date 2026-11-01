@@ -1004,11 +1004,30 @@
   .bm-book-section {
     margin-top: 10pt;
   }
-  .bm-book-picture {
+  /* The picture on a page of its own: it starts one, fills it and ends it. */
+  .bm-book-picture-page {
+    break-before: page;
     break-after: page;
   }
   .bm-book-picture svg {
-    max-height: 85vh;
+    max-height: calc(100vh - 6em);
+  }
+  .bm-book-description {
+    white-space: pre-line;
+  }
+  .bm-report h2,
+  .bm-report h3,
+  .bm-report caption {
+    break-after: avoid;
+  }
+  .bm-report td {
+    overflow-wrap: anywhere;
+  }
+  .bm-report table.bm-keep {
+    break-inside: avoid;
+  }
+  .bm-book table.bm-book-wide {
+    font-size: 9pt;
   }
 }
 
