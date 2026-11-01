@@ -52,6 +52,16 @@ describe("Compare sees saved views (M72)", () => {
   });
 });
 
+describe("Compare reads the M77 colorings", () => {
+  it("a view now colored by plan status or tag is a change in color by, not a layer view", () => {
+    const base = { ...checkout(), views: [prod] };
+    const now = { ...base, views: [{ ...prod, colorByExt: "plan" as const }] };
+    expect(compareModels(now, base).views.changed[0]!.changes).toEqual([{ field: "Color by", before: "Layer", after: "Plan status" }]);
+    const tag = { ...base, views: [{ ...prod, colorByExt: "tag" as const }] };
+    expect(compareModels(tag, now).views.changed[0]!.changes).toEqual([{ field: "Color by", before: "Plan status", after: "Tag" }]);
+  });
+});
+
 describe("Compare sees saved flows (M72)", () => {
   it("added, removed and changed flows; steps compared by what they walk, not by ids", () => {
     const base = { ...checkout(), flows: [order] };

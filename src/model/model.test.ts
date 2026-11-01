@@ -1,5 +1,6 @@
 import { describe, expect, it } from "vitest";
-import { createModel, formatModelDate, localDay, migrate, modelDate, modelSchema, parseModel, serializeModel, toWebAddress, UNTITLED_MODEL, type Model } from "./index";
+import { z } from "zod";
+import { createModel, formatModelDate, localDay, migrate, modelDate, modelSchema, parseModel, serializeModel, toWebAddress, UNTITLED_MODEL, viewSchema, type Model } from "./index";
 
 const NOW = new Date("2026-09-27T12:00:00.000Z");
 
@@ -189,6 +190,22 @@ describe("saved views in the model file (M54, still format 1)", () => {
     expect(bad([{ id: "v", name: "", filter: {}, colorBy: "layer" }]).ok).toBe(false);
     expect(bad(Array.from({ length: 21 }, (_, i) => ({ id: `v${i}`, name: `V${i}`, filter: {}, colorBy: "layer" }))).ok).toBe(false);
     expect(bad([{ id: "v", name: "x", filter: {}, colorBy: "layer" }, { id: "v", name: "y", filter: {}, colorBy: "layer" }]).ok).toBe(false);
+  });
+
+  it("keeps a coloring by plan status or tag (M77) beside one older versions know; one this version does not know falls back to it", () => {
+    const m: Model = { ...withViews(), views: [{ id: "v", name: "By plan", filter: {}, colorBy: "layer", colorByExt: "plan" }, { id: "w", name: "By tag", filter: {}, colorBy: "layer", colorByExt: "tag" }] };
+    const r = roundTrip(m);
+    expect(r.ok && r.model).toEqual(m);
+    const later = parseModel({ ...JSON.parse(serializeModel(m)), views: [{ id: "v", name: "By cost", filter: {}, colorBy: "owner", colorByExt: "cost" }] });
+    expect(later.ok && later.model.views?.[0]).toEqual({ id: "v", name: "By cost", filter: {}, colorBy: "owner" });
+  });
+
+  it("is opened by 1.19's reader, which knew no colorByExt: the view keeps its layer colors", () => {
+    const older = modelSchema.extend({ views: z.array(viewSchema.omit({ colorByExt: true })).optional() });
+    const file = JSON.parse(serializeModel({ ...sample(), views: [{ id: "v", name: "By plan", filter: {}, colorBy: "layer", colorByExt: "plan" }] }));
+    const parsed = older.safeParse(file);
+    expect(parsed.success).toBe(true);
+    expect(parsed.success && parsed.data.views).toEqual([{ id: "v", name: "By plan", filter: {}, colorBy: "layer" }]);
   });
 
   it("keeps a view's grouping (M56); one this version does not know drops the grouping, not the file", () => {

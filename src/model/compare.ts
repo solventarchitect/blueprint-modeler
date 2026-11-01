@@ -8,7 +8,7 @@
  * re-layout is not a change to the model.
  */
 import { classById } from "@/metamodel";
-import { attrValue, COLOR_BY_LABEL } from "./views";
+import { attrValue, COLOR_BY_LABEL, viewColorBy } from "./views";
 import { GROUP_BY_LABEL } from "./groups";
 import { LAYER_ORDER } from "./health";
 import { PLAN_LABEL, planOf, type PlanStatus } from "./plan";
@@ -164,7 +164,7 @@ function viewChanges(now: View, was: View) {
   const pairs: [string, string, string][] = [
     ["Name", was.name, now.name],
     ["Filter", filterText(was.filter), filterText(now.filter)],
-    ["Color by", COLOR_BY_LABEL[was.colorBy], COLOR_BY_LABEL[now.colorBy]],
+    ["Color by", COLOR_BY_LABEL[viewColorBy(was)], COLOR_BY_LABEL[viewColorBy(now)]],
     ["Group by", was.groupBy ? GROUP_BY_LABEL[was.groupBy] : "None", now.groupBy ? GROUP_BY_LABEL[now.groupBy] : "None"],
   ];
   return pairs.filter(([, b, a]) => b !== a).map(([field, before, after]) => ({ field, before, after }));

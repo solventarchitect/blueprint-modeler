@@ -130,6 +130,11 @@ export const positionSchema = z.object({ x: z.number().finite(), y: z.number().f
 
 /** What a view can color elements by (M54). */
 export const COLOR_BY = ["layer", "lifecycle", "environment", "owner"] as const;
+/**
+ * M77: colorings added later, stored in a view's optional `colorByExt` beside a `colorBy` older
+ * versions know ("layer"), so they still open the file and show the view in layer colors.
+ */
+export const COLOR_BY_EXT = ["plan", "tag"] as const;
 // Values as long as an element property can be (attrs strings), so any value in a model can be filtered on.
 const values = (max: number) => z.array(z.string().max(2000)).max(max).optional();
 /** A view's filter: within one dimension any value matches; every dimension given must match. "" = not set. */
@@ -161,6 +166,8 @@ export const viewSchema = z.object({
   name: z.string().trim().min(1).max(80),
   filter: viewFilterSchema,
   colorBy: z.enum(COLOR_BY),
+  /** M77: plan status or first tag; overrides `colorBy`. One this version does not know drops it, not the file. */
+  colorByExt: z.enum(COLOR_BY_EXT).optional().catch(undefined),
   /** M56: frames around the elements that belong together; optional and additive in format 1 (older versions ignore it). */
   // A grouping this version does not know drops the grouping, not the file.
   groupBy: z.enum(GROUP_BY).optional().catch(undefined),
@@ -234,7 +241,8 @@ export type Edge = z.infer<typeof edgeSchema>;
 export type Model = z.infer<typeof modelSchema>;
 export type View = z.infer<typeof viewSchema>;
 export type ViewFilter = z.infer<typeof viewFilterSchema>;
-export type ColorBy = (typeof COLOR_BY)[number];
+/** Every coloring a view can show; what a file stores is `colorBy` plus, for the M77 ones, `colorByExt`. */
+export type ColorBy = (typeof COLOR_BY)[number] | (typeof COLOR_BY_EXT)[number];
 export type GroupBy = (typeof GROUP_BY)[number];
 export type Plan = (typeof PLANS)[number];
 
