@@ -7,7 +7,7 @@ import { classById, lifecycleFor, type Layer } from "@/metamodel";
 import { evaluateHints } from "./hints";
 import type { Model } from "./schema";
 
-const LAYER_ORDER: { id: Layer; name: string }[] = [
+export const LAYER_ORDER: { id: Layer; name: string }[] = [
   { id: "business", name: "Business" },
   { id: "design", name: "Design" },
   { id: "service", name: "Service" },
