@@ -112,3 +112,10 @@ test.describe("the view page on any screen (M75)", () => {
   });
 });
 
+test.describe("who may frame the site (M75)", () => {
+  test("only /view may be framed by another site; every other page only by the site itself", async ({ request }) => {
+    for (const path of ["/", "/editor", "/guide", "/privacy"]) expect((await request.get(path)).headers()["content-security-policy"], path).toBe("frame-ancestors 'self'");
+    expect((await request.get("/view")).headers()["content-security-policy"]).toBeUndefined();
+  });
+});
+
