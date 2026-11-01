@@ -990,6 +990,45 @@
     margin-top: 14pt;
     font-size: 8.5pt;
   }
+  /* M76: the model book; the picture on a page of its own, then the sections. */
+  .bm-book h3 {
+    margin: 8pt 0 2pt;
+    font-size: 10.5pt;
+    font-weight: 600;
+  }
+  .bm-book ul,
+  .bm-book ol {
+    margin: 0 0 6pt;
+    padding-left: 14pt;
+  }
+  .bm-book-section {
+    margin-top: 10pt;
+  }
+  /* The picture on a page of its own: it starts one, fills it and ends it. */
+  .bm-book-picture-page {
+    break-before: page;
+    break-after: page;
+  }
+  .bm-book-picture svg {
+    max-height: calc(100vh - 6em);
+  }
+  .bm-book-description {
+    white-space: pre-line;
+  }
+  .bm-report h2,
+  .bm-report h3,
+  .bm-report caption {
+    break-after: avoid;
+  }
+  .bm-report td {
+    overflow-wrap: anywhere;
+  }
+  .bm-report table.bm-keep {
+    break-inside: avoid;
+  }
+  .bm-book table.bm-book-wide {
+    font-size: 9pt;
+  }
 }
 
 /*

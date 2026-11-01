@@ -3,7 +3,7 @@
 import { useEffect, useId, useRef, useState } from "react";
 import { ToolbarIcon } from "./ToolbarIcon";
 
-export type ExportKind = "json" | "link" | "view-link" | "svg-dark" | "svg-light" | "png-dark" | "png-light" | "print" | "report" | "blast-gif" | "flow-gif" | "scenario-gif" | "archimate" | "drawio" | "servicenow";
+export type ExportKind = "json" | "link" | "view-link" | "svg-dark" | "svg-light" | "png-dark" | "png-light" | "print" | "report" | "book" | "blast-gif" | "flow-gif" | "scenario-gif" | "archimate" | "drawio" | "servicenow";
 
 export const exportItems: { kind: ExportKind; label: string; note: string }[] = [
   { kind: "json", label: "Model file (JSON)", note: "Back up, move or version it" },
@@ -15,6 +15,7 @@ export const exportItems: { kind: ExportKind; label: string; note: string }[] = 
   { kind: "png-light", label: "Image, light (PNG)", note: "Where SVG is not accepted; 2× size" },
   { kind: "print", label: "Print…", note: "The light image on paper, or saved as a PDF" },
   { kind: "report", label: "Health report…", note: "Hints, layers and missing details on one page, printed or saved as a PDF" },
+  { kind: "book", label: "Model book…", note: "One document for a review: picture, the model by layer, tables, saved flows and health; printed or saved as a PDF" },
   { kind: "blast-gif", label: "Blast radius animation (GIF)", note: "The open blast radius, one frame a hop" },
   { kind: "flow-gif", label: "Data flow animation (GIF)", note: "The open data flow, one frame a step" },
   { kind: "scenario-gif", label: "Saved flow animation (GIF)", note: "The saved flow playing, one frame a step" },

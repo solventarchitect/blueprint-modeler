@@ -4,8 +4,8 @@
  */
 import { formatModelDate, modelDate, UNTITLED_MODEL, type HealthReport, type Model } from "@/model";
 
-type Child = Node | string;
-function el(tag: string, attrs: Record<string, string> = {}, ...children: Child[]) {
+export type Child = Node | string;
+export function el(tag: string, attrs: Record<string, string> = {}, ...children: Child[]) {
   const e = document.createElement(tag);
   for (const [k, v] of Object.entries(attrs)) e.setAttribute(k, v);
   e.append(...children);
@@ -30,20 +30,33 @@ export function reportSummary(r: HealthReport): string {
   ].join(" ");
 }
 
+/** A table with a caption and a header row; every cell is text or our own nodes. */
+export const table = (caption: string, head: string[], rows: Child[][], attrs: Record<string, string> = {}) =>
+  el("table", attrs, el("caption", {}, caption), el("thead", {}, el("tr", {}, ...head.map((h) => el("th", { scope: "col" }, h)))), el("tbody", {}, ...rows.map((row) => el("tr", {}, ...row.map((c) => el("td", {}, c))))));
+
 export function reportSheet(model: Model, r: HealthReport, today: string): HTMLElement {
-  const table = (caption: string, head: string[], rows: Child[][]) =>
-    el("table", {}, el("caption", {}, caption), el("thead", {}, el("tr", {}, ...head.map((h) => el("th", { scope: "col" }, h)))), el("tbody", {}, ...rows.map((row) => el("tr", {}, ...row.map((c) => el("td", {}, c))))));
   return el(
     "article",
     { class: "bm-report" },
     el("p", { class: "bm-report-kicker" }, "Blueprint Modeler · Model health report"),
     el("h1", {}, model.name || UNTITLED_MODEL),
     el("p", {}, `Model date ${formatModelDate(modelDate(model))} · Report printed ${formatModelDate(today)}`),
+    ...healthSections(r),
+    el("p", { class: "bm-report-foot" }, "The hints are the modeler's own checks, written from ServiceNow's public CSDM material; see the class guide at model.mikereams.com/guide. Not affiliated with ServiceNow."),
+  );
+}
+
+/** The health report's body (M64), also the model book's Health section (M76). */
+export function healthSections(r: HealthReport, sub: "h2" | "h3" = "h2"): HTMLElement[] {
+  // Short tables stay on one page.
+  const keep = { class: "bm-keep" };
+  return [
     el("p", { class: "bm-report-summary" }, reportSummary(r)),
     table(
       "Elements by CSDM layer",
       ["Layer", "Elements"],
       r.layers.map((l) => [l.name, l.count ? String(l.count) : "None"]),
+      keep,
     ),
     r.hints.length
       ? table(
@@ -56,10 +69,10 @@ export function reportSheet(model: Model, r: HealthReport, today: string): HTMLE
       "Details filled in",
       ["Detail", "Set", "Of", "Share"],
       r.details.map((d) => [d.label, String(d.set), String(d.of), pct(d.set, d.of)]),
+      keep,
     ),
     el("p", {}, "Life cycle stage counts only elements whose class has a CSDM life cycle."),
-    el("h2", {}, "Elements without relationships"),
+    el(sub, {}, "Elements without relationships"),
     el("p", {}, r.unconnected.length ? names(r.unconnected) : "None: every element is related to another."),
-    el("p", { class: "bm-report-foot" }, "The hints are the modeler's own checks, written from ServiceNow's public CSDM material; see the class guide at model.mikereams.com/guide. Not affiliated with ServiceNow."),
-  );
+  ];
 }
