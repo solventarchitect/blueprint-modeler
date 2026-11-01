@@ -990,6 +990,26 @@
     margin-top: 14pt;
     font-size: 8.5pt;
   }
+  /* M76: the model book; the picture on a page of its own, then the sections. */
+  .bm-book h3 {
+    margin: 8pt 0 2pt;
+    font-size: 10.5pt;
+    font-weight: 600;
+  }
+  .bm-book ul,
+  .bm-book ol {
+    margin: 0 0 6pt;
+    padding-left: 14pt;
+  }
+  .bm-book-section {
+    margin-top: 10pt;
+  }
+  .bm-book-picture {
+    break-after: page;
+  }
+  .bm-book-picture svg {
+    max-height: 85vh;
+  }
 }
 
 /*

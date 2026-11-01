@@ -40,6 +40,7 @@ import { archimateElements, archimateRelationshipFor, edgeNotation, lenses, read
 import { downloadText } from "@/io/download";
 import { pngScale, svgToPng } from "@/io/png";
 import { printNode, printSvg } from "@/io/print";
+import { bookSheet } from "@/io/book";
 import { reportSheet, reportSummary } from "@/io/report";
 import { exportJson, fileBase, importJson, MAX_FILE_CHARS } from "@/io/file";
 import { decodeShare, encodeShare, shareSize, shareSupported, shareUrl, takeSharedPayload, viewUrl, type ShareResult } from "@/io/shareLink";
@@ -1329,6 +1330,10 @@ function EditorInner() {
         .catch(() => setMessage("Could not make the PNG in this browser. Nothing was saved."));
     } else if (kind === "print") {
       printSvg(picture("light"), fileBase(model));
+    } else if (kind === "book") {
+      // M76: the whole model in one document; the picture as the editor draws it, in light.
+      printNode(bookSheet(model, picture("light"), localDay(new Date())), `${fileBase(model)}-model-book`);
+      setMessage(`Model book: ${model.nodes.length} elements, ${model.edges.length} relationships and ${model.flows?.length ?? 0} saved flows, ready to print or save as a PDF.`);
     } else if (kind === "report") {
       // M64: a page on the model's hints and missing details, always the whole model.
       const report = healthReport(model);
@@ -2264,7 +2269,7 @@ function EditorInner() {
       ...exportItems.map((it): Command => ({
         id: `export-${it.kind}`,
         group: "Export",
-        label: it.kind === "link" || it.kind === "view-link" || it.kind === "print" || it.kind === "report" ? it.label : `Export ${it.label}`,
+        label: it.kind === "link" || it.kind === "view-link" || it.kind === "print" || it.kind === "report" || it.kind === "book" ? it.label : `Export ${it.label}`,
         keywords: "export download save",
         disabled: exportDisabled[it.kind] ? exportNotes[it.kind] : undefined,
         run: () => exportAs(it.kind),
