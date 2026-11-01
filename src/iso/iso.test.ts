@@ -247,3 +247,13 @@ describe("the state shown in the isometric picture (M71 review)", () => {
     expect(isoToSvg(edgesOnly, "light", { view: { filter: {}, colorBy: "layer", state: "both" } })).not.toContain('data-title="view"');
   });
 });
+
+describe("focus in the isometric picture (M74)", () => {
+  it("fades what is outside the focus", () => {
+    const m = checkout();
+    const web = m.nodes.find((n) => n.name === "Checkout web app")!.id;
+    const svg = isoToSvg(m, "light", { view: { filter: {}, colorBy: "layer", focus: { name: "Checkout web app", depth: 2, ids: [web] } } });
+    expect(svg.match(/data-iso-el="[^"]+" data-faded=""/g)).toHaveLength(m.nodes.length - 1);
+    expect(svg).toMatch(/Focus: Checkout web app, within 2 relationships · showing 1 of/);
+  });
+});

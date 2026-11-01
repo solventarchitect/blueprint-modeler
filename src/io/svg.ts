@@ -33,7 +33,26 @@ export type SvgHighlight = {
 };
 
 /** A view (M54) drawn into the picture: elements outside the filter fade; color by puts a colored bar and a marker on each element, with a legend in the title block. */
-export type SvgView = { filter: ViewFilter; colorBy: ColorBy; groupBy?: GroupBy; name?: string; state?: PlanView };
+export type SvgView = {
+  filter: ViewFilter;
+  colorBy: ColorBy;
+  groupBy?: GroupBy;
+  name?: string;
+  state?: PlanView;
+  /** M74: focus on an element; what is outside `ids` fades, as a filter fades it. */
+  focus?: { name: string; depth: number; ids: readonly string[] };
+};
+
+/** The focus (M74) in words, for an image's description. */
+export const focusDesc = (view: SvgView | undefined) =>
+  view?.focus ? ` Focused on ${view.focus.name}, within ${view.focus.depth} relationship${view.focus.depth === 1 ? "" : "s"}; the rest is faded.` : "";
+
+/** What a view fades: outside its filter, or outside its focus (M74). */
+export function viewFaded(model: Model, view: SvgView | undefined): Set<string> {
+  if (!view) return new Set();
+  const focus = view.focus ? new Set(view.focus.ids) : null;
+  return new Set(model.nodes.filter((n) => !inView(n, view.filter) || (focus && !focus.has(n.id))).map((n) => n.id));
+}
 
 /**
  * The state shown (M71) in a picture: Current or Target leaves out what the canvas leaves out, and the
@@ -147,7 +166,21 @@ export function svgTitleBlock(model: Model, theme: SvgTheme, view: SvgView | und
   // The head line: the view (when there is one), the state shown (M71), and how many elements show.
   const legendHead =
     view || state
-      ? [...(view ? [view.name ? `View: ${view.name}` : "View", view.colorBy !== "layer" ? `colored by ${COLOR_BY_LABEL[view.colorBy].toLowerCase()}` : "", view.groupBy ? `grouped by ${GROUP_BY_LABEL[view.groupBy]}` : ""] : []), state, `showing ${shownCount} of ${total} elements`].filter(Boolean).join(" · ")
+      ? [
+          ...(view
+            ? [
+                // A focus alone (M74) is not a view: it names itself.
+                view.focus && !filterActive(view.filter) && view.colorBy === "layer" && !view.groupBy && !view.name ? "" : view.name ? `View: ${view.name}` : "View",
+                view.colorBy !== "layer" ? `colored by ${COLOR_BY_LABEL[view.colorBy].toLowerCase()}` : "",
+                view.groupBy ? `grouped by ${GROUP_BY_LABEL[view.groupBy]}` : "",
+                view.focus ? `Focus: ${view.focus.name}, within ${view.focus.depth} relationship${view.focus.depth === 1 ? "" : "s"}` : "",
+              ]
+            : []),
+          state,
+          `showing ${shownCount} of ${total} elements`,
+        ]
+          .filter(Boolean)
+          .join(" · ")
       : "";
   const legendRows: { label: string; slot: Parameters<typeof slotColor>[0]; w: number }[][] = [];
   if (view) {
@@ -228,8 +261,8 @@ export function modelToSvg(whole: Model, theme: SvgTheme, opts: { lens?: Lens; h
   const { model, label: stateLabel, desc: stateDesc } = stateShown(whole, opts.view?.state, "planned dotted, retiring struck through, each labeled");
   const lens = opts.lens ?? "csdm";
   // "All elements" colored by layer draws exactly as without a view.
-  const view = opts.view && (filterActive(opts.view.filter) || opts.view.colorBy !== "layer" || opts.view.groupBy) ? opts.view : undefined;
-  const faded = new Set(view ? model.nodes.filter((n) => !inView(n, view.filter)).map((n) => n.id) : []);
+  const view = opts.view && (filterActive(opts.view.filter) || opts.view.colorBy !== "layer" || opts.view.groupBy || opts.view.focus) ? opts.view : undefined;
+  const faded = viewFaded(model, view);
   const slotFor = view ? slotMap(model, view.colorBy) : null;
   const lines = opts.lines ?? "curved";
   const showLabels = opts.labels ?? true;
@@ -380,8 +413,8 @@ export function modelToSvg(whole: Model, theme: SvgTheme, opts: { lens?: Lens; h
   const title = esc(name);
   const desc = esc(
     amOnly
-      ? `CSDM model with ${model.nodes.length} elements and ${model.edges.length} relationships, shown as an ArchiMate 3.2 view (ArchiMate element types, relationship notation and layer colors), exported from Blueprint Modeler.${stateDesc}`
-      : `CSDM model with ${model.nodes.length} elements and ${model.edges.length} relationships${showsArchimate(lens) ? ", with ArchiMate 3.2 element names" : ""}, exported from Blueprint Modeler.${stateDesc}`,
+      ? `CSDM model with ${model.nodes.length} elements and ${model.edges.length} relationships, shown as an ArchiMate 3.2 view (ArchiMate element types, relationship notation and layer colors), exported from Blueprint Modeler.${stateDesc}${focusDesc(view)}`
+      : `CSDM model with ${model.nodes.length} elements and ${model.edges.length} relationships${showsArchimate(lens) ? ", with ArchiMate 3.2 element names" : ""}, exported from Blueprint Modeler.${stateDesc}${focusDesc(view)}`,
   );
   return [
     `<?xml version="1.0" encoding="UTF-8"?>`,

@@ -57,7 +57,7 @@ import { arrangeByGroups, groupFrames, ownGroups, type Frame } from "@/layout/gr
 import { autoLayout, DEFAULT_SIZE, fillSpace, type LayoutMode } from "@/layout/layout";
 import { createWorkerEngine } from "@/layout/worker-engine";
 import { classById, classes, ENVIRONMENT_EXAMPLES, isClassId, isExtended, type ClassId, type Layer } from "@/metamodel";
-import { ALL_ELEMENTS, FIELD_LABEL, healthReport, localDay, GROUP_BY_LABEL, groupsOf, primaryGroup, SIDES, attrValue, compareModels, parseModel, blastRadius, COLOR_BY_LABEL, evaluateHints, filterActive, formatModelDate, impactEnds, inView, isBusinessAnchor as isAnchor, modelDate, slotMap, UNTITLED_MODEL, flowRadius, flowStepText, playableFlows, PLAN_LABEL, PLAN_VIEW_LABEL, planHidden, type PlanView, type BlastDirection, type Edge, type HintResult, type Model } from "@/model";
+import { ALL_ELEMENTS, FIELD_LABEL, healthReport, localDay, GROUP_BY_LABEL, groupsOf, primaryGroup, SIDES, attrValue, compareModels, parseModel, blastRadius, COLOR_BY_LABEL, evaluateHints, filterActive, formatModelDate, impactEnds, inView, isBusinessAnchor as isAnchor, modelDate, slotMap, UNTITLED_MODEL, focusArea, FOCUS_DEPTHS, type FocusDepth, flowRadius, flowStepText, playableFlows, PLAN_LABEL, PLAN_VIEW_LABEL, planHidden, type PlanView, type BlastDirection, type Edge, type HintResult, type Model } from "@/model";
 import { site } from "@/lib/site";
 import { ClassNode, SuggestContext, type ClassFlowNode } from "./ClassNode";
 import { ConnectionLine, ConnectionModelContext, ReconnectingContext } from "./ConnectionLine";
@@ -305,6 +305,8 @@ function EditorInner() {
   const [view, setViewState] = useState<ViewOptions>(DEFAULT_VIEW);
   // M68: current state, target state or both. Per model, not stored (M71: the pictures follow it too): a model always opens on both.
   const [planChoice, setPlanChoice] = useState<{ modelId: string; view: PlanView }>({ modelId: "", view: "both" });
+  /** M74: the element in focus, and how far out (relationships) the focus reaches; not stored. */
+  const [focus, setFocus] = useState<{ modelId: string; id: string; depth: FocusDepth; added: string[] } | null>(null);
   useEffect(() => setViewState(readView()), []);
   const setView = (v: ViewOptions) => {
     setViewState(v);
@@ -519,11 +521,48 @@ function EditorInner() {
   /** Switch views from the menu or the palette, and say what it shows. */
   const pickView = (v: ShownView) => {
     showView(v);
+    // A view that fades the element in focus ends the focus (M74 review).
+    const f = focusOn && model.nodes.find((n) => n.id === focusOn.id);
+    if (f && !inView(f, v.filter)) setFocus(null);
     const name = v.id ? model.views?.find((x) => x.id === v.id)?.name : null;
     const kept = model.nodes.filter((n) => inView(n, v.filter)).length;
     setMessage(name ? `View “${name}”: ${kept} of ${model.nodes.length} elements, ${COLOR_BY_LABEL[v.colorBy].toLowerCase()} colors.` : "Showing all elements, in layer colors.");
   };
-  const fadedIds = useMemo(() => new Set(filterActive(shown.filter) ? model.nodes.filter((n) => !inView(n, shown.filter)).map((n) => n.id) : []), [model.nodes, shown.filter]);
+  const chosenPlan: PlanView = planChoice.modelId === model.id ? planChoice.view : "both";
+  const setPlanView = (v: PlanView) => setPlanChoice({ modelId: model.id, view: v });
+  // It leaves things out of the canvas, the isometric picture and the image exports (M71); a blast
+  // radius or data flow (which walks the whole model) shows both while it is open.
+  const planView: PlanView = !blast ? chosenPlan : "both";
+  const planHide = useMemo(() => planHidden(model, planView), [model, planView]);
+  // M74: focus on an element, per model; it ends when its element is gone or the state shown leaves it out.
+  // The focus walks the state chosen (not the "both" a blast radius shows while open), so it stays the same set.
+  const chosenHide = useMemo(() => planHidden(model, chosenPlan), [model, chosenPlan]);
+  const focusOn = focus && focus.modelId === model.id && model.nodes.some((n) => n.id === focus.id) && !chosenHide.nodes.has(focus.id) ? focus : null;
+  // Elements added while focused join the focus (M74 review): a new element is never born out of reach.
+  // Known: the model's elements when last seen; one not known yet is new, and is in the focus at once.
+  const [known, setKnown] = useState<{ modelId: string; ids: ReadonlySet<string> }>({ modelId: "", ids: new Set() });
+  const fresh = useMemo(() => (known.modelId === model.id ? model.nodes.filter((n) => !known.ids.has(n.id)).map((n) => n.id) : []), [known, model.id, model.nodes]);
+  const focusIds = useMemo(
+    () => (focusOn ? new Set([...focusArea(model, focusOn.id, focusOn.depth, chosenHide.edges), ...focusOn.added.filter((id) => model.nodes.some((n) => n.id === id)), ...fresh]) : null),
+    [model, focusOn?.id, focusOn?.depth, focusOn?.added, chosenHide, fresh], // eslint-disable-line react-hooks/exhaustive-deps -- focusOn is rebuilt each render; these are what count
+  );
+  useEffect(() => {
+    if (known.modelId === model.id && !fresh.length) return;
+    if (fresh.length && focus && focus.modelId === model.id) setFocus({ ...focus, added: [...focus.added, ...fresh] });
+    setKnown({ modelId: model.id, ids: new Set(model.nodes.map((n) => n.id)) });
+  }, [fresh, model.id]); // eslint-disable-line react-hooks/exhaustive-deps -- only new elements (or another model) count
+  /** The view as the pictures draw it: with the state shown, which they leave out and name (M71), and the focus (M74). */
+  const focusLabel = focusOn ? model.nodes.find((n) => n.id === focusOn.id)?.name || "Untitled" : "";
+  const focusDepth = focusOn?.depth ?? 1;
+  const pictureView = useMemo(
+    () => ({ ...imageView, state: planView, ...(focusIds ? { focus: { name: focusLabel, depth: focusDepth, ids: [...focusIds] } } : {}) }),
+    [imageView, planView, focusIds, focusLabel, focusDepth],
+  );
+  // Faded: outside the view's filter, or outside the focus (M74).
+  const fadedIds = useMemo(
+    () => new Set(filterActive(shown.filter) || focusIds ? model.nodes.filter((n) => !inView(n, shown.filter) || (focusIds && !focusIds.has(n.id))).map((n) => n.id) : []),
+    [model.nodes, shown.filter, focusIds],
+  );
   // A deleted element, or one the view now fades, is no longer selected (a faded element is out of reach).
   useEffect(() => {
     if (selectedId && (!model.nodes.some((n) => n.id === selectedId) || fadedIds.has(selectedId))) setSelectedId(null);
@@ -566,14 +605,6 @@ function EditorInner() {
     const primary = primaryGroup(groups);
     return new Set(model.nodes.filter((n) => collapsedIds.has(primary.get(n.id) ?? "")).map((n) => n.id));
   }, [groups, collapsedIds, model.nodes]);
-  const chosenPlan: PlanView = planChoice.modelId === model.id ? planChoice.view : "both";
-  const setPlanView = (v: PlanView) => setPlanChoice({ modelId: model.id, view: v });
-  // It leaves things out of the canvas, the isometric picture and the image exports (M71); a blast
-  // radius or data flow (which walks the whole model) shows both while it is open.
-  const planView: PlanView = !blast ? chosenPlan : "both";
-  const planHide = useMemo(() => planHidden(model, planView), [model, planView]);
-  /** The view as the pictures draw it: with the state shown, which they leave out and name (M71). */
-  const pictureView = useMemo(() => ({ ...imageView, state: planView }), [imageView, planView]);
   const count = (n: number, one: string) => `${n} ${one}${n === 1 ? "" : "s"}`;
   /** What the state shown leaves out of the canvas, the isometric view and the images, in words. */
   const planLeftOut = (v: PlanView) => {
@@ -1607,6 +1638,8 @@ function EditorInner() {
       },
       { kind: "item", label: count ? `Show hints (${count})` : "No hints", disabled: count === 0, onSelect: () => (setSelectedId(id), setTab("hints")) },
       { kind: "item", label: "Show blast radius", onSelect: () => openBlast(id, menuReturn.current) },
+      // M74: focus on it, as a double-click does.
+      { kind: "item", label: focusOn?.id === id ? "Show everything (end focus)" : "Focus on this element", onSelect: () => (focusOn?.id === id ? endFocus() : focusElement(id)) },
       ...(isAnchor(n.class) ? [{ kind: "item" as const, label: "Show data flow", onSelect: () => openBlast(id, menuReturn.current, "dependencies", true, "flow") }] : []),
       ...(layer && (view.boxes || view.lanes)
         ? [{ kind: "item" as const, label: `Select the ${layerName(layer)} layer`, onSelect: () => (setSelectedLayer(layer), focusLayerHandle(layer)) }]
@@ -1800,6 +1833,63 @@ function EditorInner() {
     window.addEventListener("keydown", onKey);
     return () => window.removeEventListener("keydown", onKey);
   }, [compare, presenting, blast, menu, managing, palette, shortcuts, viewDialog, compareDialog, closeCompare]);
+
+  /**
+   * Focus on an element (M74): it and everything within 1, 2 or 3 relationships stay; the rest fades,
+   * as a filter fades it. A view filter that fades the element itself is lifted first.
+   */
+  const focusElement = (id: string, depth: FocusDepth = focusOn?.depth ?? 1) => {
+    const n = model.nodes.find((x) => x.id === id);
+    if (!n) return;
+    const filter = inView(n, shown.filter) ? shown.filter : {};
+    if (filter !== shown.filter) showView({ id: null, filter: {}, colorBy: shown.colorBy, groupBy: shown.groupBy });
+    const hide = chosenHide.nodes.has(id) ? planHidden(model, "both") : chosenHide;
+    if (chosenHide.nodes.has(id)) setPlanView("both");
+    const sameFocus = focusOn?.id === id;
+    setFocus({ modelId: model.id, id, depth, added: sameFocus ? focusOn.added : [] });
+    const area = focusArea(model, id, depth, hide.edges);
+    // What shows: in the focus, the view's filter and the state shown.
+    const kept = model.nodes.filter((x) => area.has(x.id) && inView(x, filter) && !hide.nodes.has(x.id)).length;
+    // A new reach keeps the selection (inside the focus); a new focus selects its element.
+    if (!sameFocus || (selectedId && !area.has(selectedId))) setSelectedId(id);
+    setMessage(`Focus on “${n.name || "Untitled"}”: ${kept} of ${model.nodes.length} elements within ${depth} relationship${depth === 1 ? "" : "s"}. Escape shows everything.`);
+    if (isoRef.current) setTimeout(() => isoRef.current?.zoom("fit"), 0);
+    else setTimeout(() => void flow.fitView({ nodes: [...area].map((x) => ({ id: x })), padding: 0.25, maxZoom: 1.25, duration: prefersStill() ? 0 : 300 }), 0);
+  };
+  const endFocus = useCallback(() => {
+    const id = focus?.id;
+    setFocus(null);
+    setMessage("Showing everything.");
+    // Keyboard focus stays on the page (the bar and its buttons go): on the element, or the canvas.
+    setTimeout(() => {
+      if (document.activeElement && document.activeElement !== document.body) return;
+      const el = (id && document.querySelector<HTMLElement>(`.react-flow__node[data-id="${CSS.escape(id)}"]`)) || document.querySelector<HTMLElement>("[data-testid=iso-view]") || document.querySelector<HTMLElement>(".react-flow__pane");
+      el?.focus();
+    }, 0);
+  }, [focus?.id]);
+  // The focus ends when its element is deleted, another model opens or the state shown leaves it out.
+  useEffect(() => {
+    if (!focus || focusOn) return;
+    setFocus(null);
+    if (focus.modelId === model.id) setMessage("Focus ended: its element is gone, or the state shown leaves it out.");
+  }, [focus, focusOn, model.id]);
+  // Escape ends it, unless a menu, dialog, text field, a blast radius or Compare has the key.
+  useEffect(() => {
+    if (!focusOn || presenting || blast || compare || menu || managing || palette || shortcuts || viewDialog || compareDialog) return;
+    const onKey = (e: KeyboardEvent) => {
+      const el = e.target as HTMLElement | null;
+      if (e.key !== "Escape" || e.defaultPrevented) return;
+      if (document.querySelector("dialog[open]")) return;
+      if (el && (el.tagName === "INPUT" || el.tagName === "TEXTAREA" || el.tagName === "SELECT" || el.isContentEditable)) return;
+      // An element with keyboard focus takes Escape first (it clears the selection); the next one ends the focus.
+      if (el?.closest(".react-flow__node.selected")) return;
+      e.preventDefault();
+      endFocus();
+    };
+    // Capture: read the selection before the canvas's own Escape clears it.
+    window.addEventListener("keydown", onKey, true);
+    return () => window.removeEventListener("keydown", onKey, true);
+  }, [focusOn, presenting, blast, compare, menu, managing, palette, shortcuts, viewDialog, compareDialog, endFocus]);
 
   // Blast radius: the start element, then each hop it reaches, played or stepped by hand.
   const nameOf = (id: string) => model.nodes.find((n) => n.id === id)?.name || "Untitled";
@@ -2032,7 +2122,9 @@ function EditorInner() {
   const goToElement = (id: string, keepTab = false) => {
     const n = model.nodes.find((x) => x.id === id);
     if (!n) return;
-    if (fadedIds.has(id)) showView({ id: null, filter: {}, colorBy: shown.colorBy, groupBy: shown.groupBy });
+    // Faded by the view's filter: lift it; outside the focus (M74): end it.
+    if (!inView(n, shown.filter)) showView({ id: null, filter: {}, colorBy: shown.colorBy, groupBy: shown.groupBy });
+    if (focusIds && !focusIds.has(id)) setFocus(null);
     // Left out of the state shown (M68): back to current and target, so it can be shown.
     const leftOut = planHide.nodes.has(id);
     if (leftOut) setPlanView("both");
@@ -2193,6 +2285,21 @@ function EditorInner() {
       ...(["both", "current", "target"] as const)
         .filter((p) => p !== chosenPlan)
         .map((p): Command => ({ id: `plan-${p}`, group: "View", label: `Show ${p === "both" ? "current and target state" : PLAN_VIEW_LABEL[p].toLowerCase()}`, keywords: "plan planned retiring roadmap transition future as-is to-be", run: () => pickPlanView(p) })),
+      // M74: focus on an element.
+      {
+        id: "focus",
+        group: "View",
+        label: selectedId && focusOn?.id !== selectedId ? `Focus on “${nameOf(selectedId)}”` : "Focus on the selected element",
+        keywords: "double-click zoom into neighborhood neighbours around relationships isolate",
+        disabled: selectedId && focusOn?.id !== selectedId ? undefined : focusOn ? "Select another element first" : "Select an element first",
+        run: () => selectedId && focusElement(selectedId),
+      },
+      ...(focusOn
+        ? [
+            ...FOCUS_DEPTHS.filter((d) => d !== focusOn.depth).map((d): Command => ({ id: `focus-${d}`, group: "View", label: `Focus within ${d} relationship${d === 1 ? "" : "s"}`, keywords: "focus depth", run: () => focusElement(focusOn.id, d) })),
+            { id: "focus-end", group: "View", label: "Show everything (end focus)", keys: "Esc", keywords: "focus clear", run: endFocus } as Command,
+          ]
+        : []),
       { id: "flows", group: "Model", label: "Saved flows…", keywords: "scenario use case walkthrough story steps play sequence", run: () => openDialog(setFlowsDialog) },
       ...(model.flows ?? [])
         .filter((f) => f.steps.length)
@@ -2516,6 +2623,35 @@ function EditorInner() {
         </div>
       )}
 
+      {focusOn && focusIds && !presenting && (
+        <div role="region" aria-label="Focus" data-testid="focus-bar" className="flex flex-wrap items-center gap-2 border-b border-border px-4 py-2 text-sm">
+          <p className="font-mono text-xs tracking-[0.14em] text-accent uppercase">Focus</p>
+          <p className="font-medium">{nameOf(focusOn.id)}</p>
+          <span className="text-ink-muted" aria-hidden="true">
+            within
+          </span>
+          <span role="group" aria-label="Reach: relationships from the element" className="inline-flex">
+            {FOCUS_DEPTHS.map((d, i) => (
+              <button
+                key={d}
+                type="button"
+                aria-pressed={focusOn.depth === d}
+                aria-label={`${d} relationship${d === 1 ? "" : "s"}`}
+                className={`${toolbarButton} ${i ? "-ml-px" : ""} aria-pressed:border-accent aria-pressed:bg-accent aria-pressed:text-accent-ink aria-pressed:hover:text-accent-ink`}
+                onClick={() => focusOn.depth !== d && focusElement(focusOn.id, d)}
+              >
+                {d}
+              </button>
+            ))}
+          </span>
+          <p className="text-ink-muted" data-testid="focus-count">
+            {model.nodes.filter((n) => !fadedIds.has(n.id) && !planHide.nodes.has(n.id)).length} of {model.nodes.length} elements
+          </p>
+          <button type="button" className={`${toolbarButton} ml-auto`} onClick={endFocus} aria-keyshortcuts="Escape">
+            Show everything
+          </button>
+        </div>
+      )}
       {planView !== "both" && !presenting && (
         <div role="region" aria-label="State shown" data-testid="plan-bar" className="flex flex-wrap items-center gap-2 border-b border-border px-4 py-2 text-sm">
           <p className="font-medium">{PLAN_VIEW_LABEL[planView]}</p>
@@ -2704,6 +2840,9 @@ function EditorInner() {
                     : `Nothing on the canvas can take a relationship drawn from ${from.name || "this element"}. Drop on empty canvas to add a new related element, or try drawing it from the other element.`,
                 );
               }}
+              // M74: double-click an element to focus on it.
+              zoomOnDoubleClick={false}
+              onNodeDoubleClick={(_, n) => !presenting && n.type === "csdm" && !fadedIds.has(n.id) && focusElement(n.id)}
               onPaneClick={() => {
                 setActiveHint(null);
                 setSelectedLayer(null);
