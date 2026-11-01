@@ -12,14 +12,14 @@ const node = (page: Page, name: string) => page.locator(".react-flow__node-csdm"
 const bar = (page: Page) => page.getByRole("region", { name: "Presentation" });
 const stepLine = (page: Page) => page.getByTestId("present-step");
 
-async function withFlow(page: Page) {
+async function withFlow(page: Page, name = "Customer places an order") {
   await page.goto("/editor");
   await saved(page);
   await openExample(page, "Online Store Checkout");
   await expect(currentModel(page)).toHaveText("Online Store Checkout");
   await modelButton(page).click();
   await page.getByRole("button", { name: "Saved flows…" }).click();
-  await dialog(page).getByLabel("New flow name").fill("Customer places an order");
+  await dialog(page).getByLabel("New flow name").fill(name);
   await dialog(page).getByRole("button", { name: "Make flow" }).click();
   await dialog(page).getByLabel("Starts at").selectOption({ label: "Online shopping — North America (Business Service Offering)" });
   for (const text of ["Online shopping — North America → Checkout — production (Depends on)", "Checkout — production → Checkout web app (Depends on)"]) {
@@ -45,8 +45,9 @@ test.describe("flows in Present (M73, desktop)", () => {
     await expect(bar(page).getByRole("button", { name: /Previous/ })).toBeDisabled();
     expect(await new AxeBuilder({ page }).withTags(axeTags).include('[aria-label="Presentation"]').analyze().then((r) => r.violations)).toEqual([]);
 
-    // A clicker sends Page Down and Page Up; the arrows work too.
-    await bar(page).getByRole("button", { name: "Exit" }).focus();
+    // A clicker sends Page Down and Page Up; the arrows work too. Choosing left focus on Next, so the
+    // first press steps (it doesn't change the choice).
+    await expect(bar(page).getByRole("button", { name: /Next/ })).toBeFocused();
     await page.keyboard.press("PageDown");
     await expect(stepLine(page)).toContainText("Step 1 of 2");
     await expect(stepLine(page)).toContainText("Step 1: Online shopping — North America to Checkout — production.");
@@ -58,6 +59,20 @@ test.describe("flows in Present (M73, desktop)", () => {
     await expect(stepLine(page)).toContainText("Step 1 of 2");
     await page.keyboard.press("Home");
     await expect(stepLine(page)).toContainText("Start");
+    // The buttons step too; the choice stays on the flow.
+    await bar(page).getByRole("button", { name: /Next/ }).click();
+    await expect(stepLine(page)).toContainText("Step 1 of 2");
+    await bar(page).getByRole("button", { name: /Previous/ }).click();
+    await expect(stepLine(page)).toContainText("Start");
+    await expect(bar(page).getByLabel("Show").locator("option:checked")).toHaveText("Flow: Customer places an order");
+    // A clicker key pressed while the choice itself has focus steps as well.
+    await bar(page).getByLabel("Show").focus();
+    await page.keyboard.press("PageDown");
+    await expect(stepLine(page)).toContainText("Step 1 of 2");
+    await expect(bar(page).getByLabel("Show").locator("option:checked")).toHaveText("Flow: Customer places an order");
+    // Present is read only: undo waits until it ends, so the flow stays.
+    await page.keyboard.press(`${mod}+z`);
+    await expect(stepLine(page)).toContainText("Step 1 of 2");
 
     // Back to the layers.
     await bar(page).getByLabel("Show").selectOption({ label: "Layers" });
@@ -79,7 +94,8 @@ test.describe("flows in Present (M73, desktop)", () => {
     await page.keyboard.press("Enter");
     await expect(bar(page)).toBeVisible();
     await expect(stepLine(page)).toContainText("Customer places an order · Start");
-    await expect(bar(page).getByLabel("Show")).toHaveValue(/.+/);
+    await expect(bar(page).getByLabel("Show").locator("option:checked")).toHaveText("Flow: Customer places an order");
+    await expect(bar(page).getByLabel("Show").locator("option")).toHaveText(["Layers", "Flow: Customer places an order"]);
   });
 
   test("a model without flows has no Show choice", async ({ page }) => {
@@ -88,5 +104,15 @@ test.describe("flows in Present (M73, desktop)", () => {
     await page.getByRole("button", { name: "Present", exact: true }).click();
     await expect(bar(page)).toBeVisible();
     await expect(bar(page).getByLabel("Show")).toHaveCount(0);
+  });
+
+  test("a long flow name fits a phone's width in Present", async ({ page }) => {
+    const long = "A customer in North America places an order and it reaches the web server";
+    await withFlow(page, long);
+    await page.setViewportSize({ width: 320, height: 700 });
+    await page.getByRole("button", { name: "Present", exact: true }).click();
+    await bar(page).getByLabel("Show").selectOption({ label: `Flow: ${long}` });
+    await expect(stepLine(page)).toContainText("Start");
+    expect(await page.evaluate(() => document.documentElement.scrollWidth)).toBeLessThanOrEqual(320);
   });
 });

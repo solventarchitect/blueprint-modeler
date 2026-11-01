@@ -57,7 +57,7 @@ import { arrangeByGroups, groupFrames, ownGroups, type Frame } from "@/layout/gr
 import { autoLayout, DEFAULT_SIZE, fillSpace, type LayoutMode } from "@/layout/layout";
 import { createWorkerEngine } from "@/layout/worker-engine";
 import { classById, classes, ENVIRONMENT_EXAMPLES, isClassId, isExtended, type ClassId, type Layer } from "@/metamodel";
-import { ALL_ELEMENTS, FIELD_LABEL, healthReport, localDay, GROUP_BY_LABEL, groupsOf, primaryGroup, SIDES, attrValue, compareModels, parseModel, blastRadius, COLOR_BY_LABEL, evaluateHints, filterActive, formatModelDate, impactEnds, inView, isBusinessAnchor as isAnchor, modelDate, slotMap, UNTITLED_MODEL, flowRadius, playableFlows, PLAN_LABEL, PLAN_VIEW_LABEL, planHidden, type PlanView, type BlastDirection, type Edge, type HintResult, type Model } from "@/model";
+import { ALL_ELEMENTS, FIELD_LABEL, healthReport, localDay, GROUP_BY_LABEL, groupsOf, primaryGroup, SIDES, attrValue, compareModels, parseModel, blastRadius, COLOR_BY_LABEL, evaluateHints, filterActive, formatModelDate, impactEnds, inView, isBusinessAnchor as isAnchor, modelDate, slotMap, UNTITLED_MODEL, flowRadius, flowStepText, playableFlows, PLAN_LABEL, PLAN_VIEW_LABEL, planHidden, type PlanView, type BlastDirection, type Edge, type HintResult, type Model } from "@/model";
 import { site } from "@/lib/site";
 import { ClassNode, SuggestContext, type ClassFlowNode } from "./ClassNode";
 import { ConnectionLine, ConnectionModelContext, ReconnectingContext } from "./ConnectionLine";
@@ -332,6 +332,7 @@ function EditorInner() {
   const [presentFlowId, setPresentFlowId] = useState<string | null>(null);
   const presentButton = useRef<HTMLButtonElement>(null);
   const exitButton = useRef<HTMLButtonElement>(null);
+  const presentNext = useRef<HTMLButtonElement>(null);
   const [lens, setLensState] = useState<Lens>("csdm");
   useEffect(() => setLensState(readLens()), []);
   const setLens = (l: Lens) => {
@@ -455,6 +456,8 @@ function EditorInner() {
         return;
       }
       if (!mod) return;
+      // Present is read only (M55): undo and redo wait until it ends (M73 review).
+      if (presenting) return;
       const k = e.key.toLowerCase();
       if (k === "z" && !e.shiftKey) {
         e.preventDefault();
@@ -1898,7 +1901,8 @@ function EditorInner() {
       const target = steps[next]!;
       // In isometric the step lifts its layer (see IsoView's lift); the picture refits after it redraws.
       if (isoRef.current) return void setTimeout(() => isoRef.current?.zoom("fit"), 0);
-      void flow.fitView(target.nodeIds.length ? { nodes: target.nodeIds.map((id) => ({ id })), padding: 0.25, maxZoom: 1.25, duration: 400 } : { padding: fitPadding(0.12), maxZoom: 1, duration: 400 });
+      const duration = prefersStill() ? 0 : 400;
+      void flow.fitView(target.nodeIds.length ? { nodes: target.nodeIds.map((id) => ({ id })), padding: 0.25, maxZoom: 1.25, duration } : { padding: fitPadding(0.12), maxZoom: 1, duration });
     },
     [steps, flow, fitPadding],
   );
@@ -1939,6 +1943,12 @@ function EditorInner() {
       else void flow.fitView({ nodes: ids.map((n) => ({ id: n })), padding: 0.25, maxZoom: 1.25, duration: prefersStill() ? 0 : 400 });
     }, 0);
   };
+  // A flow closed under Present (its steps broke, another model opened): back to the layers, refitted.
+  useEffect(() => {
+    if (!presenting || !presentFlowId || presentingFlow) return;
+    setPresentFlowId(null);
+    goTo(0);
+  }, [presenting, presentFlowId, presentingFlow, goTo]);
   /** Next and Previous: a flow's steps, or the layers. */
   const presentStep = useCallback(
     (delta: number | "first") => {
@@ -1989,8 +1999,8 @@ function EditorInner() {
         stopPresenting();
       } else if (e.key === " " && (e.target as HTMLElement | null)?.closest("button")) {
         // Space on a focused button presses that button.
-      } else if ((e.target as HTMLElement | null)?.tagName === "SELECT") {
-        // The Show choice (M73) keeps its own arrow keys.
+      } else if ((e.target as HTMLElement | null)?.tagName === "SELECT" && (e.key === "ArrowUp" || e.key === "ArrowDown" || e.key === " " || e.key === "Enter")) {
+        // The Show choice (M73) keeps the keys that pick from it; a clicker's keys still step.
       } else if (e.key === "ArrowRight" || e.key === "PageDown" || e.key === " ") {
         e.preventDefault();
         presentStep(1);
@@ -2250,9 +2260,13 @@ function EditorInner() {
             <label className="flex items-center gap-1.5 text-sm text-ink-muted">
               Show
               <select
-                className="min-h-8 border border-border-strong bg-surface-raised px-1.5 text-sm text-ink"
+                className="min-h-8 max-w-[60vw] min-w-0 border border-border-strong bg-surface-raised px-1.5 text-sm text-ink"
                 value={presentingFlow ? presentFlowId! : ""}
-                onChange={(e) => presentFlow(e.target.value || null)}
+                onChange={(e) => {
+                  presentFlow(e.target.value || null);
+                  // On to Next, so a clicker's keys step rather than change the choice.
+                  setTimeout(() => presentNext.current?.focus(), 0);
+                }}
               >
                 <option value="">Layers</option>
                 {presentable.map((f) => (
@@ -2268,13 +2282,14 @@ function EditorInner() {
               {/* The flow's step, announced whole on each change, with what it reaches. */}
               <p className="text-sm text-ink-muted" aria-live="polite" aria-atomic="true" data-testid="present-step">
                 {`${playedFlow!.name} · ${words("scenario").progress(radius!, blast!.step)}`}
-                <span className="sr-only">{`. ${words("scenario").announce(radius!, blast!.step, nameOf)}`}</span>
+                {/* Start: the name and count are in the line already; say only where it starts. */}
+                <span className="sr-only">{blast!.step === 0 ? `. Starting at ${nameOf(radius!.start)}.` : `. ${words("scenario").announce(radius!, blast!.step, nameOf)}`}</span>
               </p>
               <p className="sr-only" data-testid="present-contents">
-                {words("scenario")
-                  .steps(radius!, nameOf)
-                  .map((st) => `${st.label}: ${st.names.join(", ")}`)
-                  .join(". ")}
+                {`The flow “${playedFlow!.name}”: starts at ${nameOf(radius!.start)}. ${playedFlow!.steps
+                  .slice(0, radius!.steps.length - 1)
+                  .map((st, i) => `Step ${i + 1}: ${flowStepText(model, st)}`)
+                  .join(". ")}.`}
               </p>
             </>
           ) : (
@@ -2300,6 +2315,7 @@ function EditorInner() {
               <span aria-hidden="true">←</span> Previous
             </button>
             <button
+              ref={presentNext}
               type="button"
               className={toolbarButton}
               disabled={presentingFlow ? blast!.step >= radius!.steps.length - 1 : step >= steps.length - 1}
