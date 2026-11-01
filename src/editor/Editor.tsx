@@ -42,7 +42,7 @@ import { pngScale, svgToPng } from "@/io/png";
 import { printNode, printSvg } from "@/io/print";
 import { reportSheet, reportSummary } from "@/io/report";
 import { exportJson, fileBase, importJson, MAX_FILE_CHARS } from "@/io/file";
-import { decodeShare, encodeShare, shareSize, shareSupported, shareUrl, takeSharedPayload, type ShareResult } from "@/io/shareLink";
+import { decodeShare, encodeShare, SHARE_KEY, shareSize, shareSupported, shareUrl, takeSharedPayload, viewUrl, type ShareResult } from "@/io/shareLink";
 import { modelToArchimateXml } from "@/io/archimate";
 import { modelToDrawioFile } from "@/io/drawio";
 import { lucidFit, lucidFitMessage, lucidFitNote } from "@/io/lucid";
@@ -1254,7 +1254,8 @@ function EditorInner() {
     linkInput.current?.select();
   }, [linkField]);
   const kb = (url: string) => `${(url.length / 1000).toFixed(1)} KB`;
-  const copyLink = async () => {
+  /** Copy link (M45), or the view-only link (M75): the same payload, opened at /view. */
+  const copyLink = async (viewOnly = false) => {
     linkReturn.current = document.activeElement instanceof HTMLElement ? document.activeElement : null;
     let s = share?.model === model ? share : null;
     if (!s) {
@@ -1272,13 +1273,17 @@ function EditorInner() {
       return;
     }
     const long = s.size === "long" ? " It is long: some chat and email apps cut links this long, so a model file may travel better." : "";
+    const url = viewOnly ? viewUrl(window.location.origin, s.url.slice(s.url.indexOf(`#${SHARE_KEY}=`) + SHARE_KEY.length + 2)) : s.url;
+    const who = viewOnly
+      ? "Anyone with the link can see this model, read only; it saves nothing until they choose Save a copy. It also works in a web page's frame."
+      : "Anyone with the link can open a copy of this model.";
     try {
-      await navigator.clipboard.writeText(s.url);
+      await navigator.clipboard.writeText(url);
       setLinkField(null);
-      setMessage(`Link copied (${kb(s.url)}). Anyone with the link can open a copy of this model.${long}`);
+      setMessage(`${viewOnly ? "View-only link" : "Link"} copied (${kb(url)}). ${who}${long}`);
     } catch {
-      setLinkField(s.url);
-      setMessage(`Copy the link in the field above the canvas (${kb(s.url)}): this browser did not allow copying it. Anyone with the link can open a copy of this model.${long}`);
+      setLinkField(url);
+      setMessage(`Copy the link in the field above the canvas (${kb(url)}): this browser did not allow copying it. ${who}${long}`);
     }
   };
 
@@ -1288,8 +1293,8 @@ function EditorInner() {
   const exportAs = (kind: ExportKind) => {
     if (kind === "blast-gif" || kind === "flow-gif" || kind === "scenario-gif") {
       void exportBlastGif();
-    } else if (kind === "link") {
-      void copyLink();
+    } else if (kind === "link" || kind === "view-link") {
+      void copyLink(kind === "view-link");
     } else if (kind === "json") {
       const f = exportJson(model);
       downloadText(f.filename, f.text, "application/json");
@@ -2183,6 +2188,8 @@ function EditorInner() {
                   ? `Long link (${kb(share.url)}): some chat and email apps cut links this long`
                   : undefined,
             drawio: lucidFitNote(lucidFit(model)),
+            // M75: the same payload as Copy link, so the same limits.
+            "view-link": !canShare ? "This browser cannot make model links" : share?.model === model && share.size === "too-large" ? "Too large to share as a link: use Model file (JSON)" : undefined,
             "blast-gif": makingGif
               ? "Making the GIF…"
               : blast && radius && !isFlow
@@ -2201,6 +2208,7 @@ function EditorInner() {
           };
   const exportDisabled: Partial<Record<ExportKind, boolean>> = {
             link: !canShare || (share?.model === model && share.size === "too-large"),
+            "view-link": !canShare || (share?.model === model && share.size === "too-large"),
             "blast-gif": !blast || !radius || isFlow || makingGif,
             "flow-gif": !blast || !radius || !isFlow || makingGif,
             "scenario-gif": !blast || !radius || !isScenario || makingGif,
@@ -2246,7 +2254,7 @@ function EditorInner() {
       ...exportItems.map((it): Command => ({
         id: `export-${it.kind}`,
         group: "Export",
-        label: it.kind === "link" || it.kind === "print" || it.kind === "report" ? it.label : `Export ${it.label}`,
+        label: it.kind === "link" || it.kind === "view-link" || it.kind === "print" || it.kind === "report" ? it.label : `Export ${it.label}`,
         keywords: "export download save",
         disabled: exportDisabled[it.kind] ? exportNotes[it.kind] : undefined,
         run: () => exportAs(it.kind),

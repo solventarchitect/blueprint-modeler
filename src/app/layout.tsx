@@ -4,7 +4,7 @@ import localFont from "next/font/local";
 import { Analytics } from "@/components/Analytics";
 import { SiteFooter } from "@/components/SiteFooter";
 import { ThemeToggle, themeBootScript } from "@/components/ThemeToggle";
-import { shareCaptureScript } from "@/io/shareLink";
+import { framedScript, shareCaptureScript } from "@/io/shareLink";
 import { site } from "@/lib/site";
 import "./globals.css";
 
@@ -48,6 +48,8 @@ export default function RootLayout({ children }: Readonly<{ children: React.Reac
         <script dangerouslySetInnerHTML={{ __html: themeBootScript }} />
         {/* A shared model's link (M45): off the address before any other script runs. */}
         <script dangerouslySetInnerHTML={{ __html: shareCaptureScript }} />
+        {/* M75: a view-only page in a frame drops the site's header and footer. */}
+        <script dangerouslySetInnerHTML={{ __html: framedScript }} />
       </head>
       <body className="flex min-h-dvh flex-col bg-surface text-ink">
         <a

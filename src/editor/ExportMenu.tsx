@@ -3,11 +3,12 @@
 import { useEffect, useId, useRef, useState } from "react";
 import { ToolbarIcon } from "./ToolbarIcon";
 
-export type ExportKind = "json" | "link" | "svg-dark" | "svg-light" | "png-dark" | "png-light" | "print" | "report" | "blast-gif" | "flow-gif" | "scenario-gif" | "archimate" | "drawio" | "servicenow";
+export type ExportKind = "json" | "link" | "view-link" | "svg-dark" | "svg-light" | "png-dark" | "png-light" | "print" | "report" | "blast-gif" | "flow-gif" | "scenario-gif" | "archimate" | "drawio" | "servicenow";
 
 export const exportItems: { kind: ExportKind; label: string; note: string }[] = [
   { kind: "json", label: "Model file (JSON)", note: "Back up, move or version it" },
   { kind: "link", label: "Copy link to this model", note: "Anyone with the link can open a copy" },
+  { kind: "view-link", label: "Copy view-only link", note: "Opens read only, saving nothing; works in a web page's frame" },
   { kind: "svg-dark", label: "Image, dark (SVG)", note: "For docs and slides" },
   { kind: "svg-light", label: "Image, light (SVG)", note: "For docs and slides" },
   { kind: "png-dark", label: "Image, dark (PNG)", note: "Where SVG is not accepted; 2× size" },

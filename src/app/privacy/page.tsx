@@ -26,6 +26,11 @@ export default function PrivacyPage() {
         # is not sent to our server. Opening a shared link saves a copy of the model in the browser that opens it, as
         importing a file does, and the visit counter below is not loaded on a page opened from one.
       </p>
+      <p>
+        Export › Copy view-only link makes the same kind of link to a page that shows the model read only. That page
+        saves nothing in the browser that opens it (unless they choose Save a copy), keeps the model in its address so it
+        can be reloaded or shown in another site&apos;s frame, and never loads the visit counter.
+      </p>
       <h2>Your settings</h2>
       <p>
         A few display settings are saved in this browser (local storage) so they stick between visits: Light or Dark if

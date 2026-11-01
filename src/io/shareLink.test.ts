@@ -175,8 +175,36 @@ describe("share links: the capture script in every page's <head>", () => {
     expect(r.listeners.sort()).toEqual(["hashchange", "popstate"]);
   });
 
+  it("on /view (M75) leaves the model in the address (a reload and a frame keep it) and marks the page so the visit counter never loads", () => {
+    const r = run("https://model.mikereams.com/view#model=1.abc");
+    expect(r.win).toEqual({ __bmNoBeacon: true });
+    expect(r.url).toBe("https://model.mikereams.com/view#model=1.abc");
+  });
+
   it("leaves other pages and other fragments alone", () => {
     expect(run("https://model.mikereams.com/guide#model=1.abc").win).toEqual({});
     expect(run("https://model.mikereams.com/editor#classes").win).toEqual({});
+  });
+});
+
+describe("view-only links (M75)", () => {
+  it("open /view with the same payload; Save a copy opens it in the editor", async () => {
+    const { viewUrl, editUrlFor } = await import("./shareLink");
+    expect(viewUrl("https://model.mikereams.com", "1.abc")).toBe("https://model.mikereams.com/view#model=1.abc");
+    expect(editUrlFor("1.abc")).toBe("/editor#model=1.abc");
+  });
+
+  it("a page in a frame is marked, so the site's header and footer step aside", async () => {
+    const { framedScript } = await import("./shareLink");
+    const mark = (path: string, framed: boolean) => {
+      const attrs: Record<string, string> = {};
+      const doc = { documentElement: { setAttribute: (k: string, v: string) => (attrs[k] = v) } };
+      const top = {};
+      new Function("location", "document", "self", "top", framedScript)({ pathname: path }, doc, framed ? {} : top, top);
+      return attrs;
+    };
+    expect(mark("/view", true)).toEqual({ "data-framed": "" });
+    expect(mark("/view", false)).toEqual({});
+    expect(mark("/editor", true)).toEqual({});
   });
 });
