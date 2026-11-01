@@ -1,6 +1,30 @@
+import { deflateRawSync } from "node:zlib";
 import AxeBuilder from "@axe-core/playwright";
 import { expect, test, type Page } from "@playwright/test";
 import { currentModel } from "./model-menu";
+import { watchForeignRequests } from "./network";
+
+declare global {
+  interface Window {
+    __bmNoBeacon?: boolean;
+  }
+}
+
+/** A small model, linked with Node's zlib: an encoder independent of the app's (as in share-link.spec.ts). */
+const small = {
+  schema: 1,
+  id: "e2e-view-1",
+  name: "Payroll Platform Overview With A Long Name For Small Screens",
+  created: "2026-11-01T00:00:00.000Z",
+  updated: "2026-11-01T00:00:00.000Z",
+  nodes: [
+    { id: "ba", class: "business_application", name: "Payroll" },
+    { id: "svc", class: "application_service", name: "Payroll — production" },
+  ],
+  edges: [{ id: "e1", from: "ba", to: "svc", type: "Uses::Used by" }],
+  layout: { ba: { x: 0, y: 160 }, svc: { x: 0, y: 320 } },
+};
+const viewPath = (m: object) => `/view#model=1.${deflateRawSync(Buffer.from(JSON.stringify(m))).toString("base64url")}`;
 
 // M75: view-only links open the model read only, save nothing, and work in a frame.
 const tags = ["wcag2a", "wcag2aa", "wcag21aa", "wcag22aa"];
@@ -18,22 +42,8 @@ async function viewLink(page: Page) {
   return url;
 }
 
-const savedModels = (page: Page) =>
-  page.evaluate(
-    () =>
-      new Promise<number>((resolve) => {
-        const req = indexedDB.open("blueprint-modeler");
-        req.onsuccess = () => {
-          const db = req.result;
-          const names = [...db.objectStoreNames];
-          const store = names.find((n) => n.includes("model")) ?? names[0];
-          if (!store) return resolve(0);
-          const count = db.transaction(store).objectStore(store).count();
-          count.onsuccess = () => resolve(count.result);
-        };
-        req.onerror = () => resolve(-1);
-      }),
-  );
+/** The databases this origin has in the browser: none, if the page never opened the store. */
+const databases = (page: Page) => page.evaluate(async () => (await indexedDB.databases()).map((d) => d.name));
 
 test.describe("view-only links (M75)", () => {
   test.skip(({ isMobile }) => !!isMobile, "the link is made on the desktop");
@@ -56,7 +66,7 @@ test.describe("view-only links (M75)", () => {
     await viewer.getByText("The model in words").click();
     await expect(viewer.getByRole("listitem").filter({ hasText: "web-prod-01" })).toHaveCount(1);
     expect(await new AxeBuilder({ page: viewer }).withTags(tags).analyze().then((r) => r.violations)).toEqual([]);
-    expect(await savedModels(viewer)).toBeLessThanOrEqual(0);
+    expect(await databases(viewer)).toEqual([]);
 
     await viewer.getByRole("link", { name: "Save a copy" }).click();
     await expect(currentModel(viewer)).toHaveText("Online Store Checkout");
@@ -71,6 +81,7 @@ test.describe("view-only links (M75)", () => {
     const frame = page.frameLocator('iframe[title="Model"]');
     await expect(frame.getByRole("heading", { level: 1 })).toHaveText("Online Store Checkout");
     await expect(frame.locator("body > header")).toBeHidden();
+    await expect(frame.locator("body > footer")).toBeHidden();
     await expect(frame.getByRole("link", { name: /Save a copy/ })).toHaveAttribute("target", "_blank");
   });
 
@@ -82,3 +93,22 @@ test.describe("view-only links (M75)", () => {
     await expect(page.getByRole("main").getByRole("alert")).toContainText("damaged");
   });
 });
+
+test.describe("the view page on any screen (M75)", () => {
+  test("no store, no visit counter, nothing from other sites; fits a 320px screen, the picture scrolls in its own region", async ({ page, baseURL }) => {
+    const foreign = watchForeignRequests(page, baseURL);
+    await page.setViewportSize({ width: 320, height: 640 });
+    await page.goto(viewPath(small));
+    await expect(page.getByRole("heading", { level: 1 })).toHaveText(small.name);
+    expect(await page.evaluate(() => window.__bmNoBeacon)).toBe(true);
+    expect(await databases(page)).toEqual([]);
+    expect(await page.evaluate(() => document.documentElement.scrollWidth)).toBeLessThanOrEqual(320);
+    await expect(page.getByRole("region", { name: "Picture" })).toBeVisible();
+    expect(await new AxeBuilder({ page }).withTags(tags).analyze().then((r) => r.violations)).toEqual([]);
+    // Another link in the same tab: the page follows it.
+    await page.evaluate((h) => (location.hash = h), viewPath({ ...small, id: "e2e-view-2", name: "Second" }).split("#")[1]!);
+    await expect(page.getByRole("heading", { level: 1 })).toHaveText("Second");
+    expect(foreign).toEqual([]);
+  });
+});
+

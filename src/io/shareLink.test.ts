@@ -181,8 +181,10 @@ describe("share links: the capture script in every page's <head>", () => {
     expect(r.url).toBe("https://model.mikereams.com/view#model=1.abc");
   });
 
-  it("leaves other pages and other fragments alone", () => {
-    expect(run("https://model.mikereams.com/guide#model=1.abc").win).toEqual({});
+  it("any other page with a model in its address is marked too (whatever path serves it), and keeps it; other fragments are left alone", () => {
+    expect(run("https://model.mikereams.com/view.html#model=1.abc").win).toEqual({ __bmNoBeacon: true });
+    expect(run("https://model.mikereams.com/guide#model=1.abc").win).toEqual({ __bmNoBeacon: true });
+    expect(run("https://model.mikereams.com/guide#model=1.abc").url).toBe("https://model.mikereams.com/guide#model=1.abc");
     expect(run("https://model.mikereams.com/editor#classes").win).toEqual({});
   });
 });
@@ -206,5 +208,19 @@ describe("view-only links (M75)", () => {
     expect(mark("/view", true)).toEqual({ "data-framed": "" });
     expect(mark("/view", false)).toEqual({});
     expect(mark("/editor", true)).toEqual({});
+  });
+});
+
+describe("the view page's picture with hostile text (M75 review)", () => {
+  it("every model string is escaped in the plan and isometric pictures", async () => {
+    const { modelToSvg } = await import("./svg");
+    const { isoToSvg } = await import("@/iso/svg");
+    const evil = '"><img src=x onerror=alert(1)></title><script>alert(1)</script>';
+    const m = examples[0]!.create();
+    const bad = { ...m, name: evil, description: evil, artifactId: evil.slice(0, 60), nodes: m.nodes.map((n, i) => (i === 0 ? { ...n, name: evil, tags: ["x<y"] } : n)) };
+    for (const svg of [modelToSvg(bad, "light"), isoToSvg(bad, "light")]) {
+      expect(svg).not.toContain("<script");
+      expect(svg).not.toContain("<img");
+    }
   });
 });

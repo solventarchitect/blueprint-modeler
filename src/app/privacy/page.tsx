@@ -29,7 +29,8 @@ export default function PrivacyPage() {
       <p>
         Export › Copy view-only link makes the same kind of link to a page that shows the model read only. That page
         saves nothing in the browser that opens it (unless they choose Save a copy), keeps the model in its address so it
-        can be reloaded or shown in another site&apos;s frame, and never loads the visit counter.
+        can be reloaded or shown in another site&apos;s frame, and never loads the visit counter. A page that frames it
+        holds the whole link, and so the model, in its own source.
       </p>
       <h2>Your settings</h2>
       <p>
@@ -49,7 +50,7 @@ export default function PrivacyPage() {
         pages and keep them secure.
       </p>
       <h2>Changes</h2>
-      <p>If this changes, this page changes first. Last updated October 9, 2026.</p>
+      <p>If this changes, this page changes first. Last updated November 1, 2026.</p>
     </Prose>
   );
 }

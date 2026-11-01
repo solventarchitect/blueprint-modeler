@@ -42,7 +42,7 @@ import { pngScale, svgToPng } from "@/io/png";
 import { printNode, printSvg } from "@/io/print";
 import { reportSheet, reportSummary } from "@/io/report";
 import { exportJson, fileBase, importJson, MAX_FILE_CHARS } from "@/io/file";
-import { decodeShare, encodeShare, SHARE_KEY, shareSize, shareSupported, shareUrl, takeSharedPayload, viewUrl, type ShareResult } from "@/io/shareLink";
+import { decodeShare, encodeShare, shareSize, shareSupported, shareUrl, takeSharedPayload, viewUrl, type ShareResult } from "@/io/shareLink";
 import { modelToArchimateXml } from "@/io/archimate";
 import { modelToDrawioFile } from "@/io/drawio";
 import { lucidFit, lucidFitMessage, lucidFitNote } from "@/io/lucid";
@@ -1219,11 +1219,11 @@ function EditorInner() {
   // to the clipboard straight from the click (Safari refuses a copy that waits on other work first).
   const [canShare, setCanShare] = useState(true);
   useEffect(() => setCanShare(shareSupported()), []);
-  const [share, setShare] = useState<{ model: Model; url: string; size: ReturnType<typeof shareSize> } | null>(null);
+  const [share, setShare] = useState<{ model: Model; url: string; payload: string; size: ReturnType<typeof shareSize> } | null>(null);
   const makeShare = async (m: Model) => {
     const payload = await encodeShare(m);
     const url = shareUrl(window.location.origin, payload);
-    return { model: m, url, size: shareSize(url, payload) };
+    return { model: m, url, payload, size: shareSize(url, payload) };
   };
   const prepareShare = () => {
     if (!canShare || share?.model === model) return;
@@ -1238,6 +1238,7 @@ function EditorInner() {
   }, [palette]); // eslint-disable-line react-hooks/exhaustive-deps -- once per opening, for the model open then
   // Where the link is shown for copying by hand (the clipboard refused it), and where focus returns after.
   const [linkField, setLinkField] = useState<string | null>(null);
+  const [linkKind, setLinkKind] = useState<"edit" | "view">("edit");
   const linkInput = useRef<HTMLInputElement>(null);
   const linkRegion = useRef<HTMLDivElement>(null);
   const linkReturn = useRef<HTMLElement | null>(null);
@@ -1273,9 +1274,9 @@ function EditorInner() {
       return;
     }
     const long = s.size === "long" ? " It is long: some chat and email apps cut links this long, so a model file may travel better." : "";
-    const url = viewOnly ? viewUrl(window.location.origin, s.url.slice(s.url.indexOf(`#${SHARE_KEY}=`) + SHARE_KEY.length + 2)) : s.url;
+    const url = viewOnly ? viewUrl(window.location.origin, s.payload) : s.url;
     const who = viewOnly
-      ? "Anyone with the link can see this model, read only; it saves nothing until they choose Save a copy. It also works in a web page's frame."
+      ? "Anyone with the link can see this model, read only; it saves nothing until they choose Save a copy. It also works in a web page's frame, and the page that frames it then holds the model too."
       : "Anyone with the link can open a copy of this model.";
     try {
       await navigator.clipboard.writeText(url);
@@ -1283,6 +1284,7 @@ function EditorInner() {
       setMessage(`${viewOnly ? "View-only link" : "Link"} copied (${kb(url)}). ${who}${long}`);
     } catch {
       setLinkField(url);
+      setLinkKind(viewOnly ? "view" : "edit");
       setMessage(`Copy the link in the field above the canvas (${kb(url)}): this browser did not allow copying it. ${who}${long}`);
     }
   };
@@ -2189,7 +2191,15 @@ function EditorInner() {
                   : undefined,
             drawio: lucidFitNote(lucidFit(model)),
             // M75: the same payload as Copy link, so the same limits.
-            "view-link": !canShare ? "This browser cannot make model links" : share?.model === model && share.size === "too-large" ? "Too large to share as a link: use Model file (JSON)" : undefined,
+            "view-link": !canShare
+              ? "This browser cannot make model links"
+              : share?.model !== model
+                ? undefined
+                : share.size === "too-large"
+                  ? "Too large to share as a link: use Model file (JSON)"
+                  : share.size === "long"
+                    ? `Long link (${kb(viewUrl(window.location.origin, share.payload))}): some chat and email apps cut links this long`
+                    : undefined,
             "blast-gif": makingGif
               ? "Making the GIF…"
               : blast && radius && !isFlow
@@ -2600,7 +2610,7 @@ function EditorInner() {
           }}
         >
           <label className="flex min-w-0 flex-1 items-center gap-2">
-            <span className="shrink-0">Link to this model</span>
+            <span className="shrink-0">{linkKind === "view" ? "View-only link" : "Link to this model"}</span>
             <input
               ref={linkInput}
               readOnly

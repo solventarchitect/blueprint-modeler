@@ -55,7 +55,17 @@ export function Viewer() {
   const svg = useMemo(() => (model ? (projection === "plan" ? modelToSvg(model, theme) : isoToSvg(model, theme, { mode: "iso" })).replace(/^<\?xml[^>]*>\n/, "") : ""), [model, projection, theme]);
   const outline = useMemo(() => (model ? outlineModel(model, "csdm") : []), [model]);
 
-  if (state.status === "loading") return <p className="px-4 py-6 text-sm text-ink-muted sm:px-6">Opening the model…</p>;
+  if (state.status === "loading")
+    return (
+      <>
+        <p role="status" className="px-4 py-6 text-sm text-ink-muted sm:px-6">
+          Opening the model…
+        </p>
+        <noscript>
+          <p className="px-4 pb-6 text-sm text-ink-soft sm:px-6">This page needs JavaScript to open the model in the link (it never leaves your browser).</p>
+        </noscript>
+      </>
+    );
   if (state.status !== "ok")
     return (
       <div className="mx-auto max-w-2xl px-4 py-10 sm:px-6">
@@ -64,8 +74,8 @@ export function Viewer() {
         <p role={state.status === "error" ? "alert" : undefined} className="mt-2 text-sm text-ink-soft">
           {state.status === "none" ? "A view-only link ends in #model=… and holds the whole model. Ask for the link again, or open the editor." : state.message}
         </p>
-        <Link href="/editor" className={`${button} mt-4`} target={framed ? "_blank" : undefined}>
-          Open the editor
+        <Link href="/editor" className={`${button} mt-4`} target={framed ? "_blank" : undefined} rel={framed ? "noopener" : undefined}>
+          Open the editor{framed ? <span className="sr-only"> (opens in a new tab)</span> : null}
         </Link>
       </div>
     );
@@ -73,10 +83,14 @@ export function Viewer() {
   const m = state.model;
   return (
     <div className="flex flex-col">
-      <div role="region" aria-label="Model" className="flex flex-wrap items-start gap-x-4 gap-y-2 border-b border-border px-4 py-3 sm:px-6">
+      <div role="region" aria-labelledby="view-title" className="flex flex-wrap items-start gap-x-4 gap-y-2 border-b border-border px-4 py-3 sm:px-6">
         <div className="min-w-0 flex-1">
           <p className="font-mono text-xs tracking-[0.14em] text-accent uppercase">View only</p>
-          <h1 className="mt-1 truncate text-lg font-semibold">{m.name || UNTITLED_MODEL}</h1>
+          <h1 id="view-title" className="mt-1 text-lg font-semibold break-words">
+            {m.name || UNTITLED_MODEL}
+          </h1>
+          {/* Said once it opens (and when the link changes to another model). */}
+          <p role="status" className="sr-only">{`Showing “${m.name || UNTITLED_MODEL}”, read only.`}</p>
           <p className="text-xs text-ink-muted">
             {m.artifactId ? `${m.artifactId} · ` : ""}
             {formatModelDate(modelDate(m))} · {m.nodes.length} element{m.nodes.length === 1 ? "" : "s"}, {m.edges.length} relationship{m.edges.length === 1 ? "" : "s"}
@@ -98,7 +112,15 @@ export function Viewer() {
         </div>
       </div>
       <p className="px-4 pt-2 text-xs text-ink-muted sm:px-6">Read only: nothing is saved in this browser until you choose Save a copy.</p>
-      <div data-testid="view-picture" className="overflow-auto px-4 py-3 sm:px-6 [&_svg]:h-auto [&_svg]:max-w-full" dangerouslySetInnerHTML={{ __html: svg }} />
+      {/* Wide screens fit the picture to the page; small ones keep it legible and scroll it (a focusable region). */}
+      <div
+        data-testid="view-picture"
+        role="region"
+        aria-label="Picture"
+        tabIndex={0}
+        className="overflow-auto px-4 py-3 focus-visible:outline-2 focus-visible:outline-accent sm:px-6 [&_svg]:h-auto [&_svg]:max-w-none md:[&_svg]:max-w-full"
+        dangerouslySetInnerHTML={{ __html: svg }}
+      />
       <details className="border-t border-border px-4 py-3 text-sm sm:px-6">
         <summary className="inline-flex min-h-6 cursor-pointer items-center text-ink-soft hover:text-ink">The model in words</summary>
         <div className="mt-2 grid gap-3 sm:grid-cols-2 lg:grid-cols-3">

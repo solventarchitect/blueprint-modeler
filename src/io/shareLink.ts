@@ -167,13 +167,14 @@ const prefix = `#${SHARE_KEY}=`;
 /**
  * An inline script in every page's <head>, so it runs while the page is parsed, before any other
  * script. On /editor it takes a model link's payload off the address and leaves it for the editor,
- * and marks the page so the visit counter is never loaded on it (on /view, M75, the model stays in the
- * address, for a reload or a frame, and the page is always marked): the browser's navigation-timing
+ * and marks the page so the visit counter is never loaded on it (on any other page that arrives with a
+ * model in its address, such as /view, M75, where it stays for a reload or a frame, the page is marked
+ * too, whatever the path it was served at): the browser's navigation-timing
  * record keeps the address the page arrived with, and a performance beacon could read it there.
  * It also listens (first, so before any listener added later) for a link pasted into the address
  * bar of an open editor, which changes only the fragment.
  */
-export const shareCaptureScript = `(function(){function t(){try{var p=location.pathname;if((p==="/editor"||p==="/editor/")&&location.hash.indexOf(${JSON.stringify(prefix)})===0){window.__bmShared=location.hash.slice(${prefix.length});window.__bmNoBeacon=true;history.replaceState(null,"",location.pathname+location.search)}else if(p==="/view"||p==="/view/"){window.__bmNoBeacon=true}}catch(e){}}t();addEventListener("popstate",t,true);addEventListener("hashchange",t,true)})()`;
+export const shareCaptureScript = `(function(){function t(){try{var p=location.pathname;if((p==="/editor"||p==="/editor/")&&location.hash.indexOf(${JSON.stringify(prefix)})===0){window.__bmShared=location.hash.slice(${prefix.length});window.__bmNoBeacon=true;history.replaceState(null,"",location.pathname+location.search)}else if(location.hash.indexOf(${JSON.stringify(prefix)})===0){window.__bmNoBeacon=true}}catch(e){}}t();addEventListener("popstate",t,true);addEventListener("hashchange",t,true)})()`;
 
 /**
  * The model link's payload, once: from the capture script, or (after a client-side navigation or a
