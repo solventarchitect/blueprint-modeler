@@ -14,6 +14,15 @@ async function open(page: Page) {
   await page.goto("/editor?example=checkout");
   await expect(currentModel(page)).toHaveText("Online Store Checkout");
   await expect(page.getByTestId("save-status")).toHaveText("Saved in this browser");
+  // The canvas fits the model when it opens; a double-click lands once it has settled.
+  const at = () => page.locator(".react-flow__viewport").evaluate((el) => (el as HTMLElement).style.transform);
+  let last = "";
+  await expect.poll(async () => {
+    const now = await at();
+    const still = now === last;
+    last = now;
+    return still;
+  }).toBe(true);
 }
 
 test.describe("focus on an element (M74, desktop)", () => {
@@ -64,5 +73,33 @@ test.describe("focus on an element (M74, desktop)", () => {
     await page.getByRole("option", { name: new RegExp(`^${name.replace(/[.*+?^${}()|[\]\\]/g, "\\$&")}`) }).first().click();
     await expect(bar(page)).toHaveCount(0);
     await expect(node(page, name)).toHaveClass(/selected/);
+  });
+
+  test("Escape on the selected element clears the selection first, then ends the focus; keyboard focus stays on the page", async ({ page }) => {
+    await open(page);
+    await node(page, "web-prod-01").dblclick();
+    await expect(bar(page)).toBeVisible();
+    await node(page, "web-prod-01").focus();
+    await page.keyboard.press("Escape");
+    await expect(node(page, "web-prod-01")).not.toHaveClass(/selected/);
+    await expect(bar(page)).toBeVisible();
+    // From the bar: Show everything ends it, and keyboard focus lands on the element, not the page body.
+    await bar(page).getByRole("button", { name: "Show everything" }).click();
+    await expect(bar(page)).toHaveCount(0);
+    expect(await page.evaluate(() => document.activeElement?.tagName)).not.toBe("BODY");
+  });
+
+  test("a new element added while focused joins the focus; the context menu focuses too", async ({ page }) => {
+    await open(page);
+    await node(page, "web-prod-01").click({ button: "right" });
+    await page.getByRole("menuitem", { name: "Focus on this element" }).click();
+    await expect(bar(page)).toContainText("web-prod-01");
+    const before = await faded(page).count();
+    await page.keyboard.press(`${mod}+k`);
+    await page.getByRole("combobox", { name: "Search commands" }).fill("Add Business Application");
+    await page.keyboard.press("Enter");
+    await expect(page.locator(".react-flow__node-csdm")).toHaveCount(15);
+    await expect(faded(page)).toHaveCount(before);
+    await expect(page.locator(".react-flow__node-csdm.selected")).toHaveCount(1);
   });
 });

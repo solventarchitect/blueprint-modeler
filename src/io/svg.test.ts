@@ -299,5 +299,9 @@ describe("focus in images (M74)", () => {
     const svg = modelToSvg(m, "light", { view: { filter: {}, colorBy: "layer", focus: { name: "Checkout web app", depth: 1, ids } } });
     expect((svg.match(/<g data-faded="">/g) ?? []).length).toBe(m.nodes.length - 2);
     expect(svg).toMatch(/data-title="view"[^>]*>Focus: Checkout web app, within 1 relationship · showing 2 of \d+ elements</);
+    expect(svg).toMatch(/<desc id="d">[^<]*Focused on Checkout web app, within 1 relationship; the rest is faded\.<\/desc>/);
+    // With a filter too: both fade; the head names the view, then the focus.
+    const both = modelToSvg(m, "light", { view: { filter: { environment: ["Production"] }, colorBy: "layer", name: "Prod", focus: { name: "Checkout web app", depth: 1, ids } } });
+    expect(both).toMatch(/data-title="view"[^>]*>View: Prod · Focus: Checkout web app, within 1 relationship · showing \d+ of \d+ elements</);
   });
 });

@@ -43,6 +43,10 @@ export type SvgView = {
   focus?: { name: string; depth: number; ids: readonly string[] };
 };
 
+/** The focus (M74) in words, for an image's description. */
+export const focusDesc = (view: SvgView | undefined) =>
+  view?.focus ? ` Focused on ${view.focus.name}, within ${view.focus.depth} relationship${view.focus.depth === 1 ? "" : "s"}; the rest is faded.` : "";
+
 /** What a view fades: outside its filter, or outside its focus (M74). */
 export function viewFaded(model: Model, view: SvgView | undefined): Set<string> {
   if (!view) return new Set();
@@ -409,8 +413,8 @@ export function modelToSvg(whole: Model, theme: SvgTheme, opts: { lens?: Lens; h
   const title = esc(name);
   const desc = esc(
     amOnly
-      ? `CSDM model with ${model.nodes.length} elements and ${model.edges.length} relationships, shown as an ArchiMate 3.2 view (ArchiMate element types, relationship notation and layer colors), exported from Blueprint Modeler.${stateDesc}`
-      : `CSDM model with ${model.nodes.length} elements and ${model.edges.length} relationships${showsArchimate(lens) ? ", with ArchiMate 3.2 element names" : ""}, exported from Blueprint Modeler.${stateDesc}`,
+      ? `CSDM model with ${model.nodes.length} elements and ${model.edges.length} relationships, shown as an ArchiMate 3.2 view (ArchiMate element types, relationship notation and layer colors), exported from Blueprint Modeler.${stateDesc}${focusDesc(view)}`
+      : `CSDM model with ${model.nodes.length} elements and ${model.edges.length} relationships${showsArchimate(lens) ? ", with ArchiMate 3.2 element names" : ""}, exported from Blueprint Modeler.${stateDesc}${focusDesc(view)}`,
   );
   return [
     `<?xml version="1.0" encoding="UTF-8"?>`,

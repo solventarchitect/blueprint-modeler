@@ -306,7 +306,7 @@ function EditorInner() {
   // M68: current state, target state or both. Per model, not stored (M71: the pictures follow it too): a model always opens on both.
   const [planChoice, setPlanChoice] = useState<{ modelId: string; view: PlanView }>({ modelId: "", view: "both" });
   /** M74: the element in focus, and how far out (relationships) the focus reaches; not stored. */
-  const [focus, setFocus] = useState<{ modelId: string; id: string; depth: FocusDepth } | null>(null);
+  const [focus, setFocus] = useState<{ modelId: string; id: string; depth: FocusDepth; added: string[] } | null>(null);
   useEffect(() => setViewState(readView()), []);
   const setView = (v: ViewOptions) => {
     setViewState(v);
@@ -521,6 +521,9 @@ function EditorInner() {
   /** Switch views from the menu or the palette, and say what it shows. */
   const pickView = (v: ShownView) => {
     showView(v);
+    // A view that fades the element in focus ends the focus (M74 review).
+    const f = focusOn && model.nodes.find((n) => n.id === focusOn.id);
+    if (f && !inView(f, v.filter)) setFocus(null);
     const name = v.id ? model.views?.find((x) => x.id === v.id)?.name : null;
     const kept = model.nodes.filter((n) => inView(n, v.filter)).length;
     setMessage(name ? `View “${name}”: ${kept} of ${model.nodes.length} elements, ${COLOR_BY_LABEL[v.colorBy].toLowerCase()} colors.` : "Showing all elements, in layer colors.");
@@ -532,8 +535,22 @@ function EditorInner() {
   const planView: PlanView = !blast ? chosenPlan : "both";
   const planHide = useMemo(() => planHidden(model, planView), [model, planView]);
   // M74: focus on an element, per model; it ends when its element is gone or the state shown leaves it out.
-  const focusOn = focus && focus.modelId === model.id && model.nodes.some((n) => n.id === focus.id) && !planHide.nodes.has(focus.id) ? focus : null;
-  const focusIds = useMemo(() => (focusOn ? focusArea(model, focusOn.id, focusOn.depth, planHide.edges) : null), [model, focusOn?.id, focusOn?.depth, planHide]); // eslint-disable-line react-hooks/exhaustive-deps -- focusOn is rebuilt each render; its id and depth are what count
+  // The focus walks the state chosen (not the "both" a blast radius shows while open), so it stays the same set.
+  const chosenHide = useMemo(() => planHidden(model, chosenPlan), [model, chosenPlan]);
+  const focusOn = focus && focus.modelId === model.id && model.nodes.some((n) => n.id === focus.id) && !chosenHide.nodes.has(focus.id) ? focus : null;
+  // Elements added while focused join the focus (M74 review): a new element is never born out of reach.
+  // Known: the model's elements when last seen; one not known yet is new, and is in the focus at once.
+  const [known, setKnown] = useState<{ modelId: string; ids: ReadonlySet<string> }>({ modelId: "", ids: new Set() });
+  const fresh = useMemo(() => (known.modelId === model.id ? model.nodes.filter((n) => !known.ids.has(n.id)).map((n) => n.id) : []), [known, model.id, model.nodes]);
+  const focusIds = useMemo(
+    () => (focusOn ? new Set([...focusArea(model, focusOn.id, focusOn.depth, chosenHide.edges), ...focusOn.added.filter((id) => model.nodes.some((n) => n.id === id)), ...fresh]) : null),
+    [model, focusOn?.id, focusOn?.depth, focusOn?.added, chosenHide, fresh], // eslint-disable-line react-hooks/exhaustive-deps -- focusOn is rebuilt each render; these are what count
+  );
+  useEffect(() => {
+    if (known.modelId === model.id && !fresh.length) return;
+    if (fresh.length && focus && focus.modelId === model.id) setFocus({ ...focus, added: [...focus.added, ...fresh] });
+    setKnown({ modelId: model.id, ids: new Set(model.nodes.map((n) => n.id)) });
+  }, [fresh, model.id]); // eslint-disable-line react-hooks/exhaustive-deps -- only new elements (or another model) count
   /** The view as the pictures draw it: with the state shown, which they leave out and name (M71), and the focus (M74). */
   const focusLabel = focusOn ? model.nodes.find((n) => n.id === focusOn.id)?.name || "Untitled" : "";
   const focusDepth = focusOn?.depth ?? 1;
@@ -1621,6 +1638,8 @@ function EditorInner() {
       },
       { kind: "item", label: count ? `Show hints (${count})` : "No hints", disabled: count === 0, onSelect: () => (setSelectedId(id), setTab("hints")) },
       { kind: "item", label: "Show blast radius", onSelect: () => openBlast(id, menuReturn.current) },
+      // M74: focus on it, as a double-click does.
+      { kind: "item", label: focusOn?.id === id ? "Show everything (end focus)" : "Focus on this element", onSelect: () => (focusOn?.id === id ? endFocus() : focusElement(id)) },
       ...(isAnchor(n.class) ? [{ kind: "item" as const, label: "Show data flow", onSelect: () => openBlast(id, menuReturn.current, "dependencies", true, "flow") }] : []),
       ...(layer && (view.boxes || view.lanes)
         ? [{ kind: "item" as const, label: `Select the ${layerName(layer)} layer`, onSelect: () => (setSelectedLayer(layer), focusLayerHandle(layer)) }]
@@ -1822,23 +1841,38 @@ function EditorInner() {
   const focusElement = (id: string, depth: FocusDepth = focusOn?.depth ?? 1) => {
     const n = model.nodes.find((x) => x.id === id);
     if (!n) return;
-    if (!inView(n, shown.filter)) showView({ id: null, filter: {}, colorBy: shown.colorBy, groupBy: shown.groupBy });
-    if (planHide.nodes.has(id)) setPlanView("both");
-    setFocus({ modelId: model.id, id, depth });
-    const area = focusArea(model, id, depth, planHide.nodes.has(id) ? new Set() : planHide.edges);
-    setSelectedId(id);
-    setMessage(`Focus on “${n.name || "Untitled"}”: ${area.size} of ${model.nodes.length} elements within ${depth} relationship${depth === 1 ? "" : "s"}. Escape shows everything.`);
+    const filter = inView(n, shown.filter) ? shown.filter : {};
+    if (filter !== shown.filter) showView({ id: null, filter: {}, colorBy: shown.colorBy, groupBy: shown.groupBy });
+    const hide = chosenHide.nodes.has(id) ? planHidden(model, "both") : chosenHide;
+    if (chosenHide.nodes.has(id)) setPlanView("both");
+    const sameFocus = focusOn?.id === id;
+    setFocus({ modelId: model.id, id, depth, added: sameFocus ? focusOn.added : [] });
+    const area = focusArea(model, id, depth, hide.edges);
+    // What shows: in the focus, the view's filter and the state shown.
+    const kept = model.nodes.filter((x) => area.has(x.id) && inView(x, filter) && !hide.nodes.has(x.id)).length;
+    // A new reach keeps the selection (inside the focus); a new focus selects its element.
+    if (!sameFocus || (selectedId && !area.has(selectedId))) setSelectedId(id);
+    setMessage(`Focus on “${n.name || "Untitled"}”: ${kept} of ${model.nodes.length} elements within ${depth} relationship${depth === 1 ? "" : "s"}. Escape shows everything.`);
     if (isoRef.current) setTimeout(() => isoRef.current?.zoom("fit"), 0);
     else setTimeout(() => void flow.fitView({ nodes: [...area].map((x) => ({ id: x })), padding: 0.25, maxZoom: 1.25, duration: prefersStill() ? 0 : 300 }), 0);
   };
   const endFocus = useCallback(() => {
+    const id = focus?.id;
     setFocus(null);
     setMessage("Showing everything.");
-  }, []);
+    // Keyboard focus stays on the page (the bar and its buttons go): on the element, or the canvas.
+    setTimeout(() => {
+      if (document.activeElement && document.activeElement !== document.body) return;
+      const el = (id && document.querySelector<HTMLElement>(`.react-flow__node[data-id="${CSS.escape(id)}"]`)) || document.querySelector<HTMLElement>("[data-testid=iso-view]") || document.querySelector<HTMLElement>(".react-flow__pane");
+      el?.focus();
+    }, 0);
+  }, [focus?.id]);
   // The focus ends when its element is deleted, another model opens or the state shown leaves it out.
   useEffect(() => {
-    if (focus && !focusOn) setFocus(null);
-  }, [focus, focusOn]);
+    if (!focus || focusOn) return;
+    setFocus(null);
+    if (focus.modelId === model.id) setMessage("Focus ended: its element is gone, or the state shown leaves it out.");
+  }, [focus, focusOn, model.id]);
   // Escape ends it, unless a menu, dialog, text field, a blast radius or Compare has the key.
   useEffect(() => {
     if (!focusOn || presenting || blast || compare || menu || managing || palette || shortcuts || viewDialog || compareDialog) return;
@@ -1847,11 +1881,14 @@ function EditorInner() {
       if (e.key !== "Escape" || e.defaultPrevented) return;
       if (document.querySelector("dialog[open]")) return;
       if (el && (el.tagName === "INPUT" || el.tagName === "TEXTAREA" || el.tagName === "SELECT" || el.isContentEditable)) return;
+      // An element with keyboard focus takes Escape first (it clears the selection); the next one ends the focus.
+      if (el?.closest(".react-flow__node.selected")) return;
       e.preventDefault();
       endFocus();
     };
-    window.addEventListener("keydown", onKey);
-    return () => window.removeEventListener("keydown", onKey);
+    // Capture: read the selection before the canvas's own Escape clears it.
+    window.addEventListener("keydown", onKey, true);
+    return () => window.removeEventListener("keydown", onKey, true);
   }, [focusOn, presenting, blast, compare, menu, managing, palette, shortcuts, viewDialog, compareDialog, endFocus]);
 
   // Blast radius: the start element, then each hop it reaches, played or stepped by hand.
@@ -2589,11 +2626,11 @@ function EditorInner() {
       {focusOn && focusIds && !presenting && (
         <div role="region" aria-label="Focus" data-testid="focus-bar" className="flex flex-wrap items-center gap-2 border-b border-border px-4 py-2 text-sm">
           <p className="font-mono text-xs tracking-[0.14em] text-accent uppercase">Focus</p>
-          <h2 className="font-medium">{nameOf(focusOn.id)}</h2>
-          <span id="focus-depth" className="text-ink-muted">
+          <p className="font-medium">{nameOf(focusOn.id)}</p>
+          <span className="text-ink-muted" aria-hidden="true">
             within
           </span>
-          <span role="group" aria-labelledby="focus-depth" className="inline-flex">
+          <span role="group" aria-label="Reach: relationships from the element" className="inline-flex">
             {FOCUS_DEPTHS.map((d, i) => (
               <button
                 key={d}
@@ -2608,7 +2645,7 @@ function EditorInner() {
             ))}
           </span>
           <p className="text-ink-muted" data-testid="focus-count">
-            {focusIds.size} of {model.nodes.length} elements
+            {model.nodes.filter((n) => !fadedIds.has(n.id) && !planHide.nodes.has(n.id)).length} of {model.nodes.length} elements
           </p>
           <button type="button" className={`${toolbarButton} ml-auto`} onClick={endFocus} aria-keyshortcuts="Escape">
             Show everything
@@ -2804,6 +2841,7 @@ function EditorInner() {
                 );
               }}
               // M74: double-click an element to focus on it.
+              zoomOnDoubleClick={false}
               onNodeDoubleClick={(_, n) => !presenting && n.type === "csdm" && !fadedIds.has(n.id) && focusElement(n.id)}
               onPaneClick={() => {
                 setActiveHint(null);

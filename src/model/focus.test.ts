@@ -14,7 +14,7 @@ describe("focus on an element (M74)", () => {
     expect(one).toEqual(new Set([web, ...near(web)]));
     const two = focusArea(m, web, 2);
     expect(two).toEqual(new Set([...one, ...[...one].flatMap(near)]));
-    expect(focusArea(m, web, 3).size).toBeGreaterThanOrEqual(two.size);
+    expect(focusArea(m, web, 3)).toEqual(new Set([...two, ...[...two].flatMap(near)]));
     expect(FOCUS_DEPTHS).toEqual([1, 2, 3]);
   });
 

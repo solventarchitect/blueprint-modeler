@@ -1,6 +1,6 @@
 import { classById } from "@/metamodel";
 import { filterActive, slotColor, slotMap, slotMarker, UNTITLED_MODEL, type Model } from "@/model";
-import { clip, esc, layerColor, MONO, palettes, SANS, stateShown, svgTitleBlock, viewFaded, type SvgHighlight, type SvgTheme, type SvgView } from "@/io/svg";
+import { clip, esc, layerColor, MONO, palettes, SANS, focusDesc, stateShown, svgTitleBlock, viewFaded, type SvgHighlight, type SvgTheme, type SvgView } from "@/io/svg";
 import type { Size } from "@/layout/layout";
 import { boxFaces, drawOrder, isoScene, paintOrder, project, RANK, SLAB, type IsoMode, type P3 } from "./scene";
 import type { Layer } from "@/metamodel";
@@ -161,7 +161,7 @@ export function isoToSvg(whole: Model, theme: SvgTheme, opts: IsoOptions = {}): 
   const maxY = (ys.length ? Math.max(...ys) : 2 * PAD) + PAD;
   const height = Math.ceil(maxY - minY);
   const name = model.name || UNTITLED_MODEL;
-  const desc = `CSDM model with ${model.nodes.length} elements and ${model.edges.length} relationships, drawn in isometric${mode === "exploded" ? " with its layers spread apart" : ""}: one slab per CSDM layer, Infrastructure lowest, Business highest. Exported from Blueprint Modeler.${stateDesc}`;
+  const desc = `CSDM model with ${model.nodes.length} elements and ${model.edges.length} relationships, drawn in isometric${mode === "exploded" ? " with its layers spread apart" : ""}: one slab per CSDM layer, Infrastructure lowest, Business highest. Exported from Blueprint Modeler.${stateDesc}${focusDesc(view)}`;
   return [
     `<?xml version="1.0" encoding="UTF-8"?>`,
     `<svg xmlns="http://www.w3.org/2000/svg" viewBox="${r1(minX)} ${r1(minY)} ${width} ${height}" width="${width}" height="${height}" role="img" aria-labelledby="${ids}t ${ids}d" data-iso="${mode}">`,
