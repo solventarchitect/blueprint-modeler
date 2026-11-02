@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 import { examples } from "@/examples";
-import { csvCell, elementRows, relationshipRows, toCsv } from "./table";
+import { csvCell, decisionsCsv, elementRows, relationshipRows, toCsv } from "./table";
 
 const checkout = () => examples.find((e) => e.id === "checkout")!.create(new Date("2026-09-27T00:00:00Z"), "m1");
 
@@ -36,5 +36,16 @@ describe("CSV (M67)", () => {
     const csv = toCsv(["Name", "Owner"], [["Checkout", "Team — A"], ["=cmd", ""]]);
     expect(csv.startsWith("﻿Name,Owner\r\n")).toBe(true);
     expect(csv.split("\r\n")).toEqual(["﻿Name,Owner", "Checkout,Team — A", "'=cmd,", ""]);
+  });
+});
+
+describe("decisions CSV (M80)", () => {
+  it("one row per decision, in the model's order: title, status, date, the elements by name, then each part", () => {
+    const base = examples.find((e) => e.id === "checkout")!.create(new Date("2026-09-27T00:00:00Z"), "m1");
+    const m = { ...base, decisions: [{ id: "d1", title: "Cache, the catalog", status: "accepted" as const, date: "2026-10-30", decision: "Read-through\ncache.", elements: ["data", "ba"] }, { id: "d2", title: "Retire ERP", status: "proposed" as const }] };
+    const lines = decisionsCsv(m).replace(/^\uFEFF/, "").trimEnd().split("\r\n");
+    expect(lines[0]).toBe("Title,Status,Date,Elements,Context,Decision,Consequences");
+    expect(lines[1]).toBe('"Cache, the catalog",Accepted,2026-10-30,Checkout; Customer orders,,"Read-through\ncache.",');
+    expect(lines.at(-1)).toBe("Retire ERP,Proposed,,,,,");
   });
 });

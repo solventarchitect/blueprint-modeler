@@ -2,7 +2,7 @@
  * The model as tables (M67): the rows the table view shows, and CSV for a spreadsheet. Pure.
  */
 import { classById } from "@/metamodel";
-import { attrValue, evaluateHints, PLAN_LABEL, planOf, type Model } from "@/model";
+import { attrValue, DECISION_STATUS_LABEL, evaluateHints, PLAN_LABEL, planOf, type Model } from "@/model";
 
 const LAYER_NAME: Record<string, string> = { business: "Business", design: "Design", service: "Service", functional: "Functional", infrastructure: "Infrastructure" };
 
@@ -85,3 +85,20 @@ export const ELEMENT_COLUMNS: { key: keyof ElementRow; label: string }[] = [
 
 export const elementsCsv = (rows: ElementRow[]) => toCsv(ELEMENT_COLUMNS.map((c) => c.label), rows.map((r) => ELEMENT_COLUMNS.map((c) => String(r[c.key]))));
 export const relationshipsCsv = (rows: RelationshipRow[]) => toCsv(["From", "Relationship", "To", "Plan status"], rows.map((r) => [r.from, r.type, r.to, r.plan]));
+
+/** M80: every decision as a CSV row: title, status, date, the elements it concerns by name (sorted), then its parts. */
+export function decisionsCsv(model: Model): string {
+  const nameOf = (id: string) => model.nodes.find((n) => n.id === id)?.name || "Untitled";
+  return toCsv(
+    ["Title", "Status", "Date", "Elements", "Context", "Decision", "Consequences"],
+    (model.decisions ?? []).map((d) => [
+      d.title,
+      DECISION_STATUS_LABEL[d.status],
+      d.date ?? "",
+      (d.elements ?? []).map(nameOf).sort((a, b) => a.localeCompare(b)).join("; "),
+      d.context ?? "",
+      d.decision ?? "",
+      d.consequences ?? "",
+    ]),
+  );
+}

@@ -25,3 +25,10 @@ export function withKnownDecisionElements(model: Model): Model {
   });
   return changed ? { ...model, decisions } : model;
 }
+
+/** M80: how many decisions concern each element (only elements some decision concerns). */
+export function decisionCounts(model: Model): Map<string, number> {
+  const out = new Map<string, number>();
+  for (const d of model.decisions ?? []) for (const e of d.elements ?? []) out.set(e, (out.get(e) ?? 0) + 1);
+  return out;
+}

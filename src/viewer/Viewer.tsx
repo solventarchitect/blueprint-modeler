@@ -2,7 +2,7 @@
 
 import { useEffect, useMemo, useState, useSyncExternalStore } from "react";
 import Link from "next/link";
-import { formatModelDate, modelDate, UNTITLED_MODEL, type Model } from "@/model";
+import { decisionsAbout, DECISION_STATUS_LABEL, formatModelDate, modelDate, UNTITLED_MODEL, type Model } from "@/model";
 import { decodeShare, editUrlFor, SHARE_KEY, shareSupported } from "@/io/shareLink";
 import { modelToSvg } from "@/io/svg";
 import { isoToSvg } from "@/iso/svg";
@@ -133,6 +133,10 @@ export function Viewer() {
                 {l.items.map((it) => (
                   <li key={it.id}>
                     {it.name} <span className="text-ink-muted">({it.kind})</span>
+                    {/* M80: the decisions about it, by title. */}
+                    {decisionsAbout(m, it.id).length > 0 && (
+                      <span className="block text-xs text-ink-muted">Decisions: {decisionsAbout(m, it.id).map((d) => d.title).join("; ")}</span>
+                    )}
                   </li>
                 ))}
               </ul>
@@ -140,6 +144,35 @@ export function Viewer() {
           ))}
         </div>
       </details>
+      {/* M80: the model's decisions, read only. */}
+      {!!m.decisions?.length && (
+        <details className="border-t border-border px-4 py-3 text-sm sm:px-6" data-testid="view-decisions">
+          <summary className="inline-flex min-h-6 cursor-pointer items-center text-ink-soft hover:text-ink">
+            Decisions ({m.decisions.length})
+          </summary>
+          <h2 className="sr-only">Decisions</h2>
+          <div className="mt-2 flex max-w-3xl flex-col gap-4">
+            {m.decisions.map((d) => (
+              <section key={d.id} aria-labelledby={`view-decision-${d.id}`}>
+                <h3 id={`view-decision-${d.id}`} className="font-medium">
+                  {d.title}
+                </h3>
+                <p className="text-xs text-ink-muted">
+                  {[DECISION_STATUS_LABEL[d.status], d.date ? formatModelDate(d.date) : "", d.elements?.length ? `Concerns ${d.elements.map((e) => m.nodes.find((n) => n.id === e)?.name || "Untitled").join(", ")}` : ""].filter(Boolean).join(" · ")}
+                </p>
+                {(["context", "decision", "consequences"] as const).map((k) =>
+                  d[k] ? (
+                    <div key={k} className="mt-1">
+                      <h4 className="text-xs font-medium text-ink-muted">{k === "context" ? "Context" : k === "decision" ? "Decision" : "Consequences"}</h4>
+                      <p className="whitespace-pre-line">{d[k]}</p>
+                    </div>
+                  ) : null,
+                )}
+              </section>
+            ))}
+          </div>
+        </details>
+      )}
     </div>
   );
 }
