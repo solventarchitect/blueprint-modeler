@@ -5,7 +5,7 @@ import { ARCHIMATE_TRADEMARK, archimateElements, archimateRelationshipFor, archi
 import { ArchimateGlyph } from "@/frameworks/ArchimateGlyph";
 import { classSlug } from "@/guide";
 import { allowedTypes, classById, ENVIRONMENT_EXAMPLES, isClassId, isCsdmCore, LIFE_CYCLE, lifecycleFor, sources } from "@/metamodel";
-import { MAX_LINKS, MAX_TAG_LENGTH, MAX_TAGS, modelDate, modelTags, parseTags, PLAN_LABEL, PLAN_STATUSES, planOf, toWebAddress, type Link, type Model, type PlanStatus } from "@/model";
+import { DECISION_STATUS_LABEL, decisionsAbout, MAX_LINKS, MAX_TAG_LENGTH, MAX_TAGS, modelDate, modelTags, parseTags, PLAN_LABEL, PLAN_STATUSES, planOf, toWebAddress, type Link, type Model, type PlanStatus } from "@/model";
 import type { Action } from "./state";
 import { suggestionDetail, suggestionLabel, type Suggestion } from "./suggest";
 
@@ -26,6 +26,8 @@ type Props = {
   onBlast?: (from: HTMLElement) => void;
   /** Show the data flow from the selected Business Capability or Business Process. */
   onFlow?: (from: HTMLElement) => void;
+  /** M78: open the Decisions dialog on a decision about this element, or (null) to make one. */
+  onDecision?: (id: string | null) => void;
 };
 
 const input =
@@ -472,7 +474,7 @@ function archimateRelFor(model: Model) {
 }
 
 /** Details of the selected element, its relationships, and a keyboard way to add more. */
-export function Inspector({ model, selectedId, dispatch, focusName, focusConnect = 0, suggestions = [], onSuggest, onSelect, newId, lens = "csdm", onBlast, onFlow }: Props) {
+export function Inspector({ model, selectedId, dispatch, focusName, focusConnect = 0, suggestions = [], onSuggest, onSelect, newId, lens = "csdm", onBlast, onFlow, onDecision }: Props) {
   const connectRef = useRef<HTMLSelectElement>(null);
   useEffect(() => {
     if (focusConnect) connectRef.current?.focus();
@@ -480,6 +482,7 @@ export function Inspector({ model, selectedId, dispatch, focusName, focusConnect
   const node = model.nodes.find((n) => n.id === selectedId);
   const connectId = useId();
   const archimateRel = archimateRelFor(model);
+  const about = node ? decisionsAbout(model, node.id) : [];
   const [target, setTarget] = useState("");
   // Another element: no relationship target picked yet.
   const [targetFor, setTargetFor] = useState(selectedId);
@@ -692,6 +695,30 @@ export function Inspector({ model, selectedId, dispatch, focusName, focusConnect
         </div>
       </section>
 
+      {onDecision && (
+        <section aria-labelledby={`${connectId}-decisions`} className="flex flex-col gap-1.5" data-testid="inspector-decisions">
+          <h3 id={`${connectId}-decisions`} className="text-sm text-ink-muted">
+            Decisions
+          </h3>
+          {about.length ? (
+            <ul className="flex flex-col gap-1">
+              {about.map((d) => (
+                <li key={d.id} className="text-sm">
+                  <button type="button" className="cursor-pointer text-left text-accent underline underline-offset-4" onClick={() => onDecision(d.id)}>
+                    {d.title}
+                  </button>{" "}
+                  <span className="text-xs text-ink-muted">({DECISION_STATUS_LABEL[d.status]})</span>
+                </li>
+              ))}
+            </ul>
+          ) : (
+            <p className="text-xs text-ink-muted">No decisions about this element.</p>
+          )}
+          <button type="button" className={`${button} self-start`} onClick={() => onDecision(null)}>
+            New decision about this element…
+          </button>
+        </section>
+      )}
       {onBlast && (
         <div className="flex flex-col gap-1">
           <button type="button" className={`${button} self-start`} onClick={(e) => onBlast(e.currentTarget)}>

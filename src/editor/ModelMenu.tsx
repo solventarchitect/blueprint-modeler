@@ -24,6 +24,7 @@ export function ModelMenu({
   onSnapshots,
   onTable,
   onFlows,
+  onDecisions,
   buttonClass,
 }: {
   models: ModelSummary[];
@@ -36,6 +37,8 @@ export function ModelMenu({
   onSnapshots?: () => void;
   onTable?: () => void;
   onFlows?: () => void;
+  /** M78: the Decisions dialog. */
+  onDecisions?: () => void;
   buttonClass: string;
 }) {
   const [open, setOpen] = useState(false);
@@ -154,6 +157,19 @@ export function ModelMenu({
             }}
           >
             Saved flows…
+          </button>
+        )}
+        {onDecisions && (
+          <button
+            type="button"
+            className="mt-2 ml-2 cursor-pointer border border-border-strong px-2.5 py-1.5 text-sm text-ink hover:border-accent hover:text-accent"
+            onClick={() => {
+              setOpen(false);
+              button.current?.focus();
+              onDecisions();
+            }}
+          >
+            Decisions…
           </button>
         )}
         {onTable && (

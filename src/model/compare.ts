@@ -12,7 +12,8 @@ import { attrValue, COLOR_BY_LABEL, viewColorBy } from "./views";
 import { GROUP_BY_LABEL } from "./groups";
 import { LAYER_ORDER } from "./health";
 import { PLAN_LABEL, planOf, type PlanStatus } from "./plan";
-import type { Edge, Flow, Model, Node, View, ViewFilter } from "./schema";
+import { DECISION_STATUS_LABEL } from "./decisions";
+import type { Decision, Edge, Flow, Model, Node, View, ViewFilter } from "./schema";
 
 export type CompareField = "name" | "class" | "description" | "lifecycle" | "environment" | "owner" | "ref" | "links" | "plan" | "tags";
 export type FieldChange = { field: CompareField; before: string; after: string };
@@ -38,6 +39,8 @@ export type Comparison = {
   views: NamedChanges;
   /** M72: saved flows added, removed and changed. */
   flows: NamedChanges;
+  /** M78: decisions added, removed and changed (named by their title). */
+  decisions: NamedChanges;
 };
 
 export type DetailField = "date" | "description" | "artifactId";
@@ -250,11 +253,34 @@ export function compareModels(current: Model, base: Model): Comparison {
   const details = DETAIL_FIELDS.map((field) => ({ field, before: detailOf(base, field), after: detailOf(current, field) })).filter((d) => d.before !== d.after);
   const views = namedChanges(current.views ?? [], base.views ?? [], viewChanges);
   const flows = namedChanges(current.flows ?? [], base.flows ?? [], flowChanges(edgeMatch));
-  return { added, removed, changed, edgesAdded, edgesRemoved, edgesChanged, details, views, flows };
+  const asNamed = (m: Model) => (m.decisions ?? []).map((d) => ({ ...d, name: d.title }));
+  const decisions = namedChanges(asNamed(current), asNamed(base), decisionChanges(current, base, match));
+  return { added, removed, changed, edgesAdded, edgesRemoved, edgesChanged, details, views, flows, decisions };
+}
+
+/**
+ * M78: what changed in a decision, in words. Its elements are compared as Compare matches them (a
+ * renamed element is the same one), and named (sorted) when they differ, each model naming its own.
+ */
+function decisionChanges(current: Model, base: Model, match: Map<string, string>) {
+  const names = (m: Model, ids: string[] = []) => ids.map((i) => m.nodes.find((n) => n.id === i)?.name || "Untitled").sort((a, b) => a.localeCompare(b)).join(", ");
+  return (now: Decision, was: Decision) => {
+    const pairs: [string, string, string][] = [
+      ["Title", was.title, now.title],
+      ["Status", DECISION_STATUS_LABEL[was.status], DECISION_STATUS_LABEL[now.status]],
+      ["Date", was.date ?? "", now.date ?? ""],
+      ["Context", was.context ?? "", now.context ?? ""],
+      ["Decision", was.decision ?? "", now.decision ?? ""],
+      ["Consequences", was.consequences ?? "", now.consequences ?? ""],
+    ];
+    const same = (a: string[], b: string[]) => a.length === b.length && a.every((x) => b.includes(x));
+    if (!same((was.elements ?? []).map((i) => match.get(i) ?? `base:${i}`), now.elements ?? [])) pairs.push(["Elements", names(base, was.elements), names(current, now.elements)]);
+    return pairs.filter(([, b, a]) => b !== a).map(([field, before, after]) => ({ field, before, after }));
+  };
 }
 
 const none = (n: NamedChanges) => !n.added.length && !n.removed.length && !n.changed.length;
 
 /** Whether two models are the same, as far as compare looks. */
 export const sameModel = (c: Comparison) =>
-  !c.added.length && !c.removed.length && !c.changed.length && !c.edgesAdded.length && !c.edgesRemoved.length && !c.edgesChanged.length && !c.details.length && none(c.views) && none(c.flows);
+  !c.added.length && !c.removed.length && !c.changed.length && !c.edgesAdded.length && !c.edgesRemoved.length && !c.edgesChanged.length && !c.details.length && none(c.views) && none(c.flows) && none(c.decisions);

@@ -1,6 +1,6 @@
 import { acceptedTypes, allowedTypes, classById, relationshipsBetween, type ClassId, type Layer } from "@/metamodel";
 import type { Side } from "@/layout/geometry";
-import { cleanTags, edgeKey, flowSchema, withUnbrokenFlows, linkSchema, MAX_FLOWS, type Flow, type PlanStatus, serializeModel, MAX_LINKS, MAX_VIEWS, viewSchema, type Link, withDetails, type Edge, type Model, type Node, type View } from "@/model";
+import { cleanTags, decisionSchema, edgeKey, flowSchema, MAX_DECISIONS, type Decision, withKnownDecisionElements, withUnbrokenFlows, linkSchema, MAX_FLOWS, type Flow, type PlanStatus, serializeModel, MAX_LINKS, MAX_VIEWS, viewSchema, type Link, withDetails, type Edge, type Model, type Node, type View } from "@/model";
 
 /**
  * Editor state: the model plus undo/redo history. Pure functions only, so every rule the
@@ -26,6 +26,9 @@ export type Action =
   /** M70: add, or replace in place, a saved flow; and delete one. */
   | { type: "save-flow"; flow: Flow }
   | { type: "delete-flow"; id: string }
+  /** M78: add, or replace in place, a decision (empty text and no elements leave the keys out); and delete one. */
+  | { type: "save-decision"; decision: Decision }
+  | { type: "delete-decision"; id: string }
   | { type: "set-attrs"; ids: string[]; key: "lifecycle" | "environment" | "owner"; value: string }
   | { type: "save-view"; view: View }
   | { type: "delete-view"; id: string }
@@ -211,6 +214,28 @@ function apply(model: Model, action: Action): Model | null {
       if (i < 0 && flows.length >= MAX_FLOWS) return null;
       return { ...model, flows: i >= 0 ? flows.map((f, k) => (k === i ? flow : f)) : [...flows, flow] };
     }
+    case "save-decision": {
+      const decisions = model.decisions ?? [];
+      const parsed = decisionSchema.safeParse(action.decision);
+      if (!parsed.success) return null;
+      const known = new Set(model.nodes.map((n) => n.id));
+      const { id, title, status, date, context, decision: text, consequences, elements } = parsed.data;
+      const kept = (elements ?? []).filter((e) => known.has(e));
+      const said = (k: string, v: string | undefined) => (v?.trim() ? { [k]: v.trim() } : {});
+      const decision: Decision = { id, title, status, ...(date ? { date } : {}), ...said("context", context), ...said("decision", text), ...said("consequences", consequences), ...(kept.length ? { elements: kept } : {}) };
+      const i = decisions.findIndex((d) => d.id === id);
+      if (i >= 0 && JSON.stringify(decisions[i]) === JSON.stringify(decision)) return null;
+      if (i < 0 && decisions.length >= MAX_DECISIONS) return null;
+      return { ...model, decisions: i >= 0 ? decisions.map((d, k) => (k === i ? decision : d)) : [...decisions, decision] };
+    }
+    case "delete-decision": {
+      const decisions = model.decisions ?? [];
+      if (!decisions.some((d) => d.id === action.id)) return null;
+      const rest = decisions.filter((d) => d.id !== action.id);
+      const { decisions: _gone, ...without } = model;
+      void _gone;
+      return rest.length ? { ...model, decisions: rest } : without;
+    }
     case "delete-flow": {
       const flows = model.flows ?? [];
       if (!flows.some((f) => f.id === action.id)) return null;
@@ -354,9 +379,12 @@ function apply(model: Model, action: Action): Model | null {
 }
 
 /** Reducer with history. `now` stamps `updated` on every real change. */
-/** M70: every saved flow is cut where its walk breaks (one undo step with the change that broke it). */
+/**
+ * M70: every saved flow is cut where its walk breaks (one undo step with the change that broke it).
+ * M78: a deleted element leaves the decisions about it, in the same step.
+ */
 function withFlowsPruned(model: Model | null): Model | null {
-  return model ? withUnbrokenFlows(model) : model;
+  return model ? withKnownDecisionElements(withUnbrokenFlows(model)) : model;
 }
 
 export function reduce(state: History, action: Action, now: () => string = () => new Date().toISOString()): History {

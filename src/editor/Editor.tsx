@@ -70,6 +70,7 @@ import { CompareBar, CompareDialog, compareSummary } from "./Compare";
 import { SnapshotsDialog } from "./Snapshots";
 import { TableView } from "./TableView";
 import { FlowsDialog } from "./Flows";
+import { DecisionsDialog, type DecisionsStart } from "./Decisions";
 import { ARRANGE, batchTargets, SelectionPanel, type ArrangeKind, type BatchKey } from "./SelectionPanel";
 import { ViewDialog, ViewLegend, ViewsMenu, type ShownView } from "./Views";
 import { ExamplesMenu } from "./ExamplesMenu";
@@ -326,6 +327,9 @@ function EditorInner() {
   const [snapshotsDialog, setSnapshotsDialog] = useState(false);
   const [tableDialog, setTableDialog] = useState(false);
   const [flowsDialog, setFlowsDialog] = useState(false);
+  // M78: the Decisions dialog, and where it opens (on a decision, or making one about an element).
+  const [decisionsDialog, setDecisionsDialog] = useState<DecisionsStart | null>(null);
+  const openDecisions = (start: DecisionsStart = {}) => openDialog(() => setDecisionsDialog(start));
   const [compareError, setCompareError] = useState<string | null>(null);
   const [compare, setCompare] = useState<{ base: Model; label: string } | null>(null);
   const dialogReturn = useRef<HTMLElement | null>(null);
@@ -2337,6 +2341,7 @@ function EditorInner() {
           ]
         : []),
       { id: "flows", group: "Model", label: "Saved flows…", keywords: "scenario use case walkthrough story steps play sequence", run: () => openDialog(setFlowsDialog) },
+      { id: "decisions", group: "Model", label: "Decisions…", keywords: "architecture decision record adr why rationale", run: () => openDecisions() },
       ...(model.flows ?? [])
         .filter((f) => f.steps.length)
         .map((f): Command => ({ id: `play-flow-${f.id}`, group: "Model", label: `Play flow: ${f.name}`, keywords: "saved flow scenario", run: () => playFlow(f.id, document.activeElement instanceof HTMLElement && document.activeElement !== document.body ? document.activeElement : null) })),
@@ -2489,6 +2494,7 @@ function EditorInner() {
           onSnapshots={() => openDialog(setSnapshotsDialog)}
           onTable={() => openDialog(setTableDialog)}
           onFlows={() => openDialog(setFlowsDialog)}
+          onDecisions={() => openDecisions()}
           onOpen={(id) => {
             setSelectedId(null);
             setActiveHint(null);
@@ -2914,7 +2920,7 @@ function EditorInner() {
               nodesConnectable={wide && !presenting}
               elementsSelectable={!presenting}
               // React Flow listens for Delete on the document, past `inert`: the isometric projections are read only.
-              deleteKeyCode={wide && !presenting && projection === "plan" && !palette && !shortcuts && !managing && !viewDialog && !flowsDialog && !tableDialog && !snapshotsDialog && !compareDialog ? ["Delete", "Backspace"] : null}
+              deleteKeyCode={wide && !presenting && projection === "plan" && !palette && !shortcuts && !managing && !viewDialog && !flowsDialog && !decisionsDialog && !tableDialog && !snapshotsDialog && !compareDialog ? ["Delete", "Backspace"] : null}
               // Delete and Backspace: the selected elements, their relationships and any selected
               // relationship go together, as one undo step (React Flow would report each on its own).
               onBeforeDelete={async ({ nodes: gone, edges: lines }) => {
@@ -3100,6 +3106,7 @@ function EditorInner() {
                   suggestions={selectedId ? suggestions(model, selectedId) : []}
                   onSuggest={(s) => selectedId && pickSuggestion(selectedId, s)}
                   onBlast={(from) => selectedId && openBlast(selectedId, from)}
+                  onDecision={(id) => selectedId && openDecisions(id ? { pick: id } : { about: selectedId })}
                   onFlow={selected && isAnchor(selected.class) ? (from) => selectedId && openBlast(selectedId, from, "dependencies", true, "flow") : undefined}
                 />
               ) : tab === "read" ? (
@@ -3150,6 +3157,17 @@ function EditorInner() {
       />
       {palette && <CommandPalette commands={paletteCommands()} onClose={(chosen) => dialogClosed(setPalette, chosen)} />}
       {shortcuts && <ShortcutMap onClose={() => dialogClosed(setShortcuts)} />}
+      {decisionsDialog && (
+        <DecisionsDialog
+          model={model}
+          editable={wide}
+          dispatch={dispatch}
+          newId={newId}
+          today={localDay(new Date())}
+          start={decisionsDialog}
+          onClose={() => dialogClosed(() => setDecisionsDialog(null))}
+        />
+      )}
       {flowsDialog && (
         <FlowsDialog
           model={model}

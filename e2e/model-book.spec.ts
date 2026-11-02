@@ -26,7 +26,7 @@ test("the model book prints the picture, the model by layer, tables, saved flows
   await expect(page.getByRole("status")).toContainText("Model book: 14 elements, 13 relationships, no saved flows.");
   await page.emulateMedia({ media: "print" });
   await expect(book.locator("h1")).toHaveText("Online Store Checkout");
-  await expect(book.locator("h2")).toHaveText(["Picture", "The model by layer", "Elements", "Relationships", "Saved flows", "Health"]);
+  await expect(book.locator("h2")).toHaveText(["Picture", "The model by layer", "Elements", "Relationships", "Saved flows", "Decisions", "Health"]);
   await expect(book.locator("section").last().locator("h3")).toHaveText(["Elements without relationships"]);
   await expect(book.locator(".bm-book-picture svg")).toHaveCount(1);
   const elements = book.locator("table").filter({ has: page.locator("caption", { hasText: "Every element, by layer" }) });

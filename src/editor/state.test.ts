@@ -274,3 +274,30 @@ describe("connection points (M61)", () => {
     expect(retyped.present.edges[0]!.ports).toEqual({ from: "right", to: "left" });
   });
 });
+
+describe("decisions (M78)", () => {
+  const d = { id: "d1", title: "  Cache the catalog  ", status: "proposed" as const, elements: ["ba", "svc"] };
+  it("save adds or replaces in place, trimmed, one undo step each; delete removes the key with the last", () => {
+    let s = run([...base, { type: "save-decision", decision: d }]);
+    expect(s.present.decisions).toEqual([{ ...d, title: "Cache the catalog" }]);
+    const again = run([{ type: "save-decision", decision: { ...d, title: "Cache the catalog" } }], s);
+    expect(again).toBe(s);
+    s = run([{ type: "save-decision", decision: { ...d, status: "accepted" } }], s);
+    expect(s.present.decisions).toHaveLength(1);
+    expect(s.present.decisions![0]!.status).toBe("accepted");
+    expect(run([{ type: "save-decision", decision: { ...d, title: " " } }], s)).toBe(s);
+    s = run([{ type: "delete-decision", id: "d1" }], s);
+    expect("decisions" in s.present).toBe(false);
+    s = run([{ type: "undo" }], s);
+    expect(s.present.decisions![0]!.status).toBe("accepted");
+  });
+
+  it("deleting an element takes it off the decisions about it, in the same undo step", () => {
+    let s = run([...base, { type: "save-decision", decision: d }, { type: "delete-node", id: "ba" }]);
+    expect(s.present.decisions![0]!.elements).toEqual(["svc"]);
+    s = run([{ type: "delete-nodes", ids: ["svc"] }], s);
+    expect(s.present.decisions![0]).not.toHaveProperty("elements");
+    s = run([{ type: "undo" }, { type: "undo" }], s);
+    expect(s.present.decisions![0]!.elements).toEqual(["ba", "svc"]);
+  });
+});
