@@ -108,7 +108,7 @@ test("the book of what's shown covers only the focus, and says so; off while the
   // The whole model shows: the item says why it is off.
   await page.getByRole("button", { name: "Export" }).click();
   await expect(page.getByRole("button", { name: /^Model book of what's shown…/ })).toBeDisabled();
-  await expect(page.getByRole("button", { name: /^Model book of what's shown…/ })).toContainText("Shows the whole model now");
+  await expect(page.getByRole("button", { name: /^Model book of what.s shown…/ })).toContainText("What's shown is the whole model");
   await page.keyboard.press("Escape");
 
   // Focus on one element, within one relationship.
@@ -124,6 +124,9 @@ test("the book of what's shown covers only the focus, and says so; off while the
   await expect(book).toHaveCount(1);
   await expect(book).toContainText(`What's shown: focused on web-prod-01, within 1 relationship. The lists and tables below cover only that: ${kept} of 14 elements`);
   await expect(book.locator("ol.bm-book-contents li")).toHaveText(["Picture", /The model by layer \(\d layers?\)/, `Elements (${kept})`, /Relationships \(\d+\)/, "Saved flows (none)", "Decisions (none)", "Health"]);
+  // Said on the cover, before the contents; the health summary is the whole model's.
+  await expect(book.locator("p.bm-book-part")).toContainText("What's shown: focused on web-prod-01");
+  await expect(book.locator("section").last()).toContainText("For the whole model");
   const elements = book.locator("table").filter({ has: page.locator("caption", { hasText: "Every element, by layer" }) });
   await expect(elements.locator("tbody tr")).toHaveCount(kept);
   await expect(page.getByRole("status").filter({ hasText: "Model book of what's shown" })).toContainText(`${kept} elements`);

@@ -63,3 +63,13 @@ describe("the model book's contents (M81)", () => {
     expect(bookContents({ ...checkout(), nodes: [], edges: [], layout: {} })).toEqual(["Picture", "The model by layer", "Elements (none)", "Relationships (none)", "Saved flows (none)", "Decisions (none)", "Health"]);
   });
 });
+
+describe("the book of a part (M81 review)", () => {
+  it("counts an element's relationships in the whole model, not just the part", () => {
+    const whole = checkout();
+    const part = { ...whole, nodes: whole.nodes.filter((n) => n.id === "ba"), edges: [], layout: { ba: whole.layout.ba! } };
+    const rows = bookElements(part, whole).rows;
+    expect(rows.map((r) => r.id)).toEqual(["ba"]);
+    expect(Number(rows[0]!.relationships)).toBe(whole.edges.filter((e) => e.from === "ba" || e.to === "ba").length);
+  });
+});

@@ -1361,7 +1361,7 @@ function EditorInner() {
           : shownParts.length
             ? `As the editor shows it: ${shownParts.join(", ")}. The lists and tables below cover the whole model.`
             : "";
-      printNode(bookSheet(book, picture("light"), localDay(new Date()), shownNote), `${fileBase(model)}-model-book${kind === "book-shown" ? "-shown" : ""}`);
+      printNode(bookSheet(book, picture("light"), localDay(new Date()), shownNote, kind === "book-shown" ? model : undefined), `${fileBase(model)}-model-book${kind === "book-shown" ? "-shown" : ""}`);
       const f = book.flows?.length ?? 0;
       setMessage(`Model book${kind === "book-shown" ? " of what's shown" : ""}: ${n(book.nodes.length, "element")}, ${n(book.edges.length, "relationship")}, ${f ? n(f, "saved flow") : "no saved flows"}.`);
     } else if (kind === "report") {
@@ -2237,7 +2237,7 @@ function EditorInner() {
 
   // Export menu notes and availability, shared with the command palette.
   const exportNotes: Partial<Record<ExportKind, string>> = {
-            "book-shown": narrowed ? undefined : "Shows the whole model now: filter the view, focus on an element, or show Current or Target first",
+            "book-shown": !narrowed ? "What's shown is the whole model: filter it, focus on an element, or show Current or Target to narrow it" : !keptIds.size ? "The view shows no elements" : undefined,
             link: !canShare
               ? "This browser cannot make model links"
               : share?.model !== model
@@ -2275,7 +2275,7 @@ function EditorInner() {
                 : "Play a saved flow first: Model menu › Saved flows…",
           };
   const exportDisabled: Partial<Record<ExportKind, boolean>> = {
-            "book-shown": !narrowed,
+            "book-shown": !narrowed || !keptIds.size,
             link: !canShare || (share?.model === model && share.size === "too-large"),
             "view-link": !canShare || (share?.model === model && share.size === "too-large"),
             "blast-gif": !blast || !radius || isFlow || makingGif,
