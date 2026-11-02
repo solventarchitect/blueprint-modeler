@@ -1012,8 +1012,16 @@
   .bm-book-picture svg {
     max-height: calc(100vh - 6em);
   }
-  .bm-book-description {
+  .bm-book-description,
+  .bm-book-text {
     white-space: pre-line;
+  }
+  /* M78: a decision's parts. */
+  .bm-book h4 {
+    margin: 4pt 0 1pt;
+    font-size: 9.5pt;
+    font-weight: 600;
+    break-after: avoid;
   }
   .bm-report h2,
   .bm-report h3,

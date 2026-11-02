@@ -192,6 +192,30 @@ export const flowSchema = z.object({
 export type FlowStep = z.infer<typeof flowStepSchema>;
 export type Flow = z.infer<typeof flowSchema>;
 
+/** M78: how many decisions a model can hold, and how many elements one can concern. */
+export const MAX_DECISIONS = 50;
+export const MAX_DECISION_ELEMENTS = 100;
+export const DECISION_STATUSES = ["proposed", "accepted", "superseded"] as const;
+const decisionText = z.string().max(4000).optional();
+/** An architecture decision record (M78): what was decided, why, what follows, and the elements it concerns. */
+export const decisionSchema = z.object({
+  id,
+  title: z.string().trim().min(1).max(120),
+  status: z.enum(DECISION_STATUSES),
+  /** A date this version can't read drops the date, not the decision. */
+  date: z.iso.date().optional().catch(undefined),
+  context: decisionText,
+  decision: decisionText,
+  consequences: decisionText,
+  /** Element ids, each once; ids not in the model are dropped when the model is read (see decisions.ts). */
+  elements: z
+    .array(id)
+    .max(MAX_DECISION_ELEMENTS * 2)
+    .transform((xs) => [...new Set(xs)].slice(0, MAX_DECISION_ELEMENTS))
+    .optional(),
+});
+export type Decision = z.infer<typeof decisionSchema>;
+
 export const modelSchema = z.object({
   schema: z.literal(CURRENT_SCHEMA),
   id,
@@ -230,6 +254,27 @@ export const modelSchema = z.object({
         seen.add(r.data.id);
         kept.push(r.data);
         if (kept.length === MAX_FLOWS) break;
+      }
+      return kept.length ? kept : undefined;
+    })
+    .optional(),
+  /**
+   * M78: architecture decision records. Optional and additive in format 1: older versions ignore it.
+   * A decision this version can't read is dropped, not the file; a second one with the same id too; at most MAX_DECISIONS.
+   */
+  decisions: z
+    .unknown()
+    .transform((value): Decision[] | undefined => {
+      if (!Array.isArray(value)) return undefined;
+      const seen = new Set<string>();
+      const kept: Decision[] = [];
+      for (const x of value.slice(0, 500)) {
+        const r = decisionSchema.safeParse(x);
+        if (!r.success || seen.has(r.data.id)) continue;
+        seen.add(r.data.id);
+        const { date, ...rest } = r.data;
+        kept.push(date ? { ...rest, date } : rest);
+        if (kept.length === MAX_DECISIONS) break;
       }
       return kept.length ? kept : undefined;
     })

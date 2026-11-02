@@ -133,6 +133,7 @@ export function compareSummary(c: Comparison) {
     // M72: saved views and flows, and the model's details.
     ...namedSummary(c.views, "view"),
     ...namedSummary(c.flows, "flow"),
+    ...namedSummary(c.decisions, "decision"),
   ].filter(Boolean);
   return parts.length ? parts.join(", ") : "No differences";
 }
@@ -155,6 +156,8 @@ export function CompareBar({ base, comparison, onGo, onClose, buttonClass }: { b
         {kind} “{x.name}”
       </li>
     ));
+  // M78: a decision's text can be long; the list shows its start ("not set" when empty).
+  const value = (kind: string, t: string) => (kind === "Decision" ? short(t) : t);
   const namedChanged = (xs: NamedChanges["changed"], kind: string) =>
     xs.map((x) => (
       <li key={`${kind}-${x.id}`} className="text-sm text-ink-soft">
@@ -163,7 +166,7 @@ export function CompareBar({ base, comparison, onGo, onClose, buttonClass }: { b
         <ul className="text-xs text-ink-muted">
           {x.changes.map((f) => (
             <li key={f.field}>
-              {f.field}: {f.before} → {f.after}
+              {f.field}: {value(kind, f.before)} → {value(kind, f.after)}
             </li>
           ))}
         </ul>
@@ -221,7 +224,8 @@ export function CompareBar({ base, comparison, onGo, onClose, buttonClass }: { b
               ))}
               {named(c.views.added, "View")}
               {named(c.flows.added, "Flow")}
-              {!c.added.length && !c.edgesAdded.length && !c.views.added.length && !c.flows.added.length && <li className="text-sm text-ink-muted">Nothing</li>}
+              {named(c.decisions.added, "Decision")}
+              {!c.added.length && !c.edgesAdded.length && !c.views.added.length && !c.flows.added.length && !c.decisions.added.length && <li className="text-sm text-ink-muted">Nothing</li>}
             </ul>
           </section>
           <section aria-labelledby={`${id}-changed`}>
@@ -248,7 +252,8 @@ export function CompareBar({ base, comparison, onGo, onClose, buttonClass }: { b
               ))}
               {namedChanged(c.views.changed, "View")}
               {namedChanged(c.flows.changed, "Flow")}
-              {!c.changed.length && !c.edgesChanged.length && !c.views.changed.length && !c.flows.changed.length && <li className="text-sm text-ink-muted">Nothing</li>}
+              {namedChanged(c.decisions.changed, "Decision")}
+              {!c.changed.length && !c.edgesChanged.length && !c.views.changed.length && !c.flows.changed.length && !c.decisions.changed.length && <li className="text-sm text-ink-muted">Nothing</li>}
             </ul>
           </section>
           <section aria-labelledby={`${id}-removed`}>
@@ -268,7 +273,8 @@ export function CompareBar({ base, comparison, onGo, onClose, buttonClass }: { b
               ))}
               {named(c.views.removed, "View")}
               {named(c.flows.removed, "Flow")}
-              {!c.removed.length && !c.edgesRemoved.length && !c.views.removed.length && !c.flows.removed.length && <li className="text-sm text-ink-muted">Nothing</li>}
+              {named(c.decisions.removed, "Decision")}
+              {!c.removed.length && !c.edgesRemoved.length && !c.views.removed.length && !c.flows.removed.length && !c.decisions.removed.length && <li className="text-sm text-ink-muted">Nothing</li>}
             </ul>
           </section>
         </div>

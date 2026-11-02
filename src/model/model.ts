@@ -1,6 +1,7 @@
 import { acceptedTypes, allowedTypes, isClassId, relationshipsBetween } from "@/metamodel";
 import { migrate } from "./migrate";
 import { CURRENT_SCHEMA, edgeKey, modelSchema, type Model } from "./schema";
+import { withKnownDecisionElements } from "./decisions";
 import { withUnbrokenFlows } from "./flows";
 
 export type Issue = { level: "warning"; code: "disallowed-relationship" | "legacy-type"; edgeId: string; message: string };
@@ -18,7 +19,7 @@ export function withDetails(model: Model, details: { date?: string; description?
   const date = details.date?.trim() ?? "";
   const description = details.description?.trim() ?? "";
   const artifactId = details.artifactId?.trim() ?? "";
-  const { schema, id, name, created, updated, nodes, edges, layout, views, flows } = model;
+  const { schema, id, name, created, updated, nodes, edges, layout, views, flows, decisions } = model;
   return {
     schema,
     id,
@@ -35,6 +36,8 @@ export function withDetails(model: Model, details: { date?: string; description?
     ...(views?.length ? { views } : {}),
     // M70: saved flows after them, the same way.
     ...(flows?.length ? { flows } : {}),
+    // M78: decisions after the flows.
+    ...(decisions?.length ? { decisions } : {}),
   };
 }
 
@@ -110,7 +113,8 @@ export function parseModel(input: unknown): ParseResult {
     if (!nodeIds.has(nodeId)) return { ok: false, error: `Layout refers to an element that does not exist ("${nodeId}").` };
   }
   // M70: a saved flow whose walk breaks (a relationship missing or turned round) is cut there, and said.
-  const whole = withUnbrokenFlows(model);
+  // M78: a decision keeps only the elements that are in the model.
+  const whole = withKnownDecisionElements(withUnbrokenFlows(model));
   const notes = (model.flows ?? []).flatMap((f) => {
     const kept = whole.flows?.find((x) => x.id === f.id)?.steps.length ?? 0;
     return kept < f.steps.length ? [`Flow “${f.name}” was cut after step ${kept}: its next relationship isn't in the model, or doesn't leave where the flow had reached.`] : [];

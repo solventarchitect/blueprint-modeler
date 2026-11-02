@@ -1,14 +1,14 @@
 import { describe, expect, it } from "vitest";
 import { examples } from "@/examples";
 import type { Flow } from "@/model";
-import { bookElements, bookFlows, BOOK_SECTIONS } from "./book";
+import { bookDecisions, bookElements, bookFlows, BOOK_SECTIONS } from "./book";
 
 const checkout = () => examples.find((e) => e.id === "checkout")!.create(new Date("2026-09-27T00:00:00Z"), "m1");
 const order: Flow = { id: "f1", name: "Customer places an order", steps: [{ edge: "e6" }, { edge: "e9" }, { edge: "e12" }] };
 
 describe("the model book (M76)", () => {
   it("has its sections in order", () => {
-    expect(BOOK_SECTIONS).toEqual(["Picture", "The model by layer", "Elements", "Relationships", "Saved flows", "Health"]);
+    expect(BOOK_SECTIONS).toEqual(["Picture", "The model by layer", "Elements", "Relationships", "Saved flows", "Decisions", "Health"]);
   });
 
   it("lists each saved flow with its start and steps in words, in the model's order", () => {
@@ -42,5 +42,16 @@ describe("the model book's elements table (M76 review)", () => {
 
   it("a flow without a name is named", () => {
     expect(bookFlows({ ...checkout(), flows: [{ id: "f", name: "", steps: [] }] })[0]!.name).toBe("Untitled flow");
+  });
+});
+
+describe("the model book's decisions (M78)", () => {
+  it("each decision with its status, date, the elements it concerns by name, and its text", () => {
+    const m = { ...checkout(), decisions: [{ id: "d1", title: "Cache the catalog", status: "accepted" as const, date: "2026-10-30", decision: "Read-through cache.", elements: ["cap", "ba"] }, { id: "d2", title: "Retire ERP", status: "proposed" as const }] };
+    const name = (id: string) => m.nodes.find((n) => n.id === id)!.name;
+    expect(bookDecisions(m)).toEqual([
+      { title: "Cache the catalog", meta: `Accepted · Oct 30, 2026 · Concerns ${[name("ba"), name("cap")].sort().join(", ")}`, parts: [["Decision", "Read-through cache."]] },
+      { title: "Retire ERP", meta: "Proposed", parts: [] },
+    ]);
   });
 });
