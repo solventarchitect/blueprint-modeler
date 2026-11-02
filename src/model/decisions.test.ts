@@ -92,4 +92,10 @@ describe("Compare sees decisions (M78)", () => {
     ]);
     expect(sameModel(c)).toBe(false);
   });
+
+  it("a renamed element is not a change to the decisions about it", () => {
+    const base: Model = { ...checkout(), decisions: [cache] };
+    const renamed: Model = { ...base, nodes: base.nodes.map((n) => (n.id === "ba" ? { ...n, name: "Checkout 2" } : n)) };
+    expect(compareModels(renamed, base).decisions.changed).toEqual([]);
+  });
 });

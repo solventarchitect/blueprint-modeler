@@ -95,6 +95,16 @@ test.describe("decisions (M78, desktop)", () => {
     // Deleting the decision is asked first, then one undo step brings it back.
     await page.getByTestId("model-menu-button").click();
     await page.getByRole("button", { name: "Decisions…" }).click();
+    // Keep it gives focus back to the button that asked; a title emptied meanwhile is said, not saved.
+    await editor(page).getByRole("button", { name: "Delete decision…" }).click();
+    await editor(page).getByRole("button", { name: "Keep it" }).click();
+    await expect(editor(page).getByRole("button", { name: "Delete decision…" })).toBeFocused();
+    await editor(page).getByLabel("Title").fill("");
+    await expect(editor(page).getByLabel("Title")).toHaveAccessibleDescription(/A decision needs a title/);
+    await editor(page).getByLabel("Title").fill("Cache the product catalog");
+    // Removing an element moves focus to the next Remove button.
+    await editor(page).getByRole("button", { name: "Remove Orders database" }).click();
+    await expect(editor(page).getByRole("button", { name: "Remove Checkout web app" })).toBeFocused();
     await editor(page).getByRole("button", { name: "Delete decision…" }).click();
     await expect(editor(page).getByRole("button", { name: "Delete", exact: true })).toBeFocused();
     await editor(page).getByRole("button", { name: "Delete", exact: true }).click();

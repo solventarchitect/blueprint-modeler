@@ -126,7 +126,8 @@ export function DecisionsDialog({
               uid={uid}
               save={(d, said) => {
                 dispatch({ type: "save-decision", decision: d });
-                setStatus(said);
+                // A save as the editor goes (another decision picked) says nothing, so it never talks over what happens next.
+                if (said) setStatus(said);
               }}
               onDelete={() => {
                 dispatch({ type: "delete-decision", id: picked.id });
@@ -202,28 +203,41 @@ function DecisionText({ model, decision: d }: { model: Model; decision: Decision
 }
 
 /** One decision's fields, saved together (one undo step); changes not yet saved are saved when another decision is picked or the dialog closes. */
-function DecisionEditor({ model, decision, uid, save, onDelete }: { model: Model; decision: Decision; uid: string; save: (d: Decision, said: string) => void; onDelete: () => void }) {
+function DecisionEditor({ model, decision, uid, save, onDelete }: { model: Model; decision: Decision; uid: string; save: (d: Decision, said?: string) => void; onDelete: () => void }) {
   const [draft, setDraft] = useState<Decision>(decision);
   const dirty = JSON.stringify(kept(draft)) !== JSON.stringify(kept(decision));
   const valid = !!draft.title.trim();
   const [confirming, setConfirming] = useState(false);
   const deleteButton = useRef<HTMLButtonElement>(null);
+  const askButton = useRef<HTMLButtonElement>(null);
+  const asked = useRef(false);
   useEffect(() => {
+    // The question takes focus once; Keep it gives it back to the button that asked.
     if (confirming) deleteButton.current?.focus();
+    else if (asked.current) askButton.current?.focus();
+    asked.current = confirming;
   }, [confirming]);
-  // Saved when this editor goes (another decision picked, the dialog closed), so nothing typed is lost.
+  // Saved when this editor goes (another decision picked, the dialog closed), so nothing typed is lost;
+  // not after a delete. A title emptied meanwhile keeps the saved one.
+  const deleted = useRef(false);
   const pending = useRef<Decision | null>(null);
   const saveRef = useRef(save);
   useEffect(() => {
-    pending.current = dirty && valid && !confirming ? kept(draft) : null;
+    pending.current = dirty && !deleted.current ? { ...kept(draft), title: valid ? draft.title.trim() : decision.title } : null;
     saveRef.current = save;
   });
   useEffect(
     () => () => {
-      if (pending.current) saveRef.current(pending.current, `Saved decision “${pending.current.title}”.`);
+      if (pending.current && !deleted.current) saveRef.current(pending.current);
     },
     [],
   );
+  // Removing an element moves focus to the next Remove button, else the previous, else Add an element.
+  const removeAt = (i: number) => {
+    const rest = elements.filter((_, k) => k !== i);
+    set({ elements: rest });
+    setTimeout(() => document.getElementById(rest.length ? `${uid}-rm-${Math.min(i, rest.length - 1)}` : `${uid}-add`)?.focus(), 0);
+  };
   const set = (patch: Partial<Decision>) => setDraft((d) => ({ ...d, ...patch }));
   const elements = draft.elements ?? [];
   const others = model.nodes.filter((n) => !elements.includes(n.id)).sort((a, b) => (a.name || "Untitled").localeCompare(b.name || "Untitled"));
@@ -236,7 +250,7 @@ function DecisionEditor({ model, decision, uid, save, onDelete }: { model: Model
       <div className="grid gap-3 sm:grid-cols-[1fr_auto_auto]">
         <label className="flex min-w-0 flex-col gap-1 text-sm">
           <span className="text-ink-muted">Title</span>
-          <input className={field} value={draft.title} maxLength={120} aria-invalid={!valid} onChange={(e) => set({ title: e.target.value })} />
+          <input className={field} value={draft.title} maxLength={120} aria-invalid={!valid} aria-describedby={valid ? undefined : `${uid}-title-missing`} onChange={(e) => set({ title: e.target.value })} />
         </label>
         <label className="flex flex-col gap-1 text-sm">
           <span className="text-ink-muted">Status</span>
@@ -262,7 +276,11 @@ function DecisionEditor({ model, decision, uid, save, onDelete }: { model: Model
           />
         </label>
       </div>
-      {!valid && <p className="text-xs text-invalid">A decision needs a title.</p>}
+      {!valid && (
+        <p id={`${uid}-title-missing`} className="text-xs text-invalid">
+          A decision needs a title. Until it has one, the saved title “{decision.title}” is kept.
+        </p>
+      )}
       {TEXTS.map(([k, label, help]) => (
         <div key={k} className="flex flex-col gap-1 text-sm">
           <label htmlFor={`${uid}-${k}`} className="text-ink-muted">
@@ -280,7 +298,7 @@ function DecisionEditor({ model, decision, uid, save, onDelete }: { model: Model
         </p>
         {elements.length ? (
           <ul aria-labelledby={`${uid}-about`} className="flex flex-wrap gap-1.5">
-            {elements.map((id) => {
+            {elements.map((id, i) => {
               const n = model.nodes.find((x) => x.id === id);
               const name = nameOf(model, id);
               return (
@@ -289,7 +307,7 @@ function DecisionEditor({ model, decision, uid, save, onDelete }: { model: Model
                     {name}
                     {n && <span className="text-ink-muted"> ({classById(n.class)?.label ?? n.class})</span>}
                   </span>
-                  <button type="button" className="cursor-pointer px-1 text-ink-muted hover:text-accent" aria-label={`Remove ${name}`} onClick={() => set({ elements: elements.filter((e) => e !== id) })}>
+                  <button type="button" id={`${uid}-rm-${i}`} className="cursor-pointer px-1 text-ink-muted hover:text-accent" aria-label={`Remove ${name}`} onClick={() => removeAt(i)}>
                     ×
                   </button>
                 </li>
@@ -302,7 +320,7 @@ function DecisionEditor({ model, decision, uid, save, onDelete }: { model: Model
         {elements.length < MAX_DECISION_ELEMENTS && others.length > 0 && (
           <label className="flex flex-col gap-1 text-sm sm:max-w-sm">
             <span className="text-ink-muted">Add an element</span>
-            <select className={field} value="" onChange={(e) => e.target.value && set({ elements: [...elements, e.target.value] })}>
+            <select id={`${uid}-add`} className={field} value="" onChange={(e) => e.target.value && set({ elements: [...elements, e.target.value] })}>
               <option value="">Choose an element…</option>
               {others.map((n) => (
                 <option key={n.id} value={n.id}>
@@ -320,7 +338,15 @@ function DecisionEditor({ model, decision, uid, save, onDelete }: { model: Model
         {confirming ? (
           <>
             <span className="text-sm">Delete “{decision.title}”?</span>
-            <button ref={deleteButton} type="button" className={btn} onClick={onDelete}>
+            <button
+              ref={deleteButton}
+              type="button"
+              className={btn}
+              onClick={() => {
+                deleted.current = true;
+                onDelete();
+              }}
+            >
               Delete
             </button>
             <button type="button" className={btn} onClick={() => setConfirming(false)}>
@@ -328,7 +354,7 @@ function DecisionEditor({ model, decision, uid, save, onDelete }: { model: Model
             </button>
           </>
         ) : (
-          <button type="button" className={btn} onClick={() => setConfirming(true)}>
+          <button ref={askButton} type="button" className={btn} onClick={() => setConfirming(true)}>
             Delete decision…
           </button>
         )}

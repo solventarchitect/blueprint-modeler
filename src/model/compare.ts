@@ -254,12 +254,15 @@ export function compareModels(current: Model, base: Model): Comparison {
   const views = namedChanges(current.views ?? [], base.views ?? [], viewChanges);
   const flows = namedChanges(current.flows ?? [], base.flows ?? [], flowChanges(edgeMatch));
   const asNamed = (m: Model) => (m.decisions ?? []).map((d) => ({ ...d, name: d.title }));
-  const decisions = namedChanges(asNamed(current), asNamed(base), decisionChanges(current, base));
+  const decisions = namedChanges(asNamed(current), asNamed(base), decisionChanges(current, base, match));
   return { added, removed, changed, edgesAdded, edgesRemoved, edgesChanged, details, views, flows, decisions };
 }
 
-/** M78: what changed in a decision, in words; its elements by name (sorted), each model naming its own. */
-function decisionChanges(current: Model, base: Model) {
+/**
+ * M78: what changed in a decision, in words. Its elements are compared as Compare matches them (a
+ * renamed element is the same one), and named (sorted) when they differ, each model naming its own.
+ */
+function decisionChanges(current: Model, base: Model, match: Map<string, string>) {
   const names = (m: Model, ids: string[] = []) => ids.map((i) => m.nodes.find((n) => n.id === i)?.name || "Untitled").sort((a, b) => a.localeCompare(b)).join(", ");
   return (now: Decision, was: Decision) => {
     const pairs: [string, string, string][] = [
@@ -269,8 +272,9 @@ function decisionChanges(current: Model, base: Model) {
       ["Context", was.context ?? "", now.context ?? ""],
       ["Decision", was.decision ?? "", now.decision ?? ""],
       ["Consequences", was.consequences ?? "", now.consequences ?? ""],
-      ["Elements", names(base, was.elements), names(current, now.elements)],
     ];
+    const same = (a: string[], b: string[]) => a.length === b.length && a.every((x) => b.includes(x));
+    if (!same((was.elements ?? []).map((i) => match.get(i) ?? `base:${i}`), now.elements ?? [])) pairs.push(["Elements", names(base, was.elements), names(current, now.elements)]);
     return pairs.filter(([, b, a]) => b !== a).map(([field, before, after]) => ({ field, before, after }));
   };
 }
