@@ -14,6 +14,21 @@ import { relationshipWord } from "./svg";
 
 export const BOOK_SECTIONS = ["Picture", "The model by layer", "Elements", "Relationships", "Saved flows", "Decisions", "Health"] as const;
 
+/** M81: the contents, each section with what it holds (counts only where a section lists something). */
+export function bookContents(model: Model): string[] {
+  const count = (n: number) => (n ? `(${n})` : "(none)");
+  const layers = model.nodes.length ? outlineModel(model, "csdm").length : 0;
+  return [
+    "Picture",
+    layers ? `The model by layer (${layers} layer${layers === 1 ? "" : "s"})` : "The model by layer",
+    `Elements ${count(model.nodes.length)}`,
+    `Relationships ${count(model.edges.length)}`,
+    `Saved flows ${count(model.flows?.length ?? 0)}`,
+    `Decisions ${count(model.decisions?.length ?? 0)}`,
+    "Health",
+  ];
+}
+
 /** M78: each decision, in the model's order: its title; status, date and the elements it concerns (by name); and its text, part by part. */
 export function bookDecisions(model: Model): { title: string; meta: string; parts: [string, string][] }[] {
   const nameOf = (id: string) => model.nodes.find((n) => n.id === id)?.name || "Untitled";
@@ -66,7 +81,8 @@ export function bookSheet(model: Model, svg: string, today: string, shown = ""):
     el("p", {}, [model.artifactId ? `Artifact ID ${model.artifactId}` : "", `Model date ${formatModelDate(modelDate(model))}`, `Printed ${formatModelDate(today)}`].filter(Boolean).join(" · ")),
     ...(model.description ? [el("p", { class: "bm-book-description" }, model.description)] : []),
     el("p", {}, `${plural(model.nodes.length, "element")}, ${plural(model.edges.length, "relationship")}, ${flows.length ? plural(flows.length, "saved flow") : "no saved flows"}.`),
-    el("p", { class: "bm-book-contents" }, `Contents: ${BOOK_SECTIONS.join(" · ")}.`),
+    el("h2", { class: "bm-book-contents-title" }, "Contents"),
+    el("ol", { class: "bm-book-contents" }, ...bookContents(model).map((c) => el("li", {}, c))),
     section("Picture", ...(shown && !empty ? [el("p", {}, shown)] : []), picture),
     section(
       "The model by layer",

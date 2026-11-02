@@ -58,7 +58,7 @@ import { arrangeByGroups, groupFrames, ownGroups, type Frame } from "@/layout/gr
 import { autoLayout, DEFAULT_SIZE, fillSpace, type LayoutMode } from "@/layout/layout";
 import { createWorkerEngine } from "@/layout/worker-engine";
 import { classById, classes, ENVIRONMENT_EXAMPLES, isClassId, isExtended, type ClassId, type Layer } from "@/metamodel";
-import { ALL_ELEMENTS, FIELD_LABEL, healthReport, localDay, GROUP_BY_LABEL, groupsOf, primaryGroup, SIDES, compareModels, parseModel, blastRadius, COLOR_BY_LABEL, evaluateHints, filterActive, formatModelDate, impactEnds, inView, isBusinessAnchor as isAnchor, modelDate, slotMap, decisionCounts, storedColorBy, valueLabels, viewColorBy, UNTITLED_MODEL, focusArea, FOCUS_DEPTHS, type FocusDepth, flowRadius, flowStepText, playableFlows, PLAN_LABEL, PLAN_VIEW_LABEL, planHidden, type PlanView, type BlastDirection, type Edge, type HintResult, type Model } from "@/model";
+import { ALL_ELEMENTS, FIELD_LABEL, healthReport, localDay, GROUP_BY_LABEL, groupsOf, primaryGroup, SIDES, compareModels, parseModel, blastRadius, COLOR_BY_LABEL, evaluateHints, filterActive, formatModelDate, impactEnds, inView, isBusinessAnchor as isAnchor, modelDate, slotMap, decisionCounts, modelPart, storedColorBy, valueLabels, viewColorBy, UNTITLED_MODEL, focusArea, FOCUS_DEPTHS, type FocusDepth, flowRadius, flowStepText, playableFlows, PLAN_LABEL, PLAN_VIEW_LABEL, planHidden, type PlanView, type BlastDirection, type Edge, type HintResult, type Model } from "@/model";
 import { site } from "@/lib/site";
 import { ClassNode, SuggestContext, type ClassFlowNode } from "./ClassNode";
 import { ConnectionLine, ConnectionModelContext, ReconnectingContext } from "./ConnectionLine";
@@ -568,6 +568,9 @@ function EditorInner() {
     () => new Set(filterActive(shown.filter) || focusIds ? model.nodes.filter((n) => !inView(n, shown.filter) || (focusIds && !focusIds.has(n.id))).map((n) => n.id) : []),
     [model.nodes, shown.filter, focusIds],
   );
+  // M81: the elements shown (not faded, not left out by the state shown), and whether that is less than the model.
+  const keptIds = useMemo(() => new Set(model.nodes.filter((n) => !fadedIds.has(n.id) && !planHide.nodes.has(n.id)).map((n) => n.id)), [model.nodes, fadedIds, planHide]);
+  const narrowed = keptIds.size < model.nodes.length || planHide.edges.size > 0;
   // A deleted element, or one the view now fades, is no longer selected (a faded element is out of reach).
   useEffect(() => {
     if (selectedId && (!model.nodes.some((n) => n.id === selectedId) || fadedIds.has(selectedId))) setSelectedId(null);
@@ -1338,7 +1341,7 @@ function EditorInner() {
         .catch(() => setMessage("Could not make the PNG in this browser. Nothing was saved."));
     } else if (kind === "print") {
       printSvg(picture("light"), fileBase(model));
-    } else if (kind === "book") {
+    } else if (kind === "book" || kind === "book-shown") {
       // M76: the whole model in one document; the picture as the editor draws it, in light.
       // What the picture shows, when it is less than (or other than) the whole model, said under it.
       const shownParts = [
@@ -1349,11 +1352,18 @@ function EditorInner() {
         planView !== "both" ? PLAN_VIEW_LABEL[planView].toLowerCase() : "",
         focusOn ? `focused on ${nameOf(focusOn.id)}, within ${focusOn.depth} relationship${focusOn.depth === 1 ? "" : "s"}` : "",
       ].filter(Boolean);
-      const shownNote = shownParts.length ? `As the editor shows it: ${shownParts.join(", ")}. The lists and tables below cover the whole model.` : "";
-      printNode(bookSheet(model, picture("light"), localDay(new Date()), shownNote), `${fileBase(model)}-model-book`);
       const n = (k: number, one: string) => `${k} ${one}${k === 1 ? "" : "s"}`;
-      const f = model.flows?.length ?? 0;
-      setMessage(`Model book: ${n(model.nodes.length, "element")}, ${n(model.edges.length, "relationship")}, ${f ? n(f, "saved flow") : "no saved flows"}.`);
+      // M81: the book of what's shown covers only the elements the view, focus or state shown keeps.
+      const book = kind === "book-shown" ? modelPart(model, keptIds, planHide.edges) : model;
+      const shownNote =
+        kind === "book-shown"
+          ? `What's shown: ${shownParts.join(", ")}. The lists and tables below cover only that: ${book.nodes.length} of ${n(model.nodes.length, "element")} and ${book.edges.length} of ${n(model.edges.length, "relationship")}.`
+          : shownParts.length
+            ? `As the editor shows it: ${shownParts.join(", ")}. The lists and tables below cover the whole model.`
+            : "";
+      printNode(bookSheet(book, picture("light"), localDay(new Date()), shownNote), `${fileBase(model)}-model-book${kind === "book-shown" ? "-shown" : ""}`);
+      const f = book.flows?.length ?? 0;
+      setMessage(`Model book${kind === "book-shown" ? " of what's shown" : ""}: ${n(book.nodes.length, "element")}, ${n(book.edges.length, "relationship")}, ${f ? n(f, "saved flow") : "no saved flows"}.`);
     } else if (kind === "report") {
       // M64: a page on the model's hints and missing details, always the whole model.
       const report = healthReport(model);
@@ -2227,6 +2237,7 @@ function EditorInner() {
 
   // Export menu notes and availability, shared with the command palette.
   const exportNotes: Partial<Record<ExportKind, string>> = {
+            "book-shown": narrowed ? undefined : "Shows the whole model now: filter the view, focus on an element, or show Current or Target first",
             link: !canShare
               ? "This browser cannot make model links"
               : share?.model !== model
@@ -2264,6 +2275,7 @@ function EditorInner() {
                 : "Play a saved flow first: Model menu › Saved flows…",
           };
   const exportDisabled: Partial<Record<ExportKind, boolean>> = {
+            "book-shown": !narrowed,
             link: !canShare || (share?.model === model && share.size === "too-large"),
             "view-link": !canShare || (share?.model === model && share.size === "too-large"),
             "blast-gif": !blast || !radius || isFlow || makingGif,
@@ -2311,8 +2323,8 @@ function EditorInner() {
       ...exportItems.map((it): Command => ({
         id: `export-${it.kind}`,
         group: "Export",
-        label: it.kind === "link" || it.kind === "view-link" || it.kind === "print" || it.kind === "report" || it.kind === "book" ? it.label : `Export ${it.label}`,
-        keywords: it.kind === "book" ? "print pdf review document handoff export" : it.kind === "report" || it.kind === "print" ? "print pdf export" : "export download save",
+        label: it.kind === "link" || it.kind === "view-link" || it.kind === "print" || it.kind === "report" || it.kind === "book" || it.kind === "book-shown" ? it.label : `Export ${it.label}`,
+        keywords: it.kind === "book" || it.kind === "book-shown" ? "print pdf review document handoff export" : it.kind === "report" || it.kind === "print" ? "print pdf export" : "export download save",
         disabled: exportDisabled[it.kind] ? exportNotes[it.kind] : undefined,
         run: () => exportAs(it.kind),
       })),

@@ -26,7 +26,7 @@ test("the model book prints the picture, the model by layer, tables, saved flows
   await expect(page.getByRole("status")).toContainText("Model book: 14 elements, 13 relationships, no saved flows.");
   await page.emulateMedia({ media: "print" });
   await expect(book.locator("h1")).toHaveText("Online Store Checkout");
-  await expect(book.locator("h2")).toHaveText(["Picture", "The model by layer", "Elements", "Relationships", "Saved flows", "Decisions", "Health"]);
+  await expect(book.locator("h2")).toHaveText(["Contents", "Picture", "The model by layer", "Elements", "Relationships", "Saved flows", "Decisions", "Health"]);
   await expect(book.locator("section").last().locator("h3")).toHaveText(["Elements without relationships"]);
   await expect(book.locator(".bm-book-picture svg")).toHaveCount(1);
   const elements = book.locator("table").filter({ has: page.locator("caption", { hasText: "Every element, by layer" }) });
@@ -76,7 +76,7 @@ test("the book names what the picture shows, lists saved flows, keeps model text
   await page.emulateMedia({ media: "print" });
   const book = page.locator("#bm-print .bm-book");
   await expect(book.locator(".bm-book-picture-page > p")).toHaveText(/As the editor shows it: focused on Checkout web app, within 1 relationship\. The lists and tables below cover the whole model\./);
-  await expect(book.locator("ol li")).toHaveText(["Online shopping — North America → Checkout — production (Depends on)"]);
+  await expect(book.locator("ol:not(.bm-book-contents) li")).toHaveText(["Online shopping — North America → Checkout — production (Depends on)"]);
   await expect(book).toContainText("Starts at Online shopping — North America.");
   await expect(book).toContainText('<img src=x onerror="window.__xss=1">');
   await expect(page.locator("#bm-print img")).toHaveCount(0);
@@ -94,3 +94,38 @@ test("the book names what the picture shows, lists saved flows, keeps model text
   await expect(page.locator("#bm-print .bm-book").getByText("No elements yet.")).toHaveCount(3);
 });
 
+
+// M81: a book of only what the view, focus or state shown keeps, with its contents listed.
+test("the book of what's shown covers only the focus, and says so; off while the whole model shows", async ({ page, isMobile }) => {
+  test.skip(!!isMobile, "the Export menu is on the desktop toolbar");
+  await page.addInitScript(() => {
+    window.print = () => {};
+  });
+  await page.goto("/editor?example=checkout");
+  await expect(currentModel(page)).toHaveText("Online Store Checkout");
+  await expect(page.getByTestId("save-status")).toHaveText("Saved in this browser");
+
+  // The whole model shows: the item says why it is off.
+  await page.getByRole("button", { name: "Export" }).click();
+  await expect(page.getByRole("button", { name: /^Model book of what's shown…/ })).toBeDisabled();
+  await expect(page.getByRole("button", { name: /^Model book of what's shown…/ })).toContainText("Shows the whole model now");
+  await page.keyboard.press("Escape");
+
+  // Focus on one element, within one relationship.
+  const node = page.locator(".react-flow__node-csdm").filter({ has: page.getByText("web-prod-01", { exact: true }) });
+  await node.click({ button: "right" });
+  await page.getByRole("menuitem", { name: "Focus on this element" }).click();
+  const kept = Number((await page.getByTestId("focus-count").textContent())!.split(" ")[0]);
+  expect(kept).toBeLessThan(14);
+
+  await page.getByRole("button", { name: "Export" }).click();
+  await page.getByRole("button", { name: /^Model book of what's shown…/ }).click();
+  const book = page.locator("#bm-print .bm-book");
+  await expect(book).toHaveCount(1);
+  await expect(book).toContainText(`What's shown: focused on web-prod-01, within 1 relationship. The lists and tables below cover only that: ${kept} of 14 elements`);
+  await expect(book.locator("ol.bm-book-contents li")).toHaveText(["Picture", /The model by layer \(\d layers?\)/, `Elements (${kept})`, /Relationships \(\d+\)/, "Saved flows (none)", "Decisions (none)", "Health"]);
+  const elements = book.locator("table").filter({ has: page.locator("caption", { hasText: "Every element, by layer" }) });
+  await expect(elements.locator("tbody tr")).toHaveCount(kept);
+  await expect(page.getByRole("status").filter({ hasText: "Model book of what's shown" })).toContainText(`${kept} elements`);
+  await page.evaluate(() => window.dispatchEvent(new Event("afterprint")));
+});
