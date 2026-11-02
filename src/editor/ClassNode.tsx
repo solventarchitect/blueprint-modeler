@@ -35,6 +35,8 @@ export type ClassNodeData = {
   diff?: "added" | "changed";
   /** M68: Planned (dashed border) or Retiring (name struck through); said in words beside the class too. */
   plan?: "planned" | "retiring";
+  /** M80: how many decisions concern this element (a marker; said in its accessible name). */
+  decisions?: number;
 };
 
 /** ArchiMate-only lens: the element's fill follows its ArchiMate layer (tokens in globals.css). */
@@ -273,6 +275,20 @@ function ClassNodeView({ id, data, selected, dragging }: NodeProps<ClassFlowNode
           }`}
         >
           {data.hint === "warning" ? "!" : "i"}
+        </span>
+      )}
+      {!!data.decisions && (
+        // The node's accessible name says it ("2 decisions"), so the marker is hidden from it.
+        <span
+          aria-hidden="true"
+          data-testid="decision-marker"
+          title={`${data.decisions} decision${data.decisions === 1 ? "" : "s"}`}
+          className="absolute -right-2 -bottom-2 flex h-5 min-w-5 items-center justify-center gap-0.5 border border-border-strong bg-surface px-1 font-mono text-[0.65rem] text-ink-soft"
+        >
+          <svg viewBox="0 0 10 10" className="size-2.5" fill="none" stroke="currentColor" strokeWidth="1.2">
+            <path d="M2 1h4.5L8 2.5V9H2Z M3.5 4.5h3 M3.5 6.5h3" />
+          </svg>
+          {data.decisions > 1 ? data.decisions : null}
         </span>
       )}
       <Handle id="bottom" type="source" position={Position.Bottom} className="!size-2.5 !rounded-full !border-accent !bg-surface" />

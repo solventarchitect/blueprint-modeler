@@ -1,7 +1,7 @@
 import { describe, expect, it } from "vitest";
 import { examples } from "@/examples";
 import { compareModels, sameModel } from "./compare";
-import { decisionsAbout, DECISION_STATUS_LABEL, withKnownDecisionElements } from "./decisions";
+import { decisionCounts, decisionsAbout, DECISION_STATUS_LABEL, withKnownDecisionElements } from "./decisions";
 import { MAX_DECISIONS, modelSchema, parseModel, serializeModel, type Decision, type Model } from "./index";
 
 // M78: architecture decision records kept with the model.
@@ -97,5 +97,14 @@ describe("Compare sees decisions (M78)", () => {
     const base: Model = { ...checkout(), decisions: [cache] };
     const renamed: Model = { ...base, nodes: base.nodes.map((n) => (n.id === "ba" ? { ...n, name: "Checkout 2" } : n)) };
     expect(compareModels(renamed, base).decisions.changed).toEqual([]);
+  });
+});
+
+describe("decision counts (M80)", () => {
+  it("how many decisions concern each element; elements with none are absent", () => {
+    const m: Model = { ...checkout(), decisions: [cache, { id: "d2", title: "Other", status: "proposed", elements: ["cap"] }, { id: "d3", title: "None", status: "accepted" }] };
+    const counts = decisionCounts(m);
+    expect(Object.fromEntries(counts)).toEqual({ ba: 1, cap: 2 });
+    expect(decisionCounts(checkout()).size).toBe(0);
   });
 });

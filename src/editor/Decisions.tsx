@@ -3,6 +3,9 @@
 import { useEffect, useId, useRef, useState } from "react";
 import { classById } from "@/metamodel";
 import { DECISION_STATUSES, DECISION_STATUS_LABEL, formatModelDate, MAX_DECISION_ELEMENTS, MAX_DECISIONS, UNTITLED_MODEL, type Decision, type DecisionStatus, type Model } from "@/model";
+import { downloadText } from "@/io/download";
+import { fileBase } from "@/io/file";
+import { decisionsCsv } from "@/io/table";
 import type { Action } from "./state";
 
 const btn = "inline-flex min-h-8 cursor-pointer items-center border border-border-strong bg-surface-raised px-2.5 text-sm text-ink hover:border-accent hover:text-accent disabled:cursor-not-allowed disabled:opacity-50";
@@ -40,6 +43,7 @@ export function DecisionsDialog({
   today,
   start = {},
   onClose,
+  onSelectElements,
 }: {
   model: Model;
   /** False below 768px, where the editor is view-only: decisions can be read, not changed. */
@@ -50,6 +54,8 @@ export function DecisionsDialog({
   today: string;
   start?: DecisionsStart;
   onClose: () => void;
+  /** M80: select a decision's elements on the canvas (closes the dialog). */
+  onSelectElements?: (ids: string[], title: string) => void;
 }) {
   const dialog = useRef<HTMLDialogElement>(null);
   const uid = useId();
@@ -124,6 +130,7 @@ export function DecisionsDialog({
               model={model}
               decision={picked}
               uid={uid}
+              onSelectElements={onSelectElements}
               save={(d, said) => {
                 dispatch({ type: "save-decision", decision: d });
                 // A save as the editor goes (another decision picked) says nothing, so it never talks over what happens next.
@@ -137,7 +144,7 @@ export function DecisionsDialog({
               }}
             />
           ) : (
-            <DecisionText model={model} decision={picked} />
+            <DecisionText model={model} decision={picked} onSelectElements={onSelectElements} />
           ))}
         {editable &&
           (decisions.length >= MAX_DECISIONS ? (
@@ -172,7 +179,19 @@ export function DecisionsDialog({
             </section>
           ))}
       </div>
-      <div className="flex justify-end border-t border-border px-4 py-3">
+      <div className="flex flex-wrap justify-end gap-2 border-t border-border px-4 py-3">
+        {decisions.length > 0 && (
+          <button
+            type="button"
+            className={btn}
+            onClick={() => {
+              downloadText(`${fileBase(model)}-decisions.csv`, decisionsCsv(model), "text/csv;charset=utf-8");
+              setStatus(`Saved ${decisions.length} decision${decisions.length === 1 ? "" : "s"} as CSV.`);
+            }}
+          >
+            Save as CSV
+          </button>
+        )}
         <button type="button" className={btn} onClick={() => dialog.current?.close()}>
           Close
         </button>
@@ -184,7 +203,7 @@ export function DecisionsDialog({
 const nameOf = (model: Model, id: string) => model.nodes.find((n) => n.id === id)?.name || "Untitled";
 
 /** A decision as text, for the view-only editor below 768px. */
-function DecisionText({ model, decision: d }: { model: Model; decision: Decision }) {
+function DecisionText({ model, decision: d, onSelectElements }: { model: Model; decision: Decision; onSelectElements?: (ids: string[], title: string) => void }) {
   return (
     <article aria-label={d.title} className="flex flex-col gap-1.5 text-sm">
       <h3 className="font-medium">{d.title}</h3>
@@ -198,12 +217,31 @@ function DecisionText({ model, decision: d }: { model: Model; decision: Decision
         ) : null,
       )}
       {!!d.elements?.length && <p>Concerns {d.elements.map((e) => nameOf(model, e)).join(", ")}</p>}
+      {!!d.elements?.length && onSelectElements && (
+        <button type="button" className={`${btn} self-start`} onClick={() => onSelectElements(d.elements!, d.title)}>
+          Select its elements
+        </button>
+      )}
     </article>
   );
 }
 
 /** One decision's fields, saved together (one undo step); changes not yet saved are saved when another decision is picked or the dialog closes. */
-function DecisionEditor({ model, decision, uid, save, onDelete }: { model: Model; decision: Decision; uid: string; save: (d: Decision, said?: string) => void; onDelete: () => void }) {
+function DecisionEditor({
+  model,
+  decision,
+  uid,
+  save,
+  onDelete,
+  onSelectElements,
+}: {
+  model: Model;
+  decision: Decision;
+  uid: string;
+  save: (d: Decision, said?: string) => void;
+  onDelete: () => void;
+  onSelectElements?: (ids: string[], title: string) => void;
+}) {
   const [draft, setDraft] = useState<Decision>(decision);
   const dirty = JSON.stringify(kept(draft)) !== JSON.stringify(kept(decision));
   const valid = !!draft.title.trim();
@@ -329,6 +367,12 @@ function DecisionEditor({ model, decision, uid, save, onDelete }: { model: Model
               ))}
             </select>
           </label>
+        )}
+        {elements.length > 0 && onSelectElements && (
+          // Changes not saved yet are saved as the dialog closes (see above), so the selection matches them.
+          <button type="button" className={`${btn} self-start`} onClick={() => onSelectElements(elements, (draft.title.trim() || decision.title))}>
+            Select its elements
+          </button>
         )}
       </div>
       <div className="flex flex-wrap items-center gap-2">
