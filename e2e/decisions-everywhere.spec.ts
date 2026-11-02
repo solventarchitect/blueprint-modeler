@@ -38,6 +38,8 @@ test.describe("decisions everywhere (M80, desktop)", () => {
     await dialog(page).getByRole("button", { name: "Select its elements" }).click();
     await expect(dialog(page)).toHaveCount(0);
     await expect(page.locator(".react-flow__node-csdm.selected")).toHaveCount(2);
+    // Focus is on a selected element, so the keyboard can act on the selection.
+    await expect(page.locator(".react-flow__node-csdm.selected:focus")).toHaveCount(1);
     await expect(page.getByRole("status").filter({ hasText: "Selected 2 elements of decision “Cache the product catalog”." })).toHaveCount(1);
     await saved(page);
 

@@ -150,19 +150,20 @@ export function Viewer() {
           <summary className="inline-flex min-h-6 cursor-pointer items-center text-ink-soft hover:text-ink">
             Decisions ({m.decisions.length})
           </summary>
+          <h2 className="sr-only">Decisions</h2>
           <div className="mt-2 flex max-w-3xl flex-col gap-4">
             {m.decisions.map((d) => (
               <section key={d.id} aria-labelledby={`view-decision-${d.id}`}>
-                <h2 id={`view-decision-${d.id}`} className="font-medium">
+                <h3 id={`view-decision-${d.id}`} className="font-medium">
                   {d.title}
-                </h2>
+                </h3>
                 <p className="text-xs text-ink-muted">
                   {[DECISION_STATUS_LABEL[d.status], d.date ? formatModelDate(d.date) : "", d.elements?.length ? `Concerns ${d.elements.map((e) => m.nodes.find((n) => n.id === e)?.name || "Untitled").join(", ")}` : ""].filter(Boolean).join(" · ")}
                 </p>
                 {(["context", "decision", "consequences"] as const).map((k) =>
                   d[k] ? (
                     <div key={k} className="mt-1">
-                      <h3 className="text-xs font-medium text-ink-muted">{k === "context" ? "Context" : k === "decision" ? "Decision" : "Consequences"}</h3>
+                      <h4 className="text-xs font-medium text-ink-muted">{k === "context" ? "Context" : k === "decision" ? "Decision" : "Consequences"}</h4>
                       <p className="whitespace-pre-line">{d[k]}</p>
                     </div>
                   ) : null,

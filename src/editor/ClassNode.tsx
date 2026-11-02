@@ -277,7 +277,8 @@ function ClassNodeView({ id, data, selected, dragging }: NodeProps<ClassFlowNode
           {data.hint === "warning" ? "!" : "i"}
         </span>
       )}
-      {!!data.decisions && (
+      {/* Out of the way while the description shows below the element. */}
+      {!!data.decisions && !(focus && data.description) && (
         // The node's accessible name says it ("2 decisions"), so the marker is hidden from it.
         <span
           aria-hidden="true"

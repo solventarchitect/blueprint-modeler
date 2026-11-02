@@ -1650,10 +1650,11 @@ function EditorInner() {
         ? `Selected ${reachable.length} element${reachable.length === 1 ? "" : "s"} of decision “${title}”${left ? `; ${left} the view leaves out` : ""}.`
         : `The view leaves out every element of decision “${title}”.`,
     );
-    if (reachable.length) {
-      selectedRef.current = reachable;
-      setTimeout(() => zoomCommand("selection"), 0);
-    }
+    // Focus goes to the first selected element (or the canvas), so the keyboard can act on the selection.
+    setTimeout(() => {
+      if (reachable.length) zoomCommand("selection");
+      (nodeEl(reachable[0] ?? "") ?? document.querySelector<HTMLElement>(".react-flow__pane"))?.focus();
+    }, 0);
   };
   const selectionMenu = (): MenuItem[] => [
     ...ARRANGE.slice(0, 6).map((a): MenuItem => ({ kind: "item", label: a.label, onSelect: () => arrange(a.id) })),
