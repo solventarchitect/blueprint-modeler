@@ -4,7 +4,8 @@
  * model (not the filtered part), so filtering never recolors anything.
  */
 import { classById, LIFE_CYCLE } from "@/metamodel";
-import type { ColorBy, Model, Node, ViewFilter } from "./schema";
+import { PLAN_LABEL, PLAN_STATUSES, type PlanStatus } from "./plan";
+import { COLOR_BY, COLOR_BY_EXT, type ColorBy, type Model, type Node, type View, type ViewFilter } from "./schema";
 
 export const ALL_ELEMENTS: { filter: ViewFilter; colorBy: ColorBy } = { filter: {}, colorBy: "layer" };
 
@@ -69,38 +70,65 @@ export type LegendEntry = { key: string; value: string; label: string; count: nu
 const STAGE_ORDER = [...new Set(Object.values(LIFE_CYCLE).flatMap((p) => p.stages))];
 const stageRank = (v: string) => (STAGE_ORDER.includes(v) ? STAGE_ORDER.indexOf(v) : STAGE_ORDER.length);
 
-function valueOf(n: Node, by: ColorBy) {
-  return by === "layer" ? (classById(n.class)?.layer ?? "") : attrValue(n, by);
+/** How to read an element's value under a coloring. Tags (M77) count by the first, ignoring case, in the model's first spelling. */
+function valueFn(model: Model, by: ColorBy): (n: Node) => string {
+  if (by === "layer") return (n) => classById(n.class)?.layer ?? "";
+  if (by === "plan") return (n) => n.plan ?? "live";
+  if (by === "tag") {
+    const spelling = new Map<string, string>();
+    for (const n of model.nodes) for (const t of n.tags ?? []) if (!spelling.has(t.toLowerCase())) spelling.set(t.toLowerCase(), t);
+    return (n) => {
+      const t = n.tags?.[0];
+      return t ? (spelling.get(t.toLowerCase()) ?? t) : "";
+    };
+  }
+  return (n) => attrValue(n, by);
+}
+
+/** How a value reads in the legend: plan statuses by name, the empty value as Not set (Not tagged for tags). */
+const valueLabel = (by: ColorBy, v: string) => (by === "plan" ? (PLAN_LABEL[v as PlanStatus] ?? v) : v || (by === "tag" ? "Not tagged" : "Not set"));
+
+/** Each element's value under a coloring, as the legend names it (for screen reader labels). */
+export function valueLabels(model: Model, by: ColorBy): (n: Node) => string {
+  const get = valueFn(model, by);
+  return (n) => valueLabel(by, get(n));
 }
 
 /** The values a coloring uses, in legend order with their slot: set values first, Not set last. */
 function slots(model: Model, by: Exclude<ColorBy, "layer">): { value: string; slot: Slot }[] {
+  const valueOf = valueFn(model, by);
+  // Plan statuses keep one color each, whichever are present.
+  if (by === "plan") {
+    const present = new Set(model.nodes.map(valueOf));
+    return PLAN_STATUSES.filter((p) => present.has(p)).map((p) => ({ value: p, slot: PLAN_STATUSES.indexOf(p) }));
+  }
   const counts = new Map<string, number>();
   for (const n of model.nodes) {
-    const v = valueOf(n, by);
+    const v = valueOf(n);
     if (v) counts.set(v, (counts.get(v) ?? 0) + 1);
   }
   const set = [...counts.keys()].sort((a, b) =>
     by === "lifecycle" ? stageRank(a) - stageRank(b) || a.localeCompare(b) : counts.get(b)! - counts.get(a)! || a.localeCompare(b),
   );
   const out: { value: string; slot: Slot }[] = set.map((value, i) => ({ value, slot: i < PALETTE.dark.length ? i : "other" }));
-  if (model.nodes.some((n) => !valueOf(n, by))) out.push({ value: "", slot: "none" });
+  if (model.nodes.some((n) => !valueOf(n))) out.push({ value: "", slot: "none" });
   return out;
 }
 
 /** The legend for a coloring: each value with its slot and how many elements in the view carry it. */
 export function legend(model: Model, by: ColorBy, filter: ViewFilter): LegendEntry[] {
   if (by === "layer") return [];
+  const valueOf = valueFn(model, by);
   const counts = new Map<string, number>();
-  for (const n of model.nodes) if (inView(n, filter)) counts.set(valueOf(n, by), (counts.get(valueOf(n, by)) ?? 0) + 1);
+  for (const n of model.nodes) if (inView(n, filter)) counts.set(valueOf(n), (counts.get(valueOf(n)) ?? 0) + 1);
   const all = slots(model, by);
   const count = (value: string) => counts.get(value) ?? 0;
   // Values past the palette share one color and marker, so they share one row too.
   const others = all.filter((s) => s.slot === "other");
   return [
-    ...all.filter((s) => typeof s.slot === "number").map(({ value, slot }) => ({ key: value, value, label: value, slot, count: count(value) })),
+    ...all.filter((s) => typeof s.slot === "number").map(({ value, slot }) => ({ key: value, value, label: valueLabel(by, value), slot, count: count(value) })),
     ...(others.length ? [{ key: "(other)", value: "", label: `Other (${others.length} values)`, slot: "other" as const, count: others.reduce((a, s) => a + count(s.value), 0) }] : []),
-    ...all.filter((s) => s.slot === "none").map(() => ({ key: "", value: "", label: "Not set", slot: "none" as const, count: count("") })),
+    ...all.filter((s) => s.slot === "none").map(() => ({ key: "", value: "", label: valueLabel(by, ""), slot: "none" as const, count: count("") })),
   ];
 }
 
@@ -108,7 +136,8 @@ export function legend(model: Model, by: ColorBy, filter: ViewFilter): LegendEnt
 export function slotMap(model: Model, by: ColorBy): ((n: Node) => Slot) | null {
   if (by === "layer") return null;
   const map = new Map(slots(model, by).map((s) => [s.value, s.slot]));
-  return (n) => map.get(valueOf(n, by)) ?? "none";
+  const valueOf = valueFn(model, by);
+  return (n) => map.get(valueOf(n)) ?? "none";
 }
 
 /** An element's slot under a coloring (null when coloring by layer). For many elements, use `slotMap`. */
@@ -120,4 +149,12 @@ export const slotColor = (slot: Slot, theme: "dark" | "light") => (typeof slot =
 export const slotMarker = (slot: Slot) => (typeof slot === "number" ? MARKERS.slots[slot]! : MARKERS[slot]);
 
 /** What "color by" reads as, for menus, the legend and image captions. */
-export const COLOR_BY_LABEL: Record<ColorBy, string> = { layer: "Layer", lifecycle: "Life cycle stage", environment: "Environment", owner: "Owner" };
+export const COLOR_BY_LABEL: Record<ColorBy, string> = { layer: "Layer", lifecycle: "Life cycle stage", environment: "Environment", owner: "Owner", plan: "Plan status", tag: "Tag" };
+
+/** Every coloring, in menu order (M77 adds plan status and tag). */
+export const COLORINGS: readonly ColorBy[] = [...COLOR_BY, ...COLOR_BY_EXT];
+const isExt = (c: ColorBy): c is (typeof COLOR_BY_EXT)[number] => (COLOR_BY_EXT as readonly string[]).includes(c);
+/** A saved view's coloring: its `colorByExt` when set (M77), otherwise `colorBy`. */
+export const viewColorBy = (v: Pick<View, "colorBy" | "colorByExt">): ColorBy => v.colorByExt ?? v.colorBy;
+/** How a coloring is stored in a view: an M77 one as `colorByExt` beside "layer", which older versions show. */
+export const storedColorBy = (c: ColorBy): Pick<View, "colorBy" | "colorByExt"> => (isExt(c) ? { colorBy: "layer", colorByExt: c } : { colorBy: c });

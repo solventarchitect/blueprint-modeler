@@ -3,7 +3,7 @@
 import { useCallback, useEffect, useId, useRef, useState } from "react";
 import { classById, LIFE_CYCLE } from "@/metamodel";
 import { LAYERS } from "@/layout/bands";
-import { attrValue, COLOR_BY, COLOR_BY_LABEL, filterActive, GROUP_BY, GROUP_BY_LABEL, type GroupBy, inView, legend, MAX_VIEWS, modelTags, PLAN_LABEL, PLAN_STATUSES, planOf, type PlanStatus, slotMarker, type ColorBy, type LegendEntry, type Model, type ViewFilter } from "@/model";
+import { attrValue, COLORINGS, COLOR_BY_LABEL, filterActive, GROUP_BY, GROUP_BY_LABEL, type GroupBy, inView, legend, MAX_VIEWS, modelTags, PLAN_LABEL, PLAN_STATUSES, planOf, type PlanStatus, slotMarker, type ColorBy, type LegendEntry, type Model, type ViewFilter, viewColorBy } from "@/model";
 import { ToolbarIcon } from "./ToolbarIcon";
 import { useDismiss } from "./useDismiss";
 
@@ -13,7 +13,7 @@ export type ShownView = { id: string | null; filter: ViewFilter; colorBy: ColorB
 /** A saved view in use whose filter or coloring was changed since: said so, so the screen never claims the saved one. */
 function isEdited(model: Model, shown: ShownView) {
   const saved = model.views?.find((v) => v.id === shown.id);
-  return !!saved && JSON.stringify([saved.filter, saved.colorBy, saved.groupBy ?? null]) !== JSON.stringify([shown.filter, shown.colorBy, shown.groupBy ?? null]);
+  return !!saved && JSON.stringify([saved.filter, viewColorBy(saved), saved.groupBy ?? null]) !== JSON.stringify([shown.filter, shown.colorBy, shown.groupBy ?? null]);
 }
 
 
@@ -96,12 +96,12 @@ export function ViewsMenu({ model, shown, onShow, onEdit, buttonClass }: { model
           </li>
           {(model.views ?? []).map((v) => (
             <li key={v.id}>
-              <button type="button" aria-pressed={shown.id === v.id} className={item} onClick={() => pick(() => onShow({ id: v.id, filter: v.filter, colorBy: v.colorBy, groupBy: v.groupBy }))}>
+              <button type="button" aria-pressed={shown.id === v.id} className={item} onClick={() => pick(() => onShow({ id: v.id, filter: v.filter, colorBy: viewColorBy(v), groupBy: v.groupBy }))}>
                 {check(shown.id === v.id)}
                 <span className="flex min-w-0 flex-col">
                   <span className="truncate">{v.name}</span>
                   <span className="text-xs text-ink-muted">
-                    {model.nodes.filter((n) => inView(n, v.filter)).length} of {model.nodes.length} elements · {COLOR_BY_LABEL[v.colorBy]} colors
+                    {model.nodes.filter((n) => inView(n, v.filter)).length} of {model.nodes.length} elements · {COLOR_BY_LABEL[viewColorBy(v)]} colors
                     {v.groupBy ? ` · by ${GROUP_BY_LABEL[v.groupBy]}` : ""}
                   </span>
                 </span>
@@ -181,6 +181,8 @@ export function ViewDialog({
     { key: "tags", label: "Tag", values: tagValues, text: (v) => v || "Not tagged" },
     { key: "plan", label: "Plan status", values: model.nodes.some((n) => n.plan) ? PLAN_STATUSES.filter((p) => model.nodes.some((n) => planOf(n) === p)) : [], text: (v) => PLAN_LABEL[v as PlanStatus] ?? v },
   ];
+  // M77: plan status and tag are offered once something is Planned or Retiring, or tagged, or the view already uses them.
+  const colorings = COLORINGS.filter((c) => shown.colorBy === c || (c === "plan" ? model.nodes.some((n) => n.plan) : c === "tag" ? inModel.length > 0 : true));
   const btn = "inline-flex min-h-8 cursor-pointer items-center border border-border-strong bg-surface-raised px-2.5 text-sm text-ink hover:border-accent hover:text-accent disabled:cursor-not-allowed disabled:opacity-50";
   const trimmed = name.trim();
   const full = (model.views?.length ?? 0) >= MAX_VIEWS;
@@ -204,13 +206,14 @@ export function ViewDialog({
         <fieldset>
           <legend className="text-sm font-medium">Color by</legend>
           <div className="mt-1.5 flex flex-wrap gap-x-4 gap-y-1">
-            {COLOR_BY.map((c) => (
+            {colorings.map((c) => (
               <label key={c} className="flex min-h-6 items-center gap-1.5 text-sm">
                 <input type="radio" name="view-color-by" checked={shown.colorBy === c} onChange={() => onChange({ ...shown, colorBy: c })} />
                 {COLOR_BY_LABEL[c]}
               </label>
             ))}
           </div>
+          {colorings.includes("tag") && <p className="mt-1 text-xs text-ink-muted">Tag colors each element by its first tag.</p>}
         </fieldset>
         <fieldset>
           <legend className="text-sm font-medium">Group by</legend>

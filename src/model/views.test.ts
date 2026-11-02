@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 import { createModel, type Model } from "./index";
-import { ALL_ELEMENTS, filterActive, inView, legend, MARKERS, PALETTE, slotOf } from "./views";
+import { ALL_ELEMENTS, COLORINGS, filterActive, inView, legend, MARKERS, PALETTE, slotOf, storedColorBy, valueLabels, viewColorBy } from "./views";
 
 function m(): Model {
   const model = createModel("T", new Date("2026-09-27T00:00:00Z"), "t");
@@ -104,5 +104,49 @@ describe("canvas tokens match the export palette", () => {
     expect(blocks[0]).toEqual(want("dark"));
     expect(blocks[1]).toEqual(want("light"));
     expect(blocks[2]).toEqual(want("light"));
+  });
+});
+
+describe("color by plan status and by tag (M77)", () => {
+  function planned(): Model {
+    const model = m();
+    model.nodes[1]!.plan = "planned";
+    model.nodes[3]!.plan = "retiring";
+    model.nodes[0]!.tags = ["Team A", "Payments"];
+    model.nodes[1]!.tags = ["team a"];
+    model.nodes[2]!.tags = ["Payments"];
+    return model;
+  }
+
+  it("lists plan statuses in a fixed order, each with its own color whichever states are present", () => {
+    const l = legend(planned(), "plan", {});
+    expect(l.map((e) => [e.label, e.count, e.slot])).toEqual([["Live", 3, 0], ["Planned", 1, 1], ["Retiring", 1, 2]]);
+    const noLive = planned();
+    noLive.nodes = noLive.nodes.filter((n) => n.plan);
+    expect(legend(noLive, "plan", {}).map((e) => [e.label, e.slot])).toEqual([["Planned", 1], ["Retiring", 2]]);
+    expect(slotOf(planned(), "plan", planned().nodes[3]!)).toBe(2);
+  });
+
+  it("colors by an element's first tag, ignoring case (the first spelling wins), Not tagged last", () => {
+    const l = legend(planned(), "tag", {});
+    expect(l.map((e) => [e.label, e.count])).toEqual([["Team A", 2], ["Payments", 1], ["Not tagged", 2]]);
+    expect(slotOf(planned(), "tag", planned().nodes[1]!)).toBe(slotOf(planned(), "tag", planned().nodes[0]!));
+    expect(slotOf(planned(), "tag", planned().nodes[4]!)).toBe("none");
+  });
+
+  it("names each element's value for the screen reader label", () => {
+    const model = planned();
+    expect(model.nodes.map(valueLabels(model, "plan"))).toEqual(["Live", "Planned", "Live", "Retiring", "Live"]);
+    expect(model.nodes.map(valueLabels(model, "tag"))).toEqual(["Team A", "Team A", "Payments", "Not tagged", "Not tagged"]);
+    expect(model.nodes.map(valueLabels(model, "owner"))).toEqual(["Ann", "Ann", "Bo", "Not set", "Not set"]);
+  });
+
+  it("stores the new colorings beside one older versions know, and reads them back", () => {
+    expect(storedColorBy("plan")).toEqual({ colorBy: "layer", colorByExt: "plan" });
+    expect(storedColorBy("tag")).toEqual({ colorBy: "layer", colorByExt: "tag" });
+    expect(storedColorBy("owner")).toEqual({ colorBy: "owner" });
+    expect(viewColorBy({ colorBy: "layer", colorByExt: "tag" })).toBe("tag");
+    expect(viewColorBy({ colorBy: "owner" })).toBe("owner");
+    expect(COLORINGS).toEqual(["layer", "lifecycle", "environment", "owner", "plan", "tag"]);
   });
 });

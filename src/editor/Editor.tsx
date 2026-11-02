@@ -58,7 +58,7 @@ import { arrangeByGroups, groupFrames, ownGroups, type Frame } from "@/layout/gr
 import { autoLayout, DEFAULT_SIZE, fillSpace, type LayoutMode } from "@/layout/layout";
 import { createWorkerEngine } from "@/layout/worker-engine";
 import { classById, classes, ENVIRONMENT_EXAMPLES, isClassId, isExtended, type ClassId, type Layer } from "@/metamodel";
-import { ALL_ELEMENTS, FIELD_LABEL, healthReport, localDay, GROUP_BY_LABEL, groupsOf, primaryGroup, SIDES, attrValue, compareModels, parseModel, blastRadius, COLOR_BY_LABEL, evaluateHints, filterActive, formatModelDate, impactEnds, inView, isBusinessAnchor as isAnchor, modelDate, slotMap, UNTITLED_MODEL, focusArea, FOCUS_DEPTHS, type FocusDepth, flowRadius, flowStepText, playableFlows, PLAN_LABEL, PLAN_VIEW_LABEL, planHidden, type PlanView, type BlastDirection, type Edge, type HintResult, type Model } from "@/model";
+import { ALL_ELEMENTS, FIELD_LABEL, healthReport, localDay, GROUP_BY_LABEL, groupsOf, primaryGroup, SIDES, compareModels, parseModel, blastRadius, COLOR_BY_LABEL, evaluateHints, filterActive, formatModelDate, impactEnds, inView, isBusinessAnchor as isAnchor, modelDate, slotMap, storedColorBy, valueLabels, viewColorBy, UNTITLED_MODEL, focusArea, FOCUS_DEPTHS, type FocusDepth, flowRadius, flowStepText, playableFlows, PLAN_LABEL, PLAN_VIEW_LABEL, planHidden, type PlanView, type BlastDirection, type Edge, type HintResult, type Model } from "@/model";
 import { site } from "@/lib/site";
 import { ClassNode, SuggestContext, type ClassFlowNode } from "./ClassNode";
 import { ConnectionLine, ConnectionModelContext, ReconnectingContext } from "./ConnectionLine";
@@ -576,6 +576,7 @@ function EditorInner() {
     else setSelectedId(kept[0] ?? null);
   }, [model.nodes, multi, fadedIds, setSelectedId]);
   const slotFor = useMemo(() => slotMap(model, shown.colorBy), [model, shown.colorBy]);
+  const colorValue = useMemo(() => valueLabels(model, shown.colorBy), [model, shown.colorBy]);
   // Suggestions for setting a property on several elements (M63), as the Inspector offers for one.
   const batchSuggestions = useMemo(() => {
     const used = (k: "environment" | "owner") => model.nodes.map((n) => n.attrs?.[k]?.trim() ?? "").filter(Boolean);
@@ -661,10 +662,10 @@ function EditorInner() {
         hidden: hiddenIds.has(n.id) || planHide.nodes.has(n.id) || undefined,
         // Filtered out: in place and faded, but out of reach (no select, drag, connect or Tab stop).
         ...(fadedIds.has(n.id) ? { selectable: false, draggable: false, connectable: false, focusable: false, deletable: false, className: "bm-faded" } : {}),
-        ariaLabel: `${classById(n.class)?.label ?? n.class}: ${n.name || "Untitled"}${shown.colorBy !== "layer" ? `, ${COLOR_BY_LABEL[shown.colorBy]}: ${attrValue(n, shown.colorBy) || "Not set"}` : ""}${!blastShown && hintLevel.get(n.id) ? " (has hints)" : ""}${!blastShown && neighbors.has(n.id) ? " (connected to the selected element)" : ""}${n.plan ? ` (${PLAN_LABEL[n.plan].toLowerCase()})` : ""}${blastLabel(n.id)}${blastShown ? "" : (diffOf.nodes.get(n.id)?.words ?? "")}`,
+        ariaLabel: `${classById(n.class)?.label ?? n.class}: ${n.name || "Untitled"}${shown.colorBy !== "layer" ? `, ${COLOR_BY_LABEL[shown.colorBy]}: ${colorValue(n)}` : ""}${!blastShown && hintLevel.get(n.id) ? " (has hints)" : ""}${!blastShown && neighbors.has(n.id) ? " (connected to the selected element)" : ""}${n.plan ? ` (${PLAN_LABEL[n.plan].toLowerCase()})` : ""}${blastLabel(n.id)}${blastShown ? "" : (diffOf.nodes.get(n.id)?.words ?? "")}`,
       })),
     // eslint-disable-next-line react-hooks/exhaustive-deps -- drag and measured are refs; dragTick re-runs this
-    [model, selectedId, multiSet, dragTick, hintLevel, highlighted, lens, wide, presenting, dismissed, neighbors, blastShown, fadedIds, shown.colorBy, slotFor, diffOf, hiddenIds, planHide],
+    [model, selectedId, multiSet, dragTick, hintLevel, highlighted, lens, wide, presenting, dismissed, neighbors, blastShown, fadedIds, shown.colorBy, slotFor, colorValue, diffOf, hiddenIds, planHide],
   );
   /** Where each element is right now (mid-drag included), for the group frames. */
   const liveLayout = useMemo(
@@ -2352,7 +2353,7 @@ function EditorInner() {
         disabled: shown.id === null && !filterActive(shown.filter) && shown.colorBy === "layer" && !shown.groupBy ? "Already showing all elements, in layer colors" : undefined,
         run: () => pickView({ id: null, filter: {}, colorBy: "layer" }),
       },
-      ...(model.views ?? []).map((v): Command => ({ id: `view-${v.id}`, group: "Views", label: `View: ${v.name}`, keywords: "saved view", run: () => pickView({ id: v.id, filter: v.filter, colorBy: v.colorBy, groupBy: v.groupBy }) })),
+      ...(model.views ?? []).map((v): Command => ({ id: `view-${v.id}`, group: "Views", label: `View: ${v.name}`, keywords: "saved view", run: () => pickView({ id: v.id, filter: v.filter, colorBy: viewColorBy(v), groupBy: v.groupBy }) })),
       ...(["plan", "iso", "exploded"] as const)
         .filter((p) => p !== projection)
         .map((p): Command => ({ id: `projection-${p}`, group: "Projection", label: `${PROJECTION_LABEL[p]} view`, keywords: p === "plan" ? "edit 2d canvas" : "isometric 3d layers stack read only", run: () => chooseProjection(p) })),
@@ -3223,13 +3224,13 @@ function EditorInner() {
           onChange={showView}
           onSave={(name) => {
             const id = newId();
-            dispatch({ type: "save-view", view: { id, name, filter: shown.filter, colorBy: shown.colorBy, ...(shown.groupBy ? { groupBy: shown.groupBy } : {}) } });
+            dispatch({ type: "save-view", view: { id, name, filter: shown.filter, ...storedColorBy(shown.colorBy), ...(shown.groupBy ? { groupBy: shown.groupBy } : {}) } });
             showView({ ...shown, id });
             setMessage(`Saved the view “${name}”.`);
           }}
           onUpdate={(name) => {
             if (!shown.id) return;
-            dispatch({ type: "save-view", view: { id: shown.id, name, filter: shown.filter, colorBy: shown.colorBy, ...(shown.groupBy ? { groupBy: shown.groupBy } : {}) } });
+            dispatch({ type: "save-view", view: { id: shown.id, name, filter: shown.filter, ...storedColorBy(shown.colorBy), ...(shown.groupBy ? { groupBy: shown.groupBy } : {}) } });
             setMessage(`Updated the view “${name}”.`);
           }}
           onDelete={() => {
