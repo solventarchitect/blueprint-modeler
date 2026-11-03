@@ -32,7 +32,8 @@ test.describe("Mermaid export (M82, desktop)", () => {
     await page.getByRole("button", { name: /^Copy as Mermaid/ }).click();
     await expect(page.getByRole("status").filter({ hasText: `Copied the model as Mermaid (${kept} of 14 elements)` })).toHaveCount(1);
     const copied = await page.evaluate(() => navigator.clipboard.readText());
-    expect(copied.split("\n")[1]).toBe(`%% Showing ${kept} of 14 elements: focused on web-prod-01, within 1 relationship`);
+    // Windows reads the clipboard back with CRLF line ends.
+    expect(copied.split(/\r?\n/)[1]).toBe(`%% Showing ${kept} of 14 elements: focused on web-prod-01, within 1 relationship`);
     expect(copied.match(/^\s+n\d+\["/gm)).toHaveLength(kept);
   });
 });
