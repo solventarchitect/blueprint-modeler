@@ -36,6 +36,8 @@ describe("Mermaid export (M82)", () => {
 
   it("keeps names as text: quotes, angle brackets, hashes and line breaks can't break out of a label", () => {
     expect(mermaidLabel('A "quoted" <b>name</b> #1 100%\nnext')).toBe("A #quot;quoted#quot; #lt;b#gt;name#lt;/b#gt; #35;1 100#37; next");
+    // A label opening with a backtick would be read as Markdown and break the whole diagram (M82 review).
+    expect(mermaidLabel("`legacy` CRM")).toBe("#96;legacy#96; CRM");
     const m = checkout();
     m.nodes[0]!.name = 'x"]; click n0 "javascript:alert(1)"; y["';
     const text = modelToMermaid(m);
@@ -52,5 +54,14 @@ describe("Mermaid export (M82)", () => {
     expect(text).not.toContain("%%{");
     expect(head[1]).toBe("%% Showing 3 of 14 elements: view “Prod”");
     expect(head[2]).toBe("flowchart TB");
+  });
+
+  it("a relationship type with no forward word is labeled with the whole type, never an empty label (M82 review)", () => {
+    const m = checkout();
+    m.edges = [{ ...m.edges[0]!, type: "::Used by" }, { ...m.edges[1]!, type: "::" }];
+    const text = modelToMermaid(m);
+    expect(text).toContain('|"Used by"|');
+    expect(text).toContain('|"related"|');
+    expect(text).not.toContain('|""|');
   });
 });

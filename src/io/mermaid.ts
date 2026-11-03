@@ -20,6 +20,8 @@ export const mermaidLabel = (s: string) =>
     .replace(/</g, "#lt;")
     .replace(/>/g, "#gt;")
     .replace(/%/g, "#37;")
+    // A label opening with a backtick is a Markdown string to Mermaid; any backtick is kept as text.
+    .replace(/`/g, "#96;")
     .replace(/[\r\n]+/g, " ");
 
 /** Text for a `%%` comment line: one line, no directive. */
@@ -56,7 +58,9 @@ export function modelToMermaid(model: Model, note = ""): string {
     const from = id.get(e.from);
     const to = id.get(e.to);
     if (!from || !to) continue;
-    const label = `${mermaidLabel(relationshipWord(e.type))}${e.plan ? ` (${PLAN_LABEL[e.plan].toLowerCase()})` : ""}`;
+    // A type with no forward word (such as "::Used by", which an imported file can hold) takes the whole type.
+    const word = relationshipWord(e.type).trim() || e.type.replace(/::/g, " ").trim() || "related";
+    const label = `${mermaidLabel(word)}${e.plan ? ` (${PLAN_LABEL[e.plan].toLowerCase()})` : ""}`;
     out.push(`  ${from} ${e.plan ? "-.->" : "-->"}|"${label}"| ${to}`);
   }
   for (const layer of LAYERS) if (used.has(layer.id)) out.push(`  classDef ${layer.id}Layer ${LAYER_STYLE[layer.id]}`);

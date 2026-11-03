@@ -1356,15 +1356,16 @@ function EditorInner() {
       // M82: the model as Mermaid text, following what's shown as the images do.
       const part = narrowed ? modelPart(model, keptIds, planHide.edges) : model;
       const keep = shownWords().filter((w) => !w.startsWith("isometric") && !w.startsWith("lens:") && !w.startsWith("colored by"));
-      const text = modelToMermaid(part, narrowed ? `Showing ${part.nodes.length} of ${model.nodes.length} elements: ${keep.join(", ")}` : "");
+      const text = modelToMermaid(part, narrowed ? `Showing ${part.nodes.length} of ${model.nodes.length} elements${keep.length ? `: ${keep.join(", ")}` : ""}` : "");
       const what = narrowed ? `${part.nodes.length} of ${model.nodes.length} elements` : `${model.nodes.length} element${model.nodes.length === 1 ? "" : "s"}`;
       if (kind === "mermaid") {
         const filename = `${fileBase(model)}.mmd`;
         downloadText(filename, text, "text/plain;charset=utf-8");
         setMessage(`Exported ${filename} (${what}). Paste it into a Markdown \`\`\`mermaid block.`);
       } else {
-        void navigator.clipboard
-          .writeText(text)
+        // An insecure page (plain http) has no clipboard at all: said, as a refused copy is.
+        void Promise.resolve()
+          .then(() => navigator.clipboard.writeText(text))
           .then(() => setMessage(`Copied the model as Mermaid (${what}). Paste it into a Markdown \`\`\`mermaid block.`))
           .catch(() => setMessage("This browser didn't allow copying. Use Mermaid diagram (.mmd) instead."));
       }
