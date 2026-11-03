@@ -4,7 +4,7 @@ import { useCallback, useId, useRef, useState } from "react";
 import { ToolbarIcon } from "./ToolbarIcon";
 import { useDismiss } from "./useDismiss";
 
-export type ExportKind = "json" | "link" | "view-link" | "svg-dark" | "svg-light" | "png-dark" | "png-light" | "print" | "report" | "book" | "book-shown" | "blast-gif" | "flow-gif" | "scenario-gif" | "archimate" | "drawio" | "servicenow";
+export type ExportKind = "json" | "link" | "view-link" | "svg-dark" | "svg-light" | "png-dark" | "png-light" | "print" | "report" | "book" | "book-shown" | "blast-gif" | "flow-gif" | "scenario-gif" | "archimate" | "drawio" | "servicenow" | "mermaid" | "mermaid-copy";
 
 export const exportItems: { kind: ExportKind; label: string; note: string }[] = [
   { kind: "json", label: "Model file (JSON)", note: "Back up, move or version it" },
@@ -24,6 +24,8 @@ export const exportItems: { kind: ExportKind; label: string; note: string }[] = 
   { kind: "archimate", label: "ArchiMate model (XML)", note: "Open in Archi or another ArchiMate tool" },
   { kind: "drawio", label: "draw.io / Lucidchart (.drawio)", note: "Open in draw.io, or import into Lucidchart" },
   { kind: "servicenow", label: "ServiceNow import (Excel)", note: "One sheet per CMDB table, plus relationships" },
+  { kind: "mermaid", label: "Mermaid diagram (.mmd)", note: "Text that GitHub, GitLab, Confluence and Notion draw in Markdown; follows what's shown" },
+  { kind: "mermaid-copy", label: "Copy as Mermaid", note: "The same text, ready to paste into a Markdown ```mermaid block" },
 ];
 
 /**
@@ -35,7 +37,7 @@ const GROUPS: { label: string; kinds: ExportKind[] }[] = [
   { label: "Images", kinds: ["svg-dark", "svg-light", "png-dark", "png-light", "print"] },
   { label: "Documents", kinds: ["book", "book-shown", "report"] },
   { label: "Animations", kinds: ["blast-gif", "flow-gif", "scenario-gif"] },
-  { label: "Other tools", kinds: ["archimate", "drawio", "servicenow"] },
+  { label: "Other tools", kinds: ["archimate", "drawio", "servicenow", "mermaid", "mermaid-copy"] },
 ];
 export const EXPORT_GROUPS = GROUPS.map((g) => ({ label: g.label, items: g.kinds.map((k) => exportItems.find((i) => i.kind === k)!) }));
 

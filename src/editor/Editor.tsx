@@ -41,6 +41,7 @@ import { downloadText } from "@/io/download";
 import { pngScale, svgToPng } from "@/io/png";
 import { printNode, printSvg } from "@/io/print";
 import { bookSheet } from "@/io/book";
+import { modelToMermaid } from "@/io/mermaid";
 import { reportSheet, reportSummary } from "@/io/report";
 import { exportJson, fileBase, importJson, MAX_FILE_CHARS } from "@/io/file";
 import { decodeShare, encodeShare, shareSize, shareSupported, shareUrl, takeSharedPayload, viewUrl, type ShareResult } from "@/io/shareLink";
@@ -1304,6 +1305,16 @@ function EditorInner() {
   /** The image exports' picture: the plan, or the isometric projection on screen (M59), following the view and the state shown (M71). */
   const picture = (theme: "dark" | "light") =>
     projection === "plan" ? modelToSvg(model, theme, { lens, lines: view.lines, labels: view.labels, view: pictureView }) : isoToSvg(model, theme, { mode: projection, view: pictureView });
+  /** What the editor shows, when it is less than (or other than) the whole model, in words (M76, M81, M82). */
+  const shownWords = () =>
+    [
+      projection !== "plan" ? (projection === "iso" ? "isometric" : "isometric, exploded") : "",
+      lens !== "csdm" ? `lens: ${lenses.find((l) => l.id === lens)?.label ?? lens}` : "",
+      viewName ? `view “${viewName}”` : filterActive(shown.filter) ? "filtered" : "",
+      shown.colorBy !== "layer" ? `colored by ${COLOR_BY_LABEL[shown.colorBy].toLowerCase()}` : "",
+      planView !== "both" ? PLAN_VIEW_LABEL[planView].toLowerCase() : "",
+      focusOn ? `focused on ${nameOf(focusOn.id)}, within ${focusOn.depth} relationship${focusOn.depth === 1 ? "" : "s"}` : "",
+    ].filter(Boolean);
   const exportAs = (kind: ExportKind) => {
     if (kind === "blast-gif" || kind === "flow-gif" || kind === "scenario-gif") {
       void exportBlastGif();
@@ -1341,17 +1352,27 @@ function EditorInner() {
         .catch(() => setMessage("Could not make the PNG in this browser. Nothing was saved."));
     } else if (kind === "print") {
       printSvg(picture("light"), fileBase(model));
+    } else if (kind === "mermaid" || kind === "mermaid-copy") {
+      // M82: the model as Mermaid text, following what's shown as the images do.
+      const part = narrowed ? modelPart(model, keptIds, planHide.edges) : model;
+      const keep = shownWords().filter((w) => !w.startsWith("isometric") && !w.startsWith("lens:") && !w.startsWith("colored by"));
+      const text = modelToMermaid(part, narrowed ? `Showing ${part.nodes.length} of ${model.nodes.length} elements${keep.length ? `: ${keep.join(", ")}` : ""}` : "");
+      const what = narrowed ? `${part.nodes.length} of ${model.nodes.length} elements` : `${model.nodes.length} element${model.nodes.length === 1 ? "" : "s"}`;
+      if (kind === "mermaid") {
+        const filename = `${fileBase(model)}.mmd`;
+        downloadText(filename, text, "text/plain;charset=utf-8");
+        setMessage(`Exported ${filename} (${what}). Paste it into a Markdown \`\`\`mermaid block.`);
+      } else {
+        // An insecure page (plain http) has no clipboard at all: said, as a refused copy is.
+        void Promise.resolve()
+          .then(() => navigator.clipboard.writeText(text))
+          .then(() => setMessage(`Copied the model as Mermaid (${what}). Paste it into a Markdown \`\`\`mermaid block.`))
+          .catch(() => setMessage("This browser didn't allow copying. Use Mermaid diagram (.mmd) instead."));
+      }
     } else if (kind === "book" || kind === "book-shown") {
       // M76: the whole model in one document; the picture as the editor draws it, in light.
       // What the picture shows, when it is less than (or other than) the whole model, said under it.
-      const shownParts = [
-        projection !== "plan" ? (projection === "iso" ? "isometric" : "isometric, exploded") : "",
-        lens !== "csdm" ? `lens: ${lenses.find((l) => l.id === lens)?.label ?? lens}` : "",
-        viewName ? `view “${viewName}”` : filterActive(shown.filter) ? "filtered" : "",
-        shown.colorBy !== "layer" ? `colored by ${COLOR_BY_LABEL[shown.colorBy].toLowerCase()}` : "",
-        planView !== "both" ? PLAN_VIEW_LABEL[planView].toLowerCase() : "",
-        focusOn ? `focused on ${nameOf(focusOn.id)}, within ${focusOn.depth} relationship${focusOn.depth === 1 ? "" : "s"}` : "",
-      ].filter(Boolean);
+      const shownParts = shownWords();
       const n = (k: number, one: string) => `${k} ${one}${k === 1 ? "" : "s"}`;
       // M81: the book of what's shown covers only the elements the view, focus or state shown keeps.
       const book = kind === "book-shown" ? modelPart(model, keptIds, planHide.edges) : model;
@@ -2238,6 +2259,8 @@ function EditorInner() {
   // Export menu notes and availability, shared with the command palette.
   const exportNotes: Partial<Record<ExportKind, string>> = {
             "book-shown": !narrowed ? "What's shown is the whole model: filter it, focus on an element, or show Current or Target to narrow it" : !keptIds.size ? "The view shows no elements" : undefined,
+            mermaid: !keptIds.size ? "No elements shown" : undefined,
+            "mermaid-copy": !keptIds.size ? "No elements shown" : undefined,
             link: !canShare
               ? "This browser cannot make model links"
               : share?.model !== model
@@ -2276,6 +2299,8 @@ function EditorInner() {
           };
   const exportDisabled: Partial<Record<ExportKind, boolean>> = {
             "book-shown": !narrowed || !keptIds.size,
+            mermaid: !keptIds.size,
+            "mermaid-copy": !keptIds.size,
             link: !canShare || (share?.model === model && share.size === "too-large"),
             "view-link": !canShare || (share?.model === model && share.size === "too-large"),
             "blast-gif": !blast || !radius || isFlow || makingGif,
@@ -2323,8 +2348,8 @@ function EditorInner() {
       ...exportItems.map((it): Command => ({
         id: `export-${it.kind}`,
         group: "Export",
-        label: it.kind === "link" || it.kind === "view-link" || it.kind === "print" || it.kind === "report" || it.kind === "book" || it.kind === "book-shown" ? it.label : `Export ${it.label}`,
-        keywords: it.kind === "book" || it.kind === "book-shown" ? "print pdf review document handoff export" : it.kind === "report" || it.kind === "print" ? "print pdf export" : "export download save",
+        label: it.kind === "link" || it.kind === "view-link" || it.kind === "print" || it.kind === "report" || it.kind === "book" || it.kind === "book-shown" || it.kind === "mermaid-copy" ? it.label : `Export ${it.label}`,
+        keywords: it.kind === "mermaid" || it.kind === "mermaid-copy" ? "markdown github gitlab confluence notion docs text diagram export" : it.kind === "book" || it.kind === "book-shown" ? "print pdf review document handoff export" : it.kind === "report" || it.kind === "print" ? "print pdf export" : "export download save",
         disabled: exportDisabled[it.kind] ? exportNotes[it.kind] : undefined,
         run: () => exportAs(it.kind),
       })),

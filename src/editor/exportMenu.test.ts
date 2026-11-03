@@ -9,7 +9,7 @@ describe("the Export mega menu (M79)", () => {
       ["svg-dark", "svg-light", "png-dark", "png-light", "print"],
       ["book", "book-shown", "report"],
       ["blast-gif", "flow-gif", "scenario-gif"],
-      ["archimate", "drawio", "servicenow"],
+      ["archimate", "drawio", "servicenow", "mermaid", "mermaid-copy"],
     ]);
     const all = EXPORT_GROUPS.flatMap((g) => g.items.map((i) => i.kind));
     expect(new Set(all).size).toBe(all.length);

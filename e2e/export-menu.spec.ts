@@ -19,7 +19,7 @@ test.describe("the Export mega menu (M79, desktop)", () => {
       await expect(panel.getByRole("region")).toHaveCount(5);
       await expect(panel.getByRole("heading", { level: 2 })).toHaveText(["Share", "Images", "Documents", "Animations", "Other tools"]);
       await expect(panel.getByRole("region", { name: "Documents" }).getByRole("button")).toHaveCount(3);
-      await expect(panel.getByRole("region", { name: "Other tools" }).getByRole("button")).toHaveCount(3);
+      await expect(panel.getByRole("region", { name: "Other tools" }).getByRole("button")).toHaveCount(5);
       const box = (await panel.boundingBox())!;
       expect(box.x).toBeGreaterThanOrEqual(0);
       expect(box.x + box.width).toBeLessThanOrEqual(width);
@@ -39,7 +39,7 @@ test.describe("the Export mega menu (M79, desktop)", () => {
     await button.click();
     const box = (await page.getByTestId("export-panel").boundingBox())!;
     expect(box.y + box.height).toBeLessThanOrEqual(600);
-    await page.getByRole("button", { name: /ServiceNow import/ }).focus();
+    await page.getByRole("button", { name: /^Copy as Mermaid/ }).focus();
     await page.keyboard.press("Tab");
     await expect(button).toHaveAttribute("aria-expanded", "false");
   });
