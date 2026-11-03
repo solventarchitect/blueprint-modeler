@@ -7,7 +7,7 @@ describe("the Export mega menu (M79)", () => {
     expect(EXPORT_GROUPS.map((g) => g.items.map((i) => i.kind))).toEqual([
       ["link", "view-link", "json"],
       ["svg-dark", "svg-light", "png-dark", "png-light", "print"],
-      ["book", "report"],
+      ["book", "book-shown", "report"],
       ["blast-gif", "flow-gif", "scenario-gif"],
       ["archimate", "drawio", "servicenow"],
     ]);

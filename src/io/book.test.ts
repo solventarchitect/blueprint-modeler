@@ -1,7 +1,7 @@
 import { describe, expect, it } from "vitest";
 import { examples } from "@/examples";
 import type { Flow } from "@/model";
-import { bookDecisions, bookElements, bookFlows, BOOK_SECTIONS } from "./book";
+import { bookContents, bookDecisions, bookElements, bookFlows, BOOK_SECTIONS } from "./book";
 
 const checkout = () => examples.find((e) => e.id === "checkout")!.create(new Date("2026-09-27T00:00:00Z"), "m1");
 const order: Flow = { id: "f1", name: "Customer places an order", steps: [{ edge: "e6" }, { edge: "e9" }, { edge: "e12" }] };
@@ -53,5 +53,23 @@ describe("the model book's decisions (M78)", () => {
       { title: "Cache the catalog", meta: `Accepted · Oct 30, 2026 · Concerns ${[name("ba"), name("cap")].sort().join(", ")}`, parts: [["Decision", "Read-through cache."]] },
       { title: "Retire ERP", meta: "Proposed", parts: [] },
     ]);
+  });
+});
+
+describe("the model book's contents (M81)", () => {
+  it("every section with what it holds", () => {
+    const m = { ...checkout(), flows: [order], decisions: [{ id: "d1", title: "X", status: "proposed" as const }] };
+    expect(bookContents(m)).toEqual(["Picture", "The model by layer (5 layers)", "Elements (14)", "Relationships (13)", "Saved flows (1)", "Decisions (1)", "Health"]);
+    expect(bookContents({ ...checkout(), nodes: [], edges: [], layout: {} })).toEqual(["Picture", "The model by layer", "Elements (none)", "Relationships (none)", "Saved flows (none)", "Decisions (none)", "Health"]);
+  });
+});
+
+describe("the book of a part (M81 review)", () => {
+  it("counts an element's relationships in the whole model, not just the part", () => {
+    const whole = checkout();
+    const part = { ...whole, nodes: whole.nodes.filter((n) => n.id === "ba"), edges: [], layout: { ba: whole.layout.ba! } };
+    const rows = bookElements(part, whole).rows;
+    expect(rows.map((r) => r.id)).toEqual(["ba"]);
+    expect(Number(rows[0]!.relationships)).toBe(whole.edges.filter((e) => e.from === "ba" || e.to === "ba").length);
   });
 });

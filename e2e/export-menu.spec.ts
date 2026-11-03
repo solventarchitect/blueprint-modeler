@@ -18,7 +18,7 @@ test.describe("the Export mega menu (M79, desktop)", () => {
       const panel = page.getByTestId("export-panel");
       await expect(panel.getByRole("region")).toHaveCount(5);
       await expect(panel.getByRole("heading", { level: 2 })).toHaveText(["Share", "Images", "Documents", "Animations", "Other tools"]);
-      await expect(panel.getByRole("region", { name: "Documents" }).getByRole("button")).toHaveCount(2);
+      await expect(panel.getByRole("region", { name: "Documents" }).getByRole("button")).toHaveCount(3);
       await expect(panel.getByRole("region", { name: "Other tools" }).getByRole("button")).toHaveCount(3);
       const box = (await panel.boundingBox())!;
       expect(box.x).toBeGreaterThanOrEqual(0);
