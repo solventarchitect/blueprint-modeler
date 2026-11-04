@@ -220,3 +220,50 @@ test.describe("the browser's store moves to version 2 (M66, desktop)", () => {
     await expect(page.getByRole("alert").filter({ hasText: "Blueprint Modeler was updated in another tab. Your work so far is saved: reload this tab to keep working." })).toBeVisible();
   });
 });
+
+// M83: two snapshots compared with each other, in the dialog; the open model and canvas stay as they are.
+test.describe("compare two snapshots (M83, desktop)", () => {
+  test.skip(({ isMobile }) => !!isMobile, "the Model menu's snapshots are on the desktop toolbar");
+
+  test("starts at the two newest, lists what changed between them, leaves the model alone; axe passes", async ({ page }) => {
+    await start(page);
+    await openSnapshots(page);
+    await expect(dialog(page).getByTestId("compare-two")).toHaveCount(0);
+    await take(page, "March");
+    await close(page);
+    await rename(page, "Orders database", "Orders store");
+    await openSnapshots(page);
+    await take(page, "June");
+    await close(page);
+    // The open model moves on after June: none of this is in the comparison.
+    await rename(page, "web-prod-01", "web-prod-09");
+
+    await openSnapshots(page);
+    const two = dialog(page).getByTestId("compare-two");
+    await expect(two.getByLabel("From")).toHaveValue(/.+/);
+    await expect(two.getByLabel("From").locator("option:checked")).toHaveText(/^March \(/);
+    await expect(two.getByLabel("To").locator("option:checked")).toHaveText(/^June \(/);
+    await two.getByRole("button", { name: "Compare these" }).click();
+    const result = two.getByTestId("compare-two-result");
+    await expect(result.getByRole("heading", { name: "Changes from “March” to “June”" })).toBeVisible();
+    await expect(result).toContainText("1 element changed");
+    await expect(result.getByTestId("compare-list")).toContainText("Orders store");
+    await expect(result.getByTestId("compare-list")).not.toContainText("web-prod-09");
+    // Plain text here, not buttons: neither snapshot is the open model.
+    await expect(result.getByTestId("compare-list").getByRole("button")).toHaveCount(0);
+    await expect(dialog(page).getByRole("status")).toContainText("From “March” to “June”: 1 element changed");
+    expect(await new AxeBuilder({ page }).withTags(tags).include('[data-testid="snapshots-dialog"]').analyze().then((r) => r.violations)).toEqual([]);
+
+    // The same snapshot twice is not a comparison.
+    await two.getByLabel("To").selectOption({ label: (await two.getByLabel("From").locator("option:checked").textContent())! });
+    await expect(two.getByRole("button", { name: "Compare these" })).toBeDisabled();
+    await expect(two).toContainText("Choose two different snapshots.");
+    await expect(result).toHaveCount(0);
+
+    // Nothing changed in the open model, and no Compare bar opened.
+    await close(page);
+    await expect(page.getByTestId("compare-bar")).toHaveCount(0);
+    await expect(node(page, "web-prod-09")).toBeVisible();
+    await expect(node(page, "Orders store")).toBeVisible();
+  });
+});
