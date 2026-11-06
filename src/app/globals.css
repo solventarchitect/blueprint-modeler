@@ -1150,3 +1150,115 @@ html[data-framed] body > footer,
 html[data-framed] body > a[href="#main-content"] {
   display: none;
 }
+
+/* M84: more contrast when the system asks for it (prefers-contrast: more). Muted text reaches
+ * AAA (7:1), borders 3:1 against the surface, relationship lines 4.5:1 against the canvas and
+ * heavier. Same scheme rules as above: the header's theme toggle still wins over the OS scheme. */
+@media (prefers-contrast: more) {
+  :root:not([data-theme="light"]) {
+    --ink-soft: var(--color-neutral-200);
+    --ink-muted: var(--color-neutral-300);
+    --border: var(--color-neutral-400);
+    --border-strong: var(--color-neutral-200);
+    --edge-width: 2.5px;
+    --canvas-grid: color-mix(in oklab, var(--color-primary-400) 18%, transparent);
+    --canvas-grid-major: color-mix(in oklab, var(--color-primary-400) 30%, transparent);
+  }
+  @media (prefers-color-scheme: light) {
+    :root:not([data-theme="dark"]) {
+      --ink-soft: var(--color-neutral-950);
+      --ink-muted: var(--color-neutral-800);
+      --border: var(--color-neutral-600);
+      --border-strong: var(--color-neutral-800);
+      --edge-width: 3px;
+      --canvas-grid: color-mix(in oklab, var(--color-primary-700) 24%, transparent);
+      --canvas-grid-major: color-mix(in oklab, var(--color-primary-700) 40%, transparent);
+    }
+  }
+  :root[data-theme="light"] {
+    --ink-soft: var(--color-neutral-950);
+    --ink-muted: var(--color-neutral-800);
+    --border: var(--color-neutral-600);
+    --border-strong: var(--color-neutral-800);
+    --edge-width: 3px;
+    --canvas-grid: color-mix(in oklab, var(--color-primary-700) 24%, transparent);
+    --canvas-grid-major: color-mix(in oklab, var(--color-primary-700) 40%, transparent);
+  }
+}
+
+/* M84: Windows High Contrast (forced colors). The browser forces text, backgrounds and borders to
+ * system colors but not SVG paint, so the canvas's lines, arrowheads, shape markers and minimap are
+ * set to system colors here (inline paint needs !important). Shape, not color, carries a coloring. */
+@media (forced-colors: active) {
+  /* Lines: !important so no state's token stroke survives; a state keeps its width and dashes. */
+  .react-flow__edge .react-flow__edge-path,
+  .react-flow__connection-path {
+    stroke: CanvasText !important;
+  }
+  /* Related lines (to the selection, a hint, a blast radius or flow, Compare's added or changed, hover) in the link color. */
+  .react-flow__edge.connected .react-flow__edge-path,
+  .react-flow__edge.hinted .react-flow__edge-path,
+  .react-flow__edge.blast .react-flow__edge-path,
+  .react-flow__edge.blast-now .react-flow__edge-path,
+  .react-flow__edge.diff-added .react-flow__edge-path,
+  .react-flow__edge.diff-changed .react-flow__edge-path,
+  .react-flow__edge.hover .react-flow__edge-path {
+    stroke: LinkText !important;
+  }
+  /* The selected or focused line in the highlight color, over any state. */
+  .react-flow .react-flow__edge.selected .react-flow__edge-path,
+  .react-flow .react-flow__edge.selectable:focus .react-flow__edge-path,
+  .react-flow .react-flow__edge.selectable:focus-visible .react-flow__edge-path {
+    stroke: Highlight !important;
+  }
+  marker path,
+  marker polyline {
+    stroke: CanvasText !important;
+  }
+  /* The plain arrowhead (CSDM view) is a filled polyline. */
+  marker polyline {
+    fill: CanvasText !important;
+  }
+  .react-flow__minimap-mask {
+    fill: Canvas !important;
+    fill-opacity: 0.6;
+    stroke: Highlight !important;
+  }
+  /* Filled markers take the line's color; hollow ones show the ground through; open ones stay open. */
+  marker path[style*="fill: var(--canvas)"],
+  marker path[style*="fill: var(--surface-raised)"] {
+    fill: Canvas !important;
+  }
+  marker path:not([style*="fill: none"]):not([style*="fill: var(--canvas)"]):not([style*="fill: var(--surface-raised)"]) {
+    fill: CanvasText !important;
+  }
+  .react-flow__edge-text {
+    fill: CanvasText;
+  }
+  .react-flow__edge-textbg {
+    fill: Canvas;
+  }
+  [data-testid="slot-marker"],
+  [data-testid="view-legend"] svg {
+    fill: CanvasText !important;
+  }
+  .react-flow__minimap-node {
+    fill: Canvas !important;
+    stroke: CanvasText !important;
+    stroke-width: 1px !important;
+  }
+  .react-flow__node .react-flow__handle {
+    background: Canvas !important;
+    border-color: CanvasText !important;
+  }
+  /* The selection and focus rings are box shadows, which forced colors removes: an outline instead. */
+  .react-flow__node.selected {
+    outline: 2px solid Highlight;
+    outline-offset: 2px;
+  }
+  /* Keyboard focus reads apart from the selection: heavier and dashed. */
+  .react-flow__node:focus-visible {
+    outline: 3px dashed Highlight;
+    outline-offset: 3px;
+  }
+}
