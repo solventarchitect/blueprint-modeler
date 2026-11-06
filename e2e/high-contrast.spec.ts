@@ -81,9 +81,25 @@ test.describe("forced colors (M84, desktop)", () => {
     // Relationship lines and their labels in the text color, never a token the system can't see.
     const edge = page.locator(".react-flow__edge .react-flow__edge-path").first();
     await expect(edge).toHaveCSS("stroke", text);
-    // Arrowheads and notation markers too.
-    const marker = page.locator("marker path, marker polygon").first();
-    if (await marker.count()) await expect(marker).toHaveCSS("stroke", text);
+    // The plain arrowheads (a filled polyline) too.
+    const arrow = page.locator("marker polyline").first();
+    await expect(arrow).toHaveCount(1);
+    await expect(arrow).toHaveCSS("stroke", text);
+    await expect(arrow).toHaveCSS("fill", text);
+
+    // A selected element's relationships take the link color, the selected element an outline.
+    const link = await page.evaluate(() => {
+      const el = document.createElement("i");
+      el.style.color = "LinkText";
+      document.body.append(el);
+      const c = getComputedStyle(el).color;
+      el.remove();
+      return c;
+    });
+    await node(page, "Orders database").click();
+    await expect(page.locator(".react-flow__edge.connected .react-flow__edge-path").first()).toHaveCSS("stroke", link);
+    await expect(node(page, "Orders database")).toHaveCSS("outline-style", "solid");
+    await page.keyboard.press("Escape");
 
     // A coloring's shape markers and legend stay visible: shape, not color, carries it here.
     await page.getByRole("button", { name: /^Views/ }).click();
@@ -96,9 +112,7 @@ test.describe("forced colors (M84, desktop)", () => {
     // The minimap's elements are outlined in the text color.
     await expect(page.locator(".react-flow__minimap-node").first()).toHaveCSS("stroke", text);
 
-    // Keyboard focus on an element shows an outline.
-    await node(page, "Orders database").focus();
-    const outline = await node(page, "Orders database").evaluate((el) => getComputedStyle(el).outlineStyle);
-    expect(outline).not.toBe("none");
+    // The minimap's mask outline is a system color too.
+    await expect(page.locator(".react-flow__minimap-mask")).toHaveCSS("fill-opacity", "0.6");
   });
 });

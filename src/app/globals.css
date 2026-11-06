@@ -1190,17 +1190,39 @@ html[data-framed] body > a[href="#main-content"] {
  * system colors but not SVG paint, so the canvas's lines, arrowheads, shape markers and minimap are
  * set to system colors here (inline paint needs !important). Shape, not color, carries a coloring. */
 @media (forced-colors: active) {
+  /* Lines: !important so no state's token stroke survives; a state keeps its width and dashes. */
   .react-flow__edge .react-flow__edge-path,
   .react-flow__connection-path {
-    stroke: CanvasText;
+    stroke: CanvasText !important;
   }
-  .react-flow__edge.selected .react-flow__edge-path,
+  /* Related lines (to the selection, a hint, a blast radius or flow, Compare's added or changed, hover) in the link color. */
+  .react-flow__edge.connected .react-flow__edge-path,
+  .react-flow__edge.hinted .react-flow__edge-path,
+  .react-flow__edge.blast .react-flow__edge-path,
+  .react-flow__edge.blast-now .react-flow__edge-path,
+  .react-flow__edge.diff-added .react-flow__edge-path,
+  .react-flow__edge.diff-changed .react-flow__edge-path,
+  .react-flow__edge.hover .react-flow__edge-path {
+    stroke: LinkText !important;
+  }
+  /* The selected or focused line in the highlight color, over any state. */
+  .react-flow .react-flow__edge.selected .react-flow__edge-path,
   .react-flow .react-flow__edge.selectable:focus .react-flow__edge-path,
   .react-flow .react-flow__edge.selectable:focus-visible .react-flow__edge-path {
-    stroke: Highlight;
+    stroke: Highlight !important;
   }
-  marker path {
+  marker path,
+  marker polyline {
     stroke: CanvasText !important;
+  }
+  /* The plain arrowhead (CSDM view) is a filled polyline. */
+  marker polyline {
+    fill: CanvasText !important;
+  }
+  .react-flow__minimap-mask {
+    fill: Canvas !important;
+    fill-opacity: 0.6;
+    stroke: Highlight !important;
   }
   /* Filled markers take the line's color; hollow ones show the ground through; open ones stay open. */
   marker path[style*="fill: var(--canvas)"],
@@ -1230,9 +1252,13 @@ html[data-framed] body > a[href="#main-content"] {
     border-color: CanvasText !important;
   }
   /* The selection and focus rings are box shadows, which forced colors removes: an outline instead. */
-  .react-flow__node:focus,
   .react-flow__node.selected {
     outline: 2px solid Highlight;
     outline-offset: 2px;
+  }
+  /* Keyboard focus reads apart from the selection: heavier and dashed. */
+  .react-flow__node:focus-visible {
+    outline: 3px dashed Highlight;
+    outline-offset: 3px;
   }
 }
