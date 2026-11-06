@@ -174,7 +174,20 @@ export function CompareBar({ base, comparison, onGo, onClose, buttonClass }: { b
  * details, then what was added, changed and removed. With `onGo`, an added or changed element is a
  * button that goes to it; without (two snapshots, neither of them the open model), plain text.
  */
-export function ChangeList({ comparison: c, listId, onGo, className = "" }: { comparison: Comparison; listId: string; onGo?: (id: string) => void; className?: string }) {
+export function ChangeList({
+  comparison: c,
+  listId,
+  onGo,
+  className = "",
+  heading: H = "h3",
+}: {
+  comparison: Comparison;
+  listId: string;
+  onGo?: (id: string) => void;
+  className?: string;
+  /** The level of the section headings, one below where the list sits (h3 in the Compare bar, h5 under the dialog's result heading). */
+  heading?: "h3" | "h5";
+}) {
   const item = "cursor-pointer text-left text-sm text-ink underline underline-offset-2 hover:text-accent";
   const edgeText = (e: { from: string; to: string; type: string }) => `${e.from} → ${e.to} (${e.type.split("::")[0]})`;
   // M72: saved views and flows, by kind and name.
@@ -201,12 +214,12 @@ export function ChangeList({ comparison: c, listId, onGo, className = "" }: { co
       </li>
     ));
   return (
-<div id={listId} data-testid="compare-list" className={`grid gap-x-6 gap-y-2 pb-1 sm:grid-cols-3 ${className}`}>
+    <div id={listId} data-testid="compare-list" className={`grid gap-x-6 gap-y-2 pb-1 sm:grid-cols-3 ${className}`}>
       {c.details.length > 0 && (
         <section aria-labelledby={`${listId}-details`} className="sm:col-span-3">
-          <h3 id={`${listId}-details`} className="text-xs font-medium text-ink-muted">
+          <H id={`${listId}-details`} className="text-xs font-medium text-ink-muted">
             <span aria-hidden="true">~ </span>Model details
-          </h3>
+          </H>
           <ul className="mt-1 flex flex-col gap-0.5" data-testid="compare-details">
             {c.details.map((d) => (
               <li key={d.field} className="text-sm text-ink-soft">
@@ -217,9 +230,9 @@ export function ChangeList({ comparison: c, listId, onGo, className = "" }: { co
         </section>
       )}
       <section aria-labelledby={`${listId}-added`}>
-        <h3 id={`${listId}-added`} className="text-xs font-medium text-ink-muted">
+        <H id={`${listId}-added`} className="text-xs font-medium text-ink-muted">
           <span aria-hidden="true">+ </span>Added
-        </h3>
+        </H>
         <ul className="mt-1 flex flex-col gap-0.5">
           {c.added.map((e) => (
             <li key={e.id}>
@@ -246,9 +259,9 @@ export function ChangeList({ comparison: c, listId, onGo, className = "" }: { co
         </ul>
       </section>
       <section aria-labelledby={`${listId}-changed`}>
-        <h3 id={`${listId}-changed`} className="text-xs font-medium text-ink-muted">
+        <H id={`${listId}-changed`} className="text-xs font-medium text-ink-muted">
           <span aria-hidden="true">~ </span>Changed
-        </h3>
+        </H>
         <ul className="mt-1 flex flex-col gap-0.5">
           {c.changed.map((e) => (
             <li key={e.id}>
@@ -280,9 +293,9 @@ export function ChangeList({ comparison: c, listId, onGo, className = "" }: { co
         </ul>
       </section>
       <section aria-labelledby={`${listId}-removed`}>
-        <h3 id={`${listId}-removed`} className="text-xs font-medium text-ink-muted">
+        <H id={`${listId}-removed`} className="text-xs font-medium text-ink-muted">
           <span aria-hidden="true">− </span>Removed
-        </h3>
+        </H>
         <ul className="mt-1 flex flex-col gap-0.5">
           {c.removed.map((e) => (
             <li key={e.id} className="text-sm text-ink-soft">

@@ -252,7 +252,19 @@ test.describe("compare two snapshots (M83, desktop)", () => {
     // Plain text here, not buttons: neither snapshot is the open model.
     await expect(result.getByTestId("compare-list").getByRole("button")).toHaveCount(0);
     await expect(dialog(page).getByRole("status")).toContainText("From “March” to “June”: 1 element changed");
+    // Headings in order: the result's h4, then its sections' h5 (best-practice heading-order too).
+    await expect(result.locator("h5")).toHaveText(["+ Added", "~ Changed", "− Removed"].map((t) => new RegExp(t.slice(2))));
+    expect(await new AxeBuilder({ page }).withTags([...tags, "best-practice"]).withRules(["heading-order"]).include('[data-testid="snapshots-dialog"]').analyze().then((r) => r.violations)).toEqual([]);
     expect(await new AxeBuilder({ page }).withTags(tags).include('[data-testid="snapshots-dialog"]').analyze().then((r) => r.violations)).toEqual([]);
+
+    // Taking another snapshot moves the picks to the newest two, so the result shown for the old ones goes.
+    await take(page, "Later");
+    await expect(result).toHaveCount(0);
+    await expect(two.getByLabel("To").locator("option:checked")).toHaveText(/^Later \(/);
+    await two.getByLabel("From").selectOption({ label: (await two.getByLabel("From").locator("option").filter({ hasText: /^March / }).textContent())! });
+    await two.getByLabel("To").selectOption({ label: (await two.getByLabel("To").locator("option").filter({ hasText: /^June / }).textContent())! });
+    await two.getByRole("button", { name: "Compare these" }).click();
+    await expect(result.getByRole("heading", { name: "Changes from “March” to “June”" })).toBeVisible();
 
     // The same snapshot twice is not a comparison.
     await two.getByLabel("To").selectOption({ label: (await two.getByLabel("From").locator("option:checked").textContent())! });

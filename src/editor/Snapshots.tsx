@@ -64,11 +64,18 @@ export function SnapshotsDialog({
   const pair = snapshotPair(items ?? []);
   const fromId = readable.some((s) => s.id === pick.from) ? pick.from! : pair?.from;
   const toId = readable.some((s) => s.id === pick.to) ? pick.to! : pair?.to;
+  // A newer request (another click, other picks, a snapshot taken or deleted) makes an older one's answer stale.
+  const run = useRef(0);
+  const [comparing, setComparing] = useState(false);
   const compareTwo = async () => {
     const from = readable.find((s) => s.id === fromId);
     const to = readable.find((s) => s.id === toId);
     if (!onCompareTwo || !from || !to || from.id === to.id) return;
+    const mine = ++run.current;
+    setComparing(true);
     const comparison = await onCompareTwo(from, to);
+    if (mine !== run.current) return;
+    setComparing(false);
     if (!comparison) return fail(unreadable);
     setError(null);
     setResult({ from, to, comparison });
@@ -100,6 +107,10 @@ export function SnapshotsDialog({
     setError(null);
     setName("");
     setStatus(`Took snapshot “${label}”.`);
+    // The default picks may move to the new snapshot: a result shown for the old ones goes.
+    run.current++;
+    setComparing(false);
+    setResult(null);
     await reload();
     // The name field, for the next one; when that was the last one allowed, the newest snapshot.
     setTimeout(() => (nameInput.current ?? firstRow())?.focus(), 0);
@@ -111,7 +122,9 @@ export function SnapshotsDialog({
       return fail(`The snapshot “${s.name}” could not be deleted.`);
     }
     setConfirming(null);
-    if (result && (result.from.id === s.id || result.to.id === s.id)) setResult(null);
+    run.current++;
+    setComparing(false);
+    setResult(null);
     setStatus(`Deleted snapshot “${s.name}”.`);
     await reload();
     // Focus stays in the list: the snapshot that took its place, the one before it, else the name field.
@@ -254,6 +267,8 @@ export function SnapshotsDialog({
                     value={k === "from" ? fromId : toId}
                     onChange={(e) => {
                       setPick((p) => ({ ...p, [k]: e.target.value }));
+                      run.current++;
+                      setComparing(false);
                       setResult(null);
                     }}
                   >
@@ -265,18 +280,22 @@ export function SnapshotsDialog({
                   </select>
                 </label>
               ))}
-              <button type="button" className={btn} disabled={fromId === toId} onClick={() => void compareTwo()}>
-                Compare these
+              <button type="button" className={btn} disabled={fromId === toId || comparing} aria-describedby={fromId === toId ? `${uid}-same` : undefined} onClick={() => void compareTwo()}>
+                {comparing ? "Comparing…" : "Compare these"}
               </button>
             </div>
-            {fromId === toId && <p className="text-xs text-ink-muted">Choose two different snapshots.</p>}
+            {fromId === toId && (
+              <p id={`${uid}-same`} className="text-xs text-ink-muted">
+                Choose two different snapshots.
+              </p>
+            )}
             {result && (
               <div className="flex flex-col gap-1 border border-border px-2.5 py-2" data-testid="compare-two-result">
                 <h4 className="text-sm font-medium">
                   Changes from “{result.from.name}” to “{result.to.name}”
                 </h4>
                 <p className="text-sm text-ink-muted">{compareSummary(result.comparison)}</p>
-                <ChangeList listId={`${uid}-two-list`} comparison={result.comparison} className="max-h-72 overflow-y-auto" />
+                <ChangeList listId={`${uid}-two-list`} comparison={result.comparison} heading="h5" className="max-h-72 overflow-y-auto" />
               </div>
             )}
           </section>
