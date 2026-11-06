@@ -83,7 +83,10 @@ test.describe("model details (desktop)", () => {
     await expect(page.getByTestId("canvas-description")).toHaveText("Order flow for the web store.");
     await page.keyboard.press("Escape");
 
+    // A menu opened right after leaving Present stays open: returning focus to Present doesn't close it.
     await page.getByRole("button", { name: "Export" }).click();
+    await page.waitForTimeout(200);
+    await expect(page.getByTestId("export-panel")).toBeVisible();
     const [download] = await Promise.all([page.waitForEvent("download"), page.getByRole("button", { name: /^Image, light \(SVG\)/ }).click()]);
     const svg = await readFile((await download.path())!, "utf8");
     expect(svg).toMatch(/data-title="name"[^>]*>Online Store Checkout</);

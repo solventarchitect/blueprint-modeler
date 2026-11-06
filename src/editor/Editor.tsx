@@ -2162,7 +2162,8 @@ function EditorInner() {
     setBlast(null);
     if (document.fullscreenElement) void document.exitFullscreen().catch(() => undefined);
     setTimeout(() => {
-      presentButton.current?.focus();
+      // Back to Present, unless the user has already moved on (an Export menu opened right away would close).
+      if (!document.activeElement || document.activeElement === document.body) presentButton.current?.focus();
       if (isoRef.current) isoRef.current.zoom("fit");
       else void flow.fitView({ maxZoom: 1, padding: fitPadding(0.15) });
     }, 60);
