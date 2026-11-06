@@ -3282,6 +3282,11 @@ function EditorInner() {
             return true;
           }}
           onDelete={(s) => doc.deleteSnapshot(s.id)}
+          onCompareTwo={async (from, to) => {
+            // M83: two snapshots against each other; the open model and the canvas stay as they are.
+            const [a, b] = await Promise.all([doc.readSnapshot(from.id), doc.readSnapshot(to.id)]);
+            return a && b ? compareModels(b, a) : null;
+          }}
           onClose={() => dialogClosed(setSnapshotsDialog)}
         />
       )}

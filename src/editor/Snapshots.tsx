@@ -2,12 +2,22 @@
 
 import { useCallback, useEffect, useId, useRef, useState } from "react";
 import { MAX_SNAPSHOTS, type SnapshotSummary } from "@/storage";
-import { UNTITLED_MODEL } from "@/model";
+import { UNTITLED_MODEL, type Comparison } from "@/model";
+import { ChangeList, compareSummary } from "./Compare";
 
 const btn = "inline-flex min-h-8 cursor-pointer items-center border border-border-strong bg-surface-raised px-2.5 text-sm text-ink hover:border-accent hover:text-accent disabled:cursor-not-allowed disabled:opacity-50";
 const count = (n: number, one: string, many = `${one}s`) => `${n} ${n === 1 ? one : many}`;
 /** When a snapshot was taken, to the minute, in the viewer's own time zone. */
 export const takenAt = (iso: string) => new Date(iso).toLocaleString("en-US", { dateStyle: "medium", timeStyle: "short" });
+
+/**
+ * M83: the two snapshots Compare two starts with: the second newest readable one to the newest (the
+ * list is newest first); null with fewer than two that can be read.
+ */
+export function snapshotPair(items: SnapshotSummary[]): { from: string; to: string } | null {
+  const ok = items.filter((s) => !s.damaged);
+  return ok.length >= 2 ? { from: ok[1]!.id, to: ok[0]!.id } : null;
+}
 
 /**
  * Snapshots (M66): the open model as it was at moments the modeler chose to keep, in this browser
@@ -21,6 +31,7 @@ export function SnapshotsDialog({
   onCompare,
   onRestore,
   onDelete,
+  onCompareTwo,
   onClose,
 }: {
   modelName: string;
@@ -30,6 +41,8 @@ export function SnapshotsDialog({
   onCompare: (s: SnapshotSummary) => Promise<boolean>;
   onRestore: (s: SnapshotSummary) => Promise<boolean>;
   onDelete: (s: SnapshotSummary) => Promise<void>;
+  /** M83: what changed from one snapshot to another (null when either could not be read). Nothing changes in the open model. */
+  onCompareTwo?: (from: SnapshotSummary, to: SnapshotSummary) => Promise<Comparison | null>;
   onClose: () => void;
 }) {
   const dialog = useRef<HTMLDialogElement>(null);
@@ -44,6 +57,30 @@ export function SnapshotsDialog({
   const [confirming, setConfirming] = useState<string | null>(null);
 
   const reload = useCallback(async () => setItems(await list()), [list]);
+  // M83: Compare two. The picks start at the second newest and the newest; a pick deleted since falls back to them.
+  const [pick, setPick] = useState<{ from?: string; to?: string }>({});
+  const [result, setResult] = useState<{ from: SnapshotSummary; to: SnapshotSummary; comparison: Comparison } | null>(null);
+  const readable = (items ?? []).filter((s) => !s.damaged);
+  const pair = snapshotPair(items ?? []);
+  const fromId = readable.some((s) => s.id === pick.from) ? pick.from! : pair?.from;
+  const toId = readable.some((s) => s.id === pick.to) ? pick.to! : pair?.to;
+  // A newer request (another click, other picks, a snapshot taken or deleted) makes an older one's answer stale.
+  const run = useRef(0);
+  const [comparing, setComparing] = useState(false);
+  const compareTwo = async () => {
+    const from = readable.find((s) => s.id === fromId);
+    const to = readable.find((s) => s.id === toId);
+    if (!onCompareTwo || !from || !to || from.id === to.id) return;
+    const mine = ++run.current;
+    setComparing(true);
+    const comparison = await onCompareTwo(from, to);
+    if (mine !== run.current) return;
+    setComparing(false);
+    if (!comparison) return fail(unreadable);
+    setError(null);
+    setResult({ from, to, comparison });
+    setStatus(`From “${from.name}” to “${to.name}”: ${compareSummary(comparison)}.`);
+  };
   useEffect(() => {
     if (!dialog.current?.open) dialog.current?.showModal();
     // The list arrives from storage (the state is set when it does, never during the effect).
@@ -70,6 +107,10 @@ export function SnapshotsDialog({
     setError(null);
     setName("");
     setStatus(`Took snapshot “${label}”.`);
+    // The default picks may move to the new snapshot: a result shown for the old ones goes.
+    run.current++;
+    setComparing(false);
+    setResult(null);
     await reload();
     // The name field, for the next one; when that was the last one allowed, the newest snapshot.
     setTimeout(() => (nameInput.current ?? firstRow())?.focus(), 0);
@@ -81,6 +122,9 @@ export function SnapshotsDialog({
       return fail(`The snapshot “${s.name}” could not be deleted.`);
     }
     setConfirming(null);
+    run.current++;
+    setComparing(false);
+    setResult(null);
     setStatus(`Deleted snapshot “${s.name}”.`);
     await reload();
     // Focus stays in the list: the snapshot that took its place, the one before it, else the name field.
@@ -208,6 +252,54 @@ export function SnapshotsDialog({
             <p className="mt-1.5 text-sm text-ink-muted">No snapshots of this model yet.</p>
           )}
         </section>
+        {onCompareTwo && pair && (
+          <section aria-labelledby={`${uid}-two`} className="flex flex-col gap-1.5" data-testid="compare-two">
+            <h3 id={`${uid}-two`} className="text-sm font-medium">
+              Compare two snapshots
+            </h3>
+            <p className="text-xs text-ink-muted">What changed from one to the other. The open model stays as it is.</p>
+            <div className="flex flex-wrap items-end gap-2">
+              {(["from", "to"] as const).map((k) => (
+                <label key={k} className="flex min-w-0 flex-1 flex-col gap-1 text-sm">
+                  <span className="text-ink-muted">{k === "from" ? "From" : "To"}</span>
+                  <select
+                    className="min-h-8 border border-border-strong bg-surface-raised px-2 text-sm text-ink"
+                    value={k === "from" ? fromId : toId}
+                    onChange={(e) => {
+                      setPick((p) => ({ ...p, [k]: e.target.value }));
+                      run.current++;
+                      setComparing(false);
+                      setResult(null);
+                    }}
+                  >
+                    {readable.map((s) => (
+                      <option key={s.id} value={s.id}>
+                        {s.name} ({takenAt(s.taken)})
+                      </option>
+                    ))}
+                  </select>
+                </label>
+              ))}
+              <button type="button" className={btn} disabled={fromId === toId || comparing} aria-describedby={fromId === toId ? `${uid}-same` : undefined} onClick={() => void compareTwo()}>
+                {comparing ? "Comparing…" : "Compare these"}
+              </button>
+            </div>
+            {fromId === toId && (
+              <p id={`${uid}-same`} className="text-xs text-ink-muted">
+                Choose two different snapshots.
+              </p>
+            )}
+            {result && (
+              <div className="flex flex-col gap-1 border border-border px-2.5 py-2" data-testid="compare-two-result">
+                <h4 className="text-sm font-medium">
+                  Changes from “{result.from.name}” to “{result.to.name}”
+                </h4>
+                <p className="text-sm text-ink-muted">{compareSummary(result.comparison)}</p>
+                <ChangeList listId={`${uid}-two-list`} comparison={result.comparison} heading="h5" className="max-h-72 overflow-y-auto" />
+              </div>
+            )}
+          </section>
+        )}
       </div>
       <div className="flex justify-end border-t border-border px-4 py-3">
         <button type="button" className={btn} onClick={() => dialog.current?.close()}>

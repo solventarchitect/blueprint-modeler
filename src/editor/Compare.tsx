@@ -147,6 +147,47 @@ export function CompareBar({ base, comparison, onGo, onClose, buttonClass }: { b
   const [open, setOpen] = useState(true);
   const id = useId();
   const c = comparison;
+  return (
+    <div role="region" aria-label="Compare" data-testid="compare-bar" className="flex flex-col gap-1.5 border-b border-border px-4 py-2">
+      <div className="flex flex-wrap items-center gap-2">
+        <p className="font-mono text-xs tracking-[0.14em] text-accent uppercase">Compare</p>
+        <h2 className="text-sm font-medium">Changes since “{base.label}”</h2>
+        <p className="text-sm text-ink-muted" aria-live="polite" data-testid="compare-summary">
+          {compareSummary(c)}
+        </p>
+        <span className="ml-auto flex gap-2">
+          <button type="button" className={buttonClass} aria-expanded={open} aria-controls={`${id}-list`} onClick={() => setOpen(!open)}>
+            {open ? "Hide changes" : "Show changes"}
+          </button>
+          <button type="button" className={buttonClass} onClick={onClose} aria-keyshortcuts="Escape">
+            Close
+          </button>
+        </span>
+      </div>
+      {open && <ChangeList listId={`${id}-list`} comparison={c} onGo={onGo} className="max-h-48 overflow-y-auto" />}
+    </div>
+  );
+}
+
+/**
+ * The change list (M58), shared by the Compare bar and, M83, the Snapshots dialog: the model's
+ * details, then what was added, changed and removed. With `onGo`, an added or changed element is a
+ * button that goes to it; without (two snapshots, neither of them the open model), plain text.
+ */
+export function ChangeList({
+  comparison: c,
+  listId,
+  onGo,
+  className = "",
+  heading: H = "h3",
+}: {
+  comparison: Comparison;
+  listId: string;
+  onGo?: (id: string) => void;
+  className?: string;
+  /** The level of the section headings, one below where the list sits (h3 in the Compare bar, h5 under the dialog's result heading). */
+  heading?: "h3" | "h5";
+}) {
   const item = "cursor-pointer text-left text-sm text-ink underline underline-offset-2 hover:text-accent";
   const edgeText = (e: { from: string; to: string; type: string }) => `${e.from} → ${e.to} (${e.type.split("::")[0]})`;
   // M72: saved views and flows, by kind and name.
@@ -173,112 +214,105 @@ export function CompareBar({ base, comparison, onGo, onClose, buttonClass }: { b
       </li>
     ));
   return (
-    <div role="region" aria-label="Compare" data-testid="compare-bar" className="flex flex-col gap-1.5 border-b border-border px-4 py-2">
-      <div className="flex flex-wrap items-center gap-2">
-        <p className="font-mono text-xs tracking-[0.14em] text-accent uppercase">Compare</p>
-        <h2 className="text-sm font-medium">Changes since “{base.label}”</h2>
-        <p className="text-sm text-ink-muted" aria-live="polite" data-testid="compare-summary">
-          {compareSummary(c)}
-        </p>
-        <span className="ml-auto flex gap-2">
-          <button type="button" className={buttonClass} aria-expanded={open} aria-controls={`${id}-list`} onClick={() => setOpen(!open)}>
-            {open ? "Hide changes" : "Show changes"}
-          </button>
-          <button type="button" className={buttonClass} onClick={onClose} aria-keyshortcuts="Escape">
-            Close
-          </button>
-        </span>
-      </div>
-      {open && (
-        <div id={`${id}-list`} data-testid="compare-list" className="grid max-h-48 gap-x-6 gap-y-2 overflow-y-auto pb-1 sm:grid-cols-3">
-          {c.details.length > 0 && (
-            <section aria-labelledby={`${id}-details`} className="sm:col-span-3">
-              <h3 id={`${id}-details`} className="text-xs font-medium text-ink-muted">
-                <span aria-hidden="true">~ </span>Model details
-              </h3>
-              <ul className="mt-1 flex flex-col gap-0.5" data-testid="compare-details">
-                {c.details.map((d) => (
-                  <li key={d.field} className="text-sm text-ink-soft">
-                    {DETAIL_LABEL[d.field]}: {detailText(d, d.before)} → {detailText(d, d.after)}
-                  </li>
-                ))}
-              </ul>
-            </section>
-          )}
-          <section aria-labelledby={`${id}-added`}>
-            <h3 id={`${id}-added`} className="text-xs font-medium text-ink-muted">
-              <span aria-hidden="true">+ </span>Added
-            </h3>
-            <ul className="mt-1 flex flex-col gap-0.5">
-              {c.added.map((e) => (
-                <li key={e.id}>
-                  <button type="button" className={item} onClick={() => onGo(e.id)}>
-                    {e.name} <span className="text-ink-muted">({e.kind})</span>
-                  </button>
-                </li>
-              ))}
-              {c.edgesAdded.map((e) => (
-                <li key={e.id} className="text-sm text-ink-soft">
-                  {edgeText(e)}
-                </li>
-              ))}
-              {named(c.views.added, "View")}
-              {named(c.flows.added, "Flow")}
-              {named(c.decisions.added, "Decision")}
-              {!c.added.length && !c.edgesAdded.length && !c.views.added.length && !c.flows.added.length && !c.decisions.added.length && <li className="text-sm text-ink-muted">Nothing</li>}
-            </ul>
-          </section>
-          <section aria-labelledby={`${id}-changed`}>
-            <h3 id={`${id}-changed`} className="text-xs font-medium text-ink-muted">
-              <span aria-hidden="true">~ </span>Changed
-            </h3>
-            <ul className="mt-1 flex flex-col gap-0.5">
-              {c.changed.map((e) => (
-                <li key={e.id}>
-                  <button type="button" className={item} onClick={() => onGo(e.id)}>
-                    {e.name} <span className="text-ink-muted">({e.kind})</span>
-                  </button>
-                  <span className="block text-xs text-ink-muted">
-                    {e.changes.map((f) => `${FIELD_LABEL[f.field]}: ${f.before || "not set"} → ${f.after || "not set"}`).join("; ")}
-                  </span>
-                </li>
-              ))}
-              {c.edgesChanged.map((e) => (
-                <li key={e.id} className="text-sm text-ink-soft">
-                  {edgeText(e)}
-                  {e.before !== e.type && `, was ${e.before.split("::")[0]}`}
-                  {e.plan && `, plan status ${e.plan.before} → ${e.plan.after}`}
-                </li>
-              ))}
-              {namedChanged(c.views.changed, "View")}
-              {namedChanged(c.flows.changed, "Flow")}
-              {namedChanged(c.decisions.changed, "Decision")}
-              {!c.changed.length && !c.edgesChanged.length && !c.views.changed.length && !c.flows.changed.length && !c.decisions.changed.length && <li className="text-sm text-ink-muted">Nothing</li>}
-            </ul>
-          </section>
-          <section aria-labelledby={`${id}-removed`}>
-            <h3 id={`${id}-removed`} className="text-xs font-medium text-ink-muted">
-              <span aria-hidden="true">− </span>Removed
-            </h3>
-            <ul className="mt-1 flex flex-col gap-0.5">
-              {c.removed.map((e) => (
-                <li key={e.id} className="text-sm text-ink-soft">
-                  {e.name} <span className="text-ink-muted">({e.kind})</span>
-                </li>
-              ))}
-              {c.edgesRemoved.map((e) => (
-                <li key={e.id} className="text-sm text-ink-soft">
-                  {edgeText(e)}
-                </li>
-              ))}
-              {named(c.views.removed, "View")}
-              {named(c.flows.removed, "Flow")}
-              {named(c.decisions.removed, "Decision")}
-              {!c.removed.length && !c.edgesRemoved.length && !c.views.removed.length && !c.flows.removed.length && !c.decisions.removed.length && <li className="text-sm text-ink-muted">Nothing</li>}
-            </ul>
-          </section>
-        </div>
+    <div id={listId} data-testid="compare-list" className={`grid gap-x-6 gap-y-2 pb-1 sm:grid-cols-3 ${className}`}>
+      {c.details.length > 0 && (
+        <section aria-labelledby={`${listId}-details`} className="sm:col-span-3">
+          <H id={`${listId}-details`} className="text-xs font-medium text-ink-muted">
+            <span aria-hidden="true">~ </span>Model details
+          </H>
+          <ul className="mt-1 flex flex-col gap-0.5" data-testid="compare-details">
+            {c.details.map((d) => (
+              <li key={d.field} className="text-sm text-ink-soft">
+                {DETAIL_LABEL[d.field]}: {detailText(d, d.before)} → {detailText(d, d.after)}
+              </li>
+            ))}
+          </ul>
+        </section>
       )}
+      <section aria-labelledby={`${listId}-added`}>
+        <H id={`${listId}-added`} className="text-xs font-medium text-ink-muted">
+          <span aria-hidden="true">+ </span>Added
+        </H>
+        <ul className="mt-1 flex flex-col gap-0.5">
+          {c.added.map((e) => (
+            <li key={e.id}>
+              {onGo ? (
+                <button type="button" className={item} onClick={() => onGo(e.id)}>
+                  {e.name} <span className="text-ink-muted">({e.kind})</span>
+                </button>
+              ) : (
+                <span className="text-sm text-ink-soft">
+                  {e.name} <span className="text-ink-muted">({e.kind})</span>
+                </span>
+              )}
+            </li>
+          ))}
+          {c.edgesAdded.map((e) => (
+            <li key={e.id} className="text-sm text-ink-soft">
+              {edgeText(e)}
+            </li>
+          ))}
+          {named(c.views.added, "View")}
+          {named(c.flows.added, "Flow")}
+          {named(c.decisions.added, "Decision")}
+          {!c.added.length && !c.edgesAdded.length && !c.views.added.length && !c.flows.added.length && !c.decisions.added.length && <li className="text-sm text-ink-muted">Nothing</li>}
+        </ul>
+      </section>
+      <section aria-labelledby={`${listId}-changed`}>
+        <H id={`${listId}-changed`} className="text-xs font-medium text-ink-muted">
+          <span aria-hidden="true">~ </span>Changed
+        </H>
+        <ul className="mt-1 flex flex-col gap-0.5">
+          {c.changed.map((e) => (
+            <li key={e.id}>
+              {onGo ? (
+                <button type="button" className={item} onClick={() => onGo(e.id)}>
+                  {e.name} <span className="text-ink-muted">({e.kind})</span>
+                </button>
+              ) : (
+                <span className="text-sm text-ink-soft">
+                  {e.name} <span className="text-ink-muted">({e.kind})</span>
+                </span>
+              )}
+              <span className="block text-xs text-ink-muted">
+                {e.changes.map((f) => `${FIELD_LABEL[f.field]}: ${f.before || "not set"} → ${f.after || "not set"}`).join("; ")}
+              </span>
+            </li>
+          ))}
+          {c.edgesChanged.map((e) => (
+            <li key={e.id} className="text-sm text-ink-soft">
+              {edgeText(e)}
+              {e.before !== e.type && `, was ${e.before.split("::")[0]}`}
+              {e.plan && `, plan status ${e.plan.before} → ${e.plan.after}`}
+            </li>
+          ))}
+          {namedChanged(c.views.changed, "View")}
+          {namedChanged(c.flows.changed, "Flow")}
+          {namedChanged(c.decisions.changed, "Decision")}
+          {!c.changed.length && !c.edgesChanged.length && !c.views.changed.length && !c.flows.changed.length && !c.decisions.changed.length && <li className="text-sm text-ink-muted">Nothing</li>}
+        </ul>
+      </section>
+      <section aria-labelledby={`${listId}-removed`}>
+        <H id={`${listId}-removed`} className="text-xs font-medium text-ink-muted">
+          <span aria-hidden="true">− </span>Removed
+        </H>
+        <ul className="mt-1 flex flex-col gap-0.5">
+          {c.removed.map((e) => (
+            <li key={e.id} className="text-sm text-ink-soft">
+              {e.name} <span className="text-ink-muted">({e.kind})</span>
+            </li>
+          ))}
+          {c.edgesRemoved.map((e) => (
+            <li key={e.id} className="text-sm text-ink-soft">
+              {edgeText(e)}
+            </li>
+          ))}
+          {named(c.views.removed, "View")}
+          {named(c.flows.removed, "Flow")}
+          {named(c.decisions.removed, "Decision")}
+          {!c.removed.length && !c.edgesRemoved.length && !c.views.removed.length && !c.flows.removed.length && !c.decisions.removed.length && <li className="text-sm text-ink-muted">Nothing</li>}
+        </ul>
+      </section>
     </div>
   );
 }
