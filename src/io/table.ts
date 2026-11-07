@@ -86,11 +86,11 @@ export const ELEMENT_COLUMNS: { key: keyof ElementRow; label: string }[] = [
 export const elementsCsv = (rows: ElementRow[]) => toCsv(ELEMENT_COLUMNS.map((c) => c.label), rows.map((r) => ELEMENT_COLUMNS.map((c) => String(r[c.key]))));
 export const relationshipsCsv = (rows: RelationshipRow[]) => toCsv(["From", "Relationship", "To", "Plan status"], rows.map((r) => [r.from, r.type, r.to, r.plan]));
 
-/** M80: every decision as a CSV row: title, status, date, the elements it concerns by name (sorted), then its parts. */
+/** M80: every decision as a CSV row: title, status, date, the elements it concerns by name (sorted), then its parts, then (M85) what replaced it. */
 export function decisionsCsv(model: Model): string {
   const nameOf = (id: string) => model.nodes.find((n) => n.id === id)?.name || "Untitled";
   return toCsv(
-    ["Title", "Status", "Date", "Elements", "Context", "Decision", "Consequences"],
+    ["Title", "Status", "Date", "Elements", "Context", "Decision", "Consequences", "Superseded by"],
     (model.decisions ?? []).map((d) => [
       d.title,
       DECISION_STATUS_LABEL[d.status],
@@ -99,6 +99,8 @@ export function decisionsCsv(model: Model): string {
       d.context ?? "",
       d.decision ?? "",
       d.consequences ?? "",
+      // M85: last, so the columns before it stay where 1.21's were.
+      (d.supersededBy && model.decisions?.find((x) => x.id === d.supersededBy)?.title) || "",
     ]),
   );
 }

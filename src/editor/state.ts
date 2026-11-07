@@ -1,6 +1,6 @@
 import { acceptedTypes, allowedTypes, classById, relationshipsBetween, type ClassId, type Layer } from "@/metamodel";
 import type { Side } from "@/layout/geometry";
-import { cleanTags, decisionSchema, edgeKey, flowSchema, MAX_DECISIONS, type Decision, withKnownDecisionElements, withUnbrokenFlows, linkSchema, MAX_FLOWS, type Flow, type PlanStatus, serializeModel, MAX_LINKS, MAX_VIEWS, viewSchema, type Link, withDetails, type Edge, type Model, type Node, type View } from "@/model";
+import { cleanTags, decisionSchema, edgeKey, flowSchema, MAX_DECISIONS, replacementChoices, type Decision, withKnownDecisionElements, withUnbrokenFlows, linkSchema, MAX_FLOWS, type Flow, type PlanStatus, serializeModel, MAX_LINKS, MAX_VIEWS, viewSchema, type Link, withDetails, type Edge, type Model, type Node, type View } from "@/model";
 
 /**
  * Editor state: the model plus undo/redo history. Pure functions only, so every rule the
@@ -219,10 +219,12 @@ function apply(model: Model, action: Action): Model | null {
       const parsed = decisionSchema.safeParse(action.decision);
       if (!parsed.success) return null;
       const known = new Set(model.nodes.map((n) => n.id));
-      const { id, title, status, date, context, decision: text, consequences, elements } = parsed.data;
+      const { id, title, status, supersededBy, date, context, decision: text, consequences, elements } = parsed.data;
       const kept = (elements ?? []).filter((e) => known.has(e));
       const said = (k: string, v: string | undefined) => (v?.trim() ? { [k]: v.trim() } : {});
-      const decision: Decision = { id, title, status, ...(date ? { date } : {}), ...said("context", context), ...said("decision", text), ...said("consequences", consequences), ...(kept.length ? { elements: kept } : {}) };
+      // M85: only a Superseded decision names its replacement, one of the others that doesn't lead back to it.
+      const by = status === "superseded" && supersededBy && replacementChoices(model, id).some((d) => d.id === supersededBy) ? { supersededBy } : {};
+      const decision: Decision = { id, title, status, ...by, ...(date ? { date } : {}), ...said("context", context), ...said("decision", text), ...said("consequences", consequences), ...(kept.length ? { elements: kept } : {}) };
       const i = decisions.findIndex((d) => d.id === id);
       if (i >= 0 && JSON.stringify(decisions[i]) === JSON.stringify(decision)) return null;
       if (i < 0 && decisions.length >= MAX_DECISIONS) return null;
@@ -231,7 +233,13 @@ function apply(model: Model, action: Action): Model | null {
     case "delete-decision": {
       const decisions = model.decisions ?? [];
       if (!decisions.some((d) => d.id === action.id)) return null;
-      const rest = decisions.filter((d) => d.id !== action.id);
+      // M85: the decisions it replaced keep their status, without the link to it.
+      const rest = decisions.filter((d) => d.id !== action.id).map((d) => {
+        if (d.supersededBy !== action.id) return d;
+        const { supersededBy: _by, ...unlinked } = d;
+        void _by;
+        return unlinked;
+      });
       const { decisions: _gone, ...without } = model;
       void _gone;
       return rest.length ? { ...model, decisions: rest } : without;

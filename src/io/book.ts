@@ -6,7 +6,7 @@
  * report is.
  */
 import { classById } from "@/metamodel";
-import { DECISION_STATUS_LABEL, flowRadius, flowStepText, formatModelDate, healthReport, modelDate, UNTITLED_MODEL, type Model } from "@/model";
+import { DECISION_STATUS_LABEL, decisionLinks, flowRadius, flowStepText, formatModelDate, healthReport, modelDate, UNTITLED_MODEL, type Model } from "@/model";
 import { outlineModel } from "@/editor/reading";
 import { elementRows, ELEMENT_COLUMNS, relationshipRows, type ElementRow } from "./table";
 import { el, healthSections, table } from "./report";
@@ -34,7 +34,7 @@ export function bookDecisions(model: Model): { title: string; meta: string; part
   const nameOf = (id: string) => model.nodes.find((n) => n.id === id)?.name || "Untitled";
   return (model.decisions ?? []).map((d) => {
     const about = (d.elements ?? []).map(nameOf).sort((a, b) => a.localeCompare(b));
-    const meta = [DECISION_STATUS_LABEL[d.status], d.date ? formatModelDate(d.date) : "", about.length ? `Concerns ${about.join(", ")}` : ""].filter(Boolean).join(" · ");
+    const meta = [DECISION_STATUS_LABEL[d.status], d.date ? formatModelDate(d.date) : "", ...decisionLinks(model, d), about.length ? `Concerns ${about.join(", ")}` : ""].filter(Boolean).join(" · ");
     const parts = ([["Context", d.context], ["Decision", d.decision], ["Consequences", d.consequences]] as const).filter(([, t]) => t).map(([k, t]): [string, string] => [k, t!]);
     return { title: d.title, meta, parts };
   });

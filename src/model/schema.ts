@@ -202,6 +202,12 @@ export const decisionSchema = z.object({
   id,
   title: z.string().trim().min(1).max(120),
   status: z.enum(DECISION_STATUSES),
+  /**
+   * M85: the decision that replaces this one. Optional and additive in format 1 (older versions ignore it);
+   * kept only on a Superseded decision naming another one in the model, without a loop (see decisions.ts).
+   * One this version can't read drops the link, not the decision.
+   */
+  supersededBy: id.optional().catch(undefined),
   /** A date this version can't read drops the date, not the decision. */
   date: z.iso.date().optional().catch(undefined),
   context: decisionText,
@@ -272,8 +278,8 @@ export const modelSchema = z.object({
         const r = decisionSchema.safeParse(x);
         if (!r.success || seen.has(r.data.id)) continue;
         seen.add(r.data.id);
-        const { date, ...rest } = r.data;
-        kept.push(date ? { ...rest, date } : rest);
+        // A part this version couldn't read (date, M85 supersededBy) is left out, the rest kept in the schema's order.
+        kept.push(Object.fromEntries(Object.entries(r.data).filter(([, v]) => v !== undefined)) as Decision);
         if (kept.length === MAX_DECISIONS) break;
       }
       return kept.length ? kept : undefined;

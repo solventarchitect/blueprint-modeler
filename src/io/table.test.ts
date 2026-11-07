@@ -44,8 +44,14 @@ describe("decisions CSV (M80)", () => {
     const base = examples.find((e) => e.id === "checkout")!.create(new Date("2026-09-27T00:00:00Z"), "m1");
     const m = { ...base, decisions: [{ id: "d1", title: "Cache, the catalog", status: "accepted" as const, date: "2026-10-30", decision: "Read-through\ncache.", elements: ["data", "ba"] }, { id: "d2", title: "Retire ERP", status: "proposed" as const }] };
     const lines = decisionsCsv(m).replace(/^\uFEFF/, "").trimEnd().split("\r\n");
-    expect(lines[0]).toBe("Title,Status,Date,Elements,Context,Decision,Consequences");
-    expect(lines[1]).toBe('"Cache, the catalog",Accepted,2026-10-30,Checkout; Customer orders,,"Read-through\ncache.",');
-    expect(lines.at(-1)).toBe("Retire ERP,Proposed,,,,,");
+    expect(lines[0]).toBe("Title,Status,Date,Elements,Context,Decision,Consequences,Superseded by");
+    expect(lines[1]).toBe('"Cache, the catalog",Accepted,2026-10-30,Checkout; Customer orders,,"Read-through\ncache.",,');
+    expect(lines.at(-1)).toBe("Retire ERP,Proposed,,,,,,");
+  });
+
+  it("M85: names the decision that replaces one", () => {
+    const base = examples.find((e) => e.id === "checkout")!.create(new Date("2026-09-27T00:00:00Z"), "m1");
+    const m = { ...base, decisions: [{ id: "d1", title: "Cache", status: "superseded" as const, supersededBy: "d2" }, { id: "d2", title: "Edge cache", status: "accepted" as const }] };
+    expect(decisionsCsv(m).replace(/^\uFEFF/, "").split("\r\n")[1]).toBe("Cache,Superseded,,,,,,Edge cache");
   });
 });

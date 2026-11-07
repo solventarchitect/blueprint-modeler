@@ -1,8 +1,8 @@
 import { describe, expect, it } from "vitest";
 import { examples } from "@/examples";
 import { compareModels, sameModel } from "./compare";
-import { decisionCounts, decisionsAbout, DECISION_STATUS_LABEL, withKnownDecisionElements } from "./decisions";
-import { MAX_DECISIONS, modelSchema, parseModel, serializeModel, type Decision, type Model } from "./index";
+import { decisionCounts, decisionLinks, decisionsAbout, decisionsSupersededBy, DECISION_STATUS_LABEL, replacementChoices, withKnownDecisionElements, withKnownDecisionLinks } from "./decisions";
+import { decisionSchema, MAX_DECISIONS, modelSchema, parseModel, serializeModel, type Decision, type Model } from "./index";
 
 // M78: architecture decision records kept with the model.
 const checkout = () => examples.find((e) => e.id === "checkout")!.create(new Date("2026-09-27T00:00:00Z"), "m1");
@@ -106,5 +106,75 @@ describe("decision counts (M80)", () => {
     const counts = decisionCounts(m);
     expect(Object.fromEntries(counts)).toEqual({ ba: 1, cap: 2 });
     expect(decisionCounts(checkout()).size).toBe(0);
+  });
+});
+
+describe("decision links (M85, still format 1)", () => {
+  const cdn: Decision = { id: "d2", title: "Serve the catalog from a CDN", status: "accepted" };
+  const old: Decision = { ...cache, status: "superseded", supersededBy: "d2" };
+  const linked = (): Model => ({ ...checkout(), decisions: [old, cdn] });
+
+  it("round-trip, with supersededBy right after the status; ignored by 1.22's reader", () => {
+    const m = linked();
+    const r = roundTrip(m);
+    expect(r.ok && r.model).toEqual(m);
+    // Once read (as the reducer saves it too), the file has it right after the status.
+    expect(r.ok && Object.keys(JSON.parse(serializeModel(r.model)).decisions[0]).slice(0, 4)).toEqual(["id", "title", "status", "supersededBy"]);
+    const older = modelSchema.extend({ decisions: decisionSchema.omit({ supersededBy: true }).array().optional() });
+    const parsed = older.safeParse(JSON.parse(serializeModel(m)));
+    expect(parsed.success && parsed.data.decisions?.[0]).not.toHaveProperty("supersededBy");
+  });
+
+  it("a link is dropped, not the decision, when it isn't Superseded, names itself or a missing decision, or loops back", () => {
+    const file = JSON.parse(serializeModel(checkout()));
+    const r = parseModel({
+      ...file,
+      decisions: [
+        { ...cache, id: "a", status: "accepted", supersededBy: "b" },
+        { ...cache, id: "b", status: "superseded", supersededBy: "b" },
+        { ...cache, id: "c", status: "superseded", supersededBy: "gone" },
+        { ...cache, id: "d", status: "superseded", supersededBy: "e" },
+        { ...cache, id: "e", status: "superseded", supersededBy: "d" },
+        { ...cache, id: "f", status: "superseded", supersededBy: "a" },
+      ],
+    });
+    expect(r.ok).toBe(true);
+    if (!r.ok) return;
+    const links = Object.fromEntries(r.model.decisions!.map((d) => [d.id, d.supersededBy ?? null]));
+    // d and e point at each other: the first keeps its link, the one closing the loop loses it.
+    expect(links).toEqual({ a: null, b: null, c: null, d: "e", e: null, f: "a" });
+    expect(withKnownDecisionLinks(linked())).toEqual(linked());
+  });
+
+  it("Supersedes and Superseded by, both ways; what can replace a decision leaves out itself and what it replaces", () => {
+    const m: Model = { ...checkout(), decisions: [{ ...old, id: "a", supersededBy: "b" }, { ...cdn, id: "b", status: "superseded", supersededBy: "c" }, { ...cdn, id: "c", title: "Edge cache" }, { ...cdn, id: "x", title: "Other" }] };
+    expect(decisionsSupersededBy(m, "b").map((d) => d.id)).toEqual(["a"]);
+    expect(decisionsSupersededBy(m, "x")).toEqual([]);
+    expect(replacementChoices(m, "b").map((d) => d.id)).toEqual(["c", "x"]);
+    expect(replacementChoices(m, "c").map((d) => d.id)).toEqual(["x"]);
+    expect(decisionLinks(m, m.decisions![1]!)).toEqual(["Superseded by “Edge cache”", "Supersedes “Cache the product catalog”"]);
+    expect(decisionLinks(m, m.decisions![3]!)).toEqual([]);
+  });
+
+  it("a link this version can't read is dropped, not the decision; a read decision keeps the saved key order", () => {
+    const file = JSON.parse(serializeModel(checkout()));
+    for (const bad of [null, "", 7, "x".repeat(65)]) {
+      const r = parseModel({ ...file, decisions: [{ ...old, supersededBy: bad }, cdn] });
+      expect(r.ok && r.model.decisions).toEqual([{ ...cache, status: "superseded" }, cdn]);
+    }
+    const r = parseModel({ ...file, decisions: [{ elements: ["ba"], date: "2026-10-30", decision: "D", supersededBy: "d2", status: "superseded", title: "T", id: "d1" }, cdn] });
+    expect(r.ok && Object.keys(r.model.decisions![0]!)).toEqual(["id", "title", "status", "supersededBy", "date", "decision", "elements"]);
+  });
+
+  it("Compare: renaming the replacement is not a change to the decisions it replaced", () => {
+    const base = linked();
+    const now: Model = { ...base, decisions: [old, { ...cdn, title: "Serve it from a CDN" }] };
+    expect(compareModels(now, base).decisions.changed.map((c) => c.id)).toEqual(["d2"]);
+  });
+
+  it("Compare names a changed successor by its title", () => {
+    const base = linked();
+    const now: Model = { ...base, decisions: [{ ...old, supersededBy: "d3" }, cdn, { id: "d3", title: "Edge cache", status: "accepted" }] };
+    expect(compareModels(now, base).decisions.changed).toEqual([{ id: "d1", name: "Cache the product catalog", changes: [{ field: "Superseded by", before: "Serve the catalog from a CDN", after: "Edge cache" }] }]);
   });
 });

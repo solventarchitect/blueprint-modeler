@@ -300,4 +300,27 @@ describe("decisions (M78)", () => {
     s = run([{ type: "undo" }, { type: "undo" }], s);
     expect(s.present.decisions![0]!.elements).toEqual(["ba", "svc"]);
   });
+
+  it("M85: Superseded by is kept only for a Superseded decision naming another, never a loop", () => {
+    const b = { id: "d2", title: "Edge cache", status: "accepted" as const };
+    let s = run([...base, { type: "save-decision", decision: d }, { type: "save-decision", decision: b }]);
+    s = run([{ type: "save-decision", decision: { ...d, status: "superseded", supersededBy: "d2" } }], s);
+    expect(s.present.decisions![0]).toMatchObject({ status: "superseded", supersededBy: "d2" });
+    expect(Object.keys(s.present.decisions![0]!).slice(0, 4)).toEqual(["id", "title", "status", "supersededBy"]);
+    // d2 can't be replaced by d1, which it already replaces: the link is left out, the rest saved.
+    const loop = run([{ type: "save-decision", decision: { ...b, status: "superseded", supersededBy: "d1", context: "Why" } }], s);
+    expect(loop.present.decisions![1]).toEqual({ ...b, status: "superseded", context: "Why" });
+    expect(run([{ type: "save-decision", decision: { ...b, status: "superseded", supersededBy: "d2" } }], s).present.decisions![1]).not.toHaveProperty("supersededBy");
+    expect(run([{ type: "save-decision", decision: { ...b, status: "superseded", supersededBy: "gone" } }], s).present.decisions![1]).not.toHaveProperty("supersededBy");
+    // Back to Accepted drops it.
+    expect(run([{ type: "save-decision", decision: { ...d, title: "Cache the catalog", status: "accepted", supersededBy: "d2" } }], s).present.decisions![0]).not.toHaveProperty("supersededBy");
+  });
+
+  it("M85: deleting a decision takes it off the decisions it replaced, in the same undo step", () => {
+    let s = run([...base, { type: "save-decision", decision: { id: "d2", title: "Edge cache", status: "accepted" } }, { type: "save-decision", decision: { ...d, status: "superseded", supersededBy: "d2" } }]);
+    s = run([{ type: "delete-decision", id: "d2" }], s);
+    expect(s.present.decisions).toEqual([{ ...d, title: "Cache the catalog", status: "superseded" }]);
+    s = run([{ type: "undo" }], s);
+    expect(s.present.decisions![1]!.supersededBy).toBe("d2");
+  });
 });

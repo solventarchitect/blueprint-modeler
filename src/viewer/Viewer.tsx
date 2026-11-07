@@ -2,7 +2,7 @@
 
 import { useEffect, useMemo, useState, useSyncExternalStore } from "react";
 import Link from "next/link";
-import { decisionsAbout, DECISION_STATUS_LABEL, formatModelDate, modelDate, UNTITLED_MODEL, type Model } from "@/model";
+import { decisionLinks, decisionsAbout, DECISION_STATUS_LABEL, formatModelDate, modelDate, UNTITLED_MODEL, type Model } from "@/model";
 import { decodeShare, editUrlFor, SHARE_KEY, shareSupported } from "@/io/shareLink";
 import { modelToSvg } from "@/io/svg";
 import { isoToSvg } from "@/iso/svg";
@@ -158,7 +158,7 @@ export function Viewer() {
                   {d.title}
                 </h3>
                 <p className="text-xs text-ink-muted">
-                  {[DECISION_STATUS_LABEL[d.status], d.date ? formatModelDate(d.date) : "", d.elements?.length ? `Concerns ${d.elements.map((e) => m.nodes.find((n) => n.id === e)?.name || "Untitled").join(", ")}` : ""].filter(Boolean).join(" · ")}
+                  {[DECISION_STATUS_LABEL[d.status], d.date ? formatModelDate(d.date) : "", ...decisionLinks(m, d), d.elements?.length ? `Concerns ${d.elements.map((e) => m.nodes.find((n) => n.id === e)?.name || "Untitled").join(", ")}` : ""].filter(Boolean).join(" · ")}
                 </p>
                 {(["context", "decision", "consequences"] as const).map((k) =>
                   d[k] ? (
