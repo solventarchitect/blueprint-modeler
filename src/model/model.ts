@@ -1,7 +1,7 @@
 import { acceptedTypes, allowedTypes, isClassId, relationshipsBetween } from "@/metamodel";
 import { migrate } from "./migrate";
 import { CURRENT_SCHEMA, edgeKey, modelSchema, type Model } from "./schema";
-import { withKnownDecisionElements } from "./decisions";
+import { withKnownDecisionElements, withKnownDecisionLinks } from "./decisions";
 import { withUnbrokenFlows } from "./flows";
 
 export type Issue = { level: "warning"; code: "disallowed-relationship" | "legacy-type"; edgeId: string; message: string };
@@ -113,8 +113,8 @@ export function parseModel(input: unknown): ParseResult {
     if (!nodeIds.has(nodeId)) return { ok: false, error: `Layout refers to an element that does not exist ("${nodeId}").` };
   }
   // M70: a saved flow whose walk breaks (a relationship missing or turned round) is cut there, and said.
-  // M78: a decision keeps only the elements that are in the model.
-  const whole = withKnownDecisionElements(withUnbrokenFlows(model));
+  // M78: a decision keeps only the elements that are in the model; M85: and a Superseded by that can stand.
+  const whole = withKnownDecisionLinks(withKnownDecisionElements(withUnbrokenFlows(model)));
   const notes = (model.flows ?? []).flatMap((f) => {
     const kept = whole.flows?.find((x) => x.id === f.id)?.steps.length ?? 0;
     return kept < f.steps.length ? [`Flow “${f.name}” was cut after step ${kept}: its next relationship isn't in the model, or doesn't leave where the flow had reached.`] : [];

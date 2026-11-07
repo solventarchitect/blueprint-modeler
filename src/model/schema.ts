@@ -202,6 +202,11 @@ export const decisionSchema = z.object({
   id,
   title: z.string().trim().min(1).max(120),
   status: z.enum(DECISION_STATUSES),
+  /**
+   * M85: the decision that replaces this one. Optional and additive in format 1 (older versions ignore it);
+   * kept only on a Superseded decision naming another one in the model, without a loop (see decisions.ts).
+   */
+  supersededBy: id.optional(),
   /** A date this version can't read drops the date, not the decision. */
   date: z.iso.date().optional().catch(undefined),
   context: decisionText,

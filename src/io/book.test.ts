@@ -54,6 +54,12 @@ describe("the model book's decisions (M78)", () => {
       { title: "Retire ERP", meta: "Proposed", parts: [] },
     ]);
   });
+
+  it("M85: says which decision replaced one, and which it replaced, before the elements", () => {
+    const m = { ...checkout(), decisions: [{ id: "d1", title: "Cache", status: "superseded" as const, supersededBy: "d2", elements: ["ba"] }, { id: "d2", title: "Edge cache", status: "accepted" as const }] };
+    const ba = m.nodes.find((n) => n.id === "ba")!.name;
+    expect(bookDecisions(m).map((d) => d.meta)).toEqual([`Superseded · Superseded by “Edge cache” · Concerns ${ba}`, "Accepted · Supersedes “Cache”"]);
+  });
 });
 
 describe("the model book's contents (M81)", () => {

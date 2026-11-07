@@ -31,7 +31,7 @@ test.describe("decisions everywhere (M80, desktop)", () => {
     const [download] = await Promise.all([page.waitForEvent("download"), dialog(page).getByRole("button", { name: "Save as CSV" }).click()]);
     expect(download.suggestedFilename()).toBe("online-store-checkout-decisions.csv");
     const csv = await readFile((await download.path())!, "utf8");
-    expect(csv.replace(/^﻿/, "").split("\r\n").slice(0, 2)).toEqual(["Title,Status,Date,Elements,Context,Decision,Consequences", expect.stringMatching(/^Cache the product catalog,Proposed,\d{4}-\d{2}-\d{2},Checkout web app; Orders database,,,$/)]);
+    expect(csv.replace(/^﻿/, "").split("\r\n").slice(0, 2)).toEqual(["Title,Status,Date,Elements,Context,Decision,Consequences,Superseded by", expect.stringMatching(/^Cache the product catalog,Proposed,\d{4}-\d{2}-\d{2},Checkout web app; Orders database,,,,$/)]);
     await expect(dialog(page).getByRole("status")).toContainText("Saved 1 decision as CSV.");
 
     // Select its elements: the dialog closes, both are selected and said.

@@ -2,7 +2,7 @@
 
 import { useEffect, useId, useRef, useState } from "react";
 import { classById } from "@/metamodel";
-import { DECISION_STATUSES, DECISION_STATUS_LABEL, formatModelDate, MAX_DECISION_ELEMENTS, MAX_DECISIONS, UNTITLED_MODEL, type Decision, type DecisionStatus, type Model } from "@/model";
+import { decisionLinks, decisionsSupersededBy, DECISION_STATUSES, DECISION_STATUS_LABEL, formatModelDate, replacementChoices, MAX_DECISION_ELEMENTS, MAX_DECISIONS, UNTITLED_MODEL, type Decision, type DecisionStatus, type Model } from "@/model";
 import { downloadText } from "@/io/download";
 import { fileBase } from "@/io/file";
 import { decisionsCsv } from "@/io/table";
@@ -21,9 +21,9 @@ export type DecisionsStart = { pick?: string; about?: string };
 
 /** A decision as the model keeps it: trimmed, empty text and no elements left out (as the reducer saves it). */
 function kept(d: Decision): Decision {
-  const { id, status, date, elements } = d;
+  const { id, status, supersededBy, date, elements } = d;
   const text = (k: (typeof TEXTS)[number][0]) => (d[k]?.trim() ? { [k]: d[k]!.trim() } : {});
-  return { id, title: d.title.trim(), status, ...(date ? { date } : {}), ...text("context"), ...text("decision"), ...text("consequences"), ...(elements?.length ? { elements } : {}) };
+  return { id, title: d.title.trim(), status, ...(status === "superseded" && supersededBy ? { supersededBy } : {}), ...(date ? { date } : {}), ...text("context"), ...text("decision"), ...text("consequences"), ...(elements?.length ? { elements } : {}) };
 }
 
 /** A decision's status, date and how many elements it concerns, in words. */
@@ -115,7 +115,7 @@ export function DecisionsDialog({
                   <button type="button" aria-pressed={picked?.id === d.id} className={`${btn} aria-pressed:border-accent aria-pressed:text-accent`} onClick={() => setPickedId(d.id)}>
                     {d.title}
                   </button>
-                  <span className="text-xs text-ink-muted">{decisionMeta(d)}</span>
+                  <span className="text-xs text-ink-muted">{[decisionMeta(d), ...decisionLinks(model, d)].join(" · ")}</span>
                 </li>
               ))}
             </ul>
@@ -131,6 +131,7 @@ export function DecisionsDialog({
               decision={picked}
               uid={uid}
               onSelectElements={onSelectElements}
+              onOpen={setPickedId}
               save={(d, said) => {
                 dispatch({ type: "save-decision", decision: d });
                 // A save as the editor goes (another decision picked) says nothing, so it never talks over what happens next.
@@ -144,7 +145,7 @@ export function DecisionsDialog({
               }}
             />
           ) : (
-            <DecisionText model={model} decision={picked} onSelectElements={onSelectElements} />
+            <DecisionText model={model} decision={picked} onSelectElements={onSelectElements} onOpen={setPickedId} />
           ))}
         {editable &&
           (decisions.length >= MAX_DECISIONS ? (
@@ -202,12 +203,44 @@ export function DecisionsDialog({
 
 const nameOf = (model: Model, id: string) => model.nodes.find((n) => n.id === id)?.name || "Untitled";
 
+/**
+ * M85: the decision that replaced this one, and those it replaced, each a button that opens it here.
+ * Below a decision's status, so its chain can be walked either way.
+ */
+function DecisionLinks({ model, decision: d, onOpen }: { model: Model; decision: Decision; onOpen: (id: string) => void }) {
+  const by = d.supersededBy ? model.decisions?.find((x) => x.id === d.supersededBy) : undefined;
+  const replaced = decisionsSupersededBy(model, d.id);
+  if (!by && !replaced.length) return null;
+  const open = (x: Decision) => (
+    <button key={x.id} type="button" className="cursor-pointer text-left text-accent underline underline-offset-4" onClick={() => onOpen(x.id)}>
+      {x.title}
+    </button>
+  );
+  return (
+    <div className="flex flex-col gap-1 text-sm" data-testid="decision-links">
+      {by && <p>Superseded by {open(by)}</p>}
+      {replaced.length > 0 && (
+        <p>
+          Supersedes{" "}
+          {replaced.map((x, i) => (
+            <span key={x.id}>
+              {i > 0 && ", "}
+              {open(x)}
+            </span>
+          ))}
+        </p>
+      )}
+    </div>
+  );
+}
+
 /** A decision as text, for the view-only editor below 768px. */
-function DecisionText({ model, decision: d, onSelectElements }: { model: Model; decision: Decision; onSelectElements?: (ids: string[], title: string) => void }) {
+function DecisionText({ model, decision: d, onSelectElements, onOpen }: { model: Model; decision: Decision; onSelectElements?: (ids: string[], title: string) => void; onOpen: (id: string) => void }) {
   return (
     <article aria-label={d.title} className="flex flex-col gap-1.5 text-sm">
       <h3 className="font-medium">{d.title}</h3>
       <p className="text-ink-muted">{decisionMeta(d)}</p>
+      <DecisionLinks model={model} decision={d} onOpen={onOpen} />
       {TEXTS.map(([k, label]) =>
         d[k] ? (
           <div key={k}>
@@ -234,6 +267,7 @@ function DecisionEditor({
   save,
   onDelete,
   onSelectElements,
+  onOpen,
 }: {
   model: Model;
   decision: Decision;
@@ -241,6 +275,8 @@ function DecisionEditor({
   save: (d: Decision, said?: string) => void;
   onDelete: () => void;
   onSelectElements?: (ids: string[], title: string) => void;
+  /** M85: open another decision (this one's changes are saved as the editor goes). */
+  onOpen: (id: string) => void;
 }) {
   const [draft, setDraft] = useState<Decision>(decision);
   const dirty = JSON.stringify(kept(draft)) !== JSON.stringify(kept(decision));
@@ -277,6 +313,7 @@ function DecisionEditor({
     setTimeout(() => document.getElementById(rest.length ? `${uid}-rm-${Math.min(i, rest.length - 1)}` : `${uid}-add`)?.focus(), 0);
   };
   const set = (patch: Partial<Decision>) => setDraft((d) => ({ ...d, ...patch }));
+  const choices = replacementChoices(model, decision.id);
   const elements = draft.elements ?? [];
   const others = model.nodes.filter((n) => !elements.includes(n.id)).sort((a, b) => (a.name || "Untitled").localeCompare(b.name || "Untitled"));
 
@@ -292,7 +329,18 @@ function DecisionEditor({
         </label>
         <label className="flex flex-col gap-1 text-sm">
           <span className="text-ink-muted">Status</span>
-          <select className={field} value={draft.status} onChange={(e) => set({ status: e.target.value as DecisionStatus })}>
+          <select
+            className={field}
+            value={draft.status}
+            onChange={(e) => {
+              const next = e.target.value as DecisionStatus;
+              // M85: Superseded asks what replaced it (focus goes to the question); any other status drops the answer.
+              const { supersededBy: _by, ...rest } = draft;
+              void _by;
+              setDraft(next === "superseded" ? { ...draft, status: next } : { ...rest, status: next });
+              if (next === "superseded" && choices.length) setTimeout(() => document.getElementById(`${uid}-by`)?.focus(), 0);
+            }}
+          >
             {DECISION_STATUSES.map((s) => (
               <option key={s} value={s}>
                 {DECISION_STATUS_LABEL[s]}
@@ -314,6 +362,37 @@ function DecisionEditor({
           />
         </label>
       </div>
+      {draft.status === "superseded" &&
+        (choices.length ? (
+          <label className="flex flex-col gap-1 text-sm sm:max-w-sm">
+            <span className="text-ink-muted">Superseded by</span>
+            <select
+              id={`${uid}-by`}
+              className={field}
+              value={draft.supersededBy ?? ""}
+              aria-describedby={`${uid}-by-help`}
+              onChange={(e) => {
+                const { supersededBy: _by, ...rest } = draft;
+                void _by;
+                setDraft(e.target.value ? { ...rest, supersededBy: e.target.value } : rest);
+              }}
+            >
+              <option value="">Not chosen</option>
+              {choices.map((d) => (
+                <option key={d.id} value={d.id}>
+                  {d.title}
+                </option>
+              ))}
+            </select>
+            <span id={`${uid}-by-help`} className="text-xs text-ink-muted">
+              The decision that replaces this one. It then says it supersedes this one.
+            </span>
+          </label>
+        ) : (
+          <p className="text-xs text-ink-muted">Make the decision that replaces this one, then choose it here.</p>
+        ))}
+      {/* The replacement as chosen here (saved as the editor goes), and what this one replaced. */}
+      <DecisionLinks model={model} decision={{ ...decision, supersededBy: draft.status === "superseded" ? draft.supersededBy : undefined }} onOpen={onOpen} />
       {!valid && (
         <p id={`${uid}-title-missing`} className="text-xs text-invalid">
           A decision needs a title. Until it has one, the saved title “{decision.title}” is kept.

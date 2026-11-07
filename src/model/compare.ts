@@ -263,11 +263,14 @@ export function compareModels(current: Model, base: Model): Comparison {
  * renamed element is the same one), and named (sorted) when they differ, each model naming its own.
  */
 function decisionChanges(current: Model, base: Model, match: Map<string, string>) {
+  const title = (m: Model, id?: string) => (id && m.decisions?.find((d) => d.id === id)?.title) || "";
   const names = (m: Model, ids: string[] = []) => ids.map((i) => m.nodes.find((n) => n.id === i)?.name || "Untitled").sort((a, b) => a.localeCompare(b)).join(", ");
   return (now: Decision, was: Decision) => {
     const pairs: [string, string, string][] = [
       ["Title", was.title, now.title],
       ["Status", DECISION_STATUS_LABEL[was.status], DECISION_STATUS_LABEL[now.status]],
+      // M85: the replacement by title, each model naming its own.
+      ["Superseded by", title(base, was.supersededBy), title(current, now.supersededBy)],
       ["Date", was.date ?? "", now.date ?? ""],
       ["Context", was.context ?? "", now.context ?? ""],
       ["Decision", was.decision ?? "", now.decision ?? ""],

@@ -46,4 +46,10 @@ describe("modelPart (M81)", () => {
     expect(all.flows).toEqual(m.flows);
     expect(all.decisions).toHaveLength(3);
   });
+
+  it("M85: a decision left out is no one's Superseded by", () => {
+    const m = { ...checkout(), decisions: [{ id: "a", title: "Old", status: "superseded" as const, supersededBy: "b" }, { id: "b", title: "New", status: "accepted" as const, elements: ["ba"] }] };
+    expect(modelPart(m, new Set(["cap"])).decisions).toEqual([{ id: "a", title: "Old", status: "superseded" }]);
+    expect(modelPart(m, new Set(["ba"])).decisions).toEqual(m.decisions);
+  });
 });
