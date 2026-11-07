@@ -156,6 +156,22 @@ describe("decision links (M85, still format 1)", () => {
     expect(decisionLinks(m, m.decisions![3]!)).toEqual([]);
   });
 
+  it("a link this version can't read is dropped, not the decision; a read decision keeps the saved key order", () => {
+    const file = JSON.parse(serializeModel(checkout()));
+    for (const bad of [null, "", 7, "x".repeat(65)]) {
+      const r = parseModel({ ...file, decisions: [{ ...old, supersededBy: bad }, cdn] });
+      expect(r.ok && r.model.decisions).toEqual([{ ...cache, status: "superseded" }, cdn]);
+    }
+    const r = parseModel({ ...file, decisions: [{ elements: ["ba"], date: "2026-10-30", decision: "D", supersededBy: "d2", status: "superseded", title: "T", id: "d1" }, cdn] });
+    expect(r.ok && Object.keys(r.model.decisions![0]!)).toEqual(["id", "title", "status", "supersededBy", "date", "decision", "elements"]);
+  });
+
+  it("Compare: renaming the replacement is not a change to the decisions it replaced", () => {
+    const base = linked();
+    const now: Model = { ...base, decisions: [old, { ...cdn, title: "Serve it from a CDN" }] };
+    expect(compareModels(now, base).decisions.changed.map((c) => c.id)).toEqual(["d2"]);
+  });
+
   it("Compare names a changed successor by its title", () => {
     const base = linked();
     const now: Model = { ...base, decisions: [{ ...old, supersededBy: "d3" }, cdn, { id: "d3", title: "Edge cache", status: "accepted" }] };

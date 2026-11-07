@@ -41,11 +41,16 @@ test.describe("decision links (M85, desktop)", () => {
     // The link opens the new decision, which says what it supersedes; that link comes back.
     await editor(page).getByTestId("decision-links").getByRole("button", { name: "Serve the catalog from a CDN" }).click();
     await expect(editor(page).getByRole("heading")).toHaveText("Decision “Serve the catalog from a CDN”");
+    // Focus goes to the decision opened, and the dialog says so.
+    await expect(editor(page).getByRole("heading")).toBeFocused();
+    await expect(dialog(page).getByRole("status")).toHaveText("Opened decision “Serve the catalog from a CDN”.");
     await expect(editor(page).getByTestId("decision-links")).toHaveText("Supersedes Cache the product catalog");
     // The new one can't be superseded by the one it replaced: that would be a loop.
     await editor(page).getByLabel("Status").selectOption("superseded");
     await expect(editor(page).getByLabel("Superseded by")).toHaveCount(0);
     await expect(editor(page)).toContainText("Make the decision that replaces this one, then choose it here.");
+    await expect(editor(page).getByLabel("Status")).toHaveAccessibleDescription("Make the decision that replaces this one, then choose it here.");
+    await expect(dialog(page).getByRole("status")).toHaveText("No other decision can replace this one yet. Make the replacement, then choose it under Superseded by.");
     await editor(page).getByLabel("Status").selectOption("accepted");
     expect(await new AxeBuilder({ page }).withTags(axeTags).include("[data-testid=decisions-dialog]").analyze().then((r) => r.violations)).toEqual([]);
 

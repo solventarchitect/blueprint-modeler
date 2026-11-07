@@ -269,8 +269,8 @@ function decisionChanges(current: Model, base: Model, match: Map<string, string>
     const pairs: [string, string, string][] = [
       ["Title", was.title, now.title],
       ["Status", DECISION_STATUS_LABEL[was.status], DECISION_STATUS_LABEL[now.status]],
-      // M85: the replacement by title, each model naming its own.
-      ["Superseded by", title(base, was.supersededBy), title(current, now.supersededBy)],
+      // M85: the replacement by title, each model naming its own; the same decision (by id) renamed is no change here.
+      ["Superseded by", title(base, was.supersededBy), was.supersededBy && was.supersededBy === now.supersededBy ? title(base, was.supersededBy) : title(current, now.supersededBy)],
       ["Date", was.date ?? "", now.date ?? ""],
       ["Context", was.context ?? "", now.context ?? ""],
       ["Decision", was.decision ?? "", now.decision ?? ""],

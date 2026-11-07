@@ -73,6 +73,13 @@ export function DecisionsDialog({
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
+  // M85: a link opens another decision here; focus goes to its heading, so a keyboard user keeps their place.
+  const openLinked = (id: string) => {
+    setPickedId(id);
+    setStatus(`Opened decision “${decisions.find((d) => d.id === id)?.title ?? ""}”.`);
+    setTimeout(() => document.getElementById(`${uid}-edit`)?.focus(), 0);
+  };
+
   const create = () => {
     const title = newTitle.trim();
     if (!title || decisions.length >= MAX_DECISIONS) return;
@@ -131,7 +138,8 @@ export function DecisionsDialog({
               decision={picked}
               uid={uid}
               onSelectElements={onSelectElements}
-              onOpen={setPickedId}
+              onOpen={openLinked}
+              say={setStatus}
               save={(d, said) => {
                 dispatch({ type: "save-decision", decision: d });
                 // A save as the editor goes (another decision picked) says nothing, so it never talks over what happens next.
@@ -145,7 +153,7 @@ export function DecisionsDialog({
               }}
             />
           ) : (
-            <DecisionText model={model} decision={picked} onSelectElements={onSelectElements} onOpen={setPickedId} />
+            <DecisionText model={model} decision={picked} headingId={`${uid}-edit`} onSelectElements={onSelectElements} onOpen={openLinked} />
           ))}
         {editable &&
           (decisions.length >= MAX_DECISIONS ? (
@@ -235,10 +243,12 @@ function DecisionLinks({ model, decision: d, onOpen }: { model: Model; decision:
 }
 
 /** A decision as text, for the view-only editor below 768px. */
-function DecisionText({ model, decision: d, onSelectElements, onOpen }: { model: Model; decision: Decision; onSelectElements?: (ids: string[], title: string) => void; onOpen: (id: string) => void }) {
+function DecisionText({ model, decision: d, headingId, onSelectElements, onOpen }: { model: Model; decision: Decision; headingId: string; onSelectElements?: (ids: string[], title: string) => void; onOpen: (id: string) => void }) {
   return (
     <article aria-label={d.title} className="flex flex-col gap-1.5 text-sm">
-      <h3 className="font-medium">{d.title}</h3>
+      <h3 id={headingId} tabIndex={-1} className="font-medium">
+        {d.title}
+      </h3>
       <p className="text-ink-muted">{decisionMeta(d)}</p>
       <DecisionLinks model={model} decision={d} onOpen={onOpen} />
       {TEXTS.map(([k, label]) =>
@@ -268,6 +278,7 @@ function DecisionEditor({
   onDelete,
   onSelectElements,
   onOpen,
+  say,
 }: {
   model: Model;
   decision: Decision;
@@ -277,6 +288,8 @@ function DecisionEditor({
   onSelectElements?: (ids: string[], title: string) => void;
   /** M85: open another decision (this one's changes are saved as the editor goes). */
   onOpen: (id: string) => void;
+  /** Say something in the dialog's status line. */
+  say: (text: string) => void;
 }) {
   const [draft, setDraft] = useState<Decision>(decision);
   const dirty = JSON.stringify(kept(draft)) !== JSON.stringify(kept(decision));
@@ -319,7 +332,7 @@ function DecisionEditor({
 
   return (
     <section aria-labelledby={`${uid}-edit`} className="flex flex-col gap-3 border-t border-border pt-3" data-testid="decision-editor">
-      <h3 id={`${uid}-edit`} className="text-sm font-medium">
+      <h3 id={`${uid}-edit`} tabIndex={-1} className="text-sm font-medium">
         Decision “{decision.title}”
       </h3>
       <div className="grid gap-3 sm:grid-cols-[1fr_auto_auto]">
@@ -332,6 +345,7 @@ function DecisionEditor({
           <select
             className={field}
             value={draft.status}
+            aria-describedby={draft.status === "superseded" && !choices.length ? `${uid}-by-none` : undefined}
             onChange={(e) => {
               const next = e.target.value as DecisionStatus;
               // M85: Superseded asks what replaced it (focus goes to the question); any other status drops the answer.
@@ -339,6 +353,7 @@ function DecisionEditor({
               void _by;
               setDraft(next === "superseded" ? { ...draft, status: next } : { ...rest, status: next });
               if (next === "superseded" && choices.length) setTimeout(() => document.getElementById(`${uid}-by`)?.focus(), 0);
+              else if (next === "superseded") say("No other decision can replace this one yet. Make the replacement, then choose it under Superseded by.");
             }}
           >
             {DECISION_STATUSES.map((s) => (
@@ -389,7 +404,9 @@ function DecisionEditor({
             </span>
           </label>
         ) : (
-          <p className="text-xs text-ink-muted">Make the decision that replaces this one, then choose it here.</p>
+          <p id={`${uid}-by-none`} className="text-xs text-ink-muted">
+            Make the decision that replaces this one, then choose it here.
+          </p>
         ))}
       {/* The replacement as chosen here (saved as the editor goes), and what this one replaced. */}
       <DecisionLinks model={model} decision={{ ...decision, supersededBy: draft.status === "superseded" ? draft.supersededBy : undefined }} onOpen={onOpen} />
