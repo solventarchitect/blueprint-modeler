@@ -8,7 +8,7 @@
  * re-layout is not a change to the model.
  */
 import { classById } from "@/metamodel";
-import { attrValue, COLOR_BY_LABEL, viewColorBy } from "./views";
+import { attrValue, COLOR_BY_LABEL, DECISIONS_FILTER_LABEL, viewColorBy } from "./views";
 import { GROUP_BY_LABEL } from "./groups";
 import { LAYER_ORDER } from "./health";
 import { PLAN_LABEL, planOf, type PlanStatus } from "./plan";
@@ -158,6 +158,7 @@ export function filterText(f: ViewFilter): string {
     ["Owner", f.owner, (v) => v],
     ["Plan status", f.plan, (v) => PLAN_LABEL[v as PlanStatus] ?? v],
     ["Tags", f.tags, (v) => v],
+    ["Decisions", f.decisions, (v) => DECISIONS_FILTER_LABEL[v as "with" | "without"] ?? v],
   ];
   const parts = dims.filter(([, vals]) => vals?.length).map(([label, vals, word]) => `${label}: ${list(vals, word)}`);
   return parts.length ? parts.join("; ") : "All elements";

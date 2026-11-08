@@ -529,9 +529,9 @@ function EditorInner() {
     showView(v);
     // A view that fades the element in focus ends the focus (M74 review).
     const f = focusOn && model.nodes.find((n) => n.id === focusOn.id);
-    if (f && !inView(f, v.filter)) setFocus(null);
+    if (f && !inView(f, v.filter, model)) setFocus(null);
     const name = v.id ? model.views?.find((x) => x.id === v.id)?.name : null;
-    const kept = model.nodes.filter((n) => inView(n, v.filter)).length;
+    const kept = model.nodes.filter((n) => inView(n, v.filter, model)).length;
     setMessage(name ? `View “${name}”: ${kept} of ${model.nodes.length} elements, ${COLOR_BY_LABEL[v.colorBy].toLowerCase()} colors.` : "Showing all elements, in layer colors.");
   };
   const chosenPlan: PlanView = planChoice.modelId === model.id ? planChoice.view : "both";
@@ -566,8 +566,8 @@ function EditorInner() {
   );
   // Faded: outside the view's filter, or outside the focus (M74).
   const fadedIds = useMemo(
-    () => new Set(filterActive(shown.filter) || focusIds ? model.nodes.filter((n) => !inView(n, shown.filter) || (focusIds && !focusIds.has(n.id))).map((n) => n.id) : []),
-    [model.nodes, shown.filter, focusIds],
+    () => new Set(filterActive(shown.filter) || focusIds ? model.nodes.filter((n) => !inView(n, shown.filter, model) || (focusIds && !focusIds.has(n.id))).map((n) => n.id) : []),
+    [model, shown.filter, focusIds],
   );
   // M81: the elements shown (not faded, not left out by the state shown), and whether that is less than the model.
   const keptIds = useMemo(() => new Set(model.nodes.filter((n) => !fadedIds.has(n.id) && !planHide.nodes.has(n.id)).map((n) => n.id)), [model.nodes, fadedIds, planHide]);
@@ -1926,7 +1926,7 @@ function EditorInner() {
   const focusElement = (id: string, depth: FocusDepth = focusOn?.depth ?? 1) => {
     const n = model.nodes.find((x) => x.id === id);
     if (!n) return;
-    const filter = inView(n, shown.filter) ? shown.filter : {};
+    const filter = inView(n, shown.filter, model) ? shown.filter : {};
     if (filter !== shown.filter) showView({ id: null, filter: {}, colorBy: shown.colorBy, groupBy: shown.groupBy });
     const hide = chosenHide.nodes.has(id) ? planHidden(model, "both") : chosenHide;
     if (chosenHide.nodes.has(id)) setPlanView("both");
@@ -1934,7 +1934,7 @@ function EditorInner() {
     setFocus({ modelId: model.id, id, depth, added: sameFocus ? focusOn.added : [] });
     const area = focusArea(model, id, depth, hide.edges);
     // What shows: in the focus, the view's filter and the state shown.
-    const kept = model.nodes.filter((x) => area.has(x.id) && inView(x, filter) && !hide.nodes.has(x.id)).length;
+    const kept = model.nodes.filter((x) => area.has(x.id) && inView(x, filter, model) && !hide.nodes.has(x.id)).length;
     // A new reach keeps the selection (inside the focus); a new focus selects its element.
     if (!sameFocus || (selectedId && !area.has(selectedId))) setSelectedId(id);
     setMessage(`Focus on “${n.name || "Untitled"}”: ${kept} of ${model.nodes.length} elements within ${depth} relationship${depth === 1 ? "" : "s"}. Escape shows everything.`);
@@ -2209,7 +2209,7 @@ function EditorInner() {
     const n = model.nodes.find((x) => x.id === id);
     if (!n) return;
     // Faded by the view's filter: lift it; outside the focus (M74): end it.
-    if (!inView(n, shown.filter)) showView({ id: null, filter: {}, colorBy: shown.colorBy, groupBy: shown.groupBy });
+    if (!inView(n, shown.filter, model)) showView({ id: null, filter: {}, colorBy: shown.colorBy, groupBy: shown.groupBy });
     if (focusIds && !focusIds.has(id)) setFocus(null);
     // Left out of the state shown (M68): back to current and target, so it can be shown.
     const leftOut = planHide.nodes.has(id);

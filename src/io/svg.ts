@@ -54,7 +54,7 @@ export const focusDesc = (view: SvgView | undefined) =>
 export function viewFaded(model: Model, view: SvgView | undefined): Set<string> {
   if (!view) return new Set();
   const focus = view.focus ? new Set(view.focus.ids) : null;
-  return new Set(model.nodes.filter((n) => !inView(n, view.filter) || (focus && !focus.has(n.id))).map((n) => n.id));
+  return new Set(model.nodes.filter((n) => !inView(n, view.filter, model) || (focus && !focus.has(n.id))).map((n) => n.id));
 }
 
 /**
