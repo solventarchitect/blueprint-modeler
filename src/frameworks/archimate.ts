@@ -328,4 +328,42 @@ const INSTANCE_RELATIONSHIPS: Record<string, RelationshipMapping> = Object.fromE
 export const archimateRelationshipFor = (from: string, to: string): RelationshipMapping | undefined =>
   archimateRelationships[`${from}>${to}`] ?? INSTANCE_RELATIONSHIPS[`${from}>${to}`];
 
+export type ImportGuess = { class: ClassId; note: string; source: ArchimateSourceId };
+
+/**
+ * M87: importing an ArchiMate exchange file, the CSDM class an element becomes when the file doesn't
+ * say (our own export carries the class as a property, which wins). One class per ArchiMate type,
+ * read back from the lens above where it maps that type, plus Device and Data Object, which the lens
+ * names in its notes. Types with no entry (Business Actor, Location, Grouping, junctions and the
+ * like) have no CSDM class here and are not imported; the import says which.
+ */
+export const archimateImportGuesses: Partial<Record<string, ImportGuess>> = {
+  Capability: { class: "business_capability", note: "A capability is a capability in both.", source: "strategy" },
+  ValueStream: { class: "value_stream", note: "A stage reads as a value stream too; Value Stream is the broader guess.", source: "strategy" },
+  Driver: { class: "strategic_priority", note: "A driver is the focus area that motivates goals.", source: "spec" },
+  Goal: { class: "goal", note: "A goal is a goal in both.", source: "spec" },
+  Outcome: { class: "target", note: "Outcomes are measurable end results, like targets.", source: "spec" },
+  Requirement: { class: "product_idea", note: "A requirement is a statement of need, as a product idea is.", source: "spec" },
+  WorkPackage: { class: "planning_item", note: "A work package is planned work.", source: "spec" },
+  Artifact: { class: "sdlc_component", note: "An artifact is most often the code that realizes an application; a certificate reads as one too.", source: "technology" },
+  BusinessProcess: { class: "business_process", note: "A process is a process in both.", source: "business" },
+  BusinessService: { class: "business_service", note: "A business service is a business service in both.", source: "business" },
+  BusinessObject: { class: "information_object", note: "A business object is the information the business uses.", source: "business" },
+  DataObject: { class: "information_object", note: "A data object realizes a business object; both read as an Information Object.", source: "application" },
+  Product: { class: "business_service_offering", note: "A product packages services with commitments, as an offering does; a Product Model reads as one too.", source: "business" },
+  ApplicationComponent: { class: "business_application", note: "The logical application; a deployed instance (Application Service) reads as one too.", source: "application" },
+  ApplicationInterface: { class: "api", note: "An application interface is an API.", source: "application" },
+  TechnologyService: { class: "technology_management_service", note: "A technology service is what IT provides.", source: "technology" },
+  SystemSoftware: { class: "application", note: "System software is installed software, a CMDB Application.", source: "technology" },
+  Node: { class: "host", note: "A node is the computer that runs software; clusters and virtual machines read as nodes too.", source: "technology" },
+  Device: { class: "host", note: "A device is physical hardware, which the CMDB keeps as a host.", source: "technology" },
+  CommunicationNetwork: { class: "network", note: "A communication network is a network.", source: "technology" },
+  Path: { class: "connection_service_instance", note: "A path links nodes, as a connection does.", source: "technology" },
+  Equipment: { class: "operational_process_service_instance", note: "Equipment carries out an operational process.", source: "technology" },
+  Facility: { class: "facility_service_instance", note: "A facility is a facility service instance's site.", source: "technology" },
+};
+
+/** "BusinessActor" → "Business Actor": an exchange format type as words. */
+export const archimateTypeLabel = (type: string) => type.replace(/([a-z])([A-Z])/g, "$1 $2");
+
 export const ARCHIMATE_TRADEMARK = "ArchiMate® is a registered trademark of The Open Group.";

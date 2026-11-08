@@ -43,6 +43,7 @@ import { printNode, printSvg } from "@/io/print";
 import { bookSheet } from "@/io/book";
 import { modelToMermaid } from "@/io/mermaid";
 import { reportSheet, reportSummary } from "@/io/report";
+import { importArchimate, looksLikeXml } from "@/io/archimateImport";
 import { exportJson, fileBase, importJson, MAX_FILE_CHARS } from "@/io/file";
 import { decodeShare, encodeShare, shareSize, shareSupported, shareUrl, takeSharedPayload, viewUrl, type ShareResult } from "@/io/shareLink";
 import { modelToArchimateXml } from "@/io/archimate";
@@ -1188,7 +1189,10 @@ function EditorInner() {
       setIoError("The file is too large to be a Blueprint Modeler model (over 5 MB).");
       return;
     }
-    const r = importJson(await file.text(), await doc.storedIds());
+    const text = await file.text();
+    // M87: an ArchiMate exchange file (XML) becomes a new model; a model file (JSON) as before.
+    const archimate = looksLikeXml(text);
+    const r = archimate ? importArchimate(text) : importJson(text, await doc.storedIds());
     if (!r.ok) {
       setIoError(`Could not import “${file.name}”. ${r.error} Nothing was changed.`);
       return;
@@ -1197,7 +1201,8 @@ function EditorInner() {
     setActiveHint(null);
     if (!(await doc.createFrom(r.model))) return;
     const warn = r.issues.length ? ` ${r.issues.length} relationship${r.issues.length === 1 ? " breaks" : "s break"} the CSDM rules; see Hints.` : "";
-    setMessage(`Imported “${r.model.name || UNTITLED_MODEL}”${r.copied ? " as a copy (a model with the same id is already here)" : ""}.${warn}${r.notes ? ` ${r.notes.join(" ")}` : ""}`);
+    const from = archimate ? ` from an ArchiMate file: ${r.model.nodes.length} element${r.model.nodes.length === 1 ? "" : "s"}, ${r.model.edges.length} relationship${r.model.edges.length === 1 ? "" : "s"}` : "";
+    setMessage(`Imported “${r.model.name || UNTITLED_MODEL}”${from}${r.copied ? " as a copy (a model with the same id is already here)" : ""}.${warn}${r.notes?.length ? ` ${r.notes.join(" ")}` : ""}`);
     setTimeout(() => void flow.fitView({ maxZoom: 1, padding: fitPadding(0.15) }), 50);
   };
 
@@ -2345,7 +2350,7 @@ function EditorInner() {
         } })),
       { id: "example-blank", group: "Examples", label: "Blank model", keywords: "example new", run: openBlank },
       ...examples.map((ex): Command => ({ id: `example-${ex.id}`, group: "Examples", label: `Example: ${ex.name}`, run: () => void loadExample(ex.id) })),
-      ...(wide ? [{ id: "import", group: "Model", label: "Import…", keywords: "open file json", run: () => fileInput.current?.click() }] : []),
+      ...(wide ? [{ id: "import", group: "Model", label: "Import…", keywords: "open file json archimate xml archi exchange", run: () => fileInput.current?.click() }] : []),
       ...exportItems.map((it): Command => ({
         id: `export-${it.kind}`,
         group: "Export",
@@ -2586,7 +2591,7 @@ function EditorInner() {
             <input
               ref={fileInput}
               type="file"
-              accept=".json,application/json"
+              accept=".json,.xml,application/json,application/xml,text/xml"
               className="hidden"
               data-testid="import-file"
               onChange={(e) => {

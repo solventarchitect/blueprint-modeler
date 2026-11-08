@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
-import { classes, relationships } from "@/metamodel";
-import { archimateElements, archimateRelationshipFor, archimateSources } from "./archimate";
+import { classes, isClassId, relationships } from "@/metamodel";
+import { archimateElements, archimateImportGuesses, archimateRelationshipFor, archimateSources, archimateTypeLabel } from "./archimate";
 
 /** ElementTypeEnum / RelationshipTypeEnum names from the ArchiMate Model Exchange File Format 3.1 XSD. */
 const EXCHANGE_ELEMENTS = new Set(["ValueStream", "Driver", "Goal", "Outcome", "Requirement", "WorkPackage", "Capability", "BusinessProcess", "BusinessService", "BusinessObject", "Product", "ApplicationComponent", "ApplicationInterface", "DataObject", "TechnologyService", "TechnologyInterface", "SystemSoftware", "Node", "Device", "CommunicationNetwork", "Path", "Equipment", "Facility", "Artifact", "Grouping"]);
@@ -27,5 +27,17 @@ describe("ArchiMate lens", () => {
 
   it("warns about the application service name trap", () => {
     expect(archimateElements.application_service.note).toMatch(/not an ArchiMate Application Service/);
+  });
+
+  it("M87: each import guess is a real class with a public source, and agrees with the lens where it maps that type", () => {
+    for (const [type, g] of Object.entries(archimateImportGuesses)) {
+      expect(isClassId(g!.class), type).toBe(true);
+      expect(archimateSources[g!.source].url, type).toMatch(/^https:\/\/(pubs\.)?opengroup\.org\//);
+      if (type !== "Device" && type !== "DataObject") expect(archimateElements[g!.class as keyof typeof archimateElements].type, type).toBe(type);
+    }
+    // Every type the lens uses has a guess, except the ones a CSDM class can't be told from.
+    const used = new Set(Object.values(archimateElements).map((m) => m.type));
+    expect([...used].filter((t) => !archimateImportGuesses[t]).sort()).toEqual(["Grouping", "TechnologyInterface"]);
+    expect(archimateTypeLabel("BusinessActor")).toBe("Business Actor");
   });
 });
