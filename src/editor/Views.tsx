@@ -3,7 +3,7 @@
 import { useCallback, useEffect, useId, useRef, useState } from "react";
 import { classById, LIFE_CYCLE } from "@/metamodel";
 import { LAYERS } from "@/layout/bands";
-import { attrValue, COLORINGS, COLOR_BY_LABEL, filterActive, GROUP_BY, GROUP_BY_LABEL, type GroupBy, inView, legend, MAX_VIEWS, modelTags, PLAN_LABEL, PLAN_STATUSES, planOf, type PlanStatus, slotMarker, type ColorBy, type LegendEntry, type Model, type ViewFilter, viewColorBy } from "@/model";
+import { attrValue, COLORINGS, COLOR_BY_LABEL, DECISIONS_FILTER_LABEL, filterActive, GROUP_BY, GROUP_BY_LABEL, type GroupBy, inView, legend, MAX_VIEWS, modelTags, PLAN_LABEL, PLAN_STATUSES, planOf, type PlanStatus, slotMarker, type ColorBy, type LegendEntry, type Model, type ViewFilter, viewColorBy } from "@/model";
 import { ToolbarIcon } from "./ToolbarIcon";
 import { useDismiss } from "./useDismiss";
 
@@ -101,7 +101,7 @@ export function ViewsMenu({ model, shown, onShow, onEdit, buttonClass }: { model
                 <span className="flex min-w-0 flex-col">
                   <span className="truncate">{v.name}</span>
                   <span className="text-xs text-ink-muted">
-                    {model.nodes.filter((n) => inView(n, v.filter)).length} of {model.nodes.length} elements · {COLOR_BY_LABEL[viewColorBy(v)]} colors
+                    {model.nodes.filter((n) => inView(n, v.filter, model)).length} of {model.nodes.length} elements · {COLOR_BY_LABEL[viewColorBy(v)]} colors
                     {v.groupBy ? ` · by ${GROUP_BY_LABEL[v.groupBy]}` : ""}
                   </span>
                 </span>
@@ -157,7 +157,7 @@ export function ViewDialog({
   useEffect(() => {
     if (!dialog.current?.open) dialog.current?.showModal();
   }, []);
-  const kept = model.nodes.filter((n) => inView(n, shown.filter)).length;
+  const kept = model.nodes.filter((n) => inView(n, shown.filter, model)).length;
   // Tags match ignoring case (M69), so they are ticked and unticked ignoring case too.
   const same = (key: keyof ViewFilter, a: string, b: string) => (key === "tags" ? a.toLowerCase() === b.toLowerCase() : a === b);
   const ticked = (key: keyof ViewFilter, value: string) => (shown.filter[key] ?? []).some((x) => same(key, x, value));
@@ -180,6 +180,13 @@ export function ViewDialog({
     // M69: every tag in the model (one spelling each, ignoring case), then Not tagged; only once something is tagged.
     { key: "tags", label: "Tag", values: tagValues, text: (v) => v || "Not tagged" },
     { key: "plan", label: "Plan status", values: model.nodes.some((n) => n.plan) ? PLAN_STATUSES.filter((p) => model.nodes.some((n) => planOf(n) === p)) : [], text: (v) => PLAN_LABEL[v as PlanStatus] ?? v },
+    // M88: once the model has a decision about an element, or the view already uses it.
+    {
+      key: "decisions",
+      label: "Decisions",
+      values: model.decisions?.some((d) => d.elements?.length) || shown.filter.decisions?.length ? ["with", "without"] : [],
+      text: (v) => DECISIONS_FILTER_LABEL[v as keyof typeof DECISIONS_FILTER_LABEL] ?? v,
+    },
   ];
   // M77: plan status and tag are offered once something is Planned or Retiring, or tagged, or the view already uses them.
   const colorings = COLORINGS.filter((c) => shown.colorBy === c || (c === "plan" ? model.nodes.some((n) => n.plan) : c === "tag" ? inModel.length > 0 : true));
@@ -302,7 +309,7 @@ export function ViewLegend({ model, shown, onEdit, onShowAll, groups, onArrange 
   const active = filterActive(shown.filter);
   if (!active && shown.colorBy === "layer" && !shown.groupBy) return null;
   const entries = legend(model, shown.colorBy, shown.filter);
-  const kept = model.nodes.filter((n) => inView(n, shown.filter)).length;
+  const kept = model.nodes.filter((n) => inView(n, shown.filter, model)).length;
   const name = model.views?.find((v) => v.id === shown.id)?.name;
   return (
     <figure className="max-w-64 border border-border bg-surface-raised px-3 py-2" data-testid="view-legend">

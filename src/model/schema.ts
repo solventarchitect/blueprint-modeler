@@ -155,6 +155,18 @@ export const viewFilterSchema = z.object({
     .optional(),
   /** M69: tags; an element carrying any of them is kept ("" keeps the untagged). Older versions ignore it. */
   tags: values(200),
+  /**
+   * M88: "with" keeps the elements a decision concerns, "without" those none does. Optional and additive in
+   * format 1 (older versions ignore it and keep every element); a value this version doesn't know is dropped.
+   */
+  decisions: z
+    .unknown()
+    .transform((v): ("with" | "without")[] | undefined => {
+      if (!Array.isArray(v)) return undefined;
+      const kept = [...new Set(v.filter((x): x is "with" | "without" => x === "with" || x === "without"))];
+      return kept.length ? kept : undefined;
+    })
+    .optional(),
 });
 /** What a view can group elements by (M56), worked out from the model; see groups.ts. */
 export const GROUP_BY = ["business_application", "service_offering", "environment"] as const;

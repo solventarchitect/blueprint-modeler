@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { createModel } from "@/model";
+import { createModel, inView } from "@/model";
 import { connectionProblem, initialHistory, laneY, modernEdge, reduce, SLOT, type Action, type History } from "./state";
 
 const T = "2026-09-27T12:00:00.000Z";
@@ -322,5 +322,21 @@ describe("decisions (M78)", () => {
     expect(s.present.decisions).toEqual([{ ...d, title: "Cache the catalog", status: "superseded" }]);
     s = run([{ type: "undo" }], s);
     expect(s.present.decisions![1]!.supersededBy).toBe("d2");
+  });
+});
+
+describe("the decisions filter follows the model (M88)", () => {
+  const kept = (h: History) => h.present.nodes.filter((n) => inView(n, { decisions: ["with"] }, h.present)).map((n) => n.id);
+  it("making, changing, deleting and undoing a decision changes what Has decisions keeps", () => {
+    let s = run([...base, { type: "save-decision", decision: { id: "d1", title: "Cache", status: "proposed", elements: ["ba"] } }]);
+    expect(kept(s)).toEqual(["ba"]);
+    s = run([{ type: "save-decision", decision: { id: "d1", title: "Cache", status: "proposed", elements: ["ba", "host"] } }], s);
+    expect(kept(s)).toEqual(["ba", "host"]);
+    s = run([{ type: "delete-node", id: "host" }], s);
+    expect(kept(s)).toEqual(["ba"]);
+    s = run([{ type: "delete-decision", id: "d1" }], s);
+    expect(kept(s)).toEqual([]);
+    s = run([{ type: "undo" }], s);
+    expect(kept(s)).toEqual(["ba"]);
   });
 });

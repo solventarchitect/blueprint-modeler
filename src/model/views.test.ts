@@ -1,5 +1,6 @@
 import { describe, expect, it } from "vitest";
-import { createModel, type Model } from "./index";
+import { filterText } from "./compare";
+import { createModel, viewFilterSchema, type Model } from "./index";
 import { ALL_ELEMENTS, COLORINGS, filterActive, inView, legend, MARKERS, PALETTE, slotOf, storedColorBy, valueLabels, viewColorBy } from "./views";
 
 function m(): Model {
@@ -14,7 +15,7 @@ function m(): Model {
   model.layout = Object.fromEntries(model.nodes.map((n, i) => [n.id, { x: i * 300, y: 0 }]));
   return model;
 }
-const ids = (model: Model, f: Parameters<typeof inView>[1]) => model.nodes.filter((n) => inView(n, f)).map((n) => n.id);
+const ids = (model: Model, f: Parameters<typeof inView>[1]) => model.nodes.filter((n) => inView(n, f, model)).map((n) => n.id);
 
 describe("filters (M54)", () => {
   it("show everything with no filter, and say so", () => {
@@ -150,3 +151,30 @@ describe("color by plan status and by tag (M77)", () => {
     expect(COLORINGS).toEqual(["layer", "lifecycle", "environment", "owner", "plan", "tag"]);
   });
 });
+
+describe("filter by decisions (M88)", () => {
+  const decided = (): Model => ({ ...m(), decisions: [{ id: "d1", title: "Move to the cloud", status: "accepted", elements: ["ba", "svc"] }, { id: "d2", title: "Retire web-01", status: "proposed", elements: ["svc"] }] });
+
+  it("keeps the elements a decision concerns, or those none does, or both", () => {
+    const model = decided();
+    expect(ids(model, { decisions: ["with"] })).toEqual(["ba", "svc"]);
+    expect(ids(model, { decisions: ["without"] })).toEqual(["cap", "svc2", "host"]);
+    expect(ids(model, { decisions: ["with", "without"] })).toEqual(["cap", "ba", "svc", "svc2", "host"]);
+    expect(ids(model, { decisions: ["with"], environment: ["Production"] })).toEqual(["svc"]);
+    expect(filterActive({ decisions: ["with"] })).toBe(true);
+    // A model without decisions: Has decisions keeps nothing, and the same filter object works on any model.
+    expect(ids(m(), { decisions: ["with"] })).toEqual([]);
+  });
+
+  it("is optional in format 1; a value this version doesn't know is dropped, not the view", () => {
+    const parsed = viewFilterSchema.parse({ decisions: ["with", "sometimes", 3, "with"] });
+    expect(parsed.decisions).toEqual(["with"]);
+    expect(viewFilterSchema.parse({ decisions: ["nope"] })).not.toHaveProperty("decisions", expect.anything());
+    expect(viewFilterSchema.parse({}).decisions).toBeUndefined();
+  });
+
+  it("is said in words, as Compare and images show a filter", () => {
+    expect(filterText({ decisions: ["without", "with"] })).toBe("Decisions: Has decisions, No decisions");
+  });
+});
+

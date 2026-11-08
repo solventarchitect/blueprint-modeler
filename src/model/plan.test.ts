@@ -76,9 +76,9 @@ describe("filter by plan status (M68)", () => {
     const m = checkout();
     const planned = { ...m.nodes[0]!, plan: "planned" as const };
     expect(filterActive({ plan: ["planned"] })).toBe(true);
-    expect(inView(planned, { plan: ["planned"] })).toBe(true);
-    expect(inView(m.nodes[1]!, { plan: ["planned"] })).toBe(false);
-    expect(inView(m.nodes[1]!, { plan: ["live"] })).toBe(true);
+    expect(inView(planned, { plan: ["planned"] }, m)).toBe(true);
+    expect(inView(m.nodes[1]!, { plan: ["planned"] }, m)).toBe(false);
+    expect(inView(m.nodes[1]!, { plan: ["live"] }, m)).toBe(true);
   });
 });
 

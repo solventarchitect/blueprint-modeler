@@ -7,6 +7,9 @@ import { classById, LIFE_CYCLE } from "@/metamodel";
 import { PLAN_LABEL, PLAN_STATUSES, type PlanStatus } from "./plan";
 import { COLOR_BY, COLOR_BY_EXT, type ColorBy, type Model, type Node, type View, type ViewFilter } from "./schema";
 
+/** M88: the decisions filter's values in words, in the order they are offered. */
+export const DECISIONS_FILTER_LABEL = { with: "Has decisions", without: "No decisions" } as const;
+
 export const ALL_ELEMENTS: { filter: ViewFilter; colorBy: ColorBy } = { filter: {}, colorBy: "layer" };
 
 /** An element's value for a view property, trimmed; "" when not set. */
@@ -29,11 +32,25 @@ const tagsMatch = (n: Node, vals: string[]) => {
   return tags.some((t) => want.has(t.toLowerCase()));
 };
 
-/** Whether the filter narrows anything. */
-export const filterActive = (f: ViewFilter) => dims(f).some(([vals]) => !!vals?.length) || !!f.tags?.length;
+/** M88: the elements some decision concerns, worked out once per model. */
+const decidedCache = new WeakMap<Model, ReadonlySet<string>>();
+function decidedIds(model: Model): ReadonlySet<string> {
+  let ids = decidedCache.get(model);
+  if (!ids) decidedCache.set(model, (ids = new Set((model.decisions ?? []).flatMap((d) => d.elements ?? []))));
+  return ids;
+}
 
-/** Whether an element is in the view: every dimension that lists values must contain the element's. */
-export const inView = (n: Node, f: ViewFilter) => dims(f).every(([vals, get]) => !vals?.length || vals.includes(get(n))) && (!f.tags?.length || tagsMatch(n, f.tags));
+/** Whether the filter narrows anything. */
+export const filterActive = (f: ViewFilter) => dims(f).some(([vals]) => !!vals?.length) || !!f.tags?.length || !!f.decisions?.length;
+
+/**
+ * Whether an element is in the view: every dimension that lists values must contain the element's.
+ * The model is needed for what isn't on the element itself (M88: the decisions about it).
+ */
+export const inView = (n: Node, f: ViewFilter, model: Model) =>
+  dims(f).every(([vals, get]) => !vals?.length || vals.includes(get(n))) &&
+  (!f.tags?.length || tagsMatch(n, f.tags)) &&
+  (!f.decisions?.length || f.decisions.includes(decidedIds(model).has(n.id) ? "with" : "without"));
 
 /**
  * Categorical colors for "color by", as literal hex (they go into exported images too), each at
@@ -120,7 +137,7 @@ export function legend(model: Model, by: ColorBy, filter: ViewFilter): LegendEnt
   if (by === "layer") return [];
   const valueOf = valueFn(model, by);
   const counts = new Map<string, number>();
-  for (const n of model.nodes) if (inView(n, filter)) counts.set(valueOf(n), (counts.get(valueOf(n)) ?? 0) + 1);
+  for (const n of model.nodes) if (inView(n, filter, model)) counts.set(valueOf(n), (counts.get(valueOf(n)) ?? 0) + 1);
   const all = slots(model, by);
   const count = (value: string) => counts.get(value) ?? 0;
   // Values past the palette share one color and marker, so they share one row too.

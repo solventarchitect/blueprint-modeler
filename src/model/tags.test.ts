@@ -51,10 +51,10 @@ describe("filter by tag (M69)", () => {
     const m = checkout();
     const tagged = { ...m.nodes[0]!, tags: ["Team A", "Billing"] };
     expect(filterActive({ tags: ["team a"] })).toBe(true);
-    expect(inView(tagged, { tags: ["team a"] })).toBe(true);
-    expect(inView(tagged, { tags: ["Other"] })).toBe(false);
-    expect(inView(m.nodes[1]!, { tags: [""] })).toBe(true);
-    expect(inView(tagged, { tags: [""] })).toBe(false);
+    expect(inView(tagged, { tags: ["team a"] }, m)).toBe(true);
+    expect(inView(tagged, { tags: ["Other"] }, m)).toBe(false);
+    expect(inView(m.nodes[1]!, { tags: [""] }, m)).toBe(true);
+    expect(inView(tagged, { tags: [""] }, m)).toBe(false);
   });
 });
 
