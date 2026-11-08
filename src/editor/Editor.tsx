@@ -1186,13 +1186,19 @@ function EditorInner() {
   const importFile = async (file: File) => {
     setIoError(null);
     if (file.size > MAX_FILE_CHARS * 4) {
-      setIoError("The file is too large to be a Blueprint Modeler model (over 5 MB).");
+      setIoError(`Could not import “${file.name}”. The file is too large to import (over 5 MB). Nothing was changed.`);
       return;
     }
     const text = await file.text();
     // M87: an ArchiMate exchange file (XML) becomes a new model; a model file (JSON) as before.
     const archimate = looksLikeXml(text);
-    const r = archimate ? importArchimate(text) : importJson(text, await doc.storedIds());
+    let r: ReturnType<typeof importJson>;
+    try {
+      r = archimate ? importArchimate(text) : importJson(text, await doc.storedIds());
+    } catch {
+      // Reading never stops silently: a file nothing above foresaw is refused, like any other.
+      r = { ok: false, error: "The file could not be read." };
+    }
     if (!r.ok) {
       setIoError(`Could not import “${file.name}”. ${r.error} Nothing was changed.`);
       return;

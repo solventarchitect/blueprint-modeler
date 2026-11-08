@@ -1,5 +1,5 @@
 import { archimateImportGuesses, archimateRelationshipFor, archimateTypeLabel } from "@/frameworks";
-import { allowedTypes, classById, classes, relationshipsBetween, type ClassId } from "@/metamodel";
+import { classById, classes, relationshipsBetween, type ClassId } from "@/metamodel";
 import { CURRENT_SCHEMA, parseModel, type Edge, type Model, type Node } from "@/model";
 import { MAX_FILE_CHARS, type ImportResult } from "./file";
 
@@ -40,7 +40,10 @@ const STEP_Y = 160;
 
 const plural = (n: number, one: string, many = `${one}s`) => `${n} ${n === 1 ? one : many}`;
 const prop = (props: Record<string, string>, name: string) => Object.entries(props).find(([k]) => k.trim().toLowerCase() === name)?.[1]?.trim();
-const typeLabel = (type: string) => archimateTypeLabel(type);
+const typeLabel = (type: string) => {
+  const t = archimateTypeLabel(type);
+  return t.charAt(0).toUpperCase() + t.slice(1);
+};
 const labelOf = (id: ClassId) => classById(id)!.label;
 const listed = (items: string[]) => (items.length > LISTED ? `${items.slice(0, LISTED).join(", ")}, and ${items.length - LISTED} more` : items.join(", "));
 const halfStep = (n: number) => Math.max(1, Math.round(n * 2) / 2);
@@ -68,9 +71,18 @@ export function exchangeToModel(ex: Exchange, { id, now }: { id: string; now: Da
   const kept: { e: ExchangeElement; cls: ClassId }[] = [];
   const guessed = new Map<string, number>();
   const skipped: ExchangeElement[] = [];
+  // An identifier used twice: the first element keeps it (relationships and boxes name it), the others are listed.
+  const twice: ExchangeElement[] = [];
+  const ids = new Set<string>();
   for (const e of ex.elements) {
+    if (ids.has(e.id)) {
+      twice.push(e);
+      continue;
+    }
+    ids.add(e.id);
     const own = namedClass(prop(e.properties, CLASS_PROPERTY));
-    const guess = own ? undefined : archimateImportGuesses[e.type];
+    // Only the table's own entries: a type spelled like an object's built-in ("constructor") is just unknown.
+    const guess = own || !Object.hasOwn(archimateImportGuesses, e.type) ? undefined : archimateImportGuesses[e.type];
     if (own) kept.push({ e, cls: own });
     else if (guess) {
       kept.push({ e, cls: guess.class });
@@ -91,8 +103,10 @@ export function exchangeToModel(ex: Exchange, { id, now }: { id: string; now: Da
   };
   const nodeId = new Map<string, string>();
   const classOf = new Map<string, ClassId>();
+  // Our export prefixes ids (el-, rel-); with its property present, the id comes back as it was.
+  const ours = (raw: string, prefix: string, props: Record<string, string>, key: string) => (raw.startsWith(prefix) && prop(props, key) ? raw.slice(prefix.length) : raw);
   const nodes: Node[] = kept.map(({ e, cls }) => {
-    const nid = fresh(e.id, "n");
+    const nid = fresh(ours(e.id, "el-", e.properties, CLASS_PROPERTY), "n");
     nodeId.set(e.id, nid);
     classOf.set(nid, cls);
     const doc = e.documentation?.trim();
@@ -103,11 +117,12 @@ export function exchangeToModel(ex: Exchange, { id, now }: { id: string; now: Da
     notes.push(`Guessed the CSDM class of ${plural(n, "element")} from ${n === 1 ? "its" : "their"} ArchiMate type: ${[...guessed].map(([k, c]) => `${k} (${c})`).join(", ")}.`);
   }
   if (skipped.length) notes.push(`Not imported: ${plural(skipped.length, "element")} with no CSDM class here: ${listed(skipped.map(named))}.`);
+  if (twice.length) notes.push(`Not imported: ${plural(twice.length, "element")} whose identifier another element already has: ${listed(twice.map(named))}.`);
 
   // Relationships: our export's type in either direction (it writes some reversed), else the CSDM
   // relationship whose ArchiMate reading matches the type and direction, then any CSDM relationship
   // between the two classes. An end that isn't imported, or no CSDM relationship, is listed.
-  const byId = new Map(ex.elements.map((e) => [e.id, e]));
+  const byId = new Map<string, ExchangeElement>([...kept.map(({ e }) => [e.id, e] as const), ...skipped.map((e) => [e.id, e] as const)]);
   const end = (ref: string) => {
     const e = byId.get(ref);
     return e ? `“${e.name.trim() || "Untitled"}”` : "another relationship";
@@ -132,9 +147,23 @@ export function exchangeToModel(ex: Exchange, { id, now }: { id: string; now: Da
     const cb = classOf.get(b)!;
     const own = prop(r.properties, TYPE_PROPERTY);
     let pick: { from: string; to: string; type: string } | undefined;
-    if (own && allowedTypes(ca, cb).includes(own)) pick = { from: a, to: b, type: own };
-    else if (own && allowedTypes(cb, ca).includes(own)) pick = { from: b, to: a, type: own };
-    else {
+    let guessedThis = false;
+    if (own && own.length <= 64) {
+      // Undo our export exactly: the way round whose ArchiMate reading it would have written as this
+      // relationship (some are written reversed). The type is kept as written, older ones and ones
+      // breaking the rules too, for Hints to flag as a model file's would be.
+      for (const [from, to, cf, ct] of [
+        [a, b, ca, cb],
+        [b, a, cb, ca],
+      ] as const) {
+        const m = archimateRelationshipFor(cf, ct);
+        if ((m?.type ?? "Association") === r.type && (m?.reverse ? to : from) === a) {
+          pick = { from, to, type: own };
+          break;
+        }
+      }
+    }
+    if (!pick) {
       // Score each CSDM relationship between the two: same ArchiMate type and direction 3, same type 2, any 1.
       let best = 0;
       for (const [from, to, cf, ct] of [
@@ -152,7 +181,7 @@ export function exchangeToModel(ex: Exchange, { id, now }: { id: string; now: Da
           }
         }
       }
-      if (pick) guessedRels++;
+      guessedThis = !!pick;
     }
     if (!pick) {
       left.push(`${said} (no CSDM relationship between ${labelOf(ca)} and ${labelOf(cb)})`);
@@ -165,7 +194,8 @@ export function exchangeToModel(ex: Exchange, { id, now }: { id: string; now: Da
       left.push(`${said} (a model holds at most ${MAX_EDGES} relationships)`);
       continue;
     }
-    edges.push({ id: fresh(r.id, "e"), ...pick });
+    edges.push({ id: fresh(ours(r.id, "rel-", r.properties, TYPE_PROPERTY), "e"), ...pick });
+    if (guessedThis) guessedRels++;
   }
   if (guessedRels) notes.push(`Guessed the CSDM relationship of ${plural(guessedRels, "relationship")} from ${guessedRels === 1 ? "its" : "their"} ArchiMate type and direction.`);
   if (left.length) notes.push(`Not imported: ${plural(left.length, "relationship")}: ${listed(left)}.`);
@@ -274,7 +304,7 @@ export const looksLikeXml = (text: string) => text.trimStart().startsWith("<");
  */
 export function importArchimate(text: string, newId: () => string = () => crypto.randomUUID(), now = new Date()): ImportResult {
   if (text.length > MAX_FILE_CHARS) return { ok: false, error: "The file is too large (over 5 MB)." };
-  if (/<!DOCTYPE|<!ENTITY/i.test(text)) return { ok: false, error: "It declares a document type, which an ArchiMate exchange file doesn't use." };
+  if (/^\s*(?:<\?[\s\S]*?\?>\s*|<!--[\s\S]*?-->\s*)*<!DOCTYPE/i.test(text)) return { ok: false, error: "It declares a document type, which an ArchiMate exchange file doesn't use." };
   const read = readExchange(new DOMParser().parseFromString(text, "application/xml"));
   if ("error" in read) return { ok: false, error: read.error };
   const r = exchangeToModel(read, { id: newId(), now });

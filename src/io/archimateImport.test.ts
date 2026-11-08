@@ -1,8 +1,9 @@
 import { describe, expect, it } from "vitest";
 import { examples } from "@/examples";
 import { archimateElements, archimateRelationshipFor } from "@/frameworks";
-import { allowedTypes, classById, type ClassId } from "@/metamodel";
+import { allowedTypes, classById, relationships, type ClassId, type RelDef } from "@/metamodel";
 import { parseModel, type Model } from "@/model";
+import { modelToArchimateXml } from "./archimate";
 import { exchangeToModel, type Exchange, type ExchangeElement, type ExchangeRelationship } from "./archimateImport";
 
 // M87: an ArchiMate exchange file read back into a CSDM model. The XML is read in the browser
@@ -26,6 +27,30 @@ function asExported(m: Model): Exchange {
   };
 }
 
+
+const unescape = (t: string) => t.replace(/&lt;/g, "<").replace(/&gt;/g, ">").replace(/&quot;/g, '"').replace(/&apos;/g, "'").replace(/&amp;/g, "&");
+/** Our exporter's real XML, read back with a reader for its own layout (the browser's parser isn't here). */
+function readOurXml(xml: string): Exchange {
+  const attr = (tag: string, a: string) => unescape(new RegExp(`${a}="([^"]*)"`).exec(tag)?.[1] ?? "");
+  const value = (block: string) => unescape(/<value[^>]*>([^<]*)<\/value>/.exec(block)?.[1] ?? "");
+  const elements = [...xml.matchAll(/<element ([^>]*)>\s*<name[^>]*>([^<]*)<\/name>\s*<properties>([\s\S]*?)<\/properties>/g)].map(([, tag, name, props]) => ({
+    id: attr(tag!, "identifier"),
+    type: attr(tag!, "xsi:type"),
+    name: unescape(name!),
+    properties: { "CSDM class": value(props!) },
+  }));
+  const relationships = [...xml.matchAll(/<relationship ([^>]*)>\s*<properties>([\s\S]*?)<\/properties>/g)].map(([, tag, props]) => ({
+    id: attr(tag!, "identifier"),
+    type: attr(tag!, "xsi:type"),
+    source: attr(tag!, "source"),
+    target: attr(tag!, "target"),
+    properties: { "CSDM relationship type": value(props!) },
+  }));
+  const nodes = [...xml.matchAll(/<node ([^>]*)\/>/g)].map(([, tag]) => ({ elementRef: attr(tag!, "elementRef"), x: Number(attr(tag!, "x")), y: Number(attr(tag!, "y")), w: Number(attr(tag!, "w")), h: Number(attr(tag!, "h")) }));
+  return { name: unescape(/<name[^>]*>([^<]*)<\/name>/.exec(xml)![1]!), elements, relationships, diagram: { name: "", nodes } };
+}
+const triple = (m: Model) => m.edges.map((e) => `${e.from} ${e.type} ${e.to}`).sort();
+
 const el = (id: string, type: string, name: string, properties: Record<string, string> = {}): ExchangeElement => ({ id, type, name, properties });
 const rel = (id: string, type: string, source: string, target: string, properties: Record<string, string> = {}): ExchangeRelationship => ({ id, type, source, target, properties });
 const ok = (r: ReturnType<typeof exchangeToModel>) => {
@@ -40,12 +65,59 @@ describe("ArchiMate exchange import (M87)", () => {
     expect(parseModel(model).ok).toBe(true);
     expect(model).toMatchObject({ id: "new", name: m.name, created: "2026-11-07T12:00:00.000Z", updated: "2026-11-07T12:00:00.000Z" });
     expect(model).not.toHaveProperty("description");
-    const back = (id: string) => id.replace(/^el-/, "");
-    expect(model.nodes.map((n) => [back(n.id), n.class, n.name])).toEqual(m.nodes.map((n) => [n.id, n.class, n.name]));
-    expect(model.edges.map((e) => [back(e.from), back(e.to), e.type]).sort()).toEqual(m.edges.map((e) => [e.from, e.to, e.type]).sort());
+    // Our export's ids come back as they were (it prefixes them).
+    expect(model.nodes.map((n) => [n.id, n.class, n.name])).toEqual(m.nodes.map((n) => [n.id, n.class, n.name]));
+    expect(triple(model)).toEqual(triple(m));
     // Same picture, moved together by the export's margin.
-    for (const n of m.nodes) expect(model.layout[`el-${n.id}`]).toEqual({ x: m.layout[n.id]!.x + 40, y: m.layout[n.id]!.y + 40 });
+    for (const n of m.nodes) expect(model.layout[n.id]).toEqual({ x: m.layout[n.id]!.x + 40, y: m.layout[n.id]!.y + 40 });
     expect(notes).toEqual([]);
+  });
+
+  it("every example, through the real exporter and back: same ids, classes, names and relationships, each way round", () => {
+    for (const ex of examples) {
+      const m = ex.create(new Date("2026-09-27T00:00:00Z"), "m1");
+      const { model, notes } = ok(exchangeToModel(readOurXml(modelToArchimateXml(m)), opts));
+      expect(model.nodes.map((n) => [n.id, n.class, n.name]), ex.id).toEqual(m.nodes.map((n) => [n.id, n.class, n.name]));
+      expect(triple(model), ex.id).toEqual(triple(m));
+      expect(model.edges.map((e) => e.id).sort(), ex.id).toEqual(m.edges.map((e) => e.id).sort());
+      expect(notes, ex.id).toEqual([]);
+    }
+  });
+
+  it("every relationship the metamodel defines, including older types and ones kept the other way, round-trips as written", () => {
+    for (const def of relationships as readonly RelDef[]) {
+      const types = [...def.types.map((t) => [def.from, def.to, t]), ...(def.legacyTypes ?? []).map((t) => [def.from, def.to, t]), ...(def.legacyReverse ?? []).map((t) => [def.to, def.from, t])];
+      for (const [from, to, type] of types) {
+        const m: Model = { ...checkout(), nodes: [{ id: "a", class: from!, name: "A" }, { id: "b", class: to!, name: "B" }], edges: [{ id: "e1", from: "a", to: "b", type: type! }], layout: { a: { x: 0, y: 0 }, b: { x: 300, y: 0 } } };
+        const { model } = ok(exchangeToModel(readOurXml(modelToArchimateXml(m)), opts));
+        expect(triple(model), `${from}>${to} ${type}`).toEqual(triple(m));
+      }
+    }
+    // One that breaks the rules is kept as written too, for Hints to flag, as a model file keeps it.
+    const odd: Model = { ...checkout(), nodes: [{ id: "a", class: "host", name: "A" }, { id: "b", class: "business_capability", name: "B" }], edges: [{ id: "e1", from: "a", to: "b", type: "Uses::Used by" }], layout: {} };
+    expect(triple(ok(exchangeToModel(readOurXml(modelToArchimateXml(odd)), opts)).model)).toEqual(["a Uses::Used by b"]);
+  });
+
+  it("a type name a plain object already has (constructor) is just a type with no CSDM class", () => {
+    const r = ok(exchangeToModel({ name: "x", elements: [el("a", "Node", "A"), el("b", "constructor", "B"), el("c", "toString", "")], relationships: [] }, opts));
+    expect(r.model.nodes.map((n) => n.id)).toEqual(["a"]);
+    expect(r.notes).toContain("Not imported: 2 elements with no CSDM class here: Constructor “B”, To String.");
+  });
+
+  it("an identifier used twice: the first element keeps it, the second is listed, not wired in its place", () => {
+    const r = ok(
+      exchangeToModel(
+        { name: "x", elements: [el("a", "Node", "First"), el("a", "SystemSoftware", "Second"), el("s", "SystemSoftware", "Sw")], relationships: [rel("r1", "Aggregation", "a", "s"), rel("r2", "Aggregation", "a", "s")] },
+        opts,
+      ),
+    );
+    expect(r.model.nodes.map((n) => [n.id, n.name])).toEqual([
+      ["a", "First"],
+      ["s", "Sw"],
+    ]);
+    expect(r.model.edges).toHaveLength(1);
+    expect(r.notes).toContain("Not imported: 1 element whose identifier another element already has: System Software “Second”.");
+    expect(r.notes).toContain("Guessed the CSDM relationship of 1 relationship from its ArchiMate type and direction.");
   });
 
   it("without our properties, the class is guessed from the ArchiMate type, and says so", () => {
@@ -173,7 +245,7 @@ describe("ArchiMate exchange import (M87)", () => {
             el("b", "SystemSoftware", "   "),
           ],
           // The node aggregates the system software (CSDM: the Application runs on the Host), twice.
-          relationships: [rel("r1", "Aggregation", long, "b", { "CSDM relationship type": "Nonsense" }), rel("r2", "Aggregation", long, "b")],
+          relationships: [rel("r1", "Aggregation", long, "b"), rel("r2", "Aggregation", long, "b"), rel("r3", "Aggregation", long, "b", { "CSDM relationship type": "Nonsense" })],
         },
         opts,
       ),
@@ -185,7 +257,11 @@ describe("ArchiMate exchange import (M87)", () => {
     expect(model.nodes[0]!.name).toHaveLength(200);
     expect(model.nodes[0]!.attrs?.description).toHaveLength(2000);
     expect(model.nodes[1]!.name).toBe("Untitled");
-    expect(model.edges).toEqual([{ id: "r1", from: "b", to: model.nodes[0]!.id, type: allowedTypes("application", "host")[0] }]);
+    // r2 joins r1; r3 states its own type, kept as written (Hints flag it, as for a model file).
+    expect(model.edges).toEqual([
+      { id: "r1", from: "b", to: model.nodes[0]!.id, type: allowedTypes("application", "host")[0] },
+      { id: "r3", from: "b", to: model.nodes[0]!.id, type: "Nonsense" },
+    ]);
   });
 
   it("refuses more elements than a model can hold", () => {
