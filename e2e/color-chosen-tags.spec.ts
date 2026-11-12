@@ -89,7 +89,8 @@ test.describe("color by chosen tags (M86, desktop)", () => {
     const gone = chosen(page).getByRole("checkbox", { name: /^Gone/ });
     await expect(gone).toBeChecked();
     await expect(chosen(page)).toContainText("Gone(on no element)");
-    await gone.uncheck();
+    // Unticked, the stale tag leaves the list (nothing carries it), so a click, not uncheck(), which waits on the box.
+    await gone.click();
     await expect(legend(page).getByRole("listitem")).toHaveText([/Cost Center 7\s*1/, /Payments\s*1/, /Team B\s*1/]);
     await expect(chosen(page).getByRole("checkbox", { name: /^Gone/ })).toHaveCount(0);
   });

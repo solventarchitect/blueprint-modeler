@@ -72,7 +72,8 @@ test.describe("color by plan status and by tag (M77, desktop)", () => {
 
     // Tag: each element by its first tag, ignoring case; the untagged under Not tagged.
     await colorGroup(page).getByLabel("Tag", { exact: true }).check();
-    await expect(dialog(page)).toContainText("Tag colors each element by its first tag.");
+    // M86: with Tag chosen, the Tags to color by group says how it works; none ticked is each element's first tag.
+    await expect(dialog(page)).toContainText("None ticked: each element's first tag.");
     await expect(legend(page)).toContainText("Colored by tag");
     await expect(legend(page)).toContainText("(edited)");
     await expect(legend(page).getByRole("listitem")).toHaveText([/Team Storefront\s*2/, /Not tagged\s*12/]);
