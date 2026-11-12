@@ -74,7 +74,7 @@ import { TableView } from "./TableView";
 import { FlowsDialog } from "./Flows";
 import { DecisionsDialog, type DecisionsStart } from "./Decisions";
 import { ARRANGE, batchTargets, SelectionPanel, type ArrangeKind, type BatchKey } from "./SelectionPanel";
-import { ViewDialog, ViewLegend, ViewsMenu, type ShownView } from "./Views";
+import { shownColorTags, ViewDialog, ViewLegend, ViewsMenu, type ShownView } from "./Views";
 import { ExamplesMenu } from "./ExamplesMenu";
 import { ContextMenu, type MenuItem } from "./ContextMenu";
 import { blastAnnouncement, blastProgress, blastSteps, blastView, flowAnnouncement, flowProgress, flowSteps, scenarioWords, type BlastKind } from "./blast";
@@ -523,7 +523,10 @@ function EditorInner() {
   const shown = activeView.modelId === model.id ? { ...activeView, id: model.views?.some((v) => v.id === activeView.id) ? activeView.id : null } : { modelId: model.id, id: null, ...ALL_ELEMENTS };
   // Images follow the view on screen (M54); data exports always carry the whole model.
   const viewName = model.views?.find((v) => v.id === shown.id)?.name;
-  const imageView = useMemo(() => ({ filter: shown.filter, colorBy: shown.colorBy, groupBy: shown.groupBy, name: viewName }), [shown.filter, shown.colorBy, shown.groupBy, viewName]);
+  const colorTags = shownColorTags(shown);
+  const colorTagsKey = colorTags?.join("\u0000") ?? "";
+  // eslint-disable-next-line react-hooks/exhaustive-deps -- colorTags by value (colorTagsKey), not by array
+  const imageView = useMemo(() => ({ filter: shown.filter, colorBy: shown.colorBy, groupBy: shown.groupBy, colorTags, name: viewName }), [shown.filter, shown.colorBy, shown.groupBy, colorTagsKey, viewName]);
   const showView = (v: ShownView) => setActiveView({ modelId: model.id, ...v });
   /** Switch views from the menu or the palette, and say what it shows. */
   const pickView = (v: ShownView) => {
@@ -584,8 +587,10 @@ function EditorInner() {
     if (kept.length > 1) setMulti(kept);
     else setSelectedId(kept[0] ?? null);
   }, [model.nodes, multi, fadedIds, setSelectedId]);
-  const slotFor = useMemo(() => slotMap(model, shown.colorBy), [model, shown.colorBy]);
-  const colorValue = useMemo(() => valueLabels(model, shown.colorBy), [model, shown.colorBy]);
+  // eslint-disable-next-line react-hooks/exhaustive-deps -- colorTags by value (colorTagsKey)
+  const slotFor = useMemo(() => slotMap(model, shown.colorBy, colorTags), [model, shown.colorBy, colorTagsKey]);
+  // eslint-disable-next-line react-hooks/exhaustive-deps -- colorTags by value (colorTagsKey)
+  const colorValue = useMemo(() => valueLabels(model, shown.colorBy, colorTags), [model, shown.colorBy, colorTagsKey]);
   // M80: how many decisions concern each element, for its marker and its accessible name.
   const decided = useMemo(() => decisionCounts(model), [model]);
   // Suggestions for setting a property on several elements (M63), as the Inspector offers for one.
@@ -1938,7 +1943,7 @@ function EditorInner() {
     const n = model.nodes.find((x) => x.id === id);
     if (!n) return;
     const filter = inView(n, shown.filter, model) ? shown.filter : {};
-    if (filter !== shown.filter) showView({ id: null, filter: {}, colorBy: shown.colorBy, groupBy: shown.groupBy });
+    if (filter !== shown.filter) showView({ id: null, filter: {}, colorBy: shown.colorBy, groupBy: shown.groupBy, colorTags: shown.colorTags });
     const hide = chosenHide.nodes.has(id) ? planHidden(model, "both") : chosenHide;
     if (chosenHide.nodes.has(id)) setPlanView("both");
     const sameFocus = focusOn?.id === id;
@@ -2220,7 +2225,7 @@ function EditorInner() {
     const n = model.nodes.find((x) => x.id === id);
     if (!n) return;
     // Faded by the view's filter: lift it; outside the focus (M74): end it.
-    if (!inView(n, shown.filter, model)) showView({ id: null, filter: {}, colorBy: shown.colorBy, groupBy: shown.groupBy });
+    if (!inView(n, shown.filter, model)) showView({ id: null, filter: {}, colorBy: shown.colorBy, groupBy: shown.groupBy, colorTags: shown.colorTags });
     if (focusIds && !focusIds.has(id)) setFocus(null);
     // Left out of the state shown (M68): back to current and target, so it can be shown.
     const leftOut = planHide.nodes.has(id);
@@ -2432,7 +2437,7 @@ function EditorInner() {
         disabled: shown.id === null && !filterActive(shown.filter) && shown.colorBy === "layer" && !shown.groupBy ? "Already showing all elements, in layer colors" : undefined,
         run: () => pickView({ id: null, filter: {}, colorBy: "layer" }),
       },
-      ...(model.views ?? []).map((v): Command => ({ id: `view-${v.id}`, group: "Views", label: `View: ${v.name}`, keywords: "saved view", run: () => pickView({ id: v.id, filter: v.filter, colorBy: viewColorBy(v), groupBy: v.groupBy }) })),
+      ...(model.views ?? []).map((v): Command => ({ id: `view-${v.id}`, group: "Views", label: `View: ${v.name}`, keywords: "saved view", run: () => pickView({ id: v.id, filter: v.filter, colorBy: viewColorBy(v), groupBy: v.groupBy, colorTags: v.colorTags }) })),
       ...(["plan", "iso", "exploded"] as const)
         .filter((p) => p !== projection)
         .map((p): Command => ({ id: `projection-${p}`, group: "Projection", label: `${PROJECTION_LABEL[p]} view`, keywords: p === "plan" ? "edit 2d canvas" : "isometric 3d layers stack read only", run: () => chooseProjection(p) })),
@@ -3322,13 +3327,13 @@ function EditorInner() {
           onChange={showView}
           onSave={(name) => {
             const id = newId();
-            dispatch({ type: "save-view", view: { id, name, filter: shown.filter, ...storedColorBy(shown.colorBy), ...(shown.groupBy ? { groupBy: shown.groupBy } : {}) } });
+            dispatch({ type: "save-view", view: { id, name, filter: shown.filter, ...storedColorBy(shown.colorBy), ...(shown.groupBy ? { groupBy: shown.groupBy } : {}), ...(colorTags ? { colorTags } : {}) } });
             showView({ ...shown, id });
             setMessage(`Saved the view “${name}”.`);
           }}
           onUpdate={(name) => {
             if (!shown.id) return;
-            dispatch({ type: "save-view", view: { id: shown.id, name, filter: shown.filter, ...storedColorBy(shown.colorBy), ...(shown.groupBy ? { groupBy: shown.groupBy } : {}) } });
+            dispatch({ type: "save-view", view: { id: shown.id, name, filter: shown.filter, ...storedColorBy(shown.colorBy), ...(shown.groupBy ? { groupBy: shown.groupBy } : {}), ...(colorTags ? { colorTags } : {}) } });
             setMessage(`Updated the view “${name}”.`);
           }}
           onDelete={() => {

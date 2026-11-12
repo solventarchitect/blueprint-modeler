@@ -37,6 +37,8 @@ export type SvgView = {
   filter: ViewFilter;
   colorBy: ColorBy;
   groupBy?: GroupBy;
+  /** M86: coloring by tag, the tags that count. */
+  colorTags?: readonly string[];
   name?: string;
   state?: PlanView;
   /** M74: focus on an element; what is outside `ids` fades, as a filter fades it. */
@@ -174,7 +176,7 @@ export function svgTitleBlock(model: Model, theme: SvgTheme, view: SvgView | und
             ? [
                 // A focus alone (M74) is not a view: it names itself.
                 view.focus && !filterActive(view.filter) && view.colorBy === "layer" && !view.groupBy && !view.name ? "" : view.name ? `View: ${view.name}` : "View",
-                view.colorBy !== "layer" ? `colored by ${COLOR_BY_LABEL[view.colorBy].toLowerCase()}` : "",
+                view.colorBy !== "layer" ? `colored by ${view.colorBy === "tag" && view.colorTags?.length ? `tags ${view.colorTags.join(", ")}` : COLOR_BY_LABEL[view.colorBy].toLowerCase()}` : "",
                 view.groupBy ? `grouped by ${GROUP_BY_LABEL[view.groupBy]}` : "",
                 view.focus ? `Focus: ${view.focus.name}, within ${view.focus.depth} relationship${view.focus.depth === 1 ? "" : "s"}` : "",
               ]
@@ -190,7 +192,7 @@ export function svgTitleBlock(model: Model, theme: SvgTheme, view: SvgView | und
     const rowWidth = Math.max(480, avail);
     let row: (typeof legendRows)[number] = [];
     let used = 0;
-    for (const e of legend(model, view.colorBy, view.filter)) {
+    for (const e of legend(model, view.colorBy, view.filter, view.colorTags)) {
       const label = `${clip(e.label, 40)} (${e.count})`;
       const w = LEGEND.marker + label.length * LEGEND.char + LEGEND.gap;
       if (row.length && used + w > rowWidth) {
@@ -266,7 +268,7 @@ export function modelToSvg(whole: Model, theme: SvgTheme, opts: { lens?: Lens; h
   // "All elements" colored by layer draws exactly as without a view.
   const view = opts.view && (filterActive(opts.view.filter) || opts.view.colorBy !== "layer" || opts.view.groupBy || opts.view.focus) ? opts.view : undefined;
   const faded = viewFaded(model, view);
-  const slotFor = view ? slotMap(model, view.colorBy) : null;
+  const slotFor = view ? slotMap(model, view.colorBy, view.colorTags) : null;
   const lines = opts.lines ?? "curved";
   const showLabels = opts.labels ?? true;
   const hl = opts.highlight;

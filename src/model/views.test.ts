@@ -1,7 +1,7 @@
 import { describe, expect, it } from "vitest";
 import { filterText } from "./compare";
-import { createModel, viewFilterSchema, type Model } from "./index";
-import { ALL_ELEMENTS, COLORINGS, filterActive, inView, legend, MARKERS, PALETTE, slotOf, storedColorBy, valueLabels, viewColorBy } from "./views";
+import { createModel, viewFilterSchema, viewSchema, type Model } from "./index";
+import { ALL_ELEMENTS, COLORINGS, filterActive, inView, legend, MARKERS, PALETTE, slotMap, slotOf, storedColorBy, valueLabels, viewColorBy } from "./views";
 
 function m(): Model {
   const model = createModel("T", new Date("2026-09-27T00:00:00Z"), "t");
@@ -175,6 +175,44 @@ describe("filter by decisions (M88)", () => {
 
   it("is said in words, as Compare and images show a filter", () => {
     expect(filterText({ decisions: ["without", "with"] })).toBe("Decisions: Has decisions, No decisions");
+  });
+});
+
+describe("color by chosen tags (M86)", () => {
+  function tagged(): Model {
+    const model = m();
+    model.nodes[0]!.tags = ["Payments", "Team A"];
+    model.nodes[1]!.tags = ["team a"];
+    model.nodes[2]!.tags = ["Cost Center 7", "team b"];
+    model.nodes[3]!.tags = ["Payments"];
+    return model;
+  }
+
+  it("an element takes its first tag that is chosen (ignoring case); the legend follows the chosen order", () => {
+    const model = tagged();
+    const chosen = ["Team B", "team a"];
+    expect(model.nodes.map(valueLabels(model, "tag", chosen))).toEqual(["Team A", "Team A", "team b", "None of these tags", "None of these tags"]);
+    expect(legend(model, "tag", {}, chosen).map((e) => [e.label, e.count])).toEqual([["team b", 1], ["Team A", 2], ["None of these tags", 2]]);
+    const slot = slotMap(model, "tag", chosen)!;
+    expect(slot(model.nodes[2]!)).toBe(0);
+    expect(slot(model.nodes[0]!)).toBe(1);
+    expect(slot(model.nodes[3]!)).toBe("none");
+    expect(slotOf(model, "tag", model.nodes[1]!, chosen)).toBe(1);
+  });
+
+  it("with none chosen, or a chosen tag no element carries, it colors as before; other colorings ignore the choice", () => {
+    const model = tagged();
+    expect(legend(model, "tag", {}, []).map((e) => e.label)).toEqual(legend(model, "tag", {}).map((e) => e.label));
+    expect(legend(model, "tag", {}, ["Nobody"]).map((e) => [e.label, e.count])).toEqual([["None of these tags", 5]]);
+    expect(legend(model, "lifecycle", {}, ["Team A"])).toEqual(legend(model, "lifecycle", {}));
+  });
+
+  it("is optional on a saved view in format 1; anything else this version can't read drops the choice, not the view", () => {
+    const base = { id: "v1", name: "Teams", filter: {}, colorBy: "layer", colorByExt: "tag" };
+    expect(viewSchema.parse({ ...base, colorTags: ["Team A", "Team B"] }).colorTags).toEqual(["Team A", "Team B"]);
+    expect(viewSchema.parse({ ...base, colorTags: "Team A" }).colorTags).toBeUndefined();
+    expect(viewSchema.parse({ ...base, colorTags: Array.from({ length: 201 }, (_, i) => `t${i}`) }).colorTags).toBeUndefined();
+    expect(viewSchema.parse(base).colorTags).toBeUndefined();
   });
 });
 

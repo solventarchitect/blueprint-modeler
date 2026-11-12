@@ -164,12 +164,16 @@ export function filterText(f: ViewFilter): string {
   return parts.length ? parts.join("; ") : "All elements";
 }
 
+const coloredTags = (v: View) => (v.colorTags?.length ? v.colorTags.join(", ") : "Each element's first tag");
+
 function viewChanges(now: View, was: View) {
   const pairs: [string, string, string][] = [
     ["Name", was.name, now.name],
     ["Filter", filterText(was.filter), filterText(now.filter)],
     ["Color by", COLOR_BY_LABEL[viewColorBy(was)], COLOR_BY_LABEL[viewColorBy(now)]],
     ["Group by", was.groupBy ? GROUP_BY_LABEL[was.groupBy] : "None", now.groupBy ? GROUP_BY_LABEL[now.groupBy] : "None"],
+    // M86: the tags a view colors by, when it colors by tag before and after (a change of coloring says the rest).
+    ...(viewColorBy(was) === "tag" && viewColorBy(now) === "tag" ? [["Colored tags", coloredTags(was), coloredTags(now)] as [string, string, string]] : []),
   ];
   return pairs.filter(([, b, a]) => b !== a).map(([field, before, after]) => ({ field, before, after }));
 }

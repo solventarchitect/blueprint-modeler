@@ -8,12 +8,19 @@ import { ToolbarIcon } from "./ToolbarIcon";
 import { useDismiss } from "./useDismiss";
 
 /** The view in use: a saved view's id (or null for an unsaved one), its filter, its coloring and its grouping (M56). */
-export type ShownView = { id: string | null; filter: ViewFilter; colorBy: ColorBy; groupBy?: GroupBy };
+/** M86: `colorTags`, coloring by tag, the tags that count (none: each element's first tag). */
+export type ShownView = { id: string | null; filter: ViewFilter; colorBy: ColorBy; groupBy?: GroupBy; colorTags?: string[] };
+/** M86: the tags a view colors by, only when it colors by tag. */
+export const shownColorTags = (v: { colorBy: ColorBy; colorTags?: string[] }) => (v.colorBy === "tag" && v.colorTags?.length ? v.colorTags : undefined);
 
 /** A saved view in use whose filter or coloring was changed since: said so, so the screen never claims the saved one. */
 function isEdited(model: Model, shown: ShownView) {
   const saved = model.views?.find((v) => v.id === shown.id);
-  return !!saved && JSON.stringify([saved.filter, viewColorBy(saved), saved.groupBy ?? null]) !== JSON.stringify([shown.filter, shown.colorBy, shown.groupBy ?? null]);
+  return (
+    !!saved &&
+    JSON.stringify([saved.filter, viewColorBy(saved), saved.groupBy ?? null, shownColorTags({ colorBy: viewColorBy(saved), colorTags: saved.colorTags }) ?? null]) !==
+      JSON.stringify([shown.filter, shown.colorBy, shown.groupBy ?? null, shownColorTags(shown) ?? null])
+  );
 }
 
 
@@ -96,7 +103,7 @@ export function ViewsMenu({ model, shown, onShow, onEdit, buttonClass }: { model
           </li>
           {(model.views ?? []).map((v) => (
             <li key={v.id}>
-              <button type="button" aria-pressed={shown.id === v.id} className={item} onClick={() => pick(() => onShow({ id: v.id, filter: v.filter, colorBy: viewColorBy(v), groupBy: v.groupBy }))}>
+              <button type="button" aria-pressed={shown.id === v.id} className={item} onClick={() => pick(() => onShow({ id: v.id, filter: v.filter, colorBy: viewColorBy(v), groupBy: v.groupBy, colorTags: v.colorTags }))}>
                 {check(shown.id === v.id)}
                 <span className="flex min-w-0 flex-col">
                   <span className="truncate">{v.name}</span>
@@ -220,8 +227,35 @@ export function ViewDialog({
               </label>
             ))}
           </div>
-          {colorings.includes("tag") && <p className="mt-1 text-xs text-ink-muted">Tag colors each element by its first tag.</p>}
+          {colorings.includes("tag") && shown.colorBy !== "tag" && <p className="mt-1 text-xs text-ink-muted">Tag colors each element by its first tag, or by the tags you choose.</p>}
         </fieldset>
+        {/* M86: which tags count when coloring by tag; none ticked colors by each element's first tag. */}
+        {shown.colorBy === "tag" && inModel.length > 0 && (
+          <fieldset aria-describedby="view-color-tags-help">
+            <legend className="text-sm font-medium">Tags to color by</legend>
+            <p id="view-color-tags-help" className="mt-0.5 text-xs text-ink-muted">
+              Each element takes the color of the first of its tags you tick. None ticked: each element&apos;s first tag.
+            </p>
+            <div className="mt-1.5 flex flex-wrap gap-x-4 gap-y-1">
+              {inModel.map((t) => {
+                const on = !!shown.colorTags?.some((c) => c.toLowerCase() === t.toLowerCase());
+                return (
+                  <label key={t} className="flex min-h-6 items-center gap-1.5 text-sm">
+                    <input
+                      type="checkbox"
+                      checked={on}
+                      onChange={() => {
+                        const next = inModel.filter((m) => (m.toLowerCase() === t.toLowerCase() ? !on : !!shown.colorTags?.some((c) => c.toLowerCase() === m.toLowerCase())));
+                        onChange({ ...shown, colorTags: next.length ? next : undefined });
+                      }}
+                    />
+                    {t}
+                  </label>
+                );
+              })}
+            </div>
+          </fieldset>
+        )}
         <fieldset>
           <legend className="text-sm font-medium">Group by</legend>
           <div className="mt-1.5 flex flex-wrap gap-x-4 gap-y-1">
@@ -308,7 +342,7 @@ export function ViewDialog({
 export function ViewLegend({ model, shown, onEdit, onShowAll, groups, onArrange }: { model: Model; shown: ShownView; onEdit?: () => void; onShowAll?: () => void; groups?: number; onArrange?: () => void }) {
   const active = filterActive(shown.filter);
   if (!active && shown.colorBy === "layer" && !shown.groupBy) return null;
-  const entries = legend(model, shown.colorBy, shown.filter);
+  const entries = legend(model, shown.colorBy, shown.filter, shownColorTags(shown));
   const kept = model.nodes.filter((n) => inView(n, shown.filter, model)).length;
   const name = model.views?.find((v) => v.id === shown.id)?.name;
   return (
