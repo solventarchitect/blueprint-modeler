@@ -138,7 +138,9 @@ function slots(model: Model, by: Exclude<ColorBy, "layer">, tags?: readonly stri
   const set = [...counts.keys()].sort((a, b) =>
     chosen ? rank(a) - rank(b) : by === "lifecycle" ? stageRank(a) - stageRank(b) || a.localeCompare(b) : counts.get(b)! - counts.get(a)! || a.localeCompare(b),
   );
-  const out: { value: string; slot: Slot }[] = set.map((value, i) => ({ value, slot: i < PALETTE.dark.length ? i : "other" }));
+  // Chosen tags take their place in the chosen list, so one on no element leaves the others' colors as they were.
+  const place = (value: string, i: number) => (chosen ? rank(value) : i);
+  const out: { value: string; slot: Slot }[] = set.map((value, i) => ({ value, slot: place(value, i) < PALETTE.dark.length ? place(value, i) : "other" }));
   if (model.nodes.some((n) => !valueOf(n))) out.push({ value: "", slot: "none" });
   return out;
 }
@@ -178,6 +180,9 @@ export const slotMarker = (slot: Slot) => (typeof slot === "number" ? MARKERS.sl
 
 /** What "color by" reads as, for menus, the legend and image captions. */
 export const COLOR_BY_LABEL: Record<ColorBy, string> = { layer: "Layer", lifecycle: "Life cycle stage", environment: "Environment", owner: "Owner", plan: "Plan status", tag: "Tag" };
+
+/** M86: a coloring in words, naming the chosen tags ("tags Team A, Team B"); lower case, as in a sentence. */
+export const coloringWords = (by: ColorBy, tags?: readonly string[]) => (by === "tag" && tags?.length ? `tags ${tags.join(", ")}` : COLOR_BY_LABEL[by].toLowerCase());
 
 /** Every coloring, in menu order (M77 adds plan status and tag). */
 export const COLORINGS: readonly ColorBy[] = [...COLOR_BY, ...COLOR_BY_EXT];

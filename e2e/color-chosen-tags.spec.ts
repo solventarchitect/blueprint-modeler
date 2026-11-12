@@ -74,4 +74,23 @@ test.describe("color by chosen tags (M86, desktop)", () => {
     await dialog(page).getByRole("button", { name: "Close" }).click();
     await expect(viewsButton(page)).toHaveAccessibleName(/By team \(edited\)/);
   });
+
+  test("a chosen tag no element carries any more stays listed, ticked, and can be cleared", async ({ page }) => {
+    await page.goto("/editor");
+    await expect(page.getByTestId("save-status")).toHaveText("Saved in this browser");
+    const stale = { ...model, id: "e2e-chosen-stale", views: [{ id: "v1", name: "Old teams", filter: {}, colorBy: "layer", colorByExt: "tag", colorTags: ["Gone"] }] };
+    await page.getByTestId("import-file").setInputFiles({ name: "stale.json", mimeType: "application/json", buffer: Buffer.from(JSON.stringify(stale)) });
+    await expect(currentModel(page)).toHaveText("Teams");
+    await viewsButton(page).click();
+    await page.getByTestId("views-menu").getByRole("button", { name: /Old teams/ }).click();
+    await expect(legend(page)).toContainText("Colored by tags Gone");
+    await expect(legend(page).getByRole("listitem")).toHaveText([/None of these tags\s*3/]);
+    await openFilter(page);
+    const gone = chosen(page).getByRole("checkbox", { name: /^Gone/ });
+    await expect(gone).toBeChecked();
+    await expect(chosen(page)).toContainText("Gone(on no element)");
+    await gone.uncheck();
+    await expect(legend(page).getByRole("listitem")).toHaveText([/Cost Center 7\s*1/, /Payments\s*1/, /Team B\s*1/]);
+    await expect(chosen(page).getByRole("checkbox", { name: /^Gone/ })).toHaveCount(0);
+  });
 });

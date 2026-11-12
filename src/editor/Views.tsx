@@ -3,7 +3,7 @@
 import { useCallback, useEffect, useId, useRef, useState } from "react";
 import { classById, LIFE_CYCLE } from "@/metamodel";
 import { LAYERS } from "@/layout/bands";
-import { attrValue, COLORINGS, COLOR_BY_LABEL, DECISIONS_FILTER_LABEL, filterActive, GROUP_BY, GROUP_BY_LABEL, type GroupBy, inView, legend, MAX_VIEWS, modelTags, PLAN_LABEL, PLAN_STATUSES, planOf, type PlanStatus, slotMarker, type ColorBy, type LegendEntry, type Model, type ViewFilter, viewColorBy } from "@/model";
+import { attrValue, COLORINGS, COLOR_BY_LABEL, DECISIONS_FILTER_LABEL, filterActive, GROUP_BY, GROUP_BY_LABEL, type GroupBy, inView, legend, MAX_VIEWS, modelTags, PLAN_LABEL, PLAN_STATUSES, planOf, type PlanStatus, slotMarker, type ColorBy, type LegendEntry, type Model, type ViewFilter, viewColorBy, coloringWords } from "@/model";
 import { ToolbarIcon } from "./ToolbarIcon";
 import { useDismiss } from "./useDismiss";
 
@@ -108,7 +108,11 @@ export function ViewsMenu({ model, shown, onShow, onEdit, buttonClass }: { model
                 <span className="flex min-w-0 flex-col">
                   <span className="truncate">{v.name}</span>
                   <span className="text-xs text-ink-muted">
-                    {model.nodes.filter((n) => inView(n, v.filter, model)).length} of {model.nodes.length} elements · {COLOR_BY_LABEL[viewColorBy(v)]} colors
+                    {model.nodes.filter((n) => inView(n, v.filter, model)).length} of {model.nodes.length} elements · {(() => {
+                      const w = coloringWords(viewColorBy(v), shownColorTags({ colorBy: viewColorBy(v), colorTags: v.colorTags }));
+                      return w.charAt(0).toUpperCase() + w.slice(1);
+                    })()}{" "}
+                    colors
                     {v.groupBy ? ` · by ${GROUP_BY_LABEL[v.groupBy]}` : ""}
                   </span>
                 </span>
@@ -176,6 +180,9 @@ export function ViewDialog({
   // M69: the model's tags, then Not tagged; and any ticked tag no element carries any more, so it can be unticked.
   const inModel = modelTags(model);
   const stale = (shown.filter.tags ?? []).filter((t) => t && !inModel.some((m) => m.toLowerCase() === t.toLowerCase()));
+  // M86: chosen tags no element carries any more stay listed (ticked), so they can be seen and cleared.
+  const staleColorTags = (shown.colorTags ?? []).filter((t) => !inModel.some((m) => m.toLowerCase() === t.toLowerCase()));
+  const colorTagValues = [...inModel, ...staleColorTags];
   const tagValues = inModel.length || stale.length ? [...inModel, ...stale, ...(model.nodes.some((n) => !n.tags?.length) || shown.filter.tags?.includes("") ? [""] : [])] : [];
   const groups: { key: keyof ViewFilter; label: string; values: string[]; text: (v: string) => string }[] = [
     { key: "layers", label: "Layer", values: LAYERS.map((l) => l.id).filter((l) => model.nodes.some((n) => classById(n.class)?.layer === l)), text: (v) => LAYERS.find((l) => l.id === v)?.name ?? v },
@@ -230,14 +237,14 @@ export function ViewDialog({
           {colorings.includes("tag") && shown.colorBy !== "tag" && <p className="mt-1 text-xs text-ink-muted">Tag colors each element by its first tag, or by the tags you choose.</p>}
         </fieldset>
         {/* M86: which tags count when coloring by tag; none ticked colors by each element's first tag. */}
-        {shown.colorBy === "tag" && inModel.length > 0 && (
+        {shown.colorBy === "tag" && colorTagValues.length > 0 && (
           <fieldset aria-describedby="view-color-tags-help">
             <legend className="text-sm font-medium">Tags to color by</legend>
             <p id="view-color-tags-help" className="mt-0.5 text-xs text-ink-muted">
               Each element takes the color of the first of its tags you tick. None ticked: each element&apos;s first tag.
             </p>
             <div className="mt-1.5 flex flex-wrap gap-x-4 gap-y-1">
-              {inModel.map((t) => {
+              {colorTagValues.map((t) => {
                 const on = !!shown.colorTags?.some((c) => c.toLowerCase() === t.toLowerCase());
                 return (
                   <label key={t} className="flex min-h-6 items-center gap-1.5 text-sm">
@@ -245,11 +252,12 @@ export function ViewDialog({
                       type="checkbox"
                       checked={on}
                       onChange={() => {
-                        const next = inModel.filter((m) => (m.toLowerCase() === t.toLowerCase() ? !on : !!shown.colorTags?.some((c) => c.toLowerCase() === m.toLowerCase())));
+                        const next = colorTagValues.filter((m) => (m.toLowerCase() === t.toLowerCase() ? !on : !!shown.colorTags?.some((c) => c.toLowerCase() === m.toLowerCase())));
                         onChange({ ...shown, colorTags: next.length ? next : undefined });
                       }}
                     />
                     {t}
+                    {staleColorTags.includes(t) && <span className="text-xs text-ink-muted">(on no element)</span>}
                   </label>
                 );
               })}
@@ -350,7 +358,7 @@ export function ViewLegend({ model, shown, onEdit, onShowAll, groups, onArrange 
       <figcaption className="font-mono text-[0.65rem] tracking-[0.12em] text-ink-muted uppercase">{name ? `View: ${name}${isEdited(model, shown) ? " (edited)" : ""}` : "View"}</figcaption>
       {shown.colorBy !== "layer" && (
         <>
-          <p className="mt-1 text-xs text-ink-soft">Colored by {COLOR_BY_LABEL[shown.colorBy].toLowerCase()}</p>
+          <p className="mt-1 text-xs text-ink-soft">Colored by {coloringWords(shown.colorBy, shownColorTags(shown))}</p>
           <ul className="mt-1 flex flex-col gap-0.5">
             {entries.map((e) => (
               <li key={e.key} className="flex items-center gap-2 text-xs text-ink-soft">

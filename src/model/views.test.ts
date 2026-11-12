@@ -1,7 +1,7 @@
 import { describe, expect, it } from "vitest";
 import { filterText } from "./compare";
 import { createModel, viewFilterSchema, viewSchema, type Model } from "./index";
-import { ALL_ELEMENTS, COLORINGS, filterActive, inView, legend, MARKERS, PALETTE, slotMap, slotOf, storedColorBy, valueLabels, viewColorBy } from "./views";
+import { ALL_ELEMENTS, COLORINGS, filterActive, inView, legend, MARKERS, PALETTE, slotMap, slotOf, coloringWords, storedColorBy, valueLabels, viewColorBy } from "./views";
 
 function m(): Model {
   const model = createModel("T", new Date("2026-09-27T00:00:00Z"), "t");
@@ -205,6 +205,24 @@ describe("color by chosen tags (M86)", () => {
     expect(legend(model, "tag", {}, []).map((e) => e.label)).toEqual(legend(model, "tag", {}).map((e) => e.label));
     expect(legend(model, "tag", {}, ["Nobody"]).map((e) => [e.label, e.count])).toEqual([["None of these tags", 5]]);
     expect(legend(model, "lifecycle", {}, ["Team A"])).toEqual(legend(model, "lifecycle", {}));
+  });
+
+  it("a chosen tag keeps its color when one before it is on no element any more", () => {
+    const model = tagged();
+    const chosen = ["Team A", "Team B"];
+    const before = slotMap(model, "tag", chosen)!;
+    expect(before(model.nodes[2]!)).toBe(1);
+    // Team A comes off every element: Team B is still the second chosen tag, and keeps its color.
+    model.nodes[0]!.tags = ["Payments"];
+    model.nodes[1]!.tags = [];
+    expect(slotMap(model, "tag", chosen)!(model.nodes[2]!)).toBe(1);
+    expect(legend(model, "tag", {}, chosen).map((e) => [e.label, e.slot])).toEqual([["team b", 1], ["None of these tags", "none"]]);
+  });
+
+  it("says the coloring in words, naming chosen tags", () => {
+    expect(coloringWords("tag", ["Team A", "Team B"])).toBe("tags Team A, Team B");
+    expect(coloringWords("tag")).toBe("tag");
+    expect(coloringWords("lifecycle", ["Team A"])).toBe("life cycle stage");
   });
 
   it("is optional on a saved view in format 1; anything else this version can't read drops the choice, not the view", () => {

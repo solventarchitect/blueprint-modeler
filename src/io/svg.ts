@@ -1,6 +1,6 @@
 import { archimateElements, archimateFill, archimateRelationshipFor, archimateTypeInk, edgeNotation, markerSvg, type Lens, type MarkerShape, showsArchimate } from "@/frameworks";
 import { classById, isClassId, type Layer } from "@/metamodel";
-import { COLOR_BY_LABEL, filterActive, GROUP_BY_LABEL, groupsOf, type GroupBy, formatModelDate, inView, legend, modelDate, PALETTE, slotColor, slotMap, slotMarker, UNTITLED_MODEL, PLAN_LABEL, PLAN_VIEW_LABEL, planHidden, type ColorBy, type Model, type PlanView, type ViewFilter } from "@/model";
+import { filterActive, GROUP_BY_LABEL, groupsOf, type GroupBy, formatModelDate, inView, legend, modelDate, PALETTE, slotColor, slotMap, slotMarker, UNTITLED_MODEL, PLAN_LABEL, PLAN_VIEW_LABEL, planHidden, type ColorBy, type Model, type PlanView, type ViewFilter, coloringWords } from "@/model";
 import { layoutOrientation } from "@/layout/bands";
 import { groupFrames, ownGroups } from "@/layout/groupLayout";
 import { planLabels } from "@/layout/edgeLabel";
@@ -176,7 +176,7 @@ export function svgTitleBlock(model: Model, theme: SvgTheme, view: SvgView | und
             ? [
                 // A focus alone (M74) is not a view: it names itself.
                 view.focus && !filterActive(view.filter) && view.colorBy === "layer" && !view.groupBy && !view.name ? "" : view.name ? `View: ${view.name}` : "View",
-                view.colorBy !== "layer" ? `colored by ${view.colorBy === "tag" && view.colorTags?.length ? `tags ${view.colorTags.join(", ")}` : COLOR_BY_LABEL[view.colorBy].toLowerCase()}` : "",
+                view.colorBy !== "layer" ? `colored by ${coloringWords(view.colorBy, view.colorTags)}` : "",
                 view.groupBy ? `grouped by ${GROUP_BY_LABEL[view.groupBy]}` : "",
                 view.focus ? `Focus: ${view.focus.name}, within ${view.focus.depth} relationship${view.focus.depth === 1 ? "" : "s"}` : "",
               ]
