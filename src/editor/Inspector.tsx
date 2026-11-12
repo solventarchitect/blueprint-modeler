@@ -5,7 +5,7 @@ import { ARCHIMATE_TRADEMARK, archimateElements, archimateRelationshipFor, archi
 import { ArchimateGlyph } from "@/frameworks/ArchimateGlyph";
 import { classSlug } from "@/guide";
 import { allowedTypes, classById, ENVIRONMENT_EXAMPLES, isClassId, isCsdmCore, LIFE_CYCLE, lifecycleFor, sources } from "@/metamodel";
-import { DECISION_STATUS_LABEL, decisionsAbout, MAX_LINKS, MAX_TAG_LENGTH, MAX_TAGS, modelDate, modelTags, parseTags, PLAN_LABEL, PLAN_STATUSES, planOf, toWebAddress, type Link, type Model, type PlanStatus } from "@/model";
+import { DECISION_STATUS_LABEL, decisionsAbout, MAX_LINKS, MAX_TAG_LENGTH, MAX_TAGS, modelDate, modelTags, parseTags, PLAN_LABEL, PLAN_STATUSES, planOf, toWebAddress, type Link, type Model, type PlanStatus, count } from "@/model";
 import type { Action } from "./state";
 import { suggestionDetail, suggestionLabel, type Suggestion } from "./suggest";
 
@@ -521,7 +521,7 @@ export function Inspector({ model, selectedId, dispatch, focusName, focusConnect
           onCommit={(artifactId) => dispatch({ type: "model-details", artifactId })}
         />
         <p className="text-sm text-ink-muted">
-          {model.nodes.length} elements · {model.edges.length} relationships. Add an element from the palette, or select one on the canvas.
+          {count(model.nodes.length, "element")} · {count(model.edges.length, "relationship")}. Add an element from the palette, or select one on the canvas.
         </p>
       </div>
     );
