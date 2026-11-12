@@ -3,7 +3,7 @@
 import { useCallback, useEffect, useId, useRef, useState } from "react";
 import { classById, LIFE_CYCLE } from "@/metamodel";
 import { LAYERS } from "@/layout/bands";
-import { attrValue, COLORINGS, COLOR_BY_LABEL, DECISIONS_FILTER_LABEL, filterActive, GROUP_BY, GROUP_BY_LABEL, type GroupBy, inView, legend, MAX_VIEWS, modelTags, PLAN_LABEL, PLAN_STATUSES, planOf, type PlanStatus, slotMarker, type ColorBy, type LegendEntry, type Model, type ViewFilter, viewColorBy, coloringWords } from "@/model";
+import { attrValue, COLORINGS, COLOR_BY_LABEL, DECISIONS_FILTER_LABEL, filterActive, GROUP_BY, GROUP_BY_LABEL, type GroupBy, inView, legend, MAX_VIEWS, modelTags, PLAN_LABEL, PLAN_STATUSES, planOf, type PlanStatus, slotMarker, type ColorBy, type LegendEntry, type Model, type ViewFilter, viewColorBy, coloringWords, count } from "@/model";
 import { ToolbarIcon } from "./ToolbarIcon";
 import { useDismiss } from "./useDismiss";
 
@@ -108,7 +108,7 @@ export function ViewsMenu({ model, shown, onShow, onEdit, buttonClass }: { model
                 <span className="flex min-w-0 flex-col">
                   <span className="truncate">{v.name}</span>
                   <span className="text-xs text-ink-muted">
-                    {model.nodes.filter((n) => inView(n, v.filter, model)).length} of {model.nodes.length} elements · {(() => {
+                    {model.nodes.filter((n) => inView(n, v.filter, model)).length} of {count(model.nodes.length, "element")} · {(() => {
                       const w = coloringWords(viewColorBy(v), shownColorTags({ colorBy: viewColorBy(v), colorTags: v.colorTags }));
                       return w.charAt(0).toUpperCase() + w.slice(1);
                     })()}{" "}
@@ -220,7 +220,7 @@ export function ViewDialog({
           Filter and color
         </h2>
         <p className="text-sm text-ink-muted" aria-live="polite" data-testid="view-count">
-          Showing {kept} of {model.nodes.length} elements
+          Showing {kept} of {count(model.nodes.length, "element")}
         </p>
       </div>
       <div className="flex flex-col gap-4 px-4 py-4">
@@ -383,7 +383,7 @@ export function ViewLegend({ model, shown, onEdit, onShowAll, groups, onArrange 
           )}
         </p>
       )}
-      {active && <p className="mt-1 text-xs text-ink-soft">Showing {kept} of {model.nodes.length} elements; the rest are faded.</p>}
+      {active && <p className="mt-1 text-xs text-ink-soft">Showing {kept} of {count(model.nodes.length, "element")}; the rest are faded.</p>}
       {(onEdit || onShowAll) && (
         <p className="mt-1.5 flex gap-3 text-xs">
           {onEdit && (

@@ -1,6 +1,6 @@
 import { archimateElements, archimateFill, archimateRelationshipFor, archimateTypeInk, edgeNotation, markerSvg, type Lens, type MarkerShape, showsArchimate } from "@/frameworks";
 import { classById, isClassId, type Layer } from "@/metamodel";
-import { filterActive, GROUP_BY_LABEL, groupsOf, type GroupBy, formatModelDate, inView, legend, modelDate, PALETTE, slotColor, slotMap, slotMarker, UNTITLED_MODEL, PLAN_LABEL, PLAN_VIEW_LABEL, planHidden, type ColorBy, type Model, type PlanView, type ViewFilter, coloringWords } from "@/model";
+import { filterActive, GROUP_BY_LABEL, groupsOf, type GroupBy, formatModelDate, inView, legend, modelDate, PALETTE, slotColor, slotMap, slotMarker, UNTITLED_MODEL, PLAN_LABEL, PLAN_VIEW_LABEL, planHidden, type ColorBy, type Model, type PlanView, type ViewFilter, coloringWords, count } from "@/model";
 import { layoutOrientation } from "@/layout/bands";
 import { groupFrames, ownGroups } from "@/layout/groupLayout";
 import { planLabels } from "@/layout/edgeLabel";
@@ -68,7 +68,7 @@ export function stateShown(model: Model, state: PlanView | undefined, marks: str
   if (state === "current" || state === "target") {
     const out = planHidden(model, state);
     const shown = out.nodes.size || out.edges.size ? { ...model, nodes: model.nodes.filter((n) => !out.nodes.has(n.id)), edges: model.edges.filter((e) => !out.edges.has(e.id)) } : model;
-    const left = out.nodes.size || out.edges.size ? ` (${out.nodes.size} of ${model.nodes.length} elements and ${out.edges.size} of ${model.edges.length} relationships left out: what is ${state === "current" ? "planned" : "retiring"})` : "";
+    const left = out.nodes.size || out.edges.size ? ` (${out.nodes.size} of ${count(model.nodes.length, "element")} and ${out.edges.size} of ${count(model.edges.length, "relationship")} left out: what is ${state === "current" ? "planned" : "retiring"})` : "";
     return { model: shown, label: PLAN_VIEW_LABEL[state], desc: ` ${PLAN_VIEW_LABEL[state]}${left}.` };
   }
   // A picture that doesn't mark relationships (the isometric one) says nothing when only they are marked.
@@ -418,8 +418,8 @@ export function modelToSvg(whole: Model, theme: SvgTheme, opts: { lens?: Lens; h
   const title = esc(name);
   const desc = esc(
     amOnly
-      ? `CSDM model with ${model.nodes.length} elements and ${model.edges.length} relationships, shown as an ArchiMate 3.2 view (ArchiMate element types, relationship notation and layer colors), exported from Blueprint Modeler.${stateDesc}${focusDesc(view)}`
-      : `CSDM model with ${model.nodes.length} elements and ${model.edges.length} relationships${showsArchimate(lens) ? ", with ArchiMate 3.2 element names" : ""}, exported from Blueprint Modeler.${stateDesc}${focusDesc(view)}`,
+      ? `CSDM model with ${count(model.nodes.length, "element")} and ${count(model.edges.length, "relationship")}, shown as an ArchiMate 3.2 view (ArchiMate element types, relationship notation and layer colors), exported from Blueprint Modeler.${stateDesc}${focusDesc(view)}`
+      : `CSDM model with ${count(model.nodes.length, "element")} and ${count(model.edges.length, "relationship")}${showsArchimate(lens) ? ", with ArchiMate 3.2 element names" : ""}, exported from Blueprint Modeler.${stateDesc}${focusDesc(view)}`,
   );
   return [
     `<?xml version="1.0" encoding="UTF-8"?>`,
