@@ -132,6 +132,9 @@ test.describe("Layout menu (desktop)", () => {
     await page.keyboard.press("Escape");
     // A model whose placed elements share one row has no second dimension to spread.
     await openExample(page, "Blank model");
+    // The blank model is saved before it opens: add only once it has, or the element goes to the model before it.
+    await expect(page.getByRole("status").filter({ hasText: "Opened a new blank model." })).toHaveCount(1);
+    await expect(page.locator(".react-flow__node-csdm")).toHaveCount(0);
     const palette = page.getByRole("navigation", { name: "Element palette" });
     await palette.getByRole("button", { name: "Business Capability", exact: true }).click();
     await layoutButton(page).click();

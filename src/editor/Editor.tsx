@@ -60,7 +60,7 @@ import { arrangeByGroups, groupFrames, ownGroups, type Frame } from "@/layout/gr
 import { autoLayout, DEFAULT_SIZE, fillSpace, type LayoutMode } from "@/layout/layout";
 import { createWorkerEngine } from "@/layout/worker-engine";
 import { classById, classes, ENVIRONMENT_EXAMPLES, isClassId, isExtended, type ClassId, type Layer } from "@/metamodel";
-import { ALL_ELEMENTS, FIELD_LABEL, healthReport, localDay, GROUP_BY_LABEL, groupsOf, primaryGroup, SIDES, compareModels, parseModel, blastRadius, COLOR_BY_LABEL, evaluateHints, filterActive, formatModelDate, impactEnds, inView, isBusinessAnchor as isAnchor, modelDate, slotMap, decisionCounts, modelPart, storedColorBy, valueLabels, viewColorBy, UNTITLED_MODEL, focusArea, FOCUS_DEPTHS, type FocusDepth, flowRadius, flowStepText, playableFlows, PLAN_LABEL, PLAN_VIEW_LABEL, planHidden, type PlanView, type BlastDirection, type Edge, type HintResult, type Model } from "@/model";
+import { ALL_ELEMENTS, FIELD_LABEL, healthReport, localDay, GROUP_BY_LABEL, groupsOf, primaryGroup, SIDES, compareModels, parseModel, blastRadius, COLOR_BY_LABEL, evaluateHints, filterActive, formatModelDate, impactEnds, inView, isBusinessAnchor as isAnchor, modelDate, slotMap, decisionCounts, modelPart, storedColorBy, valueLabels, viewColorBy, UNTITLED_MODEL, focusArea, FOCUS_DEPTHS, type FocusDepth, flowRadius, flowStepText, playableFlows, PLAN_LABEL, PLAN_VIEW_LABEL, planHidden, type PlanView, type BlastDirection, type Edge, type HintResult, type Model, count } from "@/model";
 import { site } from "@/lib/site";
 import { ClassNode, SuggestContext, type ClassFlowNode } from "./ClassNode";
 import { ConnectionLine, ConnectionModelContext, ReconnectingContext } from "./ConnectionLine";
@@ -533,7 +533,7 @@ function EditorInner() {
     if (f && !inView(f, v.filter, model)) setFocus(null);
     const name = v.id ? model.views?.find((x) => x.id === v.id)?.name : null;
     const kept = model.nodes.filter((n) => inView(n, v.filter, model)).length;
-    setMessage(name ? `View “${name}”: ${kept} of ${model.nodes.length} elements, ${COLOR_BY_LABEL[v.colorBy].toLowerCase()} colors.` : "Showing all elements, in layer colors.");
+    setMessage(name ? `View “${name}”: ${kept} of ${count(model.nodes.length, "element")}, ${COLOR_BY_LABEL[v.colorBy].toLowerCase()} colors.` : "Showing all elements, in layer colors.");
   };
   const chosenPlan: PlanView = planChoice.modelId === model.id ? planChoice.view : "both";
   const setPlanView = (v: PlanView) => setPlanChoice({ modelId: model.id, view: v });
@@ -618,7 +618,6 @@ function EditorInner() {
     const primary = primaryGroup(groups);
     return new Set(model.nodes.filter((n) => collapsedIds.has(primary.get(n.id) ?? "")).map((n) => n.id));
   }, [groups, collapsedIds, model.nodes]);
-  const count = (n: number, one: string) => `${n} ${one}${n === 1 ? "" : "s"}`;
   /** What the state shown leaves out of the canvas, the isometric view and the images, in words. */
   const planLeftOut = (v: PlanView) => {
     if (v === "both") return "";
@@ -1367,8 +1366,8 @@ function EditorInner() {
       // M82: the model as Mermaid text, following what's shown as the images do.
       const part = narrowed ? modelPart(model, keptIds, planHide.edges) : model;
       const keep = shownWords().filter((w) => !w.startsWith("isometric") && !w.startsWith("lens:") && !w.startsWith("colored by"));
-      const text = modelToMermaid(part, narrowed ? `Showing ${part.nodes.length} of ${model.nodes.length} elements${keep.length ? `: ${keep.join(", ")}` : ""}` : "");
-      const what = narrowed ? `${part.nodes.length} of ${model.nodes.length} elements` : `${model.nodes.length} element${model.nodes.length === 1 ? "" : "s"}`;
+      const text = modelToMermaid(part, narrowed ? `Showing ${part.nodes.length} of ${count(model.nodes.length, "element")}${keep.length ? `: ${keep.join(", ")}` : ""}` : "");
+      const what = narrowed ? `${part.nodes.length} of ${count(model.nodes.length, "element")}` : count(model.nodes.length, "element");
       if (kind === "mermaid") {
         const filename = `${fileBase(model)}.mmd`;
         downloadText(filename, text, "text/plain;charset=utf-8");
@@ -1948,7 +1947,7 @@ function EditorInner() {
     const kept = model.nodes.filter((x) => area.has(x.id) && inView(x, filter, model) && !hide.nodes.has(x.id)).length;
     // A new reach keeps the selection (inside the focus); a new focus selects its element.
     if (!sameFocus || (selectedId && !area.has(selectedId))) setSelectedId(id);
-    setMessage(`Focus on “${n.name || "Untitled"}”: ${kept} of ${model.nodes.length} elements within ${depth} relationship${depth === 1 ? "" : "s"}. Escape shows everything.`);
+    setMessage(`Focus on “${n.name || "Untitled"}”: ${kept} of ${count(model.nodes.length, "element")} within ${count(depth, "relationship")}. Escape shows everything.`);
     if (isoRef.current) setTimeout(() => isoRef.current?.zoom("fit"), 0);
     else setTimeout(() => void flow.fitView({ nodes: [...area].map((x) => ({ id: x })), padding: 0.25, maxZoom: 1.25, duration: prefersStill() ? 0 : 300 }), 0);
   };
@@ -2761,7 +2760,7 @@ function EditorInner() {
             ))}
           </span>
           <p className="text-ink-muted" data-testid="focus-count">
-            {model.nodes.filter((n) => !fadedIds.has(n.id) && !planHide.nodes.has(n.id)).length} of {model.nodes.length} elements
+            {model.nodes.filter((n) => !fadedIds.has(n.id) && !planHide.nodes.has(n.id)).length} of {count(model.nodes.length, "element")}
           </p>
           <button type="button" className={`${toolbarButton} ml-auto`} onClick={endFocus} aria-keyshortcuts="Escape">
             Show everything

@@ -1,0 +1,2 @@
+/** "1 element", "2 elements": a number with its noun in the singular or the plural. */
+export const count = (n: number, one: string, many = `${one}s`) => `${n} ${n === 1 ? one : many}`;
