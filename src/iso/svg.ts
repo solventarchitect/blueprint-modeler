@@ -48,7 +48,7 @@ export function isoToSvg(whole: Model, theme: SvgTheme, opts: IsoOptions = {}): 
   const p = palettes[theme];
   const view = opts.view && (filterActive(opts.view.filter) || opts.view.colorBy !== "layer" || opts.view.focus) ? opts.view : undefined;
   const faded = viewFaded(model, view);
-  const slotFor = view ? slotMap(model, view.colorBy) : null;
+  const slotFor = view ? slotMap(model, view.colorBy, view.colorTags) : null;
   const hl = opts.highlight;
   const scene = isoScene(model, mode, opts.sizes, opts.lift);
   const nodeById = new Map(model.nodes.map((n) => [n.id, n]));

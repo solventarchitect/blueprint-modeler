@@ -183,6 +183,12 @@ export const viewSchema = z.object({
   /** M56: frames around the elements that belong together; optional and additive in format 1 (older versions ignore it). */
   // A grouping this version does not know drops the grouping, not the file.
   groupBy: z.enum(GROUP_BY).optional().catch(undefined),
+  /**
+   * M86: coloring by tag, the tags that count, in order: an element takes the first of its tags that is
+   * one of them. Optional and additive in format 1 (older versions color by each element's first tag).
+   * One this version can't read drops the choice, not the view.
+   */
+  colorTags: z.array(z.string().max(2000)).max(200).optional().catch(undefined),
 });
 
 /** M70: how many saved flows a model can hold, and how many steps a flow can have. */

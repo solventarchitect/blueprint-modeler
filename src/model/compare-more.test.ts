@@ -126,3 +126,12 @@ describe("a view's filter in words (M72)", () => {
     );
   });
 });
+
+describe("Compare reads chosen tags (M86)", () => {
+  it("the tags a view colors by are a change, named in order", () => {
+    const base = { ...checkout(), views: [{ ...prod, colorBy: "layer" as const, colorByExt: "tag" as const }] };
+    const now = { ...base, views: [{ ...base.views[0]!, colorTags: ["Team A", "Team B"] }] };
+    expect(compareModels(now, base).views.changed[0]!.changes).toEqual([{ field: "Colored tags", before: "Each element's first tag", after: "Team A, Team B" }]);
+  });
+});
+
