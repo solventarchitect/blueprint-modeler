@@ -377,3 +377,26 @@ describe("change an element's class (M89)", () => {
   });
 });
 
+describe("reverse a relationship (M90)", () => {
+  const linked: Action[] = [
+    ...base,
+    { type: "add-node", id: "svc2", class: "application_service", name: "Payments" },
+    { type: "add-edge", id: "e1", from: "ba", to: "svc" },
+    { type: "add-edge", id: "e2", from: "svc", to: "svc2" },
+    { type: "save-flow", flow: { id: "f1", name: "Order", steps: [{ edge: "e1" }, { edge: "e2" }] } },
+  ];
+
+  it("turns it round in one undo step; the flow that walks it is whole afterwards", () => {
+    const before = run(linked);
+    const s = run([{ type: "reverse-edge", id: "e2" }], before);
+    expect(s.present.edges.find((e) => e.id === "e2")).toMatchObject({ from: "svc2", to: "svc", type: "Depends on::Used by" });
+    expect(s.present.flows![0]!.steps).toEqual([{ edge: "e1" }, { edge: "e2", back: true }]);
+    expect(run([{ type: "undo" }], s).present).toEqual(before.present);
+  });
+
+  it("is no step where CSDM has no relationship that way round, or for a relationship that isn't there", () => {
+    const s = run(linked);
+    expect(run([{ type: "reverse-edge", id: "e1" }], s)).toBe(s);
+    expect(run([{ type: "reverse-edge", id: "nope" }], s)).toBe(s);
+  });
+});

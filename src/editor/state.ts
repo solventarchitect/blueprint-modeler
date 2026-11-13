@@ -1,6 +1,6 @@
 import { acceptedTypes, allowedTypes, classById, relationshipsBetween, type ClassId, type Layer } from "@/metamodel";
 import type { Side } from "@/layout/geometry";
-import { cleanTags, decisionSchema, edgeKey, flowSchema, MAX_DECISIONS, replacementChoices, type Decision, withKnownDecisionElements, withUnbrokenFlows, linkSchema, MAX_FLOWS, type Flow, type PlanStatus, serializeModel, MAX_LINKS, MAX_VIEWS, viewSchema, type Link, withDetails, type Edge, type Model, type Node, type View, withClass } from "@/model";
+import { cleanTags, decisionSchema, edgeKey, flowSchema, MAX_DECISIONS, replacementChoices, type Decision, withKnownDecisionElements, withUnbrokenFlows, linkSchema, MAX_FLOWS, type Flow, type PlanStatus, serializeModel, MAX_LINKS, MAX_VIEWS, viewSchema, type Link, withDetails, type Edge, type Model, type Node, type View, withClass, withReversed } from "@/model";
 
 /**
  * Editor state: the model plus undo/redo history. Pure functions only, so every rule the
@@ -41,6 +41,8 @@ export type Action =
   | { type: "add-related"; id: string; class: ClassId; name: string; edgeId: string; relatedTo: string; outgoing: boolean; edgeType: string; at?: { x: number; y: number } }
   | { type: "delete-edge"; id: string }
   | { type: "update-edge"; id: string; from: string; to: string; edgeType: string }
+  /** M90: turn a relationship round, where CSDM has one that way. */
+  | { type: "reverse-edge"; id: string }
   /** M61: the side a relationship leaves (`from`) or reaches (`to`); null goes back to automatic, absent keeps it. */
   | { type: "set-ports"; id: string; from?: Side | null; to?: Side | null }
   | { type: "set-layout"; layout: Model["layout"] }
@@ -364,6 +366,10 @@ function apply(model: Model, action: Action): Model | null {
           return { ...rest, from: action.from, to: action.to, type: action.edgeType, ...(ports && !turned ? { ports } : {}) };
         }),
       };
+    }
+    case "reverse-edge": {
+      const next = withReversed(model, action.id);
+      return next === model ? null : next;
     }
     case "set-ports": {
       const edge = model.edges.find((e) => e.id === action.id);
