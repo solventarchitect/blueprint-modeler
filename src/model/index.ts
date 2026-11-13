@@ -15,3 +15,4 @@ export * from "./decisions";
 export * from "./part";
 export * from "./words";
 export * from "./reclass";
+export * from "./reverse";

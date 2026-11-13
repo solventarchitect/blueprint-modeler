@@ -50,7 +50,7 @@ import { modelToArchimateXml } from "@/io/archimate";
 import { modelToDrawioFile } from "@/io/drawio";
 import { lucidFit, lucidFitMessage, lucidFitNote } from "@/io/lucid";
 import { modelToServiceNowXlsx } from "@/io/servicenow";
-import { modelToSvg } from "@/io/svg";
+import { modelToSvg, relationshipWord } from "@/io/svg";
 import { LAYERS, layerBoxes, layerLanes, layoutOrientation, settleIntoLane } from "@/layout/bands";
 import { edgePath } from "@/layout/edgePath";
 import { edgeEnds, type Side } from "@/layout/geometry";
@@ -60,7 +60,7 @@ import { arrangeByGroups, groupFrames, ownGroups, type Frame } from "@/layout/gr
 import { autoLayout, DEFAULT_SIZE, fillSpace, type LayoutMode } from "@/layout/layout";
 import { createWorkerEngine } from "@/layout/worker-engine";
 import { classById, classes, ENVIRONMENT_EXAMPLES, isClassId, isExtended, type ClassId, type Layer } from "@/metamodel";
-import { ALL_ELEMENTS, FIELD_LABEL, healthReport, localDay, GROUP_BY_LABEL, groupsOf, primaryGroup, SIDES, compareModels, parseModel, blastRadius, COLOR_BY_LABEL, evaluateHints, filterActive, formatModelDate, impactEnds, inView, isBusinessAnchor as isAnchor, modelDate, slotMap, decisionCounts, modelPart, storedColorBy, valueLabels, viewColorBy, UNTITLED_MODEL, focusArea, FOCUS_DEPTHS, type FocusDepth, flowRadius, flowStepText, playableFlows, PLAN_LABEL, PLAN_VIEW_LABEL, planHidden, type PlanView, type BlastDirection, type Edge, type HintResult, type Model, coloringWords, count, withClass } from "@/model";
+import { ALL_ELEMENTS, FIELD_LABEL, healthReport, localDay, GROUP_BY_LABEL, groupsOf, primaryGroup, SIDES, compareModels, parseModel, blastRadius, COLOR_BY_LABEL, evaluateHints, filterActive, formatModelDate, impactEnds, inView, isBusinessAnchor as isAnchor, modelDate, slotMap, decisionCounts, modelPart, storedColorBy, valueLabels, viewColorBy, UNTITLED_MODEL, focusArea, FOCUS_DEPTHS, type FocusDepth, flowRadius, flowStepText, playableFlows, PLAN_LABEL, PLAN_VIEW_LABEL, planHidden, type PlanView, type BlastDirection, type Edge, type HintResult, type Model, coloringWords, count, withClass, reversal } from "@/model";
 import { site } from "@/lib/site";
 import { ClassNode, SuggestContext, type ClassFlowNode } from "./ClassNode";
 import { ConnectionLine, ConnectionModelContext, ReconnectingContext } from "./ConnectionLine";
@@ -1791,6 +1791,13 @@ function EditorInner() {
     if (!e) return [];
     const fix = modernEdge(model, e);
     const name = (nid: string) => model.nodes.find((n) => n.id === nid)?.name || "Untitled";
+    const classLabel = (nid: string) => {
+      const cls = model.nodes.find((n) => n.id === nid)?.class ?? "";
+      return classById(cls)?.label ?? cls;
+    };
+    const turn = reversal(model, id);
+    // "as Connected by"; a reference field has no verb of its own, so "as a reference".
+    const asType = (type: string) => (type.startsWith("reference:") ? "a reference" : relationshipWord(type));
     return [
       ...(fix
         ? [
@@ -1810,6 +1817,28 @@ function EditorInner() {
       ...SIDES.map((sd): MenuItem => ({ kind: "check", label: `Arrive at the ${sd}`, checked: e.ports?.to === sd, onSelect: () => setPorts(e, { to: e.ports?.to === sd ? null : sd }) })),
       { kind: "item", label: "Automatic connection points", disabled: !e.ports, onSelect: () => setPorts(e, { from: null, to: null }) },
       { kind: "separator" },
+      // M90: turn it round where CSDM has a relationship that way; where it can't be, the item says why.
+      {
+        kind: "item",
+        label: "Reverse direction",
+        disabled: !turn || "why" in turn,
+        note: !turn
+          ? undefined
+          : "why" in turn
+            ? turn.why === "not-allowed"
+              ? `CSDM has no relationship from ${classLabel(e.to)} to ${classLabel(e.from)}`
+              : turn.why === "duplicate"
+                ? "That relationship already exists"
+                : "It runs from an element to itself"
+            : `From ${name(e.to)} to ${name(e.from)}${turn.retyped ? `, as ${asType(turn.type)}` : ""}`,
+        onSelect: () => {
+          if (!turn || "why" in turn) return;
+          dispatch({ type: "reverse-edge", id });
+          // Opened from the keyboard, focus goes back to the relationship (choosing an item closes the menu without that).
+          menuReturn.current?.focus();
+          setMessage(`Reversed the relationship: it now runs from “${name(e.to)}” to “${name(e.from)}”${turn.retyped ? `, as ${asType(turn.type)}` : ""}. Undo turns it back.`);
+        },
+      },
       { kind: "item", label: `Select ${name(e.from)}`, onSelect: () => selectNode(e.from) },
       { kind: "item", label: `Select ${name(e.to)}`, onSelect: () => selectNode(e.to) },
       { kind: "separator" },
