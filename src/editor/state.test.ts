@@ -340,3 +340,40 @@ describe("the decisions filter follows the model (M88)", () => {
     expect(kept(s)).toEqual(["ba"]);
   });
 });
+
+describe("change an element's class (M89)", () => {
+  const linked: Action[] = [
+    ...base,
+    { type: "add-node", id: "app", class: "application", name: "checkout.war" },
+    { type: "add-edge", id: "e1", from: "ba", to: "svc" },
+    { type: "add-edge", id: "e2", from: "svc", to: "app" },
+    { type: "add-edge", id: "e3", from: "app", to: "host" },
+    { type: "save-flow", flow: { id: "f1", name: "Order", steps: [{ edge: "e1" }, { edge: "e2" }, { edge: "e3" }] } },
+  ];
+
+  it("changes the class and its relationships in one undo step; a flow keeps the steps that still stand", () => {
+    let s = run(linked);
+    expect(s.present.edges.map((e) => e.type)).toEqual(["Uses::Used by", "Depends on::Used by", "Runs on::Runs"]);
+    const before = s;
+    s = run([{ type: "set-class", id: "app", class: "application_service" }], s);
+    expect(s.present.nodes.find((n) => n.id === "app")!.class).toBe("application_service");
+    expect(s.present.edges.map((e) => [e.id, e.type])).toEqual([["e1", "Uses::Used by"], ["e2", "Depends on::Used by"], ["e3", "Depends on::Used by"]]);
+    expect(s.present.flows![0]!.steps).toHaveLength(3);
+    expect(s.present.layout.app).toEqual(before.present.layout.app);
+    expect(run([{ type: "undo" }], s).present).toEqual(before.present);
+
+    // A class with no place for its relationships: they go, and the flow stops where the chain breaks.
+    s = run([{ type: "set-class", id: "svc", class: "business_capability", at: { x: 16, y: 32 } }], before);
+    expect(s.present.edges.map((e) => e.id)).toEqual(["e3"]);
+    expect(s.present.flows![0]!.steps).toEqual([]);
+    expect(s.present.layout.svc).toEqual({ x: 16, y: 32 });
+    expect(run([{ type: "undo" }], s).present).toEqual(before.present);
+  });
+
+  it("is no step for the same class or an element that isn't there", () => {
+    const s = run(linked);
+    expect(run([{ type: "set-class", id: "app", class: "application" }], s)).toBe(s);
+    expect(run([{ type: "set-class", id: "nope", class: "host" }], s)).toBe(s);
+  });
+});
+
