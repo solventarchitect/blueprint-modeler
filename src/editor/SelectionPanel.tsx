@@ -106,6 +106,7 @@ export function SelectionPanel({
   onSetAttr,
   onDelete,
   onClear,
+  onPath,
 }: {
   names: string[];
   nodes?: Node[];
@@ -114,6 +115,8 @@ export function SelectionPanel({
   onSetAttr?: (key: BatchKey, value: string) => void;
   onDelete: () => void;
   onClear: () => void;
+  /** M91: with exactly two selected, show the path between them. */
+  onPath?: () => void;
 }) {
   const lifecycleId = useId();
   const { stages, skipped } = sharedStages(nodes);
@@ -139,6 +142,11 @@ export function SelectionPanel({
       <div>
         <h2 className="font-medium text-ink">{names.length} elements selected</h2>
         <p className="mt-1 text-sm text-ink-muted">{names.join(", ")}</p>
+        {onPath && (
+          <button type="button" className={`${button} mt-2`} onClick={onPath}>
+            Show how these connect
+          </button>
+        )}
       </div>
       {group("Align horizontally", ["left", "center", "right"])}
       {group("Align vertically", ["top", "middle", "bottom"])}
