@@ -1,4 +1,4 @@
-import type { BlastRadius, Model } from "@/model";
+import { flowChainText, flowStepText, type BlastRadius, type FlowStep, type Model } from "@/model";
 
 /**
  * What the canvas shows at one step of a blast radius: every element reached so far with its hop,
@@ -122,5 +122,25 @@ export function scenarioWords(title: string) {
       return `Flow “${title}”: ${plural(hops(r), "step")}, starting at ${nameOf(r.start)}.`;
     },
     steps: (r: BlastRadius, nameOf: (id: string) => string) => r.steps.map((s) => ({ hop: s.hop, label: s.hop === 0 ? "Start" : `Step ${s.hop}`, names: s.nodeIds.map(nameOf) })),
+  };
+}
+
+/**
+ * M91: the words for the path between two elements, one of `total` equally short chains (`more`: the
+ * list was cut). It plays as a saved flow does; when it opens, the whole chain is said.
+ */
+export function pathWords(model: Model, steps: FlowStep[], which: { index: number; total: number; more: boolean }) {
+  return {
+    progress: (r: BlastRadius, step: number) => {
+      const k = clamp(r, step);
+      return k === 0 ? `Start · ${plural(hops(r), "step")}` : `Step ${k} of ${hops(r)}`;
+    },
+    announce: (r: BlastRadius, step: number, nameOf: (id: string) => string) => {
+      const k = clamp(r, step);
+      if (k > 0) return `Step ${k}: ${flowStepText(model, steps[k - 1]!)}.`;
+      const several = which.total > 1 ? ` Path ${which.index + 1} of ${which.total} this short${which.more ? "; there are more" : ""}.` : "";
+      return `Path from ${nameOf(r.start)} to ${nameOf(r.steps[r.steps.length - 1]?.nodeIds[0] ?? "")}, ${plural(hops(r), "step")}: ${flowChainText(model, steps)}.${several}`;
+    },
+    steps: (r: BlastRadius, nameOf: (id: string) => string) => r.steps.map((s) => ({ hop: s.hop, label: s.hop === 0 ? "Start" : `Step ${s.hop}`, names: [s.hop === 0 ? nameOf(r.start) : flowStepText(model, steps[s.hop - 1]!)] })),
   };
 }

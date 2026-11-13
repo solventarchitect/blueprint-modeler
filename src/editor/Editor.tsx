@@ -60,7 +60,7 @@ import { arrangeByGroups, groupFrames, ownGroups, type Frame } from "@/layout/gr
 import { autoLayout, DEFAULT_SIZE, fillSpace, type LayoutMode } from "@/layout/layout";
 import { createWorkerEngine } from "@/layout/worker-engine";
 import { classById, classes, ENVIRONMENT_EXAMPLES, isClassId, isExtended, type ClassId, type Layer } from "@/metamodel";
-import { ALL_ELEMENTS, FIELD_LABEL, healthReport, localDay, GROUP_BY_LABEL, groupsOf, primaryGroup, SIDES, compareModels, parseModel, blastRadius, COLOR_BY_LABEL, evaluateHints, filterActive, formatModelDate, impactEnds, inView, isBusinessAnchor as isAnchor, modelDate, slotMap, decisionCounts, modelPart, storedColorBy, valueLabels, viewColorBy, UNTITLED_MODEL, focusArea, FOCUS_DEPTHS, type FocusDepth, flowRadius, flowStepText, playableFlows, PLAN_LABEL, PLAN_VIEW_LABEL, planHidden, type PlanView, type BlastDirection, type Edge, type HintResult, type Model, coloringWords, count, withClass, reversal } from "@/model";
+import { ALL_ELEMENTS, FIELD_LABEL, healthReport, localDay, GROUP_BY_LABEL, groupsOf, primaryGroup, SIDES, compareModels, parseModel, blastRadius, COLOR_BY_LABEL, evaluateHints, filterActive, formatModelDate, impactEnds, inView, isBusinessAnchor as isAnchor, modelDate, slotMap, decisionCounts, modelPart, storedColorBy, valueLabels, viewColorBy, UNTITLED_MODEL, focusArea, FOCUS_DEPTHS, type FocusDepth, flowRadius, flowStepText, playableFlows, PLAN_LABEL, PLAN_VIEW_LABEL, planHidden, type PlanView, type BlastDirection, type Edge, type HintResult, type Model, coloringWords, count, withClass, reversal, shortestPaths } from "@/model";
 import { site } from "@/lib/site";
 import { ClassNode, SuggestContext, type ClassFlowNode } from "./ClassNode";
 import { ConnectionLine, ConnectionModelContext, ReconnectingContext } from "./ConnectionLine";
@@ -78,7 +78,7 @@ import { ARRANGE, batchTargets, SelectionPanel, type ArrangeKind, type BatchKey 
 import { shownColorTags, ViewDialog, ViewLegend, ViewsMenu, type ShownView } from "./Views";
 import { ExamplesMenu } from "./ExamplesMenu";
 import { ContextMenu, type MenuItem } from "./ContextMenu";
-import { blastAnnouncement, blastProgress, blastSteps, blastView, flowAnnouncement, flowProgress, flowSteps, scenarioWords, type BlastKind } from "./blast";
+import { blastAnnouncement, blastProgress, blastSteps, blastView, flowAnnouncement, flowProgress, flowSteps, pathWords, scenarioWords, type BlastKind } from "./blast";
 import { blastFrames, GIF_MAX_SIDE, gifScale } from "./blastGif";
 import { renderGif } from "@/io/gif/render";
 import { CanvasEdge, LabelObstacles, LineStyleContext, type LabelPlanInput } from "./CanvasEdge";
@@ -166,6 +166,8 @@ const TABS: readonly Tab[] = ["details", "hints", "read"];
 
 const withIndefinite = (label: string) => `${/^[AEIOU]/.test(label) ? "an" : "a"} ${label}`;
 
+/** M91: a path's relationships and the way each is walked, as one string: the same chain gives the same key. */
+const chainKey = (steps: { edge: string; back?: true }[]) => steps.map((x) => `${x.edge}${x.back ? "<" : ">"}`).join(" ");
 /** Blast radius auto-play: time on each hop. */
 const BLAST_STEP_MS = 1500;
 /** Smart guides (M57) pull a dragged element into line from this many screen pixels away. */
@@ -265,6 +267,11 @@ function EditorInner() {
     [store],
   );
   const multiSet = useMemo(() => new Set(multi), [multi]);
+  /** M91: exactly two selected, in the model's order (the order they were picked in isn't kept): the ends of a path. */
+  const pair = useMemo((): [string, string] | null => {
+    const ids = multi.length === 2 ? model.nodes.filter((n) => multiSet.has(n.id)).map((n) => n.id) : [];
+    return ids.length === 2 ? [ids[0]!, ids[1]!] : null;
+  }, [multi, multiSet, model.nodes]);
   const selection = useMemo(() => (multi.length ? multi : selectedId ? [selectedId] : []), [multi, selectedId]);
   /** The selection as of the last change, ahead of the next render: React Flow can report a box selection in two calls in one event. */
   const liveSelection = useRef<string[]>([]);
@@ -392,10 +399,29 @@ function EditorInner() {
 
   // Blast radius: view-only. The radius follows the model, so an edit while it is open updates it.
   // M70: a saved flow plays here too (kind "scenario", with its id).
-  const [blast, setBlast] = useState<{ start: string; direction: BlastDirection; kind: BlastKind; step: number; playing: boolean; flowId?: string } | null>(null);
+  // M91: so does the path between two elements (kind "scenario" with `path`: where it ends, and which of the
+  // equally short ones, by its relationships (`chain`) and, should those go, by its place in the list).
+  const [blast, setBlast] = useState<{ start: string; direction: BlastDirection; kind: BlastKind; step: number; playing: boolean; flowId?: string; path?: { to: string; index: number; chain: string } } | null>(null);
   const blastReturn = useRef<HTMLElement | null>(null);
   const playButton = useRef<HTMLButtonElement>(null);
-  const playedFlow = blast?.kind === "scenario" ? model.flows?.find((f) => f.id === blast.flowId) : undefined;
+  const pathsFound = useMemo(
+    () => (blast?.path ? shortestPaths(model, blast.start, blast.path.to) : null),
+    [model, blast?.start, blast?.path?.to], // eslint-disable-line react-hooks/exhaustive-deps -- only the two ends decide the paths
+  );
+  /** Which of the equally short paths is shown: the one chosen while it still stands, else the one now in its place. */
+  const pathIndex = useMemo(() => {
+    if (!blast?.path || !pathsFound?.paths.length) return 0;
+    const same = pathsFound.paths.findIndex((p) => chainKey(p) === blast.path!.chain);
+    return same >= 0 ? same : Math.min(blast.path.index, pathsFound.paths.length - 1);
+  }, [blast?.path, pathsFound]);
+  const playedFlow = useMemo(() => {
+    if (blast?.kind !== "scenario") return undefined;
+    if (!blast.path) return model.flows?.find((f) => f.id === blast.flowId);
+    // A path plays as a flow that is not saved: the same walk, under the names of its two ends.
+    const steps = pathsFound?.paths[pathIndex];
+    const name = (id: string) => model.nodes.find((n) => n.id === id)?.name || "Untitled";
+    return steps ? { id: "path", name: `${name(blast.start)} to ${name(blast.path.to)}`, steps } : undefined;
+  }, [model, blast?.kind, blast?.flowId, blast?.start, blast?.path?.to, pathsFound, pathIndex]); // eslint-disable-line react-hooks/exhaustive-deps -- step and playing do not change the flow
   const radius = useMemo(
     () => (!blast ? null : blast.kind === "scenario" ? (playedFlow ? flowRadius(model, playedFlow) : null) : blastRadius(model, blast.start, blast.direction)),
     [model, blast?.start, blast?.direction, blast?.kind, playedFlow], // eslint-disable-line react-hooks/exhaustive-deps -- step and playing do not change the radius
@@ -415,6 +441,7 @@ function EditorInner() {
   }, [comparison, compare]);
   const isFlow = blast?.kind === "flow";
   const isScenario = blast?.kind === "scenario";
+  const isPath = isScenario && !!blast?.path;
   // A saved flow is drawn as a data flow is: data traveling the way the walk goes.
   const flowLike = isFlow || isScenario;
   /** The open blast radius or data flow, as the isometric picture marks it. */
@@ -430,7 +457,7 @@ function EditorInner() {
     setMessage(p === "plan" ? "Plan view: edit the model on the canvas." : `${PROJECTION_LABEL[p]} view, read only: drag or use the arrow keys to pan, the wheel or plus and minus to zoom. Switch to Plan to edit.`);
   };
   // The words for the open view: a blast radius speaks of hops and impact, a data flow of steps and data.
-  const words = (kind: BlastKind) => (kind === "scenario" ? scenarioWords(playedFlow?.name ?? "") : kind === "flow" ? { progress: flowProgress, announce: flowAnnouncement, steps: flowSteps } : { progress: blastProgress, announce: blastAnnouncement, steps: blastSteps });
+  const words = (kind: BlastKind) => (kind === "scenario" && isPath && pathsFound ? pathWords(model, playedFlow?.steps ?? [], { index: pathIndex, total: pathsFound.paths.length, more: pathsFound.more }) : kind === "scenario" ? scenarioWords(playedFlow?.name ?? "") : kind === "flow" ? { progress: flowProgress, announce: flowAnnouncement, steps: flowSteps } : { progress: blastProgress, announce: blastAnnouncement, steps: blastSteps });
 
   // A focused hint that no longer applies (fixed, undone, model switched) stops highlighting.
   useEffect(() => {
@@ -517,6 +544,7 @@ function EditorInner() {
   const blastLabel = (id: string) => {
     const b = blastShown?.nodes.get(id);
     if (!b || !blast) return "";
+    if (isPath) return b.hop === 0 ? " (start of the path)" : ` (step ${b.hop} of the path)`;
     if (isScenario) return b.hop === 0 ? " (start of the flow)" : ` (step ${b.hop} of the flow)`;
     if (isFlow) return b.hop === 0 ? " (source of the data flow)" : ` (data reaches it at step ${b.hop})`;
     const impact = blast.direction === "impact";
@@ -854,10 +882,10 @@ function EditorInner() {
                   markerUnits: "userSpaceOnUse",
                 },
               }),
-          ariaLabel: `${e.type} from ${model.nodes.find((n) => n.id === e.from)?.name} to ${model.nodes.find((n) => n.id === e.to)?.name}${e.plan ? ` (${PLAN_LABEL[e.plan].toLowerCase()})` : ""}${carried ? (isScenario ? " (a step of the flow)" : isFlow ? " (carries data)" : " (carries impact)") : ""}`,
+          ariaLabel: `${e.type} from ${model.nodes.find((n) => n.id === e.from)?.name} to ${model.nodes.find((n) => n.id === e.to)?.name}${e.plan ? ` (${PLAN_LABEL[e.plan].toLowerCase()})` : ""}${carried ? (isPath ? " (a step of the path)" : isScenario ? " (a step of the flow)" : isFlow ? " (carries data)" : " (carries impact)") : ""}`,
         };
       }),
-    [model, hintedEdges, selectedId, lens, blastShown, columns, flowLike, isFlow, isScenario, hoveredId, view.labels, edgeLabelOf, fadedIds, diffOf, hiddenIds, planHide],
+    [model, hintedEdges, selectedId, lens, blastShown, columns, flowLike, isFlow, isScenario, isPath, hoveredId, view.labels, edgeLabelOf, fadedIds, diffOf, hiddenIds, planHide],
   );
   // A collapsed group stands in for its elements: their relationships with the rest run to its block (dashed, one per pair).
   const canvasEdges: FlowEdge[] = useMemo(() => {
@@ -1224,7 +1252,8 @@ function EditorInner() {
   const gifAbort = useRef<AbortController | null>(null);
   useEffect(() => () => gifAbort.current?.abort(), []);
   const exportBlastGif = async () => {
-    if (!blast || !radius || !radius.steps.length || makingGif) return;
+    // A path is a look, not something kept: it has no animation of its own (M91).
+    if (!blast || !radius || !radius.steps.length || makingGif || isPath) return;
     const frames = blastFrames(model, radius, viewedTheme(), lens, blast.kind, view.lines, view.labels, pictureView, playedFlow?.name);
     const filename = `${fileBase(model)}-${isScenario ? `flow-${fileBase({ name: playedFlow?.name ?? "" })}` : isFlow ? "data-flow" : "blast-radius"}.gif`;
     const count = `${frames.svgs.length} frame${frames.svgs.length === 1 ? "" : "s"}`;
@@ -1706,6 +1735,8 @@ function EditorInner() {
     }, 0);
   };
   const selectionMenu = (): MenuItem[] => [
+    // M91: with exactly two selected, the chain of relationships between them.
+    ...(pair ? [{ kind: "item" as const, label: "Show how these connect", onSelect: () => openPath(pair[0], pair[1], menuReturn.current) }, { kind: "separator" as const }] : []),
     ...ARRANGE.slice(0, 6).map((a): MenuItem => ({ kind: "item", label: a.label, onSelect: () => arrange(a.id) })),
     { kind: "separator" },
     ...ARRANGE.slice(6).map((a): MenuItem => ({ kind: "item", label: a.label, onSelect: () => arrange(a.id) })),
@@ -1906,7 +1937,8 @@ function EditorInner() {
       selectAll();
       return;
     }
-    if (e.key === "Escape" && multi.length && !inField(e.target as HTMLElement)) {
+    // An open blast radius, flow or path has Escape first (the window handler closes it); the selection stays.
+    if (e.key === "Escape" && multi.length && !blast && !inField(e.target as HTMLElement)) {
       e.preventDefault();
       clearSelection();
       return;
@@ -2071,11 +2103,27 @@ function EditorInner() {
   };
   const closeBlast = useCallback(() => {
     setBlast(null);
-    setMessage(isScenario ? "Flow closed." : isFlow ? "Data flow closed." : "Blast radius closed.");
+    setMessage(isPath ? "Path closed." : isScenario ? "Flow closed." : isFlow ? "Data flow closed." : "Blast radius closed.");
     const el = blastReturn.current;
     blastReturn.current = null;
     if (el?.isConnected) setTimeout(() => el.focus(), 0);
-  }, [isFlow, isScenario]);
+  }, [isFlow, isScenario, isPath]);
+  /** M91: show how two elements connect: the shortest chain of relationships between them, played as a flow is. */
+  const openPath = (a: string, b: string, returnTo: HTMLElement | null, index = 0, moveFocus = true) => {
+    const found = shortestPaths(model, a, b);
+    const steps = found.paths[Math.min(index, found.paths.length - 1)];
+    if (!steps) return setMessage(`${nameOf(a)} and ${nameOf(b)} are not connected: no chain of relationships joins them.`);
+    const i = found.paths.indexOf(steps);
+    const r = flowRadius(model, { id: "path", name: "", steps });
+    const still = prefersStill();
+    blastReturn.current = returnTo;
+    setActiveHint(null);
+    setReadEdgeId(null);
+    setBlast({ start: a, direction: "dependencies", kind: "scenario", path: { to: b, index: i, chain: chainKey(steps) }, step: still ? r.steps.length - 1 : 0, playing: !still && r.steps.length > 1 });
+    setMessage(pathWords(model, steps, { index: i, total: found.paths.length, more: found.more }).announce(r, 0, nameOf));
+    void flow.fitView({ nodes: r.steps.flatMap((st) => st.nodeIds).map((n) => ({ id: n })), padding: 0.3, maxZoom: 1, duration: still ? 0 : 300 });
+    if (moveFocus) setTimeout(() => playButton.current?.focus(), 0);
+  };
   /** M70: play a saved flow in the strip, as a data flow plays; each element numbered by its step. */
   const playFlow = (flowId: string, returnTo: HTMLElement | null) => {
     const f = model.flows?.find((x) => x.id === flowId);
@@ -2122,6 +2170,14 @@ function EditorInner() {
       setMessage(words(blast.kind).announce(radius, radius.steps.length - 1, nameOf));
     }
   }, [blast, radius]); // eslint-disable-line react-hooks/exhaustive-deps -- nameOf reads the same model as radius
+  // M91: an edit broke the path that was shown; the one now in its place is shown whole, and said.
+  useEffect(() => {
+    if (!blast?.path || !playedFlow || !radius || !pathsFound) return;
+    const chain = chainKey(playedFlow.steps);
+    if (chain === blast.path.chain) return;
+    setBlast({ ...blast, path: { to: blast.path.to, index: pathIndex, chain }, step: radius.steps.length - 1, playing: false });
+    setMessage(`The path changed with the model. ${pathWords(model, playedFlow.steps, { index: pathIndex, total: pathsFound.paths.length, more: pathsFound.more }).announce(radius, 0, nameOf)}`);
+  }, [blast, playedFlow, radius, pathsFound, pathIndex]); // eslint-disable-line react-hooks/exhaustive-deps -- nameOf and model are the ones radius was made from
   // Escape closes it, unless a menu, dialog or text field has the key.
   useEffect(() => {
     // While presenting (M73), Escape ends Present, which closes the flow with it.
@@ -2356,7 +2412,7 @@ function EditorInner() {
                     : undefined,
             "blast-gif": makingGif
               ? "Making the GIF…"
-              : blast && radius && !isFlow
+              : blast && radius && !flowLike
                 ? `${radius.steps.length} frame${radius.steps.length === 1 ? "" : "s"}, up to ${GIF_MAX_SIDE} px, in the theme you are viewing`
                 : "Show a blast radius first: right-click an element",
             "flow-gif": makingGif
@@ -2366,7 +2422,7 @@ function EditorInner() {
                 : "Show a data flow first: right-click a Business Capability or Business Process",
             "scenario-gif": makingGif
               ? "Making the GIF…"
-              : blast && radius && isScenario
+              : blast && radius && isScenario && !isPath
                 ? `${radius.steps.length} frame${radius.steps.length === 1 ? "" : "s"}, up to ${GIF_MAX_SIDE} px, in the theme you are viewing`
                 : "Play a saved flow first: Model menu › Saved flows…",
           };
@@ -2376,9 +2432,9 @@ function EditorInner() {
             "mermaid-copy": !keptIds.size,
             link: !canShare || (share?.model === model && share.size === "too-large"),
             "view-link": !canShare || (share?.model === model && share.size === "too-large"),
-            "blast-gif": !blast || !radius || isFlow || makingGif,
+            "blast-gif": !blast || !radius || flowLike || makingGif,
             "flow-gif": !blast || !radius || !isFlow || makingGif,
-            "scenario-gif": !blast || !radius || !isScenario || makingGif,
+            "scenario-gif": !blast || !radius || !isScenario || isPath || makingGif,
           };
 
   const openDialog = (open: (v: boolean) => void) => {
@@ -2463,6 +2519,19 @@ function EditorInner() {
       ...(["both", "current", "target"] as const)
         .filter((p) => p !== chosenPlan)
         .map((p): Command => ({ id: `plan-${p}`, group: "View", label: `Show ${p === "both" ? "current and target state" : PLAN_VIEW_LABEL[p].toLowerCase()}`, keywords: "plan planned retiring roadmap transition future as-is to-be", run: () => pickPlanView(p) })),
+      // M91: the path between the two selected elements (selecting several is for the desktop, in Plan).
+      ...(wide
+        ? [
+            {
+              id: "path",
+              group: "View",
+              label: pair ? `Show how “${nameOf(pair[0])}” and “${nameOf(pair[1])}” connect` : "Show how two elements connect",
+              keywords: "path route chain between shortest reach linked relationships",
+              disabled: pair ? undefined : projection !== "plan" ? "Switch to Plan to select elements" : "Select two elements first (Shift+click)",
+              run: () => pair && openPath(pair[0], pair[1], nodeEl(pair[0])),
+            } as Command,
+          ]
+        : []),
       // M74: focus on an element.
       {
         id: "focus",
@@ -2845,11 +2914,11 @@ function EditorInner() {
         <CompareBar base={compare} comparison={comparison} onGo={(id) => goToElement(id, true)} onClose={closeCompare} buttonClass={toolbarButton} />
       )}
       {blast && radius && !presenting && (
-        <div role="region" aria-label={isScenario ? "Saved flow" : isFlow ? "Data flow" : "Blast radius"} className="flex flex-col gap-1.5 border-b border-border px-4 py-2">
+        <div role="region" aria-label={isPath ? "Path" : isScenario ? "Saved flow" : isFlow ? "Data flow" : "Blast radius"} className="flex flex-col gap-1.5 border-b border-border px-4 py-2">
           <div className="flex flex-wrap items-center gap-2">
-            <p className={`font-mono text-xs tracking-[0.14em] uppercase ${flowLike ? "text-ai" : "text-status"}`}>{isScenario ? "Saved flow" : isFlow ? "Data flow" : "Blast radius"}</p>
+            <p className={`font-mono text-xs tracking-[0.14em] uppercase ${flowLike ? "text-ai" : "text-status"}`}>{isPath ? "Path" : isScenario ? "Saved flow" : isFlow ? "Data flow" : "Blast radius"}</p>
             <h2 className="text-sm font-medium">
-              {isScenario ? playedFlow?.name : isFlow ? `Data flow from ${nameOf(blast.start)}` : blast.direction === "impact" ? `If ${nameOf(blast.start)} fails` : `What ${nameOf(blast.start)} needs`}
+              {isPath ? `How ${nameOf(blast.start)} and ${nameOf(blast.path!.to)} connect` : isScenario ? playedFlow?.name : isFlow ? `Data flow from ${nameOf(blast.start)}` : blast.direction === "impact" ? `If ${nameOf(blast.start)} fails` : `What ${nameOf(blast.start)} needs`}
             </h2>
             {!flowLike && (
             <div role="group" aria-label="Direction" className="inline-flex">
@@ -2869,6 +2938,26 @@ function EditorInner() {
             <p className="text-sm text-ink-muted" data-testid="blast-progress">
               {words(blast.kind).progress(radius, blast.step)}
             </p>
+            {isPath && pathsFound && pathsFound.paths.length > 1 && (
+              <div role="group" aria-label="Equally short paths" className="inline-flex items-center gap-2">
+                <button type="button" className={stepButton} aria-label="Previous path" aria-disabled={pathIndex === 0} onClick={() => pathIndex > 0 && openPath(blast.start, blast.path!.to, blastReturn.current, pathIndex - 1, false)}>
+                  <span aria-hidden="true">‹</span>
+                </button>
+                <p className="text-sm text-ink-muted" data-testid="path-count">
+                  Path {pathIndex + 1} of {pathsFound.paths.length}
+                  {pathsFound.more ? " (there are more)" : ""}
+                </p>
+                <button
+                  type="button"
+                  className={stepButton}
+                  aria-label="Next path"
+                  aria-disabled={pathIndex >= pathsFound.paths.length - 1}
+                  onClick={() => pathIndex < pathsFound.paths.length - 1 && openPath(blast.start, blast.path!.to, blastReturn.current, pathIndex + 1, false)}
+                >
+                  <span aria-hidden="true">›</span>
+                </button>
+              </div>
+            )}
             <span className="ml-auto flex flex-wrap gap-2">
               <button type="button" className={stepButton} aria-label="Previous step" aria-disabled={blast.step === 0} onClick={() => blast.step > 0 && blastTo(blast.step - 1)}>
                 <span aria-hidden="true">←</span> Previous
@@ -2910,6 +2999,7 @@ function EditorInner() {
               ))}
             </ol>
             {radius.truncated && <p className="mt-1 text-xs text-ink-muted">Stopped after {radius.steps.length - 1} {isFlow ? "steps" : "hops"}; more elements lie beyond.</p>}
+            {isPath && <p className="mt-1 text-xs text-ink-muted">The fewest relationships between the two, whichever way each is drawn. It is not a statement of impact or of data flow.</p>}
             {!isScenario && (
             <p className="mt-1 text-xs text-ink-muted">
               Follows the impact rules in the{" "}
@@ -3230,6 +3320,7 @@ function EditorInner() {
                   onSetAttr={setAttrForAll}
                   onDelete={deleteSelection}
                   onClear={() => clearSelection(true)}
+                  onPath={pair ? (from) => openPath(pair[0], pair[1], from) : undefined}
                 />
               ) : tab === "details" ? (
                 <Inspector

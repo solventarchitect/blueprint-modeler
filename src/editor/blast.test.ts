@@ -1,7 +1,7 @@
 import { describe, expect, it } from "vitest";
 import { examples } from "@/examples";
-import { blastRadius, type Model } from "@/model";
-import { blastAnnouncement, blastProgress, blastSteps, blastView, flowAnnouncement, flowProgress, flowSteps } from "./blast";
+import { blastRadius, flowRadius, type FlowStep, type Model } from "@/model";
+import { blastAnnouncement, blastProgress, blastSteps, blastView, flowAnnouncement, flowProgress, flowSteps, pathWords } from "./blast";
 
 const checkout = () => examples.find((e) => e.id === "checkout")!.create(new Date(0), "m");
 const idOf = (m: Model, name: string) => m.nodes.find((x) => x.name === name)!.id;
@@ -152,5 +152,49 @@ describe("data flow", () => {
     const r = flowFrom(m, "db-prod-01");
     expect(flowProgress(r, 0)).toBe("Source · nothing reached");
     expect(flowAnnouncement(r, 0, nameOf(m))).toBe("Data flow: nothing follows from db-prod-01. No relationship carries data from it.");
+  });
+});
+
+describe("the path between two elements, in words (M91)", () => {
+  const model = (): Model => ({
+    ...checkout(),
+    nodes: [
+      { id: "cap", class: "business_capability", name: "Sell online" },
+      { id: "ba", class: "business_application", name: "Shop" },
+      { id: "svc", class: "application_service", name: "Shop production" },
+      { id: "host", class: "host", name: "" },
+    ],
+    edges: [
+      { id: "e1", from: "cap", to: "ba", type: "Provided by::Provides" },
+      { id: "e2", from: "ba", to: "svc", type: "Uses::Used by" },
+      { id: "e3", from: "svc", to: "host", type: "Depends on::Used by" },
+    ],
+    layout: {},
+  });
+  const down: FlowStep[] = [{ edge: "e1" }, { edge: "e2" }, { edge: "e3" }];
+  const up: FlowStep[] = [{ edge: "e3", back: true }, { edge: "e2", back: true }];
+  const radius = (steps: FlowStep[]) => flowRadius(model(), { id: "p", name: "p", steps });
+
+  it("says the whole chain when it opens, each element once, and which of several it is", () => {
+    const one = pathWords(model(), down, { index: 0, total: 1, more: false });
+    expect(one.announce(radius(down), 0, nameOf(model()))).toBe("Path from Sell online to Untitled, 3 steps: Sell online → Shop (Provided by) → Shop production (Uses) → Untitled (Depends on).");
+    // Against the arrows it reads with each relationship's other label.
+    const back = pathWords(model(), up, { index: 1, total: 3, more: false });
+    expect(back.announce(radius(up), 0, nameOf(model()))).toBe("Path from Untitled to Shop, 2 steps: Untitled → Shop production (Used by) → Shop (Used by). Path 2 of 3 this short.");
+    const many = pathWords(model(), [{ edge: "e1" }], { index: 0, total: 12, more: true });
+    expect(many.announce(radius([{ edge: "e1" }]), 0, nameOf(model()))).toBe("Path from Sell online to Shop, 1 step: Sell online → Shop (Provided by). Path 1 of 12 this short; there are more.");
+  });
+
+  it("says each step, the progress, and lists the steps", () => {
+    const w = pathWords(model(), down, { index: 0, total: 1, more: false });
+    expect(w.announce(radius(down), 2, nameOf(model()))).toBe("Step 2: Shop → Shop production (Uses).");
+    expect(w.progress(radius(down), 0)).toBe("Start · 3 steps");
+    expect(w.progress(radius(down), 2)).toBe("Step 2 of 3");
+    expect(w.steps(radius(down), nameOf(model()))).toEqual([
+      { hop: 0, label: "Start", names: ["Sell online"] },
+      { hop: 1, label: "Step 1", names: ["Sell online → Shop (Provided by)"] },
+      { hop: 2, label: "Step 2", names: ["Shop → Shop production (Uses)"] },
+      { hop: 3, label: "Step 3", names: ["Shop production → Untitled (Depends on)"] },
+    ]);
   });
 });
