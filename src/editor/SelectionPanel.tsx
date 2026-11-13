@@ -116,7 +116,7 @@ export function SelectionPanel({
   onDelete: () => void;
   onClear: () => void;
   /** M91: with exactly two selected, show the path between them. */
-  onPath?: () => void;
+  onPath?: (from: HTMLElement) => void;
 }) {
   const lifecycleId = useId();
   const { stages, skipped } = sharedStages(nodes);
@@ -143,7 +143,7 @@ export function SelectionPanel({
         <h2 className="font-medium text-ink">{names.length} elements selected</h2>
         <p className="mt-1 text-sm text-ink-muted">{names.join(", ")}</p>
         {onPath && (
-          <button type="button" className={`${button} mt-2`} onClick={onPath}>
+          <button type="button" className={`${button} mt-2`} onClick={(e) => onPath(e.currentTarget)}>
             Show how these connect
           </button>
         )}

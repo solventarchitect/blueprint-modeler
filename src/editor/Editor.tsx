@@ -166,6 +166,8 @@ const TABS: readonly Tab[] = ["details", "hints", "read"];
 
 const withIndefinite = (label: string) => `${/^[AEIOU]/.test(label) ? "an" : "a"} ${label}`;
 
+/** M91: a path's relationships and the way each is walked, as one string: the same chain gives the same key. */
+const chainKey = (steps: { edge: string; back?: true }[]) => steps.map((x) => `${x.edge}${x.back ? "<" : ">"}`).join(" ");
 /** Blast radius auto-play: time on each hop. */
 const BLAST_STEP_MS = 1500;
 /** Smart guides (M57) pull a dragged element into line from this many screen pixels away. */
@@ -397,16 +399,21 @@ function EditorInner() {
 
   // Blast radius: view-only. The radius follows the model, so an edit while it is open updates it.
   // M70: a saved flow plays here too (kind "scenario", with its id).
-  // M91: so does the path between two elements (kind "scenario" with `path`: where it ends, and which of the equally short ones).
-  const [blast, setBlast] = useState<{ start: string; direction: BlastDirection; kind: BlastKind; step: number; playing: boolean; flowId?: string; path?: { to: string; index: number } } | null>(null);
+  // M91: so does the path between two elements (kind "scenario" with `path`: where it ends, and which of the
+  // equally short ones, by its relationships (`chain`) and, should those go, by its place in the list).
+  const [blast, setBlast] = useState<{ start: string; direction: BlastDirection; kind: BlastKind; step: number; playing: boolean; flowId?: string; path?: { to: string; index: number; chain: string } } | null>(null);
   const blastReturn = useRef<HTMLElement | null>(null);
   const playButton = useRef<HTMLButtonElement>(null);
   const pathsFound = useMemo(
     () => (blast?.path ? shortestPaths(model, blast.start, blast.path.to) : null),
     [model, blast?.start, blast?.path?.to], // eslint-disable-line react-hooks/exhaustive-deps -- only the two ends decide the paths
   );
-  /** Which of the equally short paths is shown: the one chosen, or the last when an edit left fewer. */
-  const pathIndex = blast?.path && pathsFound?.paths.length ? Math.min(blast.path.index, pathsFound.paths.length - 1) : 0;
+  /** Which of the equally short paths is shown: the one chosen while it still stands, else the one now in its place. */
+  const pathIndex = useMemo(() => {
+    if (!blast?.path || !pathsFound?.paths.length) return 0;
+    const same = pathsFound.paths.findIndex((p) => chainKey(p) === blast.path!.chain);
+    return same >= 0 ? same : Math.min(blast.path.index, pathsFound.paths.length - 1);
+  }, [blast?.path, pathsFound]);
   const playedFlow = useMemo(() => {
     if (blast?.kind !== "scenario") return undefined;
     if (!blast.path) return model.flows?.find((f) => f.id === blast.flowId);
@@ -1245,7 +1252,8 @@ function EditorInner() {
   const gifAbort = useRef<AbortController | null>(null);
   useEffect(() => () => gifAbort.current?.abort(), []);
   const exportBlastGif = async () => {
-    if (!blast || !radius || !radius.steps.length || makingGif) return;
+    // A path is a look, not something kept: it has no animation of its own (M91).
+    if (!blast || !radius || !radius.steps.length || makingGif || isPath) return;
     const frames = blastFrames(model, radius, viewedTheme(), lens, blast.kind, view.lines, view.labels, pictureView, playedFlow?.name);
     const filename = `${fileBase(model)}-${isScenario ? `flow-${fileBase({ name: playedFlow?.name ?? "" })}` : isFlow ? "data-flow" : "blast-radius"}.gif`;
     const count = `${frames.svgs.length} frame${frames.svgs.length === 1 ? "" : "s"}`;
@@ -1929,7 +1937,8 @@ function EditorInner() {
       selectAll();
       return;
     }
-    if (e.key === "Escape" && multi.length && !inField(e.target as HTMLElement)) {
+    // An open blast radius, flow or path has Escape first (the window handler closes it); the selection stays.
+    if (e.key === "Escape" && multi.length && !blast && !inField(e.target as HTMLElement)) {
       e.preventDefault();
       clearSelection();
       return;
@@ -2110,7 +2119,7 @@ function EditorInner() {
     blastReturn.current = returnTo;
     setActiveHint(null);
     setReadEdgeId(null);
-    setBlast({ start: a, direction: "dependencies", kind: "scenario", path: { to: b, index: i }, step: still ? r.steps.length - 1 : 0, playing: !still && r.steps.length > 1 });
+    setBlast({ start: a, direction: "dependencies", kind: "scenario", path: { to: b, index: i, chain: chainKey(steps) }, step: still ? r.steps.length - 1 : 0, playing: !still && r.steps.length > 1 });
     setMessage(pathWords(model, steps, { index: i, total: found.paths.length, more: found.more }).announce(r, 0, nameOf));
     void flow.fitView({ nodes: r.steps.flatMap((st) => st.nodeIds).map((n) => ({ id: n })), padding: 0.3, maxZoom: 1, duration: still ? 0 : 300 });
     if (moveFocus) setTimeout(() => playButton.current?.focus(), 0);
@@ -2161,6 +2170,14 @@ function EditorInner() {
       setMessage(words(blast.kind).announce(radius, radius.steps.length - 1, nameOf));
     }
   }, [blast, radius]); // eslint-disable-line react-hooks/exhaustive-deps -- nameOf reads the same model as radius
+  // M91: an edit broke the path that was shown; the one now in its place is shown whole, and said.
+  useEffect(() => {
+    if (!blast?.path || !playedFlow || !radius || !pathsFound) return;
+    const chain = chainKey(playedFlow.steps);
+    if (chain === blast.path.chain) return;
+    setBlast({ ...blast, path: { to: blast.path.to, index: pathIndex, chain }, step: radius.steps.length - 1, playing: false });
+    setMessage(`The path changed with the model. ${pathWords(model, playedFlow.steps, { index: pathIndex, total: pathsFound.paths.length, more: pathsFound.more }).announce(radius, 0, nameOf)}`);
+  }, [blast, playedFlow, radius, pathsFound, pathIndex]); // eslint-disable-line react-hooks/exhaustive-deps -- nameOf and model are the ones radius was made from
   // Escape closes it, unless a menu, dialog or text field has the key.
   useEffect(() => {
     // While presenting (M73), Escape ends Present, which closes the flow with it.
@@ -2395,7 +2412,7 @@ function EditorInner() {
                     : undefined,
             "blast-gif": makingGif
               ? "Making the GIF…"
-              : blast && radius && !isFlow
+              : blast && radius && !flowLike
                 ? `${radius.steps.length} frame${radius.steps.length === 1 ? "" : "s"}, up to ${GIF_MAX_SIDE} px, in the theme you are viewing`
                 : "Show a blast radius first: right-click an element",
             "flow-gif": makingGif
@@ -2415,7 +2432,7 @@ function EditorInner() {
             "mermaid-copy": !keptIds.size,
             link: !canShare || (share?.model === model && share.size === "too-large"),
             "view-link": !canShare || (share?.model === model && share.size === "too-large"),
-            "blast-gif": !blast || !radius || isFlow || makingGif,
+            "blast-gif": !blast || !radius || flowLike || makingGif,
             "flow-gif": !blast || !radius || !isFlow || makingGif,
             "scenario-gif": !blast || !radius || !isScenario || isPath || makingGif,
           };
@@ -2502,15 +2519,19 @@ function EditorInner() {
       ...(["both", "current", "target"] as const)
         .filter((p) => p !== chosenPlan)
         .map((p): Command => ({ id: `plan-${p}`, group: "View", label: `Show ${p === "both" ? "current and target state" : PLAN_VIEW_LABEL[p].toLowerCase()}`, keywords: "plan planned retiring roadmap transition future as-is to-be", run: () => pickPlanView(p) })),
-      // M91: the path between the two selected elements.
-      {
-        id: "path",
-        group: "View",
-        label: pair ? `Show how “${nameOf(pair[0])}” and “${nameOf(pair[1])}” connect` : "Show how two elements connect",
-        keywords: "path route chain between shortest reach linked relationships",
-        disabled: pair ? undefined : "Select two elements first (Shift+click)",
-        run: () => pair && openPath(pair[0], pair[1], nodeEl(pair[0])),
-      },
+      // M91: the path between the two selected elements (selecting several is for the desktop, in Plan).
+      ...(wide
+        ? [
+            {
+              id: "path",
+              group: "View",
+              label: pair ? `Show how “${nameOf(pair[0])}” and “${nameOf(pair[1])}” connect` : "Show how two elements connect",
+              keywords: "path route chain between shortest reach linked relationships",
+              disabled: pair ? undefined : projection !== "plan" ? "Switch to Plan to select elements" : "Select two elements first (Shift+click)",
+              run: () => pair && openPath(pair[0], pair[1], nodeEl(pair[0])),
+            } as Command,
+          ]
+        : []),
       // M74: focus on an element.
       {
         id: "focus",
@@ -3299,7 +3320,7 @@ function EditorInner() {
                   onSetAttr={setAttrForAll}
                   onDelete={deleteSelection}
                   onClear={() => clearSelection(true)}
-                  onPath={pair ? () => openPath(pair[0], pair[1], document.activeElement instanceof HTMLElement ? document.activeElement : null) : undefined}
+                  onPath={pair ? (from) => openPath(pair[0], pair[1], from) : undefined}
                 />
               ) : tab === "details" ? (
                 <Inspector

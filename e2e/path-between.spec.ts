@@ -36,14 +36,14 @@ const model = {
   layout: { cap: { x: 0, y: 0 }, ba: { x: 0, y: 200 }, svc: { x: 0, y: 400 }, app: { x: -200, y: 600 }, db: { x: 200, y: 600 }, host: { x: 0, y: 800 }, alone: { x: 500, y: 0 } },
 };
 
-async function open(page: Page) {
+async function open(page: Page, file: object = model) {
   // Reduced motion: the whole path at once, not played step by step.
   await page.emulateMedia({ reducedMotion: "reduce" });
   await page.goto("/editor");
   await saved(page);
-  await page.getByTestId("import-file").setInputFiles({ name: "shop.json", mimeType: "application/json", buffer: Buffer.from(JSON.stringify(model)) });
+  await page.getByTestId("import-file").setInputFiles({ name: "shop.json", mimeType: "application/json", buffer: Buffer.from(JSON.stringify(file)) });
   await expect(currentModel(page)).toHaveText("Shop");
-  await expect(page.locator(".react-flow__edge")).toHaveCount(6);
+  await expect(page.locator(".react-flow__edge")).not.toHaveCount(0);
 }
 
 /** Shift+click, holding Shift until React Flow has seen it (as in guides.spec). */
@@ -78,6 +78,7 @@ test.describe("path between two elements (M91, desktop)", () => {
     await panel(page).getByRole("button", { name: "Show how these connect" }).click();
 
     await expect(strip(page).getByRole("heading", { name: "How Sell online and web-01 connect" })).toBeVisible();
+    await expect(strip(page).getByRole("button", { name: "Play" })).toBeFocused();
     await said(page, "Path from Sell online to web-01, 4 steps: Sell online → Shop (Provided by) → Shop production (Uses) → shop.war (Depends on) → web-01 (Runs on). Path 1 of 2 this short.");
     await expect(page.getByTestId("blast-progress")).toHaveText("Step 4 of 4");
     await expect(page.getByTestId("path-count")).toHaveText("Path 1 of 2");
@@ -89,6 +90,13 @@ test.describe("path between two elements (M91, desktop)", () => {
     await expect(page.getByTestId("rf__edge-e6")).not.toHaveAttribute("aria-label", /of the path/);
     await expect(strip(page).getByRole("button", { name: "Previous path" })).toHaveAttribute("aria-disabled", "true");
     expect(await new AxeBuilder({ page }).withTags(axeTags).include('[role="region"][aria-label="Path"]').analyze().then((r) => r.violations)).toEqual([]);
+
+    // A path is a look, not something kept: neither animation is offered for it.
+    await page.getByRole("button", { name: "Export" }).click();
+    await expect(page.getByRole("button", { name: /^Blast radius animation \(GIF\)/ })).toHaveAttribute("aria-disabled", "true");
+    await expect(page.getByRole("button", { name: /^Saved flow animation \(GIF\)/ })).toHaveAttribute("aria-disabled", "true");
+    await page.keyboard.press("Escape");
+    await expect(strip(page)).toBeVisible();
 
     // The steps, listed.
     await strip(page).getByText("Steps (5)").click();
@@ -116,6 +124,8 @@ test.describe("path between two elements (M91, desktop)", () => {
     await strip(page).getByRole("button", { name: "Close" }).click();
     await said(page, "Path closed.");
     await expect(strip(page)).toHaveCount(0);
+    // Focus is back on the button that opened it.
+    await expect(panel(page).getByRole("button", { name: "Show how these connect" })).toBeFocused();
     await expect(node(page, "web-01")).not.toHaveAttribute("aria-label", /of the path/);
     // Nothing was changed by looking.
     await expect(page.getByRole("button", { name: "Undo" })).toBeDisabled();
@@ -148,23 +158,37 @@ test.describe("path between two elements (M91, desktop)", () => {
     await expect(strip(page)).toHaveCount(0);
   });
 
-  test("it follows the model: when the chain it shows is broken, the next shortest takes its place, or it closes", async ({ page }) => {
-    await open(page);
+  test("it follows the model: the chain shown stays while it stands; broken, the next takes its place and is said; none left, it closes", async ({ page }) => {
+    // A third way down, through a cache, after the other two in the model's order.
+    await open(page, {
+      ...model,
+      nodes: [...model.nodes, { id: "cache", class: "application", name: "Cache" }],
+      edges: [...model.edges, { id: "e7", from: "svc", to: "cache", type: "Depends on::Used by" }, { id: "e8", from: "cache", to: "host", type: "Runs on::Runs" }],
+      layout: { ...model.layout, cache: { x: 500, y: 600 } },
+    });
     await select(page, "Shop production", "web-01");
     await panel(page).getByRole("button", { name: "Show how these connect" }).click();
-    await expect(page.getByTestId("path-count")).toHaveText("Path 1 of 2");
+    await expect(page.getByTestId("path-count")).toHaveText("Path 1 of 3");
     await strip(page).getByRole("button", { name: "Next path" }).click();
+    await expect(page.getByTestId("path-count")).toHaveText("Path 2 of 3");
     await expect(node(page, "Orders database")).toHaveAttribute("aria-label", /\(step 1 of the path\)/);
 
-    // Delete the relationship the second path walks: one path is left, and it is shown.
-    await deleteEdge(page, "e6");
-    await expect(page.locator(".react-flow__edge")).toHaveCount(5);
-    await expect(page.getByTestId("path-count")).toHaveCount(0);
-    await expect(node(page, "shop.war")).toHaveAttribute("aria-label", /\(step 1 of the path\)/);
+    // A relationship of the first path goes: the one shown is untouched, and is now the first of two.
+    await deleteEdge(page, "e3");
+    await expect(page.getByTestId("path-count")).toHaveText("Path 1 of 2");
+    await expect(node(page, "Orders database")).toHaveAttribute("aria-label", /\(step 1 of the path\)/);
+    await expect(node(page, "Cache")).not.toHaveAttribute("aria-label", /of the path/);
 
-    // And the last one: nothing joins them any more, so the strip closes.
-    await deleteEdge(page, "e5");
-    await expect(page.locator(".react-flow__edge")).toHaveCount(4);
+    // A relationship of the path shown goes: the one left takes its place, whole, and that is said.
+    await deleteEdge(page, "e6");
+    await said(page, "The path changed with the model. Path from Shop production to web-01, 2 steps: Shop production → Cache (Depends on) → web-01 (Runs on).");
+    await expect(page.getByTestId("path-count")).toHaveCount(0);
+    await expect(page.getByTestId("blast-progress")).toHaveText("Step 2 of 2");
+    await expect(node(page, "Cache")).toHaveAttribute("aria-label", /\(step 1 of the path\)/);
+    await expect(node(page, "Orders database")).not.toHaveAttribute("aria-label", /of the path/);
+
+    // And the last: nothing joins them any more, so the strip closes.
+    await deleteEdge(page, "e8");
     await expect(strip(page)).toHaveCount(0);
   });
 });

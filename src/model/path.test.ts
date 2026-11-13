@@ -63,6 +63,35 @@ describe("path between two elements (M91)", () => {
     expect(shortestPaths(m(), "cap", "nope")).toEqual({ paths: [], more: false });
   });
 
+  it("is not thrown by a loop of relationships, one from an element to itself, or one to an element that isn't there", () => {
+    const model: Model = {
+      ...m(),
+      edges: [
+        ...m().edges,
+        { id: "loop", from: "host", to: "svc", type: "Depends on::Used by" },
+        { id: "self", from: "svc", to: "svc", type: "Depends on::Used by" },
+        { id: "gone", from: "svc", to: "nope", type: "Depends on::Used by" },
+      ],
+    };
+    // The loop makes host one step from svc; the other two change nothing.
+    expect(shortestPaths(model, "ba", "host").paths).toEqual([[{ edge: "e2" }, { edge: "loop", back: true }]]);
+    expect(shortestPaths(model, "cap", "app").paths).toEqual([[{ edge: "e1" }, { edge: "e2" }, { edge: "e3" }]]);
+  });
+
+  it("says there are more only when there are: exactly the limit is all of them", () => {
+    const s = (id: string) => ({ id, class: "application_service", name: id });
+    const rungs = (from: string, to: string, n: number) => Array.from({ length: n }, (_, i) => ({ id: `${from}${to}${i}`, from, to, type: "Depends on::Used by" }));
+    // 3 ways from a to mid, 4 from mid to b: 12 chains of two steps.
+    const twelve: Model = { ...m(), nodes: [s("a"), s("mid"), s("b"), s("side")], edges: [...rungs("a", "mid", 3), ...rungs("mid", "b", 4)] };
+    expect(MAX_PATHS).toBe(12);
+    expect(shortestPaths(twelve, "a", "b")).toMatchObject({ more: false });
+    expect(shortestPaths(twelve, "a", "b").paths).toHaveLength(12);
+    // One more two-step chain, round the side: 13.
+    const thirteen: Model = { ...twelve, edges: [...twelve.edges, ...rungs("a", "side", 1), ...rungs("side", "b", 1)] };
+    expect(shortestPaths(thirteen, "a", "b")).toMatchObject({ more: true });
+    expect(shortestPaths(thirteen, "a", "b").paths).toHaveLength(12);
+  });
+
   it("stops listing after a limit, and says there are more", () => {
     // A ladder: 5 rungs of two parallel relationships each gives 32 equally short chains.
     const nodes = Array.from({ length: 6 }, (_, i) => ({ id: `s${i}`, class: "application_service", name: `S${i}` }));
