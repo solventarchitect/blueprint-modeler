@@ -40,10 +40,31 @@ describe("reverse a relationship (M90)", () => {
     expect(reversal(m(), "e3")).toEqual({ why: "not-allowed" });
     const twice: Model = { ...m(), edges: [...m().edges, { id: "e4", from: "b", to: "a", type: "Depends on::Used by" }] };
     expect(reversal(twice, "e1")).toEqual({ why: "duplicate" });
+    // The repeat can be of the type it would take, not the one it has.
+    const taken: Model = { ...m(), edges: [...m().edges, { id: "e7", from: "net", to: "conn", type: "Connected by::Connects" }] };
+    expect(reversal(taken, "e2")).toEqual({ why: "duplicate" });
+    expect(withReversed(taken, "e2")).toBe(taken);
     const loop: Model = { ...m(), edges: [{ id: "e5", from: "a", to: "a", type: "Depends on::Used by" }] };
     expect(reversal(loop, "e5")).toEqual({ why: "itself" });
     expect(reversal(m(), "nope")).toBeNull();
     for (const [model, id] of [[m(), "e3"], [twice, "e1"], [loop, "e5"], [m(), "nope"]] as const) expect(withReversed(model, id)).toBe(model);
+  });
+
+  it("a relationship older files drew the other way is turned to its CSDM 5 form", () => {
+    const model: Model = {
+      ...m(),
+      nodes: [...m().nodes, { id: "ba", class: "business_application", name: "Shop" }, { id: "cap", class: "business_capability", name: "Sell online" }],
+      edges: [{ id: "old", from: "ba", to: "cap", type: "Provides::Provided by", ports: { from: "top" } }],
+    };
+    expect(reversal(model, "old")).toEqual({ type: "Provided by::Provides", retyped: true });
+    expect(withReversed(model, "old").edges).toEqual([{ id: "old", from: "cap", to: "ba", type: "Provided by::Provides", ports: { to: "top" } }]);
+  });
+
+  it("a flow that walks it there and back still does, each step turned", () => {
+    const model: Model = { ...m(), flows: [{ id: "f1", name: "Ask and answer", steps: [{ edge: "e1" }, { edge: "e1", back: true }] }] };
+    expect(withReversed(model, "e1").flows![0]!.steps).toEqual([{ edge: "e1", back: true }, { edge: "e1" }]);
+    // Twice round is where it started.
+    expect(withReversed(withReversed(model, "e1"), "e1")).toEqual(model);
   });
 
   it("a saved flow that walks it keeps walking the same way", () => {

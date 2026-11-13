@@ -11,6 +11,13 @@ const edge = (page: Page, id: string) => page.getByTestId(`rf__edge-${id}`);
 const reverse = (page: Page) => menu(page).getByRole("menuitem", { name: /^Reverse direction/ });
 const openMenu = (page: Page, id: string) => edge(page, id).locator("path").first().click({ button: "right", force: true });
 
+/** Where a relationship's line starts and ends on the canvas, from its path. */
+async function lineEnds(page: Page, id: string) {
+  const d = (await edge(page, id).locator("path.react-flow__edge-path").getAttribute("d"))!;
+  const n = d.match(/-?\d+(\.\d+)?/g)!.map(Number);
+  return { start: [n[0]!, n[1]!], end: [n[n.length - 2]!, n[n.length - 1]!] };
+}
+
 const model = {
   schema: 1,
   id: "e2e-reverse",
@@ -30,6 +37,7 @@ const model = {
     { id: "e2", from: "conn", to: "net", type: "Provided by::Provides" },
     { id: "e3", from: "app", to: "host", type: "Runs on::Runs" },
     { id: "e4", from: "b", to: "net", type: "Depends on::Used by" },
+    { id: "e5", from: "net", to: "b", type: "Depends on::Used by" },
   ],
   flows: [{ id: "f1", name: "Pay", steps: [{ edge: "e1" }, { edge: "e4" }] }],
   layout: { a: { x: 0, y: 480 }, b: { x: 400, y: 480 }, conn: { x: 800, y: 480 }, net: { x: 800, y: 720 }, app: { x: 0, y: 720 }, host: { x: 0, y: 960 } },
@@ -40,7 +48,7 @@ async function open(page: Page) {
   await saved(page);
   await page.getByTestId("import-file").setInputFiles({ name: "shop.json", mimeType: "application/json", buffer: Buffer.from(JSON.stringify(model)) });
   await expect(currentModel(page)).toHaveText("Shop");
-  await expect(page.locator(".react-flow__edge")).toHaveCount(4);
+  await expect(page.locator(".react-flow__edge")).toHaveCount(5);
 }
 
 async function exported(page: Page) {
@@ -56,12 +64,16 @@ test.describe("reverse a relationship (M90, desktop)", () => {
   test("turns it round and says so; its sides, and the flow that walks it, follow; one undo step", async ({ page }) => {
     await open(page);
     await expect(edge(page, "e1")).toHaveAttribute("aria-label", "Depends on::Used by from Checkout to Payments");
+    const before = await lineEnds(page, "e1");
     await openMenu(page, "e1");
     await expect(reverse(page)).toHaveAccessibleName("Reverse direction, From Payments to Checkout");
     expect(await new AxeBuilder({ page }).withTags(axeTags).include("[data-testid=context-menu]").analyze().then((r) => r.violations)).toEqual([]);
     await reverse(page).click();
     await expect(page.getByRole("status").filter({ hasText: "Reversed the relationship: it now runs from “Payments” to “Checkout”. Undo turns it back." })).toHaveCount(1);
     await expect(edge(page, "e1")).toHaveAttribute("aria-label", "Depends on::Used by from Payments to Checkout");
+
+    // The line doesn't move: it now starts where it ended and ends where it started.
+    await expect.poll(() => lineEnds(page, "e1")).toEqual({ start: before.end, end: before.start });
 
     const file = await exported(page);
     // The line stays where it was drawn: each chosen side goes with its element.
@@ -81,6 +93,13 @@ test.describe("reverse a relationship (M90, desktop)", () => {
     await expect(page.getByRole("status").filter({ hasText: "Reversed the relationship: it now runs from “WAN” to “Store link”, as Connected by. Undo turns it back." })).toHaveCount(1);
     await expect(edge(page, "e2")).toHaveAttribute("aria-label", "Connected by::Connects from WAN to Store link");
 
+    // e5 runs WAN to Payments and e4 Payments to WAN: turning either round would repeat the other.
+    await edge(page, "e5").focus();
+    await page.keyboard.press("Shift+F10");
+    await expect(reverse(page)).toHaveAccessibleName("Reverse direction, That relationship already exists");
+    await expect(reverse(page)).toHaveAttribute("aria-disabled", "true");
+    await page.keyboard.press("Escape");
+
     await openMenu(page, "e3");
     await expect(reverse(page)).toHaveAccessibleName("Reverse direction, CSDM has no relationship from Host to Application");
     await expect(reverse(page)).toHaveAttribute("aria-disabled", "true");
@@ -90,13 +109,13 @@ test.describe("reverse a relationship (M90, desktop)", () => {
 
   test("by keyboard: Shift+F10 on the relationship, and focus comes back to it", async ({ page }) => {
     await open(page);
-    await edge(page, "e4").focus();
+    await edge(page, "e1").focus();
     await page.keyboard.press("Shift+F10");
     await expect(menu(page)).toBeVisible();
     await reverse(page).focus();
     await page.keyboard.press("Enter");
     await expect(menu(page)).toHaveCount(0);
-    await expect(edge(page, "e4")).toHaveAttribute("aria-label", "Depends on::Used by from WAN to Payments");
-    await expect(edge(page, "e4")).toBeFocused();
+    await expect(edge(page, "e1")).toHaveAttribute("aria-label", "Depends on::Used by from Payments to Checkout");
+    await expect(edge(page, "e1")).toBeFocused();
   });
 });

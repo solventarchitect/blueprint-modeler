@@ -1796,6 +1796,8 @@ function EditorInner() {
       return classById(cls)?.label ?? cls;
     };
     const turn = reversal(model, id);
+    // "as Connected by"; a reference field has no verb of its own, so "as a reference".
+    const asType = (type: string) => (type.startsWith("reference:") ? "a reference" : relationshipWord(type));
     return [
       ...(fix
         ? [
@@ -1826,15 +1828,15 @@ function EditorInner() {
             ? turn.why === "not-allowed"
               ? `CSDM has no relationship from ${classLabel(e.to)} to ${classLabel(e.from)}`
               : turn.why === "duplicate"
-                ? "That relationship is already there"
+                ? "That relationship already exists"
                 : "It runs from an element to itself"
-            : `From ${name(e.to)} to ${name(e.from)}${turn.retyped ? `, as ${relationshipWord(turn.type)}` : ""}`,
+            : `From ${name(e.to)} to ${name(e.from)}${turn.retyped ? `, as ${asType(turn.type)}` : ""}`,
         onSelect: () => {
           if (!turn || "why" in turn) return;
           dispatch({ type: "reverse-edge", id });
           // Opened from the keyboard, focus goes back to the relationship (choosing an item closes the menu without that).
           menuReturn.current?.focus();
-          setMessage(`Reversed the relationship: it now runs from “${name(e.to)}” to “${name(e.from)}”${turn.retyped ? `, as ${relationshipWord(turn.type)}` : ""}. Undo turns it back.`);
+          setMessage(`Reversed the relationship: it now runs from “${name(e.to)}” to “${name(e.from)}”${turn.retyped ? `, as ${asType(turn.type)}` : ""}. Undo turns it back.`);
         },
       },
       { kind: "item", label: `Select ${name(e.from)}`, onSelect: () => selectNode(e.from) },
