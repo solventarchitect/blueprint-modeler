@@ -28,6 +28,8 @@ type Props = {
   onFlow?: (from: HTMLElement) => void;
   /** M78: open the Decisions dialog on a decision about this element, or (null) to make one. */
   onDecision?: (id: string | null) => void;
+  /** M89: open Change class for the selected element (where editing is offered). */
+  onChangeClass?: () => void;
 };
 
 const input =
@@ -474,7 +476,7 @@ function archimateRelFor(model: Model) {
 }
 
 /** Details of the selected element, its relationships, and a keyboard way to add more. */
-export function Inspector({ model, selectedId, dispatch, focusName, focusConnect = 0, suggestions = [], onSuggest, onSelect, newId, lens = "csdm", onBlast, onFlow, onDecision }: Props) {
+export function Inspector({ model, selectedId, dispatch, focusName, focusConnect = 0, suggestions = [], onSuggest, onSelect, newId, lens = "csdm", onBlast, onFlow, onDecision, onChangeClass }: Props) {
   const connectRef = useRef<HTMLSelectElement>(null);
   useEffect(() => {
     if (focusConnect) connectRef.current?.focus();
@@ -575,6 +577,11 @@ export function Inspector({ model, selectedId, dispatch, focusName, focusConnect
           <a className="mt-2 flex min-h-6 w-fit items-center text-xs text-accent underline underline-offset-4" href={`/guide#${classSlug(def.id)}`}>
             In the guide: what {def.label} connects to
           </a>
+        )}
+        {onChangeClass && (
+          <button type="button" className={`${button} mt-2`} onClick={onChangeClass}>
+            Change class…
+          </button>
         )}
       </div>
       {am && (

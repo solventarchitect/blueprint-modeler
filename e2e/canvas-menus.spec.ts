@@ -82,7 +82,7 @@ test.describe("context menus (desktop)", () => {
     await openCheckout(page);
     await node(page, "Checkout web app").click({ button: "right" });
     const menu = page.getByRole("menu", { name: "Checkout web app menu" });
-    await expect(menu.getByRole("menuitem")).toHaveText(["Rename", "Add a relationship…", "Add a related element…", "Duplicate", "No hints", "Show blast radius", "Focus on this element", "Select the Functional layer", "Delete"]);
+    await expect(menu.getByRole("menuitem")).toHaveText(["Rename", "Change class…", "Add a relationship…", "Add a related element…", "Duplicate", "No hints", "Show blast radius", "Focus on this element", "Select the Functional layer", "Delete"]);
     await expect(menu.getByRole("menuitem", { name: "Rename" })).toBeFocused();
     await page.keyboard.press("Enter");
     await expect(page.getByRole("complementary", { name: "Inspector" }).getByLabel("Name", { exact: true })).toBeFocused();
@@ -105,7 +105,7 @@ test.describe("context menus (desktop)", () => {
     const menu = page.getByRole("menu", { name: "Orders database menu" });
     await expect(menu).toBeVisible();
     await page.keyboard.press("ArrowDown");
-    await expect(menu.getByRole("menuitem", { name: "Add a relationship…" })).toBeFocused();
+    await expect(menu.getByRole("menuitem", { name: "Change class…" })).toBeFocused();
     await page.keyboard.press("End");
     await expect(menu.getByRole("menuitem", { name: "Delete" })).toBeFocused();
     await page.keyboard.press("Escape");

@@ -1,6 +1,6 @@
 import { acceptedTypes, allowedTypes, classById, relationshipsBetween, type ClassId, type Layer } from "@/metamodel";
 import type { Side } from "@/layout/geometry";
-import { cleanTags, decisionSchema, edgeKey, flowSchema, MAX_DECISIONS, replacementChoices, type Decision, withKnownDecisionElements, withUnbrokenFlows, linkSchema, MAX_FLOWS, type Flow, type PlanStatus, serializeModel, MAX_LINKS, MAX_VIEWS, viewSchema, type Link, withDetails, type Edge, type Model, type Node, type View } from "@/model";
+import { cleanTags, decisionSchema, edgeKey, flowSchema, MAX_DECISIONS, replacementChoices, type Decision, withKnownDecisionElements, withUnbrokenFlows, linkSchema, MAX_FLOWS, type Flow, type PlanStatus, serializeModel, MAX_LINKS, MAX_VIEWS, viewSchema, type Link, withDetails, type Edge, type Model, type Node, type View, withClass } from "@/model";
 
 /**
  * Editor state: the model plus undo/redo history. Pure functions only, so every rule the
@@ -16,6 +16,8 @@ export type Action =
   | { type: "model-details"; date?: string; description?: string; artifactId?: string }
   | { type: "add-node"; id: string; class: ClassId; name: string }
   | { type: "rename-node"; id: string; name: string }
+  /** M89: another class for the element; its relationships follow (see classChange). `at`: where it goes, when its lane changes. */
+  | { type: "set-class"; id: string; class: ClassId; at?: { x: number; y: number } }
   | { type: "describe-node"; id: string; description: string }
   | { type: "set-attr"; id: string; key: "lifecycle" | "environment" | "owner" | "ref"; value: string }
   | { type: "set-links"; id: string; links: Link[] }
@@ -133,6 +135,11 @@ function apply(model: Model, action: Action): Model | null {
       const node = model.nodes.find((n) => n.id === action.id);
       if (!node || node.name === action.name) return null;
       return { ...model, nodes: model.nodes.map((n) => (n.id === action.id ? { ...n, name: action.name } : n)) };
+    }
+    case "set-class": {
+      const next = withClass(model, action.id, action.class);
+      if (next === model) return null;
+      return action.at ? { ...next, layout: { ...next.layout, [action.id]: action.at } } : next;
     }
     case "restore": {
       // The snapshot's content, under this model's own identity; nothing to do when it is the same.

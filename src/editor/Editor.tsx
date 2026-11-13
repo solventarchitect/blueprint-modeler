@@ -60,11 +60,12 @@ import { arrangeByGroups, groupFrames, ownGroups, type Frame } from "@/layout/gr
 import { autoLayout, DEFAULT_SIZE, fillSpace, type LayoutMode } from "@/layout/layout";
 import { createWorkerEngine } from "@/layout/worker-engine";
 import { classById, classes, ENVIRONMENT_EXAMPLES, isClassId, isExtended, type ClassId, type Layer } from "@/metamodel";
-import { ALL_ELEMENTS, FIELD_LABEL, healthReport, localDay, GROUP_BY_LABEL, groupsOf, primaryGroup, SIDES, compareModels, parseModel, blastRadius, COLOR_BY_LABEL, evaluateHints, filterActive, formatModelDate, impactEnds, inView, isBusinessAnchor as isAnchor, modelDate, slotMap, decisionCounts, modelPart, storedColorBy, valueLabels, viewColorBy, UNTITLED_MODEL, focusArea, FOCUS_DEPTHS, type FocusDepth, flowRadius, flowStepText, playableFlows, PLAN_LABEL, PLAN_VIEW_LABEL, planHidden, type PlanView, type BlastDirection, type Edge, type HintResult, type Model, coloringWords, count } from "@/model";
+import { ALL_ELEMENTS, FIELD_LABEL, healthReport, localDay, GROUP_BY_LABEL, groupsOf, primaryGroup, SIDES, compareModels, parseModel, blastRadius, COLOR_BY_LABEL, evaluateHints, filterActive, formatModelDate, impactEnds, inView, isBusinessAnchor as isAnchor, modelDate, slotMap, decisionCounts, modelPart, storedColorBy, valueLabels, viewColorBy, UNTITLED_MODEL, focusArea, FOCUS_DEPTHS, type FocusDepth, flowRadius, flowStepText, playableFlows, PLAN_LABEL, PLAN_VIEW_LABEL, planHidden, type PlanView, type BlastDirection, type Edge, type HintResult, type Model, coloringWords, count, withClass } from "@/model";
 import { site } from "@/lib/site";
 import { ClassNode, SuggestContext, type ClassFlowNode } from "./ClassNode";
 import { ConnectionLine, ConnectionModelContext, ReconnectingContext } from "./ConnectionLine";
 import { exportItems, ExportMenu, type ExportKind } from "./ExportMenu";
+import { ChangeClassDialog, classChangeSaid, classChangeWords } from "./ChangeClass";
 import { CommandPalette } from "./CommandPalette";
 import type { Command } from "./commands";
 import { ShortcutMap } from "./ShortcutMap";
@@ -332,6 +333,8 @@ function EditorInner() {
   // M78: the Decisions dialog, and where it opens (on a decision, or making one about an element).
   const [decisionsDialog, setDecisionsDialog] = useState<DecisionsStart | null>(null);
   const openDecisions = (start: DecisionsStart = {}) => openDialog(() => setDecisionsDialog(start));
+  /** M89: the element whose class is being changed, while its dialog is open. */
+  const [reclassId, setReclassId] = useState<string | null>(null);
   const [compareError, setCompareError] = useState<string | null>(null);
   const [compare, setCompare] = useState<{ base: Model; label: string } | null>(null);
   const dialogReturn = useRef<HTMLElement | null>(null);
@@ -1723,6 +1726,7 @@ function EditorInner() {
     const layer = classById(n.class)?.layer;
     return [
       { kind: "item", label: "Rename", onSelect: () => (selectNode(id), setFocusName((k) => k + 1)) },
+      { kind: "item", label: "Change class…", onSelect: () => (selectNode(id), openReclass(id, menuReturn.current)) },
       { kind: "item", label: "Add a relationship…", onSelect: () => (selectNode(id), setFocusConnect((k) => k + 1)) },
       { kind: "item", label: "Add a related element…", onSelect: () => quickAddAt(id) },
       {
@@ -1747,6 +1751,30 @@ function EditorInner() {
       { kind: "separator" },
       { kind: "item", label: "Delete", danger: true, onSelect: () => (dispatch({ type: "delete-node", id }), setMessage(`Deleted ${name}. Undo restores it.`)) },
     ];
+  };
+  /** M89: open Change class for an element; focus comes back to `from` (or the element) when it closes. */
+  const openReclass = (id: string, from?: HTMLElement | null) => {
+    dialogReturn.current = from ?? (document.activeElement instanceof HTMLElement ? document.activeElement : null);
+    setReclassId(id);
+  };
+  /** Open only while its element exists; a stale id (the element gone some other way) opens nothing and blocks nothing. */
+  const reclassing = reclassId && model.nodes.some((n) => n.id === reclassId) ? reclassId : null;
+  const closeReclass = () => {
+    const id = reclassId;
+    setReclassId(null);
+    const el = dialogReturn.current;
+    dialogReturn.current = null;
+    (el?.isConnected ? el : id ? nodeEl(id) : null)?.focus();
+  };
+  /** M89: change an element's class; with lanes on it goes to its new layer's lane. One undo step, said. */
+  const changeClass = (id: string, cls: ClassId) => {
+    const n = model.nodes.find((x) => x.id === id);
+    const words = classChangeWords(model, id, cls);
+    if (!n || !words) return;
+    const pos = model.layout[id];
+    const settled = view.lanes && pos ? settleIntoLane(withClass(model, id, cls), measured.current, id, pos) : null;
+    dispatch({ type: "set-class", id, class: cls, ...(settled?.settled ? { at: { x: settled.x, y: settled.y } } : {}) });
+    setMessage(`Changed “${n.name || "Untitled"}” from ${classById(n.class)?.label ?? n.class} to ${classById(cls)?.label ?? cls}. ${classChangeSaid(words)}${settled?.settled ? ` Moved to the ${settled.lane} lane.` : ""} Undo brings it back.`);
   };
   /** M61: keep a relationship's end on a chosen side of its element (null: back to automatic), and say so. */
   const setPorts = (e: Edge, p: { from?: Side | null; to?: Side | null }) => {
@@ -2377,7 +2405,10 @@ function EditorInner() {
             .map((c): Command => ({ id: `add-${c.id}`, group: "Add", label: `Add ${c.label}`, keywords: "new element", run: () => addNode(c.id) }))
         : []),
       ...(wide
-        ? [{ id: "quick-add", group: "Add", label: "Add a related element…", keys: "Shift+A", keywords: "connect new relationship", disabled: selectedId ? undefined : "Select an element first", run: () => selectedId && quickAddAt(selectedId) }]
+        ? [
+            { id: "quick-add", group: "Add", label: "Add a related element…", keys: "Shift+A", keywords: "connect new relationship", disabled: selectedId ? undefined : "Select an element first", run: () => selectedId && quickAddAt(selectedId) },
+            { id: "change-class", group: "Edit", label: "Change class…", keywords: "type convert replace reclassify", disabled: !selectedId ? "Select an element first" : projection !== "plan" ? "Switch to Plan to change an element's class" : undefined, run: () => selectedId && openReclass(selectedId, nodeEl(selectedId)) },
+          ]
         : []),
       ...(wide
         ? [
@@ -2998,7 +3029,7 @@ function EditorInner() {
               nodesConnectable={wide && !presenting}
               elementsSelectable={!presenting}
               // React Flow listens for Delete on the document, past `inert`: the isometric projections are read only.
-              deleteKeyCode={wide && !presenting && projection === "plan" && !palette && !shortcuts && !managing && !viewDialog && !flowsDialog && !decisionsDialog && !tableDialog && !snapshotsDialog && !compareDialog ? ["Delete", "Backspace"] : null}
+              deleteKeyCode={wide && !presenting && projection === "plan" && !palette && !shortcuts && !managing && !viewDialog && !flowsDialog && !decisionsDialog && !tableDialog && !snapshotsDialog && !compareDialog && !reclassing ? ["Delete", "Backspace"] : null}
               // Delete and Backspace: the selected elements, their relationships and any selected
               // relationship go together, as one undo step (React Flow would report each on its own).
               onBeforeDelete={async ({ nodes: gone, edges: lines }) => {
@@ -3185,6 +3216,7 @@ function EditorInner() {
                   onSuggest={(s) => selectedId && pickSuggestion(selectedId, s)}
                   onBlast={(from) => selectedId && openBlast(selectedId, from)}
                   onDecision={(id) => selectedId && openDecisions(id ? { pick: id } : { about: selectedId })}
+                  onChangeClass={wide ? () => selectedId && openReclass(selectedId) : undefined}
                   onFlow={selected && isAnchor(selected.class) ? (from) => selectedId && openBlast(selectedId, from, "dependencies", true, "flow") : undefined}
                 />
               ) : tab === "read" ? (
@@ -3247,6 +3279,7 @@ function EditorInner() {
           onSelectElements={selectDecided}
         />
       )}
+      {reclassing && <ChangeClassDialog key={reclassing} model={model} id={reclassing} extended={!!view.extended} onChange={(cls) => changeClass(reclassing, cls)} onClose={closeReclass} />}
       {flowsDialog && (
         <FlowsDialog
           model={model}
