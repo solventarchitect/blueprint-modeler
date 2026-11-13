@@ -5,7 +5,8 @@ import type { Edge, Model } from "./schema";
  * M89: what changing an element's class does to its relationships. Each one is kept as written when
  * CSDM accepts its type between the two classes as they would be (older types too); otherwise it takes
  * the type CSDM allows between them in the same direction; otherwise it is removed. A new type that
- * would repeat a relationship already there is removed too. Direction is never changed here.
+ * would repeat a relationship already there is removed too, and so is a relationship from the element to
+ * itself that isn't accepted as written. Direction is never changed here.
  */
 export type ClassChange = {
   kept: Edge[];
@@ -31,7 +32,8 @@ export function classChange(model: Model, id: string, cls: string): ClassChange 
     } else rest.push(e);
   }
   for (const e of rest) {
-    const type = allowedTypes(classOf(e.from), classOf(e.to))[0];
+    // Nothing relates to itself: a loop that isn't accepted as written is not given another type.
+    const type = e.from === e.to ? undefined : allowedTypes(classOf(e.from), classOf(e.to))[0];
     if (!type) out.removed.push({ edge: e, why: "not-allowed" });
     else if (taken.has(key(e.from, e.to, type))) out.removed.push({ edge: e, why: "duplicate" });
     else {

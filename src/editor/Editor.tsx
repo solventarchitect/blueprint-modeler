@@ -1757,6 +1757,8 @@ function EditorInner() {
     dialogReturn.current = from ?? (document.activeElement instanceof HTMLElement ? document.activeElement : null);
     setReclassId(id);
   };
+  /** Open only while its element exists; a stale id (the element gone some other way) opens nothing and blocks nothing. */
+  const reclassing = reclassId && model.nodes.some((n) => n.id === reclassId) ? reclassId : null;
   const closeReclass = () => {
     const id = reclassId;
     setReclassId(null);
@@ -2405,7 +2407,7 @@ function EditorInner() {
       ...(wide
         ? [
             { id: "quick-add", group: "Add", label: "Add a related element…", keys: "Shift+A", keywords: "connect new relationship", disabled: selectedId ? undefined : "Select an element first", run: () => selectedId && quickAddAt(selectedId) },
-            { id: "change-class", group: "Edit", label: "Change class…", keywords: "type convert replace reclassify", disabled: selectedId ? undefined : "Select an element first", run: () => selectedId && openReclass(selectedId, nodeEl(selectedId)) },
+            { id: "change-class", group: "Edit", label: "Change class…", keywords: "type convert replace reclassify", disabled: !selectedId ? "Select an element first" : projection !== "plan" ? "Switch to Plan to change an element's class" : undefined, run: () => selectedId && openReclass(selectedId, nodeEl(selectedId)) },
           ]
         : []),
       ...(wide
@@ -3027,7 +3029,7 @@ function EditorInner() {
               nodesConnectable={wide && !presenting}
               elementsSelectable={!presenting}
               // React Flow listens for Delete on the document, past `inert`: the isometric projections are read only.
-              deleteKeyCode={wide && !presenting && projection === "plan" && !palette && !shortcuts && !managing && !viewDialog && !flowsDialog && !decisionsDialog && !tableDialog && !snapshotsDialog && !compareDialog ? ["Delete", "Backspace"] : null}
+              deleteKeyCode={wide && !presenting && projection === "plan" && !palette && !shortcuts && !managing && !viewDialog && !flowsDialog && !decisionsDialog && !tableDialog && !snapshotsDialog && !compareDialog && !reclassing ? ["Delete", "Backspace"] : null}
               // Delete and Backspace: the selected elements, their relationships and any selected
               // relationship go together, as one undo step (React Flow would report each on its own).
               onBeforeDelete={async ({ nodes: gone, edges: lines }) => {
@@ -3277,7 +3279,7 @@ function EditorInner() {
           onSelectElements={selectDecided}
         />
       )}
-      {reclassId && <ChangeClassDialog model={model} id={reclassId} onChange={(cls) => changeClass(reclassId, cls)} onClose={closeReclass} />}
+      {reclassing && <ChangeClassDialog key={reclassing} model={model} id={reclassing} extended={!!view.extended} onChange={(cls) => changeClass(reclassing, cls)} onClose={closeReclass} />}
       {flowsDialog && (
         <FlowsDialog
           model={model}

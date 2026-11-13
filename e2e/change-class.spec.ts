@@ -89,6 +89,15 @@ test.describe("change an element's class (M89, desktop)", () => {
     await expect(outcome(page)).toContainText("“Pay people” → “Payroll” (Provided by)");
     await expect(outcome(page)).toContainText("“Payroll” → “Payroll production” (Uses)");
 
+    // The Extended classes are offered only when Extended is on, as in the palette.
+    await expect(dialog(page).getByLabel("New class").locator("option", { hasText: /^Strategic Priority$/ })).toHaveCount(0);
+    // Delete and Backspace on a button belong to the dialog, not to the element selected behind it.
+    await dialog(page).getByRole("button", { name: "Cancel" }).focus();
+    await page.keyboard.press("Delete");
+    await page.keyboard.press("Backspace");
+    await expect(dialog(page)).toBeVisible();
+    await expect(node(page, "Payroll")).toHaveCount(1);
+
     await dialog(page).getByRole("button", { name: "Cancel" }).click();
     await expect(dialog(page)).toHaveCount(0);
     await expect(edges(page)).toHaveCount(4);
@@ -102,7 +111,7 @@ test.describe("change an element's class (M89, desktop)", () => {
     await page.keyboard.press("Tab");
     await expect(dialog(page).getByRole("button", { name: "Change class" })).toBeFocused();
     await page.keyboard.press("Enter");
-    await expect(page.getByRole("status").filter({ hasText: "Changed “Payroll” from Business Application to Application. 2 removed. Undo brings it back." })).toHaveCount(1);
+    await expect(page.getByRole("status").filter({ hasText: "Changed “Payroll” from Business Application to Application. 2 relationships removed. Undo brings it back." })).toHaveCount(1);
     await expect(edges(page)).toHaveCount(2);
     await expect(node(page, "Payroll")).toHaveAttribute("aria-label", /^Application: Payroll/);
     // What isn't a relationship stays: the owner set on it.

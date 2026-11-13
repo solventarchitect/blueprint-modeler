@@ -60,9 +60,37 @@ describe("change an element's class (M89)", () => {
     expect(ids(withClass(model, "app", "application_service").edges)).toEqual(["e1", "e2", "e3", "e5", "e6"]);
   });
 
-  it("a relationship from an element to itself follows both ends", () => {
+  it("a type CSDM no longer lists first, but still accepts for the new pair, is kept as written", () => {
+    const base = m();
+    const model: Model = { ...base, nodes: [...base.nodes, { id: "old", class: "application", name: "Old app" }], edges: [...base.edges, { id: "eL", from: "old", to: "svc", type: "Consumes::Consumed by" }] };
+    const c = classChange(model, "old", "business_application")!;
+    expect(ids(c.kept)).toEqual(["eL"]);
+    expect(c.retyped).toEqual([]);
+    expect(c.removed).toEqual([]);
+  });
+
+  it("two relationships that would take the same new type: the first takes it, the second would repeat it", () => {
+    const base = m();
+    const model: Model = { ...base, edges: [...base.edges, { id: "e7", from: "app", to: "host", type: "Hosted on::Hosts" }] };
+    const c = classChange(model, "app", "application_service")!;
+    expect(ids(c.kept)).toEqual(["e3"]);
+    expect(c.retyped.map((r) => [r.edge.id, r.type])).toEqual([["e4", "Depends on::Used by"]]);
+    expect(c.removed.map((r) => [r.edge.id, r.why])).toEqual([["e7", "duplicate"]]);
+    expect(withClass(model, "app", "application_service").edges.filter((e) => e.from === "app").map((e) => [e.id, e.type])).toEqual([["e4", "Depends on::Used by"]]);
+  });
+
+  it("a relationship that arrives at the element is given a new type too, still arriving", () => {
+    const c = classChange(m(), "ba", "business_capability")!;
+    expect(c.retyped.map((r) => [r.edge.id, r.edge.from, r.edge.to, r.type])).toEqual([["e1", "cap", "ba", "reference:parent"]]);
+    expect(c.removed.map((r) => [r.edge.id, r.why])).toEqual([["e2", "not-allowed"]]);
+  });
+
+  it("a relationship from an element to itself is never given a new type: it goes unless CSDM accepts it as written", () => {
     const model: Model = { ...m(), nodes: [{ id: "s", class: "application_service", name: "S" }], edges: [{ id: "e", from: "s", to: "s", type: "Depends on::Used by" }], layout: { s: { x: 0, y: 0 } } };
-    expect(classChange(model, "s", "business_capability")!.retyped).toEqual([{ edge: model.edges[0], type: "reference:parent" }]);
+    // Business Capability to Business Capability is allowed (its parent), but nothing is its own parent.
+    const c = classChange(model, "s", "business_capability")!;
+    expect(c.retyped).toEqual([]);
+    expect(c.removed.map((r) => r.why)).toEqual(["not-allowed"]);
     expect(classChange(model, "s", "host")!.removed.map((r) => r.why)).toEqual(["not-allowed"]);
   });
 

@@ -3,12 +3,19 @@
 import { useEffect, useId, useRef, useState } from "react";
 import { relationshipWord } from "@/io/svg";
 import { LAYERS } from "@/layout/bands";
-import { classById, classes, lifecycleFor, type ClassId } from "@/metamodel";
+import { classById, classes, isExtended, lifecycleFor, type ClassId } from "@/metamodel";
 import { classChange, count, type Edge, type Model } from "@/model";
 
 const btn = "inline-flex min-h-8 cursor-pointer items-center border border-border-strong bg-surface-raised px-2.5 text-sm text-ink hover:border-accent hover:text-accent disabled:cursor-not-allowed disabled:opacity-50";
 const field = "min-h-8 border border-border-strong bg-surface-raised px-2 text-sm text-ink";
 const LISTED = 8;
+
+/** "Runs on becomes Depends on"; two reference fields would both read "reference", so those name their field. */
+function becomes(was: string, now: string) {
+  const [a, b] = [relationshipWord(was), relationshipWord(now)];
+  const field = (type: string, word: string) => (type.startsWith("reference:") ? `${word} (${type.slice("reference:".length)})` : word);
+  return a === b ? `${field(was, a)} becomes ${field(now, b)}` : `${a} becomes ${b}`;
+}
 
 /** What changing the class would do, in words: one paragraph or list per kind of outcome. */
 export function classChangeWords(model: Model, id: string, cls: ClassId) {
@@ -23,7 +30,7 @@ export function classChangeWords(model: Model, id: string, cls: ClassId) {
   return {
     change,
     kept: change.kept.length,
-    retyped: change.retyped.map((r) => `${ends(r.edge)}: ${relationshipWord(r.edge.type)} becomes ${relationshipWord(r.type)}`),
+    retyped: change.retyped.map((r) => `${ends(r.edge)}: ${becomes(r.edge.type, r.type)}`),
     removed: change.removed.map((r) => `${ends(r.edge)} (${relationshipWord(r.edge.type)})${r.why === "duplicate" ? ": it would repeat another relationship" : ""}`),
     flows,
     stage: stage && !stages?.includes(stage) ? stage : undefined,
@@ -32,22 +39,22 @@ export function classChangeWords(model: Model, id: string, cls: ClassId) {
 
 /** The outcome as one sentence, for the status line once it is done. */
 export function classChangeSaid(words: NonNullable<ReturnType<typeof classChangeWords>>) {
-  const total = words.kept + words.retyped.length + words.removed.length;
-  if (!total) return "It had no relationships.";
-  return `${[
-    words.kept ? `${count(words.kept, "relationship")} kept` : "",
-    words.retyped.length ? `${words.retyped.length} given a new type` : "",
-    words.removed.length ? `${words.removed.length} removed` : "",
-  ]
-    .filter(Boolean)
-    .join(", ")}.`;
+  const parts: [number, string][] = [
+    [words.kept, "kept"],
+    [words.retyped.length, "given a new type"],
+    [words.removed.length, "removed"],
+  ];
+  const said = parts.filter(([n]) => n > 0).map(([n, what], i) => `${i ? n : count(n, "relationship")} ${what}`);
+  if (!said.length) return "It had no relationships.";
+  return `${said.join(", ")}.${words.flows ? ` ${count(words.flows, "saved flow")} cut short.` : ""}`;
 }
 
 function Listed({ items }: { items: string[] }) {
   return (
     <ul className="mt-1 ml-4 list-disc text-sm">
-      {items.slice(0, LISTED).map((t) => (
-        <li key={t}>{t}</li>
+      {items.slice(0, LISTED).map((t, i) => (
+        // Two relationships can read the same (two untitled ends), so the place in the list is the key.
+        <li key={i}>{t}</li>
       ))}
       {items.length > LISTED && <li>and {items.length - LISTED} more</li>}
     </ul>
@@ -59,7 +66,7 @@ function Listed({ items }: { items: string[] }) {
  * relationship: kept, given the type CSDM allows between the two, or removed. Nothing is changed
  * until Change class; one undo step brings everything back.
  */
-export function ChangeClassDialog({ model, id, onChange, onClose }: { model: Model; id: string; onChange: (cls: ClassId) => void; onClose: () => void }) {
+export function ChangeClassDialog({ model, id, extended, onChange, onClose }: { model: Model; id: string; /** Offer the Extended classes too, as the palette does. */ extended: boolean; onChange: (cls: ClassId) => void; onClose: () => void }) {
   const dialog = useRef<HTMLDialogElement>(null);
   const uid = useId();
   const [cls, setCls] = useState<ClassId | "">("");
@@ -107,7 +114,7 @@ export function ChangeClassDialog({ model, id, onChange, onClose }: { model: Mod
               {LAYERS.map((layer) => (
                 <optgroup key={layer.id} label={`${layer.name} layer`}>
                   {classes
-                    .filter((c) => c.layer === layer.id && c.id !== node.class)
+                    .filter((c) => c.layer === layer.id && c.id !== node.class && (extended || !isExtended(c)))
                     .map((c) => (
                       <option key={c.id} value={c.id}>
                         {c.label}
@@ -117,7 +124,7 @@ export function ChangeClassDialog({ model, id, onChange, onClose }: { model: Mod
               ))}
             </select>
           </label>
-          <div id={`${uid}-outcome`} aria-live="polite" data-testid="reclass-outcome" className="flex flex-col gap-2 text-sm">
+          <div aria-live="polite" data-testid="reclass-outcome" className="flex flex-col gap-2 text-sm">
             {!words || !next ? (
               <p className="text-ink-muted">{total ? `Choose a class to see what happens to its ${count(total, "relationship")}.` : "It has no relationships, so only its class changes."}</p>
             ) : (
