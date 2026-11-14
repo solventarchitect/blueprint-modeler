@@ -1,6 +1,6 @@
 import { archimateElements, archimateFill, archimateRelationshipFor, archimateTypeInk, edgeNotation, markerSvg, type Lens, type MarkerShape, showsArchimate } from "@/frameworks";
 import { classById, isClassId, type Layer } from "@/metamodel";
-import { filterActive, GROUP_BY_LABEL, groupsOf, type GroupBy, formatModelDate, inView, legend, modelDate, PALETTE, slotColor, slotMap, slotMarker, UNTITLED_MODEL, PLAN_LABEL, PLAN_VIEW_LABEL, planHidden, type ColorBy, type Model, type PlanView, type ViewFilter, coloringWords, count } from "@/model";
+import { filterActive, GROUP_BY_LABEL, groupsOf, type GroupBy, formatModelDate, inView, legend, modelDate, PALETTE, slotColor, slotMap, slotMarker, UNTITLED_MODEL, PLAN_LABEL, PLAN_VIEW_LABEL, planHidden, type ColorBy, type Model, type PlanView, type ViewFilter, type LegendEntry, coloringWords, count } from "@/model";
 import { layoutOrientation } from "@/layout/bands";
 import { groupFrames, ownGroups } from "@/layout/groupLayout";
 import { planLabels } from "@/layout/edgeLabel";
@@ -159,7 +159,17 @@ function anchor(b: Box, side: Side) {
  * its description and, with a view (M54), the view's head line and legend. `avail` is the drawing's
  * width, which the description and legend wrap to. Shared by the plan and isometric pictures.
  */
-export function svgTitleBlock(model: Model, theme: SvgTheme, view: SvgView | undefined, shownCount: number, avail: number, state = "", total = model.nodes.length) {
+export function svgTitleBlock(
+  model: Model,
+  theme: SvgTheme,
+  view: SvgView | undefined,
+  shownCount: number,
+  avail: number,
+  state = "",
+  total = model.nodes.length,
+  /** M92: legend entries other than the view's own, and what is counted ("elements" by default). */
+  opts: { entries?: LegendEntry[]; counted?: string } = {},
+) {
   const p = palettes[theme];
   const name = model.name || UNTITLED_MODEL;
   const artifactId = model.artifactId?.trim() ?? "";
@@ -182,7 +192,7 @@ export function svgTitleBlock(model: Model, theme: SvgTheme, view: SvgView | und
               ]
             : []),
           state,
-          `showing ${shownCount} of ${total} elements`,
+          `showing ${shownCount} of ${total} ${opts.counted ?? "elements"}`,
         ]
           .filter(Boolean)
           .join(" · ")
@@ -192,7 +202,7 @@ export function svgTitleBlock(model: Model, theme: SvgTheme, view: SvgView | und
     const rowWidth = Math.max(480, avail);
     let row: (typeof legendRows)[number] = [];
     let used = 0;
-    for (const e of legend(model, view.colorBy, view.filter, view.colorTags)) {
+    for (const e of opts.entries ?? legend(model, view.colorBy, view.filter, view.colorTags)) {
       const label = `${clip(e.label, 40)} (${e.count})`;
       const w = LEGEND.marker + label.length * LEGEND.char + LEGEND.gap;
       if (row.length && used + w > rowWidth) {
