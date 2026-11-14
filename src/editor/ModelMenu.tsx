@@ -23,6 +23,7 @@ export function ModelMenu({
   onCompare,
   onSnapshots,
   onTable,
+  onCapabilityMap,
   onFlows,
   onDecisions,
   buttonClass,
@@ -36,6 +37,8 @@ export function ModelMenu({
   /** M66: keep the open model as it is now, or go back to a kept one. */
   onSnapshots?: () => void;
   onTable?: () => void;
+  /** M92: the capability map. */
+  onCapabilityMap?: () => void;
   onFlows?: () => void;
   /** M78: the Decisions dialog. */
   onDecisions?: () => void;
@@ -183,6 +186,19 @@ export function ModelMenu({
             }}
           >
             Table…
+          </button>
+        )}
+        {onCapabilityMap && (
+          <button
+            type="button"
+            className="mt-2 ml-2 cursor-pointer border border-border-strong px-2.5 py-1.5 text-sm text-ink hover:border-accent hover:text-accent"
+            onClick={() => {
+              setOpen(false);
+              button.current?.focus();
+              onCapabilityMap();
+            }}
+          >
+            Capability map…
           </button>
         )}
         {onSnapshots && (

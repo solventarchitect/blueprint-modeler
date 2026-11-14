@@ -17,3 +17,4 @@ export * from "./words";
 export * from "./reclass";
 export * from "./reverse";
 export * from "./path";
+export * from "./capmap";

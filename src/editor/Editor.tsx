@@ -72,6 +72,7 @@ import { ShortcutMap } from "./ShortcutMap";
 import { CompareBar, CompareDialog, compareSummary } from "./Compare";
 import { SnapshotsDialog } from "./Snapshots";
 import { TableView } from "./TableView";
+import { CapabilityMapDialog } from "./CapabilityMap";
 import { FlowsDialog } from "./Flows";
 import { DecisionsDialog, type DecisionsStart } from "./Decisions";
 import { ARRANGE, batchTargets, SelectionPanel, type ArrangeKind, type BatchKey } from "./SelectionPanel";
@@ -336,6 +337,8 @@ function EditorInner() {
   const [compareDialog, setCompareDialog] = useState(false);
   const [snapshotsDialog, setSnapshotsDialog] = useState(false);
   const [tableDialog, setTableDialog] = useState(false);
+  // M92: the capability map.
+  const [capMapDialog, setCapMapDialog] = useState(false);
   const [flowsDialog, setFlowsDialog] = useState(false);
   // M78: the Decisions dialog, and where it opens (on a decision, or making one about an element).
   const [decisionsDialog, setDecisionsDialog] = useState<DecisionsStart | null>(null);
@@ -2553,6 +2556,7 @@ function EditorInner() {
         .filter((f) => f.steps.length)
         .map((f): Command => ({ id: `play-flow-${f.id}`, group: "Model", label: `Play flow: ${f.name}`, keywords: "saved flow scenario", run: () => playFlow(f.id, document.activeElement instanceof HTMLElement && document.activeElement !== document.body ? document.activeElement : null) })),
       { id: "table", group: "Model", label: "Table…", keywords: "list grid rows spreadsheet csv elements relationships bulk edit", run: () => openDialog(setTableDialog) },
+      { id: "capability-map", group: "Model", label: "Capability map…", keywords: "business capabilities tiles hierarchy heat map coverage applications", run: () => openDialog(setCapMapDialog) },
       { id: "snapshots", group: "Model", label: "Snapshots…", keywords: "version history keep restore save point", run: () => openDialog(setSnapshotsDialog) },
       { id: "compare", group: "Model", label: "Compare with…", keywords: "diff changes difference version file saved model", run: () => openDialog(setCompareDialog) },
       ...(compare ? [{ id: "compare-close", group: "Model", label: "Close compare", keys: "Esc", keywords: "diff", run: closeCompare }] : []),
@@ -2700,6 +2704,7 @@ function EditorInner() {
           onCompare={() => openDialog(setCompareDialog)}
           onSnapshots={() => openDialog(setSnapshotsDialog)}
           onTable={() => openDialog(setTableDialog)}
+          onCapabilityMap={() => openDialog(setCapMapDialog)}
           onFlows={() => openDialog(setFlowsDialog)}
           onDecisions={() => openDecisions()}
           onOpen={(id) => {
@@ -3148,7 +3153,7 @@ function EditorInner() {
               nodesConnectable={wide && !presenting}
               elementsSelectable={!presenting}
               // React Flow listens for Delete on the document, past `inert`: the isometric projections are read only.
-              deleteKeyCode={wide && !presenting && projection === "plan" && !palette && !shortcuts && !managing && !viewDialog && !flowsDialog && !decisionsDialog && !tableDialog && !snapshotsDialog && !compareDialog && !reclassing ? ["Delete", "Backspace"] : null}
+              deleteKeyCode={wide && !presenting && projection === "plan" && !palette && !shortcuts && !managing && !viewDialog && !flowsDialog && !decisionsDialog && !tableDialog && !capMapDialog && !snapshotsDialog && !compareDialog && !reclassing ? ["Delete", "Backspace"] : null}
               // Delete and Backspace: the selected elements, their relationships and any selected
               // relationship go together, as one undo step (React Flow would report each on its own).
               onBeforeDelete={async ({ nodes: gone, edges: lines }) => {
@@ -3429,6 +3434,20 @@ function EditorInner() {
             focusDetails();
           }}
           onClose={() => dialogClosed(setTableDialog)}
+        />
+      )}
+      {capMapDialog && (
+        <CapabilityMapDialog
+          model={model}
+          shown={shown}
+          onGoTo={(id) => {
+            // Focus goes with the selection (the Details tab), as from the table.
+            dialogReturn.current = null;
+            setCapMapDialog(false);
+            goToElement(id);
+            focusDetails();
+          }}
+          onClose={() => dialogClosed(setCapMapDialog)}
         />
       )}
       {snapshotsDialog && (
