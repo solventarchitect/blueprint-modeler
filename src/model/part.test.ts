@@ -52,4 +52,13 @@ describe("modelPart (M81)", () => {
     expect(modelPart(m, new Set(["cap"])).decisions).toEqual([{ id: "a", title: "Old", status: "superseded" }]);
     expect(modelPart(m, new Set(["ba"])).decisions).toEqual(m.decisions);
   });
+
+  it("keeps the notes that are free or on a kept element (M93)", () => {
+    const base = checkout();
+    const kept = base.nodes[0]!.id;
+    const gone = base.nodes[1]!.id;
+    const withNotes = { ...base, notes: [{ id: "free", text: "Free", x: 0, y: 0 }, { id: "on", text: "On kept", x: 1, y: 1, attachedTo: kept }, { id: "off", text: "On gone", x: 2, y: 2, attachedTo: gone }] };
+    expect(modelPart(withNotes, new Set([kept])).notes!.map((n) => n.id)).toEqual(["free", "on"]);
+    expect("notes" in modelPart(base, new Set([kept]))).toBe(false);
+  });
 });

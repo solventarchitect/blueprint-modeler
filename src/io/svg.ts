@@ -1,6 +1,6 @@
 import { archimateElements, archimateFill, archimateRelationshipFor, archimateTypeInk, edgeNotation, markerSvg, type Lens, type MarkerShape, showsArchimate } from "@/frameworks";
 import { classById, isClassId, type Layer } from "@/metamodel";
-import { filterActive, GROUP_BY_LABEL, groupsOf, type GroupBy, formatModelDate, inView, legend, modelDate, PALETTE, slotColor, slotMap, slotMarker, UNTITLED_MODEL, PLAN_LABEL, PLAN_VIEW_LABEL, planHidden, type ColorBy, type Model, type PlanView, type ViewFilter, type LegendEntry, coloringWords, count } from "@/model";
+import { filterActive, GROUP_BY_LABEL, groupsOf, type GroupBy, formatModelDate, inView, legend, modelDate, PALETTE, slotColor, slotMap, slotMarker, UNTITLED_MODEL, PLAN_LABEL, PLAN_VIEW_LABEL, planHidden, type ColorBy, type Model, type PlanView, type ViewFilter, type LegendEntry, coloringWords, count, noteAt } from "@/model";
 import { layoutOrientation } from "@/layout/bands";
 import { groupFrames, ownGroups } from "@/layout/groupLayout";
 import { planLabels } from "@/layout/edgeLabel";
@@ -268,11 +268,35 @@ export function svgTitleBlock(
   return { width, height, render };
 }
 
+/** M93: a note's box in a picture: where it sits, its lines of text and what it is on. */
+type NoteBox = Box & { id: string; on: string; lines: string[] };
+const NOTE = { w: 208, chars: 30, line: 16, maxLines: 12, pad: 10, caption: 16 } as const;
+
+/** The notes a picture draws: each where the canvas puts it, its text wrapped to the note's width. */
+export function notesToDraw(model: Model): NoteBox[] {
+  return (model.notes ?? []).flatMap((n) => {
+    if (n.attachedTo && !model.nodes.some((x) => x.id === n.attachedTo)) return [];
+    const at = noteAt(model, n);
+    const lines = n.text.split("\n").flatMap((para) => (para.trim() ? wrapText(para, NOTE.chars, NOTE.maxLines) : [""]));
+    const kept = lines.length > NOTE.maxLines ? [...lines.slice(0, NOTE.maxLines - 1), clip(`${lines[NOTE.maxLines - 1]}…`, NOTE.chars)] : lines;
+    const on = n.attachedTo ? model.nodes.find((x) => x.id === n.attachedTo)?.name || "Untitled" : "";
+    return [{ id: n.id, on, lines: kept, x: at.x, y: at.y, w: NOTE.w, h: 2 * NOTE.pad + NOTE.caption + kept.length * NOTE.line }];
+  });
+}
+
+/** One note: a sticky with a status-colored edge, "NOTE" (and what it is on), and its text. */
+const noteSvg = (b: NoteBox, p: (typeof palettes)[SvgTheme]) =>
+  `<g data-note="${esc(b.id)}"><rect x="${b.x}" y="${b.y}" width="${b.w}" height="${b.h}" fill="${p.node}" stroke="${p.line}"/>` +
+  `<rect x="${b.x}" y="${b.y}" width="4" height="${b.h}" fill="${p.status}"/>` +
+  `<text x="${b.x + 14}" y="${b.y + NOTE.pad + 9}" font-family="${MONO}" font-size="9" letter-spacing="1.2" fill="${p.muted}">${esc(clip(b.on ? `NOTE · ON ${b.on.toUpperCase()}` : "NOTE", 32))}</text>` +
+  b.lines.map((l, i) => `<text x="${b.x + 14}" y="${b.y + NOTE.pad + NOTE.caption + (i + 1) * NOTE.line - 4}" font-family="${SANS}" font-size="12" fill="${p.ink}">${esc(l)}</text>`).join("") +
+  `</g>`;
+
 /**
  * The model as a standalone SVG in the chosen theme: same boxes, lanes and edge routing as the
  * canvas, system fonts (IBM Plex if installed), no scripts, no external references.
  */
-export function modelToSvg(whole: Model, theme: SvgTheme, opts: { lens?: Lens; highlight?: SvgHighlight; lines?: LineStyle; labels?: boolean; view?: SvgView } = {}): string {
+export function modelToSvg(whole: Model, theme: SvgTheme, opts: { lens?: Lens; highlight?: SvgHighlight; lines?: LineStyle; labels?: boolean; view?: SvgView; /** M93: draw the notes. */ notes?: boolean } = {}): string {
   const { model, label: stateLabel, desc: stateDesc } = stateShown(whole, opts.view?.state, "planned dotted, retiring struck through, each labeled");
   const lens = opts.lens ?? "csdm";
   // "All elements" colored by layer draws exactly as without a view.
@@ -302,12 +326,14 @@ export function modelToSvg(whole: Model, theme: SvgTheme, opts: { lens?: Lens; h
   const frames = view?.groupBy ? groupFrames(ownGroups(groupsOf(model, view.groupBy)), model.layout, Object.fromEntries([...boxes].map(([id, b]) => [id, { width: b.w, height: b.h }]))) : [];
   const tabText = (f: (typeof frames)[number]) => `${f.label} · ${f.count}`;
   const tabW = (f: (typeof frames)[number]) => tabText(f).length * 6.6 + 16;
-  // What the image has to hold: the elements, and the frames with their tabs.
-  const extent = [...all, ...frames.map((f) => ({ x: f.x, y: f.y - GROUP_TAB_H, w: Math.max(f.w, tabW(f)), h: f.h + GROUP_TAB_H }))];
+  // M93: the notes, as on the canvas; one on an element the picture leaves out is left out too.
+  const noteBoxes = opts.notes ? notesToDraw(model) : [];
+  // What the image has to hold: the elements, the frames with their tabs, and the notes.
+  const extent = [...all, ...frames.map((f) => ({ x: f.x, y: f.y - GROUP_TAB_H, w: Math.max(f.w, tabW(f)), h: f.h + GROUP_TAB_H })), ...noteBoxes];
   const columns = layoutOrientation(model, Object.fromEntries([...boxes].map(([id, b]) => [id, { width: b.w, height: b.h }]))) === "columns";
-  const minX = all.length ? Math.min(...extent.map((b) => b.x)) - PAD : 0;
+  const minX = extent.length ? Math.min(...extent.map((b) => b.x)) - PAD : 0;
   const name = model.name || UNTITLED_MODEL;
-  const diagramMaxX = all.length ? Math.max(...extent.map((b) => b.x + b.w)) + PAD : 2 * PAD;
+  const diagramMaxX = extent.length ? Math.max(...extent.map((b) => b.x + b.w)) + PAD : 2 * PAD;
   const tb = svgTitleBlock(model, theme, view, model.nodes.length - faded.size, diagramMaxX - minX - 2 * PAD, stateLabel, whole.nodes.length);
   const titleWidth = tb.width;
   const maxX = Math.max(
@@ -316,8 +342,8 @@ export function modelToSvg(whole: Model, theme: SvgTheme, opts: { lens?: Lens; h
     minX + 2 * PAD + titleWidth,
   );
   const titleH = tb.height;
-  const minY = (all.length ? Math.min(...extent.map((b) => b.y)) - PAD : 0) - titleH - (hl?.caption ? CAPTION_H : 0);
-  const maxY = all.length ? Math.max(...extent.map((b) => b.y + b.h)) + PAD : 2 * PAD;
+  const minY = (extent.length ? Math.min(...extent.map((b) => b.y)) - PAD : 0) - titleH - (hl?.caption ? CAPTION_H : 0);
+  const maxY = extent.length ? Math.max(...extent.map((b) => b.y + b.h)) + PAD : 2 * PAD;
   const width = hl?.caption ? Math.ceil(maxX - minX) : maxX - minX;
   const height = maxY - minY;
 
@@ -451,6 +477,7 @@ export function modelToSvg(whole: Model, theme: SvgTheme, opts: { lens?: Lens; h
     ),
     ...edges,
     ...nodes,
+    ...noteBoxes.map((b) => noteSvg(b, p)),
     ...(caption ? [caption] : []),
     `</svg>`,
     "",

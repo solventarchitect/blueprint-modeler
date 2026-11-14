@@ -1,14 +1,14 @@
 import { describe, expect, it } from "vitest";
 import { examples } from "@/examples";
 import type { Flow } from "@/model";
-import { bookContents, bookDecisions, bookElements, bookFlows, BOOK_SECTIONS } from "./book";
+import { bookContents, bookDecisions, bookElements, bookFlows, bookNotes, BOOK_SECTIONS } from "./book";
 
 const checkout = () => examples.find((e) => e.id === "checkout")!.create(new Date("2026-09-27T00:00:00Z"), "m1");
 const order: Flow = { id: "f1", name: "Customer places an order", steps: [{ edge: "e6" }, { edge: "e9" }, { edge: "e12" }] };
 
 describe("the model book (M76)", () => {
   it("has its sections in order", () => {
-    expect(BOOK_SECTIONS).toEqual(["Picture", "The model by layer", "Elements", "Relationships", "Saved flows", "Decisions", "Health"]);
+    expect(BOOK_SECTIONS).toEqual(["Picture", "The model by layer", "Elements", "Relationships", "Saved flows", "Decisions", "Notes", "Health"]);
   });
 
   it("lists each saved flow with its start and steps in words, in the model's order", () => {
@@ -65,8 +65,8 @@ describe("the model book's decisions (M78)", () => {
 describe("the model book's contents (M81)", () => {
   it("every section with what it holds", () => {
     const m = { ...checkout(), flows: [order], decisions: [{ id: "d1", title: "X", status: "proposed" as const }] };
-    expect(bookContents(m)).toEqual(["Picture", "The model by layer (5 layers)", "Elements (14)", "Relationships (13)", "Saved flows (1)", "Decisions (1)", "Health"]);
-    expect(bookContents({ ...checkout(), nodes: [], edges: [], layout: {} })).toEqual(["Picture", "The model by layer", "Elements (none)", "Relationships (none)", "Saved flows (none)", "Decisions (none)", "Health"]);
+    expect(bookContents(m)).toEqual(["Picture", "The model by layer (5 layers)", "Elements (14)", "Relationships (13)", "Saved flows (1)", "Decisions (1)", "Notes (none)", "Health"]);
+    expect(bookContents({ ...checkout(), nodes: [], edges: [], layout: {} })).toEqual(["Picture", "The model by layer", "Elements (none)", "Relationships (none)", "Saved flows (none)", "Decisions (none)", "Notes (none)", "Health"]);
   });
 });
 
@@ -77,5 +77,13 @@ describe("the book of a part (M81 review)", () => {
     const rows = bookElements(part, whole).rows;
     expect(rows.map((r) => r.id)).toEqual(["ba"]);
     expect(Number(rows[0]!.relationships)).toBe(whole.edges.filter((e) => e.from === "ba" || e.to === "ba").length);
+  });
+});
+
+describe("notes in the model book (M93)", () => {
+  it("lists each note in the model's order, naming the element it is on, and counts them in the contents", () => {
+    const m = { ...checkout(), notes: [{ id: "n1", text: "Free note", x: 0, y: 0 }, { id: "n2", text: "Who owns it?", x: 10, y: 10, attachedTo: checkout().nodes[0]!.id }] };
+    expect(bookNotes(m)).toEqual([{ on: "", text: "Free note" }, { on: checkout().nodes[0]!.name, text: "Who owns it?" }]);
+    expect(bookContents(m)).toContain("Notes (2)");
   });
 });

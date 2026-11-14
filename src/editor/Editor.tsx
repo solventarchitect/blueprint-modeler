@@ -60,7 +60,7 @@ import { arrangeByGroups, groupFrames, ownGroups, type Frame } from "@/layout/gr
 import { autoLayout, DEFAULT_SIZE, fillSpace, type LayoutMode } from "@/layout/layout";
 import { createWorkerEngine } from "@/layout/worker-engine";
 import { classById, classes, ENVIRONMENT_EXAMPLES, isClassId, isExtended, type ClassId, type Layer } from "@/metamodel";
-import { ALL_ELEMENTS, FIELD_LABEL, healthReport, localDay, GROUP_BY_LABEL, groupsOf, primaryGroup, SIDES, compareModels, parseModel, blastRadius, COLOR_BY_LABEL, evaluateHints, filterActive, formatModelDate, impactEnds, inView, isBusinessAnchor as isAnchor, modelDate, slotMap, decisionCounts, modelPart, storedColorBy, valueLabels, viewColorBy, UNTITLED_MODEL, focusArea, FOCUS_DEPTHS, type FocusDepth, flowRadius, flowStepText, playableFlows, PLAN_LABEL, PLAN_VIEW_LABEL, planHidden, type PlanView, type BlastDirection, type Edge, type HintResult, type Model, coloringWords, count, withClass, reversal, shortestPaths } from "@/model";
+import { ALL_ELEMENTS, FIELD_LABEL, healthReport, localDay, GROUP_BY_LABEL, groupsOf, primaryGroup, SIDES, compareModels, parseModel, blastRadius, COLOR_BY_LABEL, evaluateHints, filterActive, formatModelDate, impactEnds, inView, isBusinessAnchor as isAnchor, modelDate, slotMap, decisionCounts, modelPart, storedColorBy, valueLabels, viewColorBy, UNTITLED_MODEL, focusArea, FOCUS_DEPTHS, type FocusDepth, flowRadius, flowStepText, playableFlows, PLAN_LABEL, PLAN_VIEW_LABEL, planHidden, type PlanView, type BlastDirection, type Edge, type HintResult, type Model, coloringWords, count, withClass, reversal, shortestPaths, noteAt } from "@/model";
 import { site } from "@/lib/site";
 import { ClassNode, SuggestContext, type ClassFlowNode } from "./ClassNode";
 import { ConnectionLine, ConnectionModelContext, ReconnectingContext } from "./ConnectionLine";
@@ -73,6 +73,7 @@ import { CompareBar, CompareDialog, compareSummary } from "./Compare";
 import { SnapshotsDialog } from "./Snapshots";
 import { TableView } from "./TableView";
 import { CapabilityMapDialog } from "./CapabilityMap";
+import { NotesLayer, NOTE_WIDTH, type NoteDraft } from "./Notes";
 import { FlowsDialog } from "./Flows";
 import { DecisionsDialog, type DecisionsStart } from "./Decisions";
 import { ARRANGE, batchTargets, SelectionPanel, type ArrangeKind, type BatchKey } from "./SelectionPanel";
@@ -291,17 +292,19 @@ function EditorInner() {
     selectedRef.current = selection;
   }, [selection]);
   /** Zoom menu and Shift+1/2/0 (M49): fit, the selected element, or a preset level around the center. */
+  /** M93: fits the whole model, notes included; set each render, once what it needs is worked out. */
+  const fitAllRef = useRef<(o: { padding: number; duration?: number }) => Promise<boolean>>(() => Promise.resolve(false));
   const zoomCommand = useCallback(
     (c: ZoomCommand) => {
       // The isometric picture has its own pan and zoom.
       if (isoRef.current) return isoRef.current.zoom(c);
       const duration = prefersStill() ? 0 : 300;
-      if (c === "fit") void flow.fitView({ maxZoom: 1, padding: fitPadding(0.15), duration });
+      if (c === "fit") void fitAllRef.current({ padding: 0.15, duration });
       else if (c === "selection") {
         if (selectedRef.current.length) void flow.fitView({ nodes: selectedRef.current.map((id) => ({ id })), padding: 0.3, maxZoom: 1.25, duration });
       } else void flow.zoomTo(c, { duration });
     },
-    [flow, fitPadding],
+    [flow],
   );
   const [focusName, setFocusName] = useState(0);
   const [focusConnect, setFocusConnect] = useState(0);
@@ -339,6 +342,9 @@ function EditorInner() {
   const [tableDialog, setTableDialog] = useState(false);
   // M92: the capability map.
   const [capMapDialog, setCapMapDialog] = useState(false);
+  // M93: the note being edited in place, and a new one being written (not in the model until it has text).
+  const [noteEditing, setNoteEditing] = useState<string | null>(null);
+  const [noteDraft, setNoteDraft] = useState<NoteDraft | null>(null);
   const [flowsDialog, setFlowsDialog] = useState(false);
   // M78: the Decisions dialog, and where it opens (on a decision, or making one about an element).
   const [decisionsDialog, setDecisionsDialog] = useState<DecisionsStart | null>(null);
@@ -1073,7 +1079,7 @@ function EditorInner() {
   const exampleOpened = (ex: (typeof examples)[number]) => {
     if (ex.lens) setLens(ex.lens);
     setMessage(`Opened the example “${ex.name}” as a new model.${ex.lens ? ` Lens: ${lenses.find((l) => l.id === ex.lens)?.label}.` : ""}`);
-    setTimeout(() => void flow.fitView({ maxZoom: 1, padding: fitPadding(0.15) }), 50);
+    setTimeout(() => void fitAllRef.current({ padding: 0.15 }), 50);
   };
 
   const loadExample = async (exampleId: string) => {
@@ -1090,7 +1096,7 @@ function EditorInner() {
     const warn = r.issues.length ? ` ${r.issues.length} relationship${r.issues.length === 1 ? " breaks" : "s break"} the CSDM rules; see Hints.` : "";
     const name = shownText(r.model.name, 200) || UNTITLED_MODEL;
     setMessage(`Opened the shared model “${name}” ${r.copied ? "as a copy (a model with the same id is already here)" : "as a new model"}.${warn}${r.notes ? ` ${r.notes.join(" ")}` : ""}`);
-    setTimeout(() => void flow.fitView({ maxZoom: 1, padding: fitPadding(0.15) }), 50);
+    setTimeout(() => void fitAllRef.current({ padding: 0.15 }), 50);
   };
   // Shown as text and cut short: a small link can carry a validation message megabytes long.
   const shareProblem = (error: string) => setIoError(`This link does not contain a model Blueprint Modeler can open. ${shownText(error, 300)}`);
@@ -1181,7 +1187,7 @@ function EditorInner() {
       }
       dispatch({ type: "set-layout", layout });
       setMessage(`${layoutDone[mode]} Undo restores the previous positions.`);
-      setTimeout(() => void flow.fitView({ maxZoom: 1, padding: fitPadding(0.15), duration: 300 }), 50);
+      setTimeout(() => void fitAllRef.current({ padding: 0.15, duration: 300 }), 50);
     } catch {
       setMessage("Layout failed. Your positions are unchanged.");
     } finally {
@@ -1216,7 +1222,7 @@ function EditorInner() {
     }
     dispatch({ type: "set-layout", layout });
     setMessage("Spread to fill the view. Undo restores the previous positions.");
-    setTimeout(() => void flow.fitView({ maxZoom: 1, padding: fitPadding(0.15), duration: 300 }), 50);
+    setTimeout(() => void fitAllRef.current({ padding: 0.15, duration: 300 }), 50);
   };
 
   const chooseLayout = (choice: LayoutChoice) => (choice === "fill" ? runFill() : void runLayout(choice));
@@ -1247,7 +1253,7 @@ function EditorInner() {
     const warn = r.issues.length ? ` ${r.issues.length} relationship${r.issues.length === 1 ? " breaks" : "s break"} the CSDM rules; see Hints.` : "";
     const from = archimate ? ` from an ArchiMate file: ${r.model.nodes.length} element${r.model.nodes.length === 1 ? "" : "s"}, ${r.model.edges.length} relationship${r.model.edges.length === 1 ? "" : "s"}` : "";
     setMessage(`Imported “${r.model.name || UNTITLED_MODEL}”${from}${r.copied ? " as a copy (a model with the same id is already here)" : ""}.${warn}${r.notes?.length ? ` ${r.notes.join(" ")}` : ""}`);
-    setTimeout(() => void flow.fitView({ maxZoom: 1, padding: fitPadding(0.15) }), 50);
+    setTimeout(() => void fitAllRef.current({ padding: 0.15 }), 50);
   };
 
   const [makingGif, setMakingGif] = useState(false);
@@ -1354,7 +1360,7 @@ function EditorInner() {
 
   /** The image exports' picture: the plan, or the isometric projection on screen (M59), following the view and the state shown (M71). */
   const picture = (theme: "dark" | "light") =>
-    projection === "plan" ? modelToSvg(model, theme, { lens, lines: view.lines, labels: view.labels, view: pictureView }) : isoToSvg(model, theme, { mode: projection, view: pictureView });
+    projection === "plan" ? modelToSvg(model, theme, { lens, lines: view.lines, labels: view.labels, view: pictureView, notes: view.notes }) : isoToSvg(model, theme, { mode: projection, view: pictureView });
   /** What the editor shows, when it is less than (or other than) the whole model, in words (M76, M81, M82). */
   const shownWords = () =>
     [
@@ -1737,6 +1743,69 @@ function EditorInner() {
       (nodeEl(reachable[0] ?? "") ?? document.querySelector<HTMLElement>(".react-flow__pane"))?.focus();
     }, 0);
   };
+  // M93: notes. A new note is written in place and added only once it has text (one undo step).
+  const focusNote = (id: string) => setTimeout(() => document.querySelector<HTMLElement>(`[data-note="${CSS.escape(id)}"]`)?.focus(), 0);
+  const startNote = (at?: { x: number; y: number }, attachTo?: string) => {
+    if (!view.notes) setView({ ...view, notes: true });
+    setNoteEditing(null);
+    const el = attachTo ? model.layout[attachTo] : undefined;
+    // On an element: beside it, to the right; elsewhere: where asked, or the middle of the canvas.
+    const pos = el
+      ? { x: el.x + (measured.current[attachTo!]?.width ?? 224) + 24, y: el.y }
+      : (at ?? flow.screenToFlowPosition({ x: window.innerWidth / 2 - NOTE_WIDTH / 2, y: window.innerHeight / 2 }));
+    setNoteDraft({ x: Math.round(pos.x), y: Math.round(pos.y), ...(attachTo ? { attachTo } : {}) });
+  };
+  const addNote = (draft: NoteDraft, text: string) => {
+    setNoteDraft(null);
+    if (!text.trim()) return setMessage("Nothing was written, so no note was added.");
+    const id = crypto.randomUUID();
+    dispatch({ type: "add-note", note: { id, text, x: draft.x, y: draft.y }, ...(draft.attachTo ? { attachTo: draft.attachTo } : {}) });
+    setMessage(`Added a note${draft.attachTo ? ` on “${nameOf(draft.attachTo)}”` : ""}. Undo removes it.`);
+    focusNote(id);
+  };
+  const noteText = (id: string, text: string) => {
+    if (!text.trim()) {
+      dispatch({ type: "delete-note", id });
+      return setMessage("Deleted the note, which was left empty. Undo restores it.");
+    }
+    dispatch({ type: "set-note-text", id, text });
+    focusNote(id);
+  };
+  const deleteNote = (id: string) => {
+    dispatch({ type: "delete-note", id });
+    setMessage("Deleted the note. Undo restores it.");
+  };
+  const noteMenu = (id: string): MenuItem[] => {
+    const note = model.notes?.find((n) => n.id === id);
+    if (!note) return [];
+    // Attach to the selected element, when one is selected and the note isn't on it already.
+    const target = selectedId && selectedId !== note.attachedTo && model.layout[selectedId] ? selectedId : null;
+    return [
+      { kind: "item", label: "Edit", onSelect: () => setNoteEditing(id) },
+      ...(note.attachedTo
+        ? [{ kind: "item" as const, label: `Free from “${nameOf(note.attachedTo)}”`, note: "It stays where it is and no longer moves with it", onSelect: () => (dispatch({ type: "attach-note", id, to: null }), setMessage(`The note no longer moves with “${nameOf(note.attachedTo!)}”.`)) }]
+        : []),
+      ...(target ? [{ kind: "item" as const, label: `Attach to “${nameOf(target)}”`, note: "It stays where it is and moves with it from now on", onSelect: () => (dispatch({ type: "attach-note", id, to: target }), setMessage(`The note now moves with “${nameOf(target)}”.`)) }] : []),
+      { kind: "separator" },
+      { kind: "item", label: "Delete note", onSelect: () => deleteNote(id) },
+    ];
+  };
+  const notesHidden = useMemo(() => new Set([...hiddenIds, ...planHide.nodes]), [hiddenIds, planHide]);
+  // The whole model in view: its elements and, when shown, its notes (fitView knows only the elements).
+  fitAllRef.current = ({ padding, duration }) => {
+    const pad = fitPadding(padding);
+    const notes = view.notes && projection === "plan" ? (model.notes ?? []).filter((n) => !(n.attachedTo && notesHidden.has(n.attachedTo))) : [];
+    const { width, height } = store.getState();
+    if (!notes.length || !width || !height) return flow.fitView({ maxZoom: 1, padding: pad, duration });
+    const rects = notes.map((n) => ({ ...noteAt(model, n), width: NOTE_WIDTH, height: document.querySelector<HTMLElement>(`[data-note="${CSS.escape(n.id)}"]`)?.offsetHeight ?? 80 }));
+    const shownNodes = flow.getNodes().filter((n) => !n.hidden);
+    if (shownNodes.length) rects.push(flow.getNodesBounds(shownNodes));
+    const x0 = Math.min(...rects.map((r) => r.x));
+    const y0 = Math.min(...rects.map((r) => r.y));
+    const bounds = { x: x0, y: y0, width: Math.max(...rects.map((r) => r.x + r.width)) - x0, height: Math.max(...rects.map((r) => r.y + r.height)) - y0 };
+    return flow.setViewport(getViewportForBounds(bounds, width, height, 0.2, 1, pad), { duration }).then(() => true);
+  };
+
   const selectionMenu = (): MenuItem[] => [
     // M91: with exactly two selected, the chain of relationships between them.
     ...(pair ? [{ kind: "item" as const, label: "Show how these connect", onSelect: () => openPath(pair[0], pair[1], menuReturn.current) }, { kind: "separator" as const }] : []),
@@ -1761,6 +1830,7 @@ function EditorInner() {
     return [
       { kind: "item", label: "Rename", onSelect: () => (selectNode(id), setFocusName((k) => k + 1)) },
       { kind: "item", label: "Change class…", onSelect: () => (selectNode(id), openReclass(id, menuReturn.current)) },
+      { kind: "item", label: "Add note", note: "A note that moves with it", onSelect: () => startNote(undefined, id) },
       { kind: "item", label: "Add a relationship…", onSelect: () => (selectNode(id), setFocusConnect((k) => k + 1)) },
       { kind: "item", label: "Add a related element…", onSelect: () => quickAddAt(id) },
       {
@@ -1908,7 +1978,10 @@ function EditorInner() {
       },
     ];
   };
-  const paneMenu = (): MenuItem[] => [
+  const paneMenu = (at?: { x: number; y: number }): MenuItem[] => [
+    // M93: a note where the menu was opened.
+    { kind: "item", label: "Add note here", disabled: projection !== "plan", onSelect: () => startNote(at ? flow.screenToFlowPosition(at) : undefined) },
+    { kind: "separator" },
     { kind: "item", label: "Undo", disabled: !doc.canUndo, onSelect: () => dispatch({ type: "undo" }) },
     { kind: "item", label: "Redo", disabled: !doc.canRedo, onSelect: () => dispatch({ type: "redo" }) },
     { kind: "separator" },
@@ -1970,7 +2043,7 @@ function EditorInner() {
       openMenu(r.left + r.width / 2, r.top + r.height / 2, "Relationship menu", edgeMenu(edgeEl.dataset.id), edgeEl);
     } else {
       const r = e.currentTarget.getBoundingClientRect();
-      openMenu(r.left + r.width / 2, r.top + r.height / 2, "Canvas menu", paneMenu(), t);
+      openMenu(r.left + r.width / 2, r.top + r.height / 2, "Canvas menu", paneMenu({ x: r.left + r.width / 2, y: r.top + r.height / 2 }), t);
     }
   };
 
@@ -2283,7 +2356,7 @@ function EditorInner() {
       if (!document.activeElement?.closest('[aria-label="Presentation"]')) exitButton.current?.focus();
       if (flowId) return presentFlow(flowId);
       if (isoRef.current) isoRef.current.zoom("fit");
-      else void flow.fitView({ padding: fitPadding(0.12), maxZoom: 1, duration: 300 });
+      else void fitAllRef.current({ padding: 0.12, duration: 300 });
     }, 60);
   };
   const stopPresenting = useCallback(() => {
@@ -2296,9 +2369,9 @@ function EditorInner() {
       // Back to Present, unless the user has already moved on (an Export menu opened right away would close).
       if (!document.activeElement || document.activeElement === document.body) presentButton.current?.focus();
       if (isoRef.current) isoRef.current.zoom("fit");
-      else void flow.fitView({ maxZoom: 1, padding: fitPadding(0.15) });
+      else void fitAllRef.current({ padding: 0.15 });
     }, 60);
-  }, [flow, fitPadding]);
+  }, []);
   useEffect(() => {
     if (!presenting) return;
     const onKey = (e: KeyboardEvent) => {
@@ -2556,6 +2629,19 @@ function EditorInner() {
         .filter((f) => f.steps.length)
         .map((f): Command => ({ id: `play-flow-${f.id}`, group: "Model", label: `Play flow: ${f.name}`, keywords: "saved flow scenario", run: () => playFlow(f.id, document.activeElement instanceof HTMLElement && document.activeElement !== document.body ? document.activeElement : null) })),
       { id: "table", group: "Model", label: "Table…", keywords: "list grid rows spreadsheet csv elements relationships bulk edit", run: () => openDialog(setTableDialog) },
+      // M93: a note on the selected element, or in the middle of the canvas.
+      ...(wide
+        ? [
+            {
+              id: "add-note",
+              group: "Edit",
+              label: selectedId ? `Add a note on “${nameOf(selectedId)}”` : "Add a note",
+              keywords: "note comment annotation callout sticky assumption question",
+              disabled: projection !== "plan" ? "Switch to Plan to add a note" : undefined,
+              run: () => startNote(undefined, selectedId ?? undefined),
+            } as Command,
+          ]
+        : []),
       { id: "capability-map", group: "Model", label: "Capability map…", keywords: "business capabilities tiles hierarchy heat map coverage applications", run: () => openDialog(setCapMapDialog) },
       { id: "snapshots", group: "Model", label: "Snapshots…", keywords: "version history keep restore save point", run: () => openDialog(setSnapshotsDialog) },
       { id: "compare", group: "Model", label: "Compare with…", keywords: "diff changes difference version file saved model", run: () => openDialog(setCompareDialog) },
@@ -3142,7 +3228,7 @@ function EditorInner() {
                 canMenu
                   ? (e) => {
                       e.preventDefault();
-                      openMenu(e.clientX, e.clientY, "Canvas menu", paneMenu(), null);
+                      openMenu(e.clientX, e.clientY, "Canvas menu", paneMenu({ x: e.clientX, y: e.clientY }), null);
                     }
                   : undefined
               }
@@ -3186,6 +3272,24 @@ function EditorInner() {
                       style={g.axis === "x" ? { left: g.at, top: g.from - 12, height: g.to - g.from + 24, width: 1 / flow.getZoom() } : { top: g.at, left: g.from - 12, width: g.to - g.from + 24, height: 1 / flow.getZoom() }}
                     />
                   ))}
+                </ViewportPortal>
+              )}
+              {view.notes && (!!model.notes?.length || noteDraft) && (
+                <ViewportPortal>
+                  <NotesLayer
+                    model={model}
+                    layout={liveLayout}
+                    hidden={notesHidden}
+                    editable={wide && !presenting}
+                    editing={noteEditing}
+                    draft={noteDraft}
+                    onEditing={setNoteEditing}
+                    onAdd={addNote}
+                    onText={noteText}
+                    onMove={(id, x, y) => dispatch({ type: "move-note", id, x, y })}
+                    onDelete={deleteNote}
+                    onMenu={(id, x, y, el) => openMenu(x, y, "Note menu", noteMenu(id), el)}
+                  />
                 </ViewportPortal>
               )}
               <Panel position="top-right" className="!m-3 flex flex-col items-end gap-2">

@@ -210,6 +210,23 @@ export const flowSchema = z.object({
 export type FlowStep = z.infer<typeof flowStepSchema>;
 export type Flow = z.infer<typeof flowSchema>;
 
+/** M93: how many notes a model can hold, and how long one can be. */
+export const MAX_NOTES = 200;
+export const MAX_NOTE_CHARS = 1000;
+/**
+ * A note on the canvas (M93): free text at a place, or attached to an element, when `x` and `y` are
+ * from the element's top left, so it moves with it. Not a CSDM element: no hint, count or export to
+ * another tool sees it.
+ */
+export const noteSchema = z.object({
+  id,
+  text: z.string().max(MAX_NOTE_CHARS),
+  x: z.number().finite(),
+  y: z.number().finite(),
+  attachedTo: id.optional().catch(undefined),
+});
+export type Note = z.infer<typeof noteSchema>;
+
 /** M78: how many decisions a model can hold, and how many elements one can concern. */
 export const MAX_DECISIONS = 50;
 export const MAX_DECISION_ELEMENTS = 100;
@@ -299,6 +316,27 @@ export const modelSchema = z.object({
         // A part this version couldn't read (date, M85 supersededBy) is left out, the rest kept in the schema's order.
         kept.push(Object.fromEntries(Object.entries(r.data).filter(([, v]) => v !== undefined)) as Decision);
         if (kept.length === MAX_DECISIONS) break;
+      }
+      return kept.length ? kept : undefined;
+    })
+    .optional(),
+  /**
+   * M93: notes on the canvas. Optional and additive in format 1: older versions ignore it (and drop it
+   * if they save the file again). A note this version can't read is dropped, not the file; a second
+   * one with the same id too; at most MAX_NOTES.
+   */
+  notes: z
+    .unknown()
+    .transform((value): Note[] | undefined => {
+      if (!Array.isArray(value)) return undefined;
+      const seen = new Set<string>();
+      const kept: Note[] = [];
+      for (const x of value.slice(0, 1000)) {
+        const r = noteSchema.safeParse(x);
+        if (!r.success || seen.has(r.data.id)) continue;
+        seen.add(r.data.id);
+        kept.push(r.data.attachedTo ? r.data : { id: r.data.id, text: r.data.text, x: r.data.x, y: r.data.y });
+        if (kept.length === MAX_NOTES) break;
       }
       return kept.length ? kept : undefined;
     })

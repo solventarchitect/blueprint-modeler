@@ -18,3 +18,4 @@ export * from "./reclass";
 export * from "./reverse";
 export * from "./path";
 export * from "./capmap";
+export * from "./notes";
