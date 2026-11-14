@@ -78,4 +78,30 @@ describe("capability map picture (M92)", () => {
     expect(svg).toContain("No Business Capabilities in this model.");
     expect(tiles(svg).size).toBe(0);
   });
+
+  it("a name leaves room for the color marker; a long name ends with …", () => {
+    const long: Model = { ...m(), nodes: m().nodes.map((n) => (n.id === "store" ? { ...n, name: "Sell in store and at partner concessions nationwide" } : n)) };
+    const plain = capabilityMapSvg(long, "light");
+    const colored = capabilityMapSvg(long, "light", { filter: {}, colorBy: "owner" });
+    const lines = (svg: string) => [...svg.matchAll(/<g data-cap="store"[\s\S]*?<\/g>/g)][0]![0].match(/font-size="14"[^>]*>([^<]+)</g)!.map((t) => t.replace(/^.*>/, "").replace(/<$/, ""));
+    expect(lines(plain)).toEqual(["Sell in store and at", "partner concessions…"]);
+    for (const l of lines(colored)) expect(l.length).toBeLessThanOrEqual(21);
+  });
+
+  it("is as wide as its title block when that is wider than the tiles", () => {
+    const one: Model = { ...m(), name: "A model whose name is far longer than the one small tile it holds", nodes: [m().nodes[3]!], edges: [] };
+    const svg = capabilityMapSvg(one, "light");
+    const [, w] = /width="([\d.]+)"/.exec(svg)!.map(Number);
+    expect(w).toBeGreaterThan(tiles(svg).get("hr")!.w + 400);
+  });
+
+  it("draws a hierarchy far deeper than CSDM's six levels", () => {
+    const ids = Array.from({ length: 3000 }, (_, i) => `c${i}`);
+    const deep: Model = {
+      ...m(),
+      nodes: ids.map((id) => ({ id, class: "business_capability", name: id })),
+      edges: ids.slice(1).map((id, i) => ({ id: `e${i}`, from: id, to: ids[i]!, type: "reference:parent" })),
+    };
+    expect(tiles(capabilityMapSvg(deep, "light")).size).toBe(3000);
+  });
 });

@@ -1,8 +1,10 @@
-import { allTiles, capabilityLegend, capabilityMap, count, filterActive, inView, slotColor, slotMap, slotMarker, tileCounts, type CapabilityTile, type Model, type Slot } from "@/model";
+import { allTiles, capabilityLegend, capabilityMap, count, filterActive, inView, slotColor, slotMap, slotMarker, tileCounts, UNTITLED_MODEL, type CapabilityTile, type Model, type Slot } from "@/model";
 import { clip, esc, MONO, palettes, SANS, svgTitleBlock, type SvgTheme, type SvgView } from "./svg";
 
 /** Tile geometry: a leaf's width, the colored bar, padding, the gap between tiles, line heights. */
 const T = { w: 216, bar: 6, pad: 12, gap: 12, name: 18, nameChars: 24, counts: 16, top: 10, bottom: 12 } as const;
+/** Characters of the 9px uppercase mono "also in" line a tile's width holds. */
+const alsoChars = (w: number) => Math.floor((w - 2 * T.pad) / 5.6);
 const PAD = 32;
 const r1 = (n: number) => Math.round(n * 10) / 10;
 
@@ -49,22 +51,33 @@ function pack(sizes: { w: number; h: number }[]): { at: { x: number; y: number }
   return { at, w, h: y + rowH };
 }
 
-/** A tile's size, with the capabilities inside it laid out (positions relative to the tile). */
-function measure(model: Model, tile: CapabilityTile, depth: number): Placed {
-  const node = model.nodes.find((n) => n.id === tile.id)!;
-  const name = nameLines(node.name || "Untitled", T.nameChars);
-  // The counts, one part a line: "2 Business Applications", "5 with its parts".
-  const counts = tileCounts(tile).split(" · ");
-  const head = T.bar + T.top + name.length * T.name + 4 + counts.length * T.counts + T.bottom;
-  const kids = tile.children.map((c) => measure(model, c, depth + 1));
-  const packed = pack(kids);
-  kids.forEach((k, i) => {
-    k.x = T.pad + packed.at[i]!.x;
-    k.y = head + packed.at[i]!.y;
-  });
-  const w = Math.max(T.w, kids.length ? packed.w + 2 * T.pad : 0);
-  const h = kids.length ? head + packed.h + T.pad : head;
-  return { tile, x: 0, y: 0, w, h, head, name, counts, depth, children: kids };
+/**
+ * Every tile's size, with the capabilities inside it laid out (positions relative to the tile), built
+ * bottom up without recursion. `marked`: tiles carry a color marker, so names leave it room.
+ */
+function measure(model: Model, tiles: CapabilityTile[], marked: boolean): Placed[] {
+  const names = new Map(model.nodes.map((n) => [n.id, n.name]));
+  const depth = new Map<string, number>();
+  for (const t of tiles) depth.set(t.id, 0);
+  const order = allTiles(tiles);
+  for (const t of order) for (const c of t.children) depth.set(c.id, depth.get(t.id)! + 1);
+  const placed = new Map<string, Placed>();
+  for (const tile of [...order].reverse()) {
+    const name = nameLines(names.get(tile.id) || "Untitled", marked ? T.nameChars - 3 : T.nameChars);
+    // The counts, one part a line: "2 Business Applications", "5 with its parts".
+    const counts = tileCounts(tile).split(" · ");
+    const head = T.bar + T.top + name.length * T.name + 4 + counts.length * T.counts + T.bottom;
+    const kids = tile.children.map((c) => placed.get(c.id)!);
+    const packed = pack(kids);
+    kids.forEach((k, i) => {
+      k.x = T.pad + packed.at[i]!.x;
+      k.y = head + packed.at[i]!.y;
+    });
+    const w = Math.max(T.w, kids.length ? packed.w + 2 * T.pad : 0);
+    const h = kids.length ? head + packed.h + T.pad : head;
+    placed.set(tile.id, { tile, x: 0, y: 0, w, h, head, name, counts, depth: depth.get(tile.id)!, children: kids });
+  }
+  return tiles.map((t) => placed.get(t.id)!);
 }
 
 /**
@@ -83,7 +96,7 @@ export function capabilityMapSvg(model: Model, theme: SvgTheme, view?: SvgView):
   const byId = new Map(model.nodes.map((n) => [n.id, n]));
   const faded = (id: string) => !!shownView && !inView(byId.get(id)!, shownView.filter, model);
 
-  const roots = tiles.map((t) => measure(model, t, 0));
+  const roots = measure(model, tiles, !!slotOf);
   const packed = pack(roots);
   const lead = caps ? `${count(caps, "Business Capability", "Business Capabilities")}, each inside its parent; a tile counts the Business Applications that support it.` : "No Business Capabilities in this model.";
   const tb = svgTitleBlock(model, theme, shownView, allTiles(tiles).filter((t) => !faded(t.id)).length, Math.max(packed.w, 480), "", caps, {
@@ -96,9 +109,7 @@ export function capabilityMapSvg(model: Model, theme: SvgTheme, view?: SvgView):
   const height = r1(top + packed.h + PAD);
 
   const out: string[] = [];
-  const draw = (t: Placed, ox: number, oy: number) => {
-    const x = ox + t.x;
-    const y = oy + t.y;
+  const draw = (t: Placed, x: number, y: number) => {
     const slot: Slot | null = slotOf ? slotOf(byId.get(t.tile.id)!) : null;
     // Faded by the view: a ghost, as the canvas pictures draw one (no fill, dashed, muted text that keeps 4.5:1).
     const ghost = faded(t.tile.id);
@@ -122,14 +133,18 @@ export function capabilityMapSvg(model: Model, theme: SvgTheme, view?: SvgView):
     if (t.tile.alsoUnder.length) {
       // Drawn once: a second parent is said, not drawn again.
       const also = t.tile.alsoUnder.map((id) => byId.get(id)?.name || "Untitled").join(", ");
-      out.push(`<text x="${r1(x + t.w - T.pad)}" y="${r1(y + t.head - T.bottom + 8)}" text-anchor="end" font-family="${MONO}" font-size="9" fill="${p.muted}">${esc(clip(`ALSO IN ${also.toUpperCase()}`, 30))}</text>`);
+      out.push(`<text x="${r1(x + t.w - T.pad)}" y="${r1(y + t.head - T.bottom + 8)}" text-anchor="end" font-family="${MONO}" font-size="9" fill="${p.muted}">${esc(clip(`ALSO IN ${also.toUpperCase()}`, alsoChars(t.w)))}</text>`);
     }
     out.push(`</g>`);
-    for (const c of t.children) draw(c, x, y);
   };
-  roots.forEach((r, i) => draw({ ...r, x: packed.at[i]!.x, y: packed.at[i]!.y }, PAD, top));
+  // Parents first, so a tile is drawn over the one it sits in; no recursion, so any depth draws.
+  for (const stack: [Placed, number, number][] = roots.map((r, i) => [r, PAD + packed.at[i]!.x, top + packed.at[i]!.y] as [Placed, number, number]).reverse(); stack.length; ) {
+    const [t, x, y] = stack.pop()!;
+    draw(t, x, y);
+    for (const c of [...t.children].reverse()) stack.push([c, x + c.x, y + c.y]);
+  }
 
-  const title = `Capability map: ${model.name || "Untitled model"}`;
+  const title = `Capability map: ${model.name || UNTITLED_MODEL}`;
   const desc = `${caps ? `${count(caps, "Business Capability", "Business Capabilities")}, each drawn inside its parent and counting the Business Applications that support it` : "No Business Capabilities"}, exported from Blueprint Modeler.${colored ? " Each capability is colored as the view colors it." : ""}${shownView && filterActive(shownView.filter) ? " Capabilities outside the view's filter are drawn faded, with a dashed outline." : ""}`;
   return [
     `<?xml version="1.0" encoding="UTF-8"?>`,

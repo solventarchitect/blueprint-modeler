@@ -22,18 +22,92 @@ import {
   valueLabels,
   type CapabilityTile,
   type Model,
+  type Slot,
 } from "@/model";
 import { SlotMarker, shownColorTags, type ShownView } from "./Views";
 
 /**
- * A tile's width in rem: a leaf's, or as wide as about √n of its children side by side (as the
- * picture lays them out), so a parent shows its parts in rows, not one column.
+ * Each tile's width in rem: a leaf's, or as wide as about √n of its children side by side (as the
+ * picture lays them out), so a parent shows its parts in rows, not one column. Worked out bottom up.
  */
-function widthRem(t: CapabilityTile): number {
-  if (!t.children.length) return 13;
-  const ws = t.children.map(widthRem);
-  const cols = Math.ceil(Math.sqrt(ws.length));
-  return Math.max(Math.max(...ws), ws.slice(0, cols).reduce((a, w) => a + w, 0) + (cols - 1) * 0.75) + 1.5;
+function widthsRem(tiles: CapabilityTile[]): Map<string, number> {
+  const w = new Map<string, number>();
+  for (const t of allTiles(tiles).reverse()) {
+    if (!t.children.length) {
+      w.set(t.id, 13);
+      continue;
+    }
+    const ws = t.children.map((c) => w.get(c.id)!);
+    const cols = Math.ceil(Math.sqrt(ws.length));
+    w.set(t.id, Math.max(Math.max(...ws), ws.slice(0, cols).reduce((a, x) => a + x, 0) + (cols - 1) * 0.75) + 1.5);
+  }
+  return w;
+}
+
+/** What every tile needs from the map, worked out once. */
+type TileContext = {
+  model: Model;
+  byId: Map<string, Model["nodes"][number]>;
+  widths: Map<string, number>;
+  slotOf: ((n: Model["nodes"][number]) => Slot) | null;
+  valueOf: (n: Model["nodes"][number]) => string;
+  colorLabel: string | null;
+  faded: (n: Model["nodes"][number]) => boolean;
+  onGoTo: (id: string) => void;
+};
+
+/**
+ * One tile and the tiles inside it. A component, so React draws any depth without deep recursion. Its
+ * button reads "Sell: 2 Business Applications · 5 with its parts (Owner: Sales)".
+ */
+function TileItem({ tile, depth, ctx }: { tile: CapabilityTile; depth: number; ctx: TileContext }) {
+  const n = ctx.byId.get(tile.id)!;
+  const slot = ctx.slotOf ? ctx.slotOf(n) : null;
+  const faded = ctx.faded(n);
+  const also = tile.alsoUnder.map((id) => ctx.byId.get(id)?.name || "Untitled");
+  const width = ctx.widths.get(tile.id)!;
+  const said = [ctx.colorLabel ? `${ctx.colorLabel}: ${ctx.valueOf(n)}` : "", faded ? "outside the view's filter" : ""].filter(Boolean).join("; ");
+  return (
+    <li
+      data-cap={tile.id}
+      data-slot={slot ?? undefined}
+      data-faded={faded ? "" : undefined}
+      // Faded by the view: a ghost, as on the canvas (no fill, dashed, muted text that keeps 4.5:1).
+      className={`flex flex-col border border-border-strong ${faded ? "border-dashed bg-transparent" : depth % 2 ? "bg-surface" : "bg-surface-raised"}`}
+      style={{
+        flex: `1 1 ${width}rem`,
+        minWidth: `min(${width}rem, 100%)`,
+        // The view's color as a bar along the top; a faded tile keeps only its dashed outline.
+        ...(slot !== null && !faded ? { borderTopWidth: 6, borderTopColor: `var(--slot-${slot})` } : {}),
+      }}
+    >
+      <button
+        type="button"
+        // One phrase, starting with the name shown (WCAG 2.5.3): its counts, where else it belongs, its value.
+        aria-label={`${n.name || "Untitled"}: ${tileCounts(tile)}${also.length ? `; also in ${also.join(", ")}` : ""}${said ? ` (${said})` : ""}`}
+        className="group relative cursor-pointer px-3 pt-2 pb-2.5 text-left focus-visible:outline-2 focus-visible:outline-offset-[-2px] focus-visible:outline-accent"
+        onClick={() => ctx.onGoTo(tile.id)}
+      >
+        {slot !== null && (
+          <svg aria-hidden="true" viewBox="0 0 10 10" className={`absolute top-2.5 right-2.5 size-2.5 ${faded ? "opacity-40" : ""}`} style={{ fill: `var(--slot-${slot})` }}>
+            <path d={slotMarker(slot)} fillRule="evenodd" />
+          </svg>
+        )}
+        <span className={`block pr-4 font-medium group-hover:text-accent ${faded ? "text-ink-muted" : "text-ink"}`}>
+          {n.name || "Untitled"}
+        </span>
+        <span className="mt-0.5 block text-xs text-ink-muted">{tileCounts(tile)}</span>
+        {also.length > 0 && <span className="mt-0.5 block text-xs text-ink-muted">Also in {also.join(", ")}</span>}
+      </button>
+      {tile.children.length > 0 && (
+        <ul aria-label={`Inside ${n.name || "Untitled"}`} className="flex flex-wrap gap-3 px-3 pb-3">
+          {tile.children.map((c) => (
+            <TileItem key={c.id} tile={c} depth={depth + 1} ctx={ctx} />
+          ))}
+        </ul>
+      )}
+    </li>
+  );
 }
 
 const btn = "inline-flex min-h-8 cursor-pointer items-center border border-border-strong bg-surface-raised px-2.5 text-sm text-ink hover:border-accent hover:text-accent disabled:cursor-not-allowed disabled:opacity-50";
@@ -84,52 +158,15 @@ export function CapabilityMapDialog({ model, shown, onGoTo, onClose }: { model: 
       .catch(() => setStatus("Could not make the PNG in this browser. Nothing was saved."));
   };
 
-  // A plain function, not a component: a component made here would be new each render and lose focus.
-  const tileItem = (tile: CapabilityTile, depth: number) => {
-    const n = byId.get(tile.id)!;
-    const slot = slotOf ? slotOf(n) : null;
-    const faded = filtered && !inView(n, shown.filter, model);
-    const also = tile.alsoUnder.map((id) => byId.get(id)?.name || "Untitled");
-    return (
-      <li
-        key={tile.id}
-        data-cap={tile.id}
-        data-slot={slot ?? undefined}
-        data-faded={faded ? "" : undefined}
-        // Faded by the view: a ghost, as on the canvas (no fill, dashed, muted text that keeps 4.5:1).
-        className={`flex flex-col border border-border-strong ${faded ? "border-dashed bg-transparent" : depth % 2 ? "bg-surface" : "bg-surface-raised"}`}
-        style={{
-          flex: `1 1 ${widthRem(tile)}rem`,
-          minWidth: `min(${widthRem(tile)}rem, 100%)`,
-          // The view's color as a bar along the top; a faded tile keeps only its dashed outline.
-          ...(slot !== null && !faded ? { borderTopWidth: 6, borderTopColor: `var(--slot-${slot})` } : {}),
-        }}
-      >
-        <button
-          type="button"
-          className="group relative cursor-pointer px-3 pt-2 pb-2.5 text-left focus-visible:outline-2 focus-visible:outline-offset-[-2px] focus-visible:outline-accent"
-          onClick={() => onGoTo(tile.id)}
-        >
-          {slot !== null && (
-            <svg aria-hidden="true" viewBox="0 0 10 10" className={`absolute top-2.5 right-2.5 size-2.5 ${faded ? "opacity-40" : ""}`} style={{ fill: `var(--slot-${slot})` }}>
-              <path d={slotMarker(slot)} fillRule="evenodd" />
-            </svg>
-          )}
-          <span className={`block pr-4 font-medium group-hover:text-accent ${faded ? "text-ink-muted" : "text-ink"}`}>{n.name || "Untitled"}</span>
-          <span className="mt-0.5 block text-xs text-ink-muted">{tileCounts(tile)}</span>
-          {also.length > 0 && <span className="mt-0.5 block text-xs text-ink-muted">Also in {also.join(", ")}</span>}
-          <span className="sr-only">
-            {colored ? `. ${COLOR_BY_LABEL[shown.colorBy]}: ${valueOf(n)}` : ""}
-            {faded ? ". Outside the view's filter" : ""}
-          </span>
-        </button>
-        {tile.children.length > 0 && (
-          <ul aria-label={`Inside ${n.name || "Untitled"}`} className="flex flex-wrap gap-3 px-3 pb-3">
-            {tile.children.map((c) => tileItem(c, depth + 1))}
-          </ul>
-        )}
-      </li>
-    );
+  const ctx: TileContext = {
+    model,
+    byId,
+    widths: useMemo(() => widthsRem(tiles), [tiles]),
+    slotOf,
+    valueOf,
+    colorLabel: colored ? COLOR_BY_LABEL[shown.colorBy] : null,
+    faded: (n) => filtered && !inView(n, shown.filter, model),
+    onGoTo,
   };
 
   return (
@@ -177,7 +214,9 @@ export function CapabilityMapDialog({ model, shown, onGoTo, onClose }: { model: 
       <div className="mx-4 my-2 min-h-0 flex-1 overflow-auto">
         {caps > 0 && (
           <ul aria-label="Business Capabilities" className="flex flex-wrap items-start gap-3">
-            {tiles.map((t) => tileItem(t, 0))}
+            {tiles.map((t) => (
+              <TileItem key={t.id} tile={t} depth={0} ctx={ctx} />
+            ))}
           </ul>
         )}
       </div>

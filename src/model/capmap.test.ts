@@ -114,4 +114,57 @@ describe("capability map (M92)", () => {
     expect(capabilityLegend(owned, "owner", { owner: ["Sales"] }).map((e) => [e.label, e.count])).toEqual([["Sales", 2], ["Not set", 0]]);
     expect(capabilityLegend(owned, "layer", {})).toEqual([]);
   });
+
+  const caps = (name: string, ids: string[], parents: [string, string][]): Model => ({
+    ...createModel(name, new Date("2026-11-14T00:00:00Z"), name),
+    nodes: ids.map((id) => ({ id, class: "business_capability", name: id.toUpperCase() })),
+    edges: parents.map(([from, to], i) => ({ id: `e${i}`, from, to, type: "reference:parent" })),
+  });
+
+  it("what hangs below a loop stays inside its parent; the loop is broken at its first member", () => {
+    // X's parent is Y; Y and Z are each other's parent.
+    const tiles = capabilityMap(caps("Tail", ["x", "y", "z"], [["x", "y"], ["y", "z"], ["z", "y"]]));
+    expect(shape(tiles)).toEqual([["y", [], 0, [["x", [], 0, []], ["z", [], 0, []]]]]);
+    expect(tiles[0]!.alsoUnder).toEqual(["z"]);
+  });
+
+  it("a loop member with a parent outside the loop goes under that parent", () => {
+    // A and B are each other's parent; A's second parent is R.
+    const tiles = capabilityMap(caps("Rooted", ["r", "a", "b"], [["a", "b"], ["b", "a"], ["a", "r"]]));
+    expect(shape(tiles)).toEqual([["r", [], 0, [["a", [], 0, [["b", [], 0, []]]]]]]);
+    expect(allTiles(tiles).find((t) => t.id === "a")!.alsoUnder).toEqual(["b"]);
+    // An outside parent that leads back into the loop doesn't break it: C's parent is B.
+    const back = capabilityMap(caps("Back", ["c", "a", "b"], [["a", "b"], ["b", "a"], ["a", "c"], ["c", "b"]]));
+    expect(allTiles(back).map((t) => t.id).sort()).toEqual(["a", "b", "c"]);
+    expect(shape(back)).toEqual([["a", [], 0, [["b", [], 0, [["c", [], 0, []]]]]]]);
+  });
+
+  it("a loop of three is broken once; every capability shows once", () => {
+    const tiles = capabilityMap(caps("Three", ["a", "b", "c"], [["a", "b"], ["b", "c"], ["c", "a"]]));
+    expect(shape(tiles)).toEqual([["a", [], 0, [["c", [], 0, [["b", [], 0, []]]]]]]);
+  });
+
+  it("a hierarchy far deeper than CSDM's six levels is still drawn", () => {
+    const ids = Array.from({ length: 5000 }, (_, i) => `c${i}`);
+    const deep: Model = { ...caps("Deep", ids, ids.slice(1).map((id, i) => [id, ids[i]!])), edges: [] };
+    deep.edges = ids.slice(1).map((id, i) => ({ id: `e${i}`, from: id, to: ids[i]!, type: "reference:parent" }));
+    deep.nodes.push({ id: "app", class: "business_application", name: "App" });
+    deep.edges.push({ id: "a", from: "c4999", to: "app", type: "Provided by::Provides" });
+    const tiles = capabilityMap(deep);
+    expect(allTiles(tiles)).toHaveLength(5000);
+    expect(tiles[0]!.allApps).toBe(1);
+  });
+
+  it("the legend's Other row names how many values the capabilities carry past the palette", () => {
+    const many: Model = {
+      ...createModel("Many", new Date("2026-11-14T00:00:00Z"), "m9"),
+      nodes: [
+        ...Array.from({ length: 11 }, (_, i) => ({ id: `app${i}`, class: "business_application", name: `App ${i}`, attrs: { owner: `Team ${String.fromCharCode(97 + i)}` } })),
+        { id: "cap", class: "business_capability", name: "Cap", attrs: { owner: "Team z" } },
+      ],
+      edges: [],
+    };
+    const row = capabilityLegend(many, "owner", {}).find((e) => e.slot === "other");
+    expect(row).toMatchObject({ label: "Other (1 value)", count: 1 });
+  });
 });

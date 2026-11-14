@@ -71,6 +71,7 @@ test.describe("capability map (M92, desktop)", () => {
     await expect(tile(page, "sell")).toHaveText("SellNo Business Applications · 3 with its parts");
     await expect(tile(page, "online")).toHaveText("Sell online1 Business Application · 2 with its parts");
     await expect(tile(page, "people")).toHaveText("Manage peopleNo Business Applications");
+    await expect(tile(page, "store")).toHaveAccessibleName("Sell in store: 1 Business Application");
     // Coloring by layer (no view): no legend, no colors.
     await expect(page.getByTestId("capability-map-legend")).toHaveCount(0);
     expect(await new AxeBuilder({ page }).withTags(axeTags).include('[data-testid="capability-map"]').analyze().then((r) => r.violations)).toEqual([]);
@@ -94,8 +95,10 @@ test.describe("capability map (M92, desktop)", () => {
     await expect(map(page).locator('[data-cap="store"]')).toHaveAttribute("data-slot", /\d/);
     await expect(map(page).locator('[data-cap="online"]')).toHaveAttribute("data-faded", "");
     await expect(map(page).locator('[data-cap="sell"]')).not.toHaveAttribute("data-faded");
-    await expect(tile(page, "online")).toHaveAccessibleName(/Owner: Digital\. Outside the view's filter$/);
-    await expect(tile(page, "people")).toHaveAccessibleName(/Owner: Not set\. Outside the view's filter$/);
+    // Each tile names its value, and whether the filter leaves it out.
+    await expect(tile(page, "sell")).toHaveAccessibleName("Sell: No Business Applications · 3 with its parts (Owner: Sales)");
+    await expect(tile(page, "online")).toHaveAccessibleName("Sell online: 1 Business Application · 2 with its parts (Owner: Digital; outside the view's filter)");
+    await expect(tile(page, "people")).toHaveAccessibleName("Manage people: No Business Applications (Owner: Not set; outside the view's filter)");
     expect(await new AxeBuilder({ page }).withTags(axeTags).include('[data-testid="capability-map"]').analyze().then((r) => r.violations)).toEqual([]);
 
     const [svg] = await Promise.all([page.waitForEvent("download"), map(page).getByRole("button", { name: "Save as SVG" }).click()]);
