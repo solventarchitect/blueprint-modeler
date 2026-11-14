@@ -277,7 +277,9 @@ export function notesToDraw(model: Model): NoteBox[] {
   return (model.notes ?? []).flatMap((n) => {
     if (n.attachedTo && !model.nodes.some((x) => x.id === n.attachedTo)) return [];
     const at = noteAt(model, n);
-    const lines = n.text.split("\n").flatMap((para) => (para.trim() ? wrapText(para, NOTE.chars, NOTE.maxLines) : [""]));
+    // A word longer than a line is broken across lines, as on the canvas, not cut.
+    const broken = (para: string) => para.split(/\s+/).flatMap((w) => w.match(new RegExp(`.{1,${NOTE.chars - 1}}`, "g")) ?? []).join(" ");
+    const lines = n.text.split("\n").flatMap((para) => (para.trim() ? wrapText(broken(para), NOTE.chars, NOTE.maxLines * 4) : [""]));
     const kept = lines.length > NOTE.maxLines ? [...lines.slice(0, NOTE.maxLines - 1), clip(`${lines[NOTE.maxLines - 1]}…`, NOTE.chars)] : lines;
     const on = n.attachedTo ? model.nodes.find((x) => x.id === n.attachedTo)?.name || "Untitled" : "";
     return [{ id: n.id, on, lines: kept, x: at.x, y: at.y, w: NOTE.w, h: 2 * NOTE.pad + NOTE.caption + kept.length * NOTE.line }];

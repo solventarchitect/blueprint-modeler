@@ -72,4 +72,13 @@ describe("notes (M93)", () => {
     expect(withNoteAttached(base, "nope", "svc")).toBe(base);
     expect(withNoteAttached(base, "n2", "nope")).toBe(base);
   });
+
+  it("an element with no position is where the canvas draws it, (0, 0): a note on it stays on it", () => {
+    const unplaced: Model = { ...m(), layout: { svc: m().layout.svc! } };
+    expect(noteAt(unplaced, unplaced.notes![0]!)).toEqual({ x: 40, y: -60 });
+    const back = parseModel(JSON.parse(serializeModel(unplaced)));
+    expect(back.ok && back.model.notes![0]!.attachedTo).toBe("ba");
+    expect(withNoteAttached(unplaced, "n2", "ba").notes![1]).toEqual({ id: "n2", text: "Assumes one region.", x: 700, y: 50, attachedTo: "ba" });
+    expect(withNotesKept(unplaced, unplaced)).toBe(unplaced);
+  });
 });

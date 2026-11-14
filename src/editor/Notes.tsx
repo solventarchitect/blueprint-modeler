@@ -18,13 +18,14 @@ export const noteLabel = (model: Model, note: Note) => {
   return `Note${on ? ` on ${on.name || "Untitled"}` : ""}: ${note.text || "(empty)"}`;
 };
 
-function NoteEditor({ initial, label, onCommit, onCancel }: { initial: string; label: string; onCommit: (text: string) => void; onCancel: () => void }) {
+/** `byKey`: kept with Ctrl+Enter (focus goes back to the note), not by leaving it (focus stays where it went). */
+function NoteEditor({ initial, label, onCommit, onCancel }: { initial: string; label: string; onCommit: (text: string, byKey: boolean) => void; onCancel: () => void }) {
   const [text, setText] = useState(initial);
   const done = useRef(false);
-  const finish = (commit: boolean) => {
+  const finish = (commit: boolean, byKey: boolean) => {
     if (done.current) return;
     done.current = true;
-    if (commit) onCommit(text);
+    if (commit) onCommit(text, byKey);
     else onCancel();
   };
   return (
@@ -36,18 +37,20 @@ function NoteEditor({ initial, label, onCommit, onCancel }: { initial: string; l
       rows={4}
       value={text}
       onChange={(e) => setText(e.target.value)}
-      onBlur={() => finish(true)}
+      onBlur={() => finish(true, false)}
       onKeyDown={(e) => {
+        // The command palette (Ctrl+K) opens from text fields too; the rest of the keys are the note's.
+        if (e.key.toLowerCase() === "k" && (e.ctrlKey || e.metaKey)) return;
         e.stopPropagation();
         if (e.key === "Escape") {
           e.preventDefault();
-          finish(false);
+          finish(false, true);
         } else if (e.key === "Enter" && (e.ctrlKey || e.metaKey)) {
           e.preventDefault();
-          finish(true);
+          finish(true, true);
         }
       }}
-      className="nopan nodrag nowheel block w-full resize-none border-0 bg-transparent p-0 text-sm text-ink outline-none"
+      className="nopan nodrag nowheel nokey block w-full resize-none border-0 bg-transparent p-0 text-sm text-ink outline-none"
     />
   );
 }
@@ -66,8 +69,10 @@ export function NotesLayer({
   editable,
   editing,
   draft,
+  placing,
   onEditing,
   onAdd,
+  onCancelDraft,
   onText,
   onMove,
   onDelete,
@@ -82,9 +87,13 @@ export function NotesLayer({
   /** The note being edited in place. */
   editing: string | null;
   draft: NoteDraft | null;
-  onEditing: (id: string | null) => void;
-  onAdd: (draft: NoteDraft, text: string) => void;
-  onText: (id: string, text: string) => void;
+  /** The note being moved by a click on the canvas (its menu's Move…). */
+  placing: string | null;
+  /** Editing ended; `cancelled`: with Escape, the text put back. */
+  onEditing: (id: string | null, cancelled?: boolean) => void;
+  onAdd: (draft: NoteDraft, text: string, byKey: boolean) => void;
+  onCancelDraft: () => void;
+  onText: (id: string, text: string, byKey: boolean) => void;
   onMove: (id: string, x: number, y: number) => void;
   onDelete: (id: string, el: HTMLElement) => void;
   onMenu: (id: string, x: number, y: number, el: HTMLElement) => void;
@@ -93,9 +102,10 @@ export function NotesLayer({
   // A drag in progress: the note and how far it has gone, in canvas pixels.
   const [drag, setDrag] = useState<{ id: string; dx: number; dy: number } | null>(null);
   const start = useRef<{ id: string; x: number; y: number; moved: boolean } | null>(null);
-  const where = { layout } as Pick<Model, "layout">;
+  const where = { nodes: model.nodes, layout };
 
-  const box = "nopan nodrag nowheel pointer-events-auto absolute border border-border-strong border-l-4 border-l-[var(--status)] bg-surface-raised px-2.5 py-2 text-left text-sm text-ink shadow-sm";
+  // nokey: React Flow's Delete (on the whole document) leaves alone what a note does with its keys.
+  const box = "nopan nodrag nowheel nokey pointer-events-auto absolute border border-border-strong border-l-4 border-l-[var(--status)] bg-surface-raised px-2.5 py-2 text-left text-sm text-ink shadow-sm";
   const caption = (note: Pick<Note, "attachedTo">) => {
     const on = note.attachedTo ? model.nodes.find((n) => n.id === note.attachedTo) : undefined;
     return (
@@ -120,12 +130,13 @@ export function NotesLayer({
     s.moved = true;
     setDrag({ id: s.id, dx, dy });
   };
-  const onPointerUp = (note: Note) => {
+  const onPointerUp = (e: ReactPointerEvent<HTMLElement>, note: Note) => {
     const s = start.current;
     start.current = null;
-    if (s?.moved && drag) {
+    // From the pointer's own last place, not the last drawn one: a fast drag keeps all of its way.
+    if (s?.moved) {
       const at = noteAt(where, note);
-      onMove(note.id, at.x + drag.dx, at.y + drag.dy);
+      onMove(note.id, at.x + (e.clientX - s.x) / zoom, at.y + (e.clientY - s.y) / zoom);
     }
     setDrag(null);
   };
@@ -167,11 +178,11 @@ export function NotesLayer({
               <NoteEditor
                 initial={note.text}
                 label={`Edit the note${note.attachedTo ? ` on ${model.nodes.find((n) => n.id === note.attachedTo)?.name || "Untitled"}` : ""}`}
-                onCommit={(text) => {
+                onCommit={(text, byKey) => {
                   onEditing(null);
-                  onText(note.id, text);
+                  onText(note.id, text, byKey);
                 }}
-                onCancel={() => onEditing(null)}
+                onCancel={() => onEditing(null, true)}
               />
             </div>
           );
@@ -191,11 +202,12 @@ export function NotesLayer({
             data-note={note.id}
             aria-label={noteLabel(model, note)}
             aria-keyshortcuts="Enter Delete ArrowUp ArrowDown ArrowLeft ArrowRight Shift+F10"
-            className={`${box} cursor-grab focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-accent ${d ? "cursor-grabbing opacity-90" : ""}`}
+            data-placing={placing === note.id ? "" : undefined}
+            className={`${box} cursor-grab focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-accent ${d ? "cursor-grabbing opacity-90" : ""} ${placing === note.id ? "outline-2 outline-offset-2 outline-dashed outline-accent" : ""}`}
             style={style}
             onPointerDown={(e) => onPointerDown(e, note.id)}
             onPointerMove={onPointerMove}
-            onPointerUp={() => onPointerUp(note)}
+            onPointerUp={(e) => onPointerUp(e, note)}
             onPointerCancel={() => {
               start.current = null;
               setDrag(null);
@@ -219,8 +231,8 @@ export function NotesLayer({
           <NoteEditor
             initial=""
             label={`New note${draft.attachTo ? ` on ${model.nodes.find((n) => n.id === draft.attachTo)?.name || "Untitled"}` : ""}`}
-            onCommit={(text) => onAdd(draft, text)}
-            onCancel={() => onAdd(draft, "")}
+            onCommit={(text, byKey) => onAdd(draft, text, byKey)}
+            onCancel={onCancelDraft}
           />
         </div>
       )}

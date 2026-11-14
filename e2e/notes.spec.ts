@@ -56,13 +56,12 @@ test.describe("notes on the canvas (M93, desktop)", () => {
     await said(page, "Added a note. Undo removes it.");
     expect(await new AxeBuilder({ page }).withTags(axeTags).include('[data-testid="notes-layer"]').analyze().then((r) => r.violations)).toEqual([]);
 
-    // Edited in place: Enter, then Escape puts it back; Enter again and leaving keeps the change.
+    // Edited in place: Enter, then Escape puts it back, focus on the note.
     await page.keyboard.press("Enter");
     const editing = page.getByRole("textbox", { name: "Edit the note" });
     await editing.fill("Something else");
     await page.keyboard.press("Escape");
-    await expect(free).toBeVisible();
-    await free.focus();
+    await expect(free).toBeFocused();
     await page.keyboard.press("Enter");
     await editing.fill("Assumes one region, for now.");
     await page.keyboard.press("Control+Enter");
@@ -79,16 +78,41 @@ test.describe("notes on the canvas (M93, desktop)", () => {
     const file = JSON.parse(await exported(page, /Model file \(JSON\)/));
     expect(file.notes).toEqual([{ id: expect.any(String), text: "Assumes one region, for now.", x: x0! + 16, y: y0! + 64 }]);
 
+    // Moved with a click, from its menu: no dragging needed.
+    await moved.click({ button: "right" });
+    await page.getByRole("menu", { name: "Note menu" }).getByRole("menuitem", { name: /^Move…/ }).click();
+    await said(page, "Click on the canvas where the note should go. Escape cancels.");
+    const pane = (await page.locator(".react-flow__pane").boundingBox())!;
+    const target = { x: pane.x + 120, y: pane.y + pane.height - 120 };
+    await page.mouse.click(target.x, target.y);
+    await said(page, "Moved the note.");
+    await expect(moved).toBeFocused();
+    const placed = (await moved.boundingBox())!;
+    expect(Math.abs(placed.x - target.x)).toBeLessThan(3);
+    expect(Math.abs(placed.y - target.y)).toBeLessThan(3);
+
+    // Delete deletes the note, and only the note, with an element selected; focus goes to the canvas.
+    await node(page, "Payroll").click();
     await moved.focus();
     await page.keyboard.press("Delete");
     await said(page, "Deleted the note. Undo restores it.");
     await expect(page.locator("[data-note]")).toHaveCount(0);
+    await expect(node(page, "Payroll")).toHaveCount(1);
+    await expect(page.getByRole("region", { name: "Model canvas" })).toBeFocused();
     await page.getByRole("button", { name: "Undo" }).click();
     await expect(moved).toBeVisible();
   });
 
   test("on an element: it moves with it, says so, and stays put, free, when the element is deleted", async ({ page }) => {
     await open(page);
+    await node(page, "Payroll").click({ button: "right" });
+    await page.getByRole("menuitem", { name: "Add note" }).click();
+    // Escape drops a new note, said, and focus goes back to the element.
+    await page.getByRole("textbox", { name: "New note on Payroll" }).fill("Draft");
+    await page.keyboard.press("Escape");
+    await said(page, "The note was not added.");
+    await expect(page.locator("[data-note]")).toHaveCount(0);
+    await expect(node(page, "Payroll")).toBeFocused();
     await node(page, "Payroll").click({ button: "right" });
     await page.getByRole("menuitem", { name: "Add note" }).click();
     await page.getByRole("textbox", { name: "New note on Payroll" }).fill("Who owns this?");
@@ -152,6 +176,17 @@ test.describe("notes on the canvas (M93, desktop)", () => {
     await expect(note(page, "Note on Payroll production: Check the SLA")).toBeVisible();
 
     expect(await exported(page, /^Image, light \(SVG\)/)).toContain("NOTE · ON PAYROLL PRODUCTION");
+
+    // Left by clicking elsewhere, the edit is kept and focus stays where it went.
+    await note(page, "Note on Payroll production: Check the SLA").focus();
+    await page.keyboard.press("Enter");
+    await page.getByRole("textbox", { name: "Edit the note on Payroll production" }).fill("Check the SLA and the RTO");
+    // The selected element's name, in the Inspector.
+    const modelName = page.getByRole("complementary", { name: "Inspector" }).getByLabel("Name", { exact: true });
+    await modelName.click();
+    await expect(note(page, "Note on Payroll production: Check the SLA and the RTO")).toBeVisible();
+    await page.waitForTimeout(100);
+    await expect(modelName).toBeFocused();
 
     await page.getByRole("button", { name: "View", exact: true }).click();
     await page.getByRole("button", { name: /^Notes/ }).click();

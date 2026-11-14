@@ -375,7 +375,7 @@ function apply(model: Model, action: Action): Model | null {
       };
     }
     case "add-note": {
-      if (model.notes?.some((n) => n.id === action.note.id) || (model.notes?.length ?? 0) >= MAX_NOTES) return null;
+      if (!action.note.text.trim() || model.notes?.some((n) => n.id === action.note.id) || (model.notes?.length ?? 0) >= MAX_NOTES) return null;
       const note: Note = { id: action.note.id, text: action.note.text.trim().slice(0, MAX_NOTE_CHARS), x: Math.round(action.note.x), y: Math.round(action.note.y) };
       const added = { ...model, notes: [...(model.notes ?? []), note] };
       return action.attachTo ? withNoteAttached(added, note.id, action.attachTo) : added;
@@ -383,7 +383,8 @@ function apply(model: Model, action: Action): Model | null {
     case "set-note-text": {
       const text = action.text.trim().slice(0, MAX_NOTE_CHARS);
       const note = model.notes?.find((n) => n.id === action.id);
-      if (!note || note.text === text) return null;
+      // An empty note is deleted, not kept (the editor does that, and says so).
+      if (!note || !text || note.text === text) return null;
       return { ...model, notes: model.notes!.map((n) => (n.id === action.id ? { ...n, text } : n)) };
     }
     case "move-note": {

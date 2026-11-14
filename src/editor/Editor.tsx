@@ -345,6 +345,18 @@ function EditorInner() {
   // M93: the note being edited in place, and a new one being written (not in the model until it has text).
   const [noteEditing, setNoteEditing] = useState<string | null>(null);
   const [noteDraft, setNoteDraft] = useState<NoteDraft | null>(null);
+  // M93: a note being moved by a click on the canvas (its menu's Move…: a way that needs no dragging).
+  const [placingNote, setPlacingNote] = useState<string | null>(null);
+  // Where focus was when a new note was started, to go back to if it isn't added.
+  const noteOrigin = useRef<HTMLElement | null>(null);
+  // The canvas region: focus goes here when what had it (a deleted note) is gone.
+  const canvasRegion = useRef<HTMLDivElement>(null);
+  // Another model: no note is left half written, being edited or being moved.
+  useEffect(() => {
+    setNoteDraft(null);
+    setNoteEditing(null);
+    setPlacingNote(null);
+  }, [model.id]);
   const [flowsDialog, setFlowsDialog] = useState(false);
   // M78: the Decisions dialog, and where it opens (on a decision, or making one about an element).
   const [decisionsDialog, setDecisionsDialog] = useState<DecisionsStart | null>(null);
@@ -1748,6 +1760,9 @@ function EditorInner() {
   const startNote = (at?: { x: number; y: number }, attachTo?: string) => {
     if (!view.notes) setView({ ...view, notes: true });
     setNoteEditing(null);
+    setPlacingNote(null);
+    // From a menu, the element or place it was opened on; else what has focus.
+    noteOrigin.current = (attachTo ? nodeEl(attachTo) : null) ?? menuReturn.current ?? (document.activeElement instanceof HTMLElement ? document.activeElement : null);
     const el = attachTo ? model.layout[attachTo] : undefined;
     // On an element: beside it, to the right; elsewhere: where asked, or the middle of the canvas.
     const pos = el
@@ -1755,25 +1770,56 @@ function EditorInner() {
       : (at ?? flow.screenToFlowPosition({ x: window.innerWidth / 2 - NOTE_WIDTH / 2, y: window.innerHeight / 2 }));
     setNoteDraft({ x: Math.round(pos.x), y: Math.round(pos.y), ...(attachTo ? { attachTo } : {}) });
   };
-  const addNote = (draft: NoteDraft, text: string) => {
+  /** Focus back where a note came from, or onto its element, or the canvas: never lost to the page. */
+  const focusAfterNote = (attachedTo?: string, origin?: HTMLElement | null) => {
+    const el = (attachedTo ? nodeEl(attachedTo) : null) ?? (origin?.isConnected ? origin : null) ?? canvasRegion.current;
+    setTimeout(() => el?.focus(), 0);
+  };
+  const addNote = (draft: NoteDraft, text: string, byKey: boolean) => {
     setNoteDraft(null);
-    if (!text.trim()) return setMessage("Nothing was written, so no note was added.");
+    if (!text.trim()) {
+      setMessage("Nothing was written, so no note was added.");
+      if (byKey) focusAfterNote(draft.attachTo, noteOrigin.current);
+      return;
+    }
     const id = crypto.randomUUID();
     dispatch({ type: "add-note", note: { id, text, x: draft.x, y: draft.y }, ...(draft.attachTo ? { attachTo: draft.attachTo } : {}) });
     setMessage(`Added a note${draft.attachTo ? ` on “${nameOf(draft.attachTo)}”` : ""}. Undo removes it.`);
-    focusNote(id);
+    // Left by clicking elsewhere: focus stays where it went.
+    if (byKey) focusNote(id);
   };
-  const noteText = (id: string, text: string) => {
+  const cancelNoteDraft = () => {
+    const draft = noteDraft;
+    setNoteDraft(null);
+    setMessage("The note was not added.");
+    focusAfterNote(draft?.attachTo, noteOrigin.current);
+  };
+  const noteText = (id: string, text: string, byKey: boolean) => {
     if (!text.trim()) {
+      const on = model.notes?.find((n) => n.id === id)?.attachedTo;
       dispatch({ type: "delete-note", id });
-      return setMessage("Deleted the note, which was left empty. Undo restores it.");
+      setMessage("Deleted the note, which was left empty. Undo restores it.");
+      if (byKey) focusAfterNote(on);
+      return;
     }
     dispatch({ type: "set-note-text", id, text });
-    focusNote(id);
+    if (byKey) focusNote(id);
   };
   const deleteNote = (id: string) => {
+    const on = model.notes?.find((n) => n.id === id)?.attachedTo;
     dispatch({ type: "delete-note", id });
     setMessage("Deleted the note. Undo restores it.");
+    focusAfterNote(on);
+  };
+  const placeNote = (e: { clientX: number; clientY: number }) => {
+    const id = placingNote;
+    if (!id) return false;
+    setPlacingNote(null);
+    const at = flow.screenToFlowPosition({ x: e.clientX, y: e.clientY });
+    dispatch({ type: "move-note", id, x: at.x, y: at.y });
+    setMessage("Moved the note.");
+    focusNote(id);
+    return true;
   };
   const noteMenu = (id: string): MenuItem[] => {
     const note = model.notes?.find((n) => n.id === id);
@@ -1782,10 +1828,19 @@ function EditorInner() {
     const target = selectedId && selectedId !== note.attachedTo && model.layout[selectedId] ? selectedId : null;
     return [
       { kind: "item", label: "Edit", onSelect: () => setNoteEditing(id) },
+      {
+        kind: "item",
+        label: "Move…",
+        note: "Then click where it should go; Escape cancels",
+        onSelect: () => {
+          setPlacingNote(id);
+          setMessage("Click on the canvas where the note should go. Escape cancels.");
+        },
+      },
       ...(note.attachedTo
-        ? [{ kind: "item" as const, label: `Free from “${nameOf(note.attachedTo)}”`, note: "It stays where it is and no longer moves with it", onSelect: () => (dispatch({ type: "attach-note", id, to: null }), setMessage(`The note no longer moves with “${nameOf(note.attachedTo!)}”.`)) }]
+        ? [{ kind: "item" as const, label: `Free from “${nameOf(note.attachedTo)}”`, note: "It stays where it is and no longer moves with it", onSelect: () => (dispatch({ type: "attach-note", id, to: null }), setMessage(`The note no longer moves with “${nameOf(note.attachedTo!)}”.`), focusNote(id)) }]
         : []),
-      ...(target ? [{ kind: "item" as const, label: `Attach to “${nameOf(target)}”`, note: "It stays where it is and moves with it from now on", onSelect: () => (dispatch({ type: "attach-note", id, to: target }), setMessage(`The note now moves with “${nameOf(target)}”.`)) }] : []),
+      ...(target ? [{ kind: "item" as const, label: `Attach to “${nameOf(target)}”`, note: "It stays where it is and moves with it from now on", onSelect: () => (dispatch({ type: "attach-note", id, to: target }), setMessage(`The note now moves with “${nameOf(target)}”.`), focusNote(id)) }] : []),
       { kind: "separator" },
       { kind: "item", label: "Delete note", onSelect: () => deleteNote(id) },
     ];
@@ -2004,6 +2059,14 @@ function EditorInner() {
     return `${n?.name || "Untitled"} menu`;
   };
   const onCanvasKeyDown = (e: ReactKeyboardEvent<HTMLDivElement>) => {
+    // M93: Escape ends a note's Move… where it is.
+    if (e.key === "Escape" && placingNote) {
+      e.preventDefault();
+      const id = placingNote;
+      setPlacingNote(null);
+      setMessage("The note stays where it was.");
+      return focusNote(id);
+    }
     // The isometric projections are read only: no quick-add, no canvas menu.
     if (projection !== "plan") return;
     const inField = (t: HTMLElement) => t.isContentEditable || !!t.closest("input, textarea, select");
@@ -3111,7 +3174,7 @@ function EditorInner() {
           </aside>
         )}
 
-        <div className="relative min-w-0 flex-1 bg-canvas" aria-label="Model canvas" role="region" onKeyDown={onCanvasKeyDown}>
+        <div ref={canvasRegion} tabIndex={-1} className="relative min-w-0 flex-1 bg-canvas" aria-label="Model canvas" role="region" onKeyDown={onCanvasKeyDown}>
           <ConnectionModelContext.Provider value={model}>
           <ReconnectingContext.Provider value={reconnectingNow}>
           <SuggestContext.Provider value={suggestCtx}>
@@ -3204,7 +3267,9 @@ function EditorInner() {
               // M74: double-click an element to focus on it.
               zoomOnDoubleClick={false}
               onNodeDoubleClick={(_, n) => !presenting && n.type === "csdm" && !fadedIds.has(n.id) && focusElement(n.id)}
-              onPaneClick={() => {
+              onPaneClick={(e) => {
+                // M93: a note's Move… goes where the canvas is clicked.
+                if (placeNote(e)) return;
                 setActiveHint(null);
                 setSelectedLayer(null);
               }}
@@ -3283,8 +3348,15 @@ function EditorInner() {
                     editable={wide && !presenting}
                     editing={noteEditing}
                     draft={noteDraft}
-                    onEditing={setNoteEditing}
+                    placing={placingNote}
+                    onEditing={(id, cancelled) => {
+                      const was = noteEditing;
+                      setNoteEditing(id);
+                      // Escape puts the text back and focus on the note.
+                      if (cancelled && was) focusNote(was);
+                    }}
                     onAdd={addNote}
+                    onCancelDraft={cancelNoteDraft}
                     onText={noteText}
                     onMove={(id, x, y) => dispatch({ type: "move-note", id, x, y })}
                     onDelete={deleteNote}

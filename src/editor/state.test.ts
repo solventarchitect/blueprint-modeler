@@ -447,6 +447,8 @@ describe("notes on the canvas (M93)", () => {
       { type: "delete-note", id: "nope" },
       { type: "attach-note", id: "n1", to: null },
       { type: "add-note", note: { id: "n1", text: "Again", x: 0, y: 0 } },
+      { type: "add-note", note: { id: "n9", text: "   ", x: 0, y: 0 } },
+      { type: "set-note-text", id: "n1", text: "  " },
     ] as Action[])
       expect(run([a], s)).toBe(s);
   });

@@ -50,4 +50,10 @@ describe("notes in pictures (M93)", () => {
     expect(b!.lines).toHaveLength(12);
     expect(b!.lines.at(-1)!.endsWith("…")).toBe(true);
   });
+
+  it("breaks a word longer than a line across lines, not cut", () => {
+    const word = "x".repeat(70);
+    const [b] = notesToDraw({ ...withNotes(), notes: [{ id: "n", text: word, x: 0, y: 0 }] });
+    expect(b!.lines.join("")).toBe(word);
+  });
 });
