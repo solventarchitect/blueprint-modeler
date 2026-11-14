@@ -400,3 +400,56 @@ describe("reverse a relationship (M90)", () => {
     expect(run([{ type: "reverse-edge", id: "nope" }], s)).toBe(s);
   });
 });
+
+describe("notes on the canvas (M93)", () => {
+  const withNotes: Action[] = [
+    ...base,
+    { type: "move-node", id: "ba", x: 100, y: 100 },
+    { type: "add-note", note: { id: "n1", text: "Who owns this?", x: 500, y: 40 } },
+    { type: "add-note", note: { id: "n2", text: "Check the SLA", x: 20, y: -80 }, attachTo: "ba" },
+  ];
+
+  it("adds, edits, moves and deletes a note, each one undo step", () => {
+    const s = run(withNotes);
+    expect(s.present.notes).toEqual([
+      { id: "n1", text: "Who owns this?", x: 500, y: 40 },
+      // Attached: kept from the element's top left, so it moves with it.
+      { id: "n2", text: "Check the SLA", x: -80, y: -180, attachedTo: "ba" },
+    ]);
+    const edited = run([{ type: "set-note-text", id: "n1", text: "  Who owns this, really?  " }], s);
+    expect(edited.present.notes![0]!.text).toBe("Who owns this, really?");
+    const moved = run([{ type: "move-note", id: "n2", x: 300, y: 300 }], edited);
+    expect(moved.present.notes![1]).toEqual({ id: "n2", text: "Check the SLA", x: 200, y: 200, attachedTo: "ba" });
+    const gone = run([{ type: "delete-note", id: "n1" }], moved);
+    expect(gone.present.notes!.map((n) => n.id)).toEqual(["n2"]);
+    expect(run([{ type: "undo" }], gone).present).toEqual(moved.present);
+    // The last note gone: no list.
+    expect("notes" in run([{ type: "delete-note", id: "n2" }], gone).present).toBe(false);
+  });
+
+  it("an attached note moves with its element, and stays put, free, when the element is deleted", () => {
+    const s = run([...withNotes, { type: "move-node", id: "ba", x: 400, y: 400 }]);
+    expect(s.present.notes![1]).toMatchObject({ x: -80, y: -180, attachedTo: "ba" });
+    const gone = run([{ type: "delete-nodes", ids: ["ba"] }], s);
+    expect(gone.present.notes![1]).toEqual({ id: "n2", text: "Check the SLA", x: 320, y: 220 });
+  });
+
+  it("attaches and frees a note in place; nothing that changes nothing is a step", () => {
+    const s = run(withNotes);
+    const free = run([{ type: "attach-note", id: "n2", to: null }], s);
+    expect(free.present.notes![1]).toEqual({ id: "n2", text: "Check the SLA", x: 20, y: -80 });
+    const on = run([{ type: "attach-note", id: "n1", to: "svc" }], free);
+    expect(on.present.notes![0]).toMatchObject({ attachedTo: "svc" });
+    for (const a of [
+      { type: "set-note-text", id: "n1", text: "Who owns this?" },
+      { type: "set-note-text", id: "nope", text: "x" },
+      { type: "move-note", id: "n1", x: 500, y: 40 },
+      { type: "delete-note", id: "nope" },
+      { type: "attach-note", id: "n1", to: null },
+      { type: "add-note", note: { id: "n1", text: "Again", x: 0, y: 0 } },
+      { type: "add-note", note: { id: "n9", text: "   ", x: 0, y: 0 } },
+      { type: "set-note-text", id: "n1", text: "  " },
+    ] as Action[])
+      expect(run([a], s)).toBe(s);
+  });
+});

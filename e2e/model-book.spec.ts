@@ -26,7 +26,7 @@ test("the model book prints the picture, the model by layer, tables, saved flows
   await expect(page.getByRole("status")).toContainText("Model book: 14 elements, 13 relationships, no saved flows.");
   await page.emulateMedia({ media: "print" });
   await expect(book.locator("h1")).toHaveText("Online Store Checkout");
-  await expect(book.locator("h2")).toHaveText(["Contents", "Picture", "The model by layer", "Elements", "Relationships", "Saved flows", "Decisions", "Health"]);
+  await expect(book.locator("h2")).toHaveText(["Contents", "Picture", "The model by layer", "Elements", "Relationships", "Saved flows", "Decisions", "Notes", "Health"]);
   await expect(book.locator("section").last().locator("h3")).toHaveText(["Elements without relationships"]);
   await expect(book.locator(".bm-book-picture svg")).toHaveCount(1);
   const elements = book.locator("table").filter({ has: page.locator("caption", { hasText: "Every element, by layer" }) });
@@ -123,7 +123,7 @@ test("the book of what's shown covers only the focus, and says so; off while the
   const book = page.locator("#bm-print .bm-book");
   await expect(book).toHaveCount(1);
   await expect(book).toContainText(`What's shown: focused on web-prod-01, within 1 relationship. The lists and tables below cover only that: ${kept} of 14 elements`);
-  await expect(book.locator("ol.bm-book-contents li")).toHaveText(["Picture", /The model by layer \(\d layers?\)/, `Elements (${kept})`, /Relationships \(\d+\)/, "Saved flows (none)", "Decisions (none)", "Health"]);
+  await expect(book.locator("ol.bm-book-contents li")).toHaveText(["Picture", /The model by layer \(\d layers?\)/, `Elements (${kept})`, /Relationships \(\d+\)/, "Saved flows (none)", "Decisions (none)", "Notes (none)", "Health"]);
   // Said on the cover, before the contents; the health summary is the whole model's.
   await expect(book.locator("p.bm-book-part")).toContainText("What's shown: focused on web-prod-01");
   await expect(book.locator("section").last()).toContainText("For the whole model");

@@ -12,7 +12,7 @@ import { elementRows, ELEMENT_COLUMNS, relationshipRows, type ElementRow } from 
 import { el, healthSections, table } from "./report";
 import { relationshipWord } from "./svg";
 
-export const BOOK_SECTIONS = ["Picture", "The model by layer", "Elements", "Relationships", "Saved flows", "Decisions", "Health"] as const;
+export const BOOK_SECTIONS = ["Picture", "The model by layer", "Elements", "Relationships", "Saved flows", "Decisions", "Notes", "Health"] as const;
 
 /** M81: the contents, each section with what it holds (counts only where a section lists something). */
 export function bookContents(model: Model): string[] {
@@ -25,6 +25,7 @@ export function bookContents(model: Model): string[] {
     `Relationships ${count(model.edges.length)}`,
     `Saved flows ${count(model.flows?.length ?? 0)}`,
     `Decisions ${count(model.decisions?.length ?? 0)}`,
+    `Notes ${count(model.notes?.length ?? 0)}`,
     "Health",
   ];
 }
@@ -38,6 +39,12 @@ export function bookDecisions(model: Model): { title: string; meta: string; part
     const parts = ([["Context", d.context], ["Decision", d.decision], ["Consequences", d.consequences]] as const).filter(([, t]) => t).map(([k, t]): [string, string] => [k, t!]);
     return { title: d.title, meta, parts };
   });
+}
+
+/** M93: each note, in the model's order: its text, and the element it is on. */
+export function bookNotes(model: Model): { on: string; text: string }[] {
+  const nameOf = (id: string) => model.nodes.find((n) => n.id === id)?.name || "Untitled";
+  return (model.notes ?? []).map((n) => ({ on: n.attachedTo ? nameOf(n.attachedTo) : "", text: n.text }));
 }
 
 /** Each saved flow, in the model's order: its name, where it starts and each step in words. */
@@ -76,6 +83,7 @@ export function bookSheet(model: Model, svg: string, today: string, shown = "", 
   const none = () => el("p", {}, "No elements yet.");
   const flows = bookFlows(model);
   const decisions = bookDecisions(model);
+  const notes = bookNotes(model);
   const els = bookElements(model, whole ?? model);
   const empty = model.nodes.length === 0;
   const picture = empty ? none() : el("div", { class: "bm-book-picture" }, document.importNode(new DOMParser().parseFromString(svg, "image/svg+xml").documentElement, true));
@@ -135,6 +143,12 @@ export function bookSheet(model: Model, svg: string, today: string, shown = "", 
       ...(decisions.length
         ? decisions.flatMap((d) => [el("h3", {}, d.title), el("p", {}, d.meta), ...d.parts.flatMap(([k, t]) => [el("h4", {}, k), el("p", { class: "bm-book-text" }, t)])])
         : [el("p", {}, "No decisions. Model menu › Decisions… records what was decided, why, and the elements it concerns.")]),
+    ),
+    section(
+      "Notes",
+      ...(notes.length
+        ? [el("ul", {}, ...notes.map((n) => el("li", {}, ...(n.on ? [el("strong", {}, `On ${n.on}: `)] : []), el("span", { class: "bm-book-text" }, n.text))))]
+        : [el("p", {}, "No notes. Add one from the canvas menu (right-click), or an element's menu to keep it with that element.")]),
     ),
     section("Health", ...(whole ? [el("p", {}, "For the whole model, so relationships to elements left out still count.")] : []), ...healthSections(healthReport(whole ?? model), "h3")),
     el("p", { class: "bm-report-foot" }, "Made with Blueprint Modeler (model.mikereams.com). The hints are the modeler's own checks, written from ServiceNow's public CSDM material. Not affiliated with ServiceNow."),

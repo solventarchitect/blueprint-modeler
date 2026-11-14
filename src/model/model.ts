@@ -3,6 +3,7 @@ import { migrate } from "./migrate";
 import { CURRENT_SCHEMA, edgeKey, modelSchema, type Model } from "./schema";
 import { withKnownDecisionElements, withKnownDecisionLinks } from "./decisions";
 import { withUnbrokenFlows } from "./flows";
+import { withKnownNoteElements } from "./notes";
 
 export type Issue = { level: "warning"; code: "disallowed-relationship" | "legacy-type"; edgeId: string; message: string };
 /** `notes`: what loading changed, in words (M70: a saved flow cut where its walk breaks). */
@@ -19,7 +20,7 @@ export function withDetails(model: Model, details: { date?: string; description?
   const date = details.date?.trim() ?? "";
   const description = details.description?.trim() ?? "";
   const artifactId = details.artifactId?.trim() ?? "";
-  const { schema, id, name, created, updated, nodes, edges, layout, views, flows, decisions } = model;
+  const { schema, id, name, created, updated, nodes, edges, layout, views, flows, decisions, notes } = model;
   return {
     schema,
     id,
@@ -38,6 +39,8 @@ export function withDetails(model: Model, details: { date?: string; description?
     ...(flows?.length ? { flows } : {}),
     // M78: decisions after the flows.
     ...(decisions?.length ? { decisions } : {}),
+    // M93: notes on the canvas last.
+    ...(notes?.length ? { notes } : {}),
   };
 }
 
@@ -114,7 +117,8 @@ export function parseModel(input: unknown): ParseResult {
   }
   // M70: a saved flow whose walk breaks (a relationship missing or turned round) is cut there, and said.
   // M78: a decision keeps only the elements that are in the model; M85: and a Superseded by that can stand.
-  const whole = withKnownDecisionLinks(withKnownDecisionElements(withUnbrokenFlows(model)));
+  // M93: a note on an element the file doesn't hold is kept, free.
+  const whole = withKnownNoteElements(withKnownDecisionLinks(withKnownDecisionElements(withUnbrokenFlows(model))));
   const notes = (model.flows ?? []).flatMap((f) => {
     const kept = whole.flows?.find((x) => x.id === f.id)?.steps.length ?? 0;
     return kept < f.steps.length ? [`Flow “${f.name}” was cut after step ${kept}: its next relationship isn't in the model, or doesn't leave where the flow had reached.`] : [];

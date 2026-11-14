@@ -52,7 +52,7 @@ export function Viewer() {
   }, []);
 
   const model = state.status === "ok" ? state.model : null;
-  const svg = useMemo(() => (model ? (projection === "plan" ? modelToSvg(model, theme) : isoToSvg(model, theme, { mode: "iso" })).replace(/^<\?xml[^>]*>\n/, "") : ""), [model, projection, theme]);
+  const svg = useMemo(() => (model ? (projection === "plan" ? modelToSvg(model, theme, { notes: true }) : isoToSvg(model, theme, { mode: "iso" })).replace(/^<\?xml[^>]*>\n/, "") : ""), [model, projection, theme]);
   const outline = useMemo(() => (model ? outlineModel(model, "csdm") : []), [model]);
 
   if (state.status === "loading")

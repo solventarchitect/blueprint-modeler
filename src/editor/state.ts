@@ -1,6 +1,6 @@
 import { acceptedTypes, allowedTypes, classById, relationshipsBetween, type ClassId, type Layer } from "@/metamodel";
 import type { Side } from "@/layout/geometry";
-import { cleanTags, decisionSchema, edgeKey, flowSchema, MAX_DECISIONS, replacementChoices, type Decision, withKnownDecisionElements, withUnbrokenFlows, linkSchema, MAX_FLOWS, type Flow, type PlanStatus, serializeModel, MAX_LINKS, MAX_VIEWS, viewSchema, type Link, withDetails, type Edge, type Model, type Node, type View, withClass, withReversed } from "@/model";
+import { cleanTags, decisionSchema, edgeKey, flowSchema, MAX_DECISIONS, replacementChoices, type Decision, withKnownDecisionElements, withUnbrokenFlows, linkSchema, MAX_FLOWS, type Flow, type PlanStatus, serializeModel, MAX_LINKS, MAX_VIEWS, viewSchema, type Link, withDetails, type Edge, type Model, type Node, type View, withClass, withReversed, MAX_NOTES, MAX_NOTE_CHARS, type Note, withNoteAttached, withNotesKept } from "@/model";
 
 /**
  * Editor state: the model plus undo/redo history. Pure functions only, so every rule the
@@ -43,6 +43,13 @@ export type Action =
   | { type: "update-edge"; id: string; from: string; to: string; edgeType: string }
   /** M90: turn a relationship round, where CSDM has one that way. */
   | { type: "reverse-edge"; id: string }
+  /** M93: notes on the canvas. A note added with `attachTo` is given at its place on the canvas and kept from the element's top left. */
+  | { type: "add-note"; note: Note; attachTo?: string }
+  | { type: "set-note-text"; id: string; text: string }
+  /** Where the note now sits on the canvas; an attached note keeps it from its element. */
+  | { type: "move-note"; id: string; x: number; y: number }
+  | { type: "delete-note"; id: string }
+  | { type: "attach-note"; id: string; to: string | null }
   /** M61: the side a relationship leaves (`from`) or reaches (`to`); null goes back to automatic, absent keeps it. */
   | { type: "set-ports"; id: string; from?: Side | null; to?: Side | null }
   | { type: "set-layout"; layout: Model["layout"] }
@@ -367,6 +374,40 @@ function apply(model: Model, action: Action): Model | null {
         }),
       };
     }
+    case "add-note": {
+      if (!action.note.text.trim() || model.notes?.some((n) => n.id === action.note.id) || (model.notes?.length ?? 0) >= MAX_NOTES) return null;
+      const note: Note = { id: action.note.id, text: action.note.text.trim().slice(0, MAX_NOTE_CHARS), x: Math.round(action.note.x), y: Math.round(action.note.y) };
+      const added = { ...model, notes: [...(model.notes ?? []), note] };
+      return action.attachTo ? withNoteAttached(added, note.id, action.attachTo) : added;
+    }
+    case "set-note-text": {
+      const text = action.text.trim().slice(0, MAX_NOTE_CHARS);
+      const note = model.notes?.find((n) => n.id === action.id);
+      // An empty note is deleted, not kept (the editor does that, and says so).
+      if (!note || !text || note.text === text) return null;
+      return { ...model, notes: model.notes!.map((n) => (n.id === action.id ? { ...n, text } : n)) };
+    }
+    case "move-note": {
+      const note = model.notes?.find((n) => n.id === action.id);
+      if (!note) return null;
+      const at = note.attachedTo ? model.layout[note.attachedTo] : undefined;
+      const x = Math.round(action.x - (at?.x ?? 0));
+      const y = Math.round(action.y - (at?.y ?? 0));
+      if (note.x === x && note.y === y) return null;
+      return { ...model, notes: model.notes!.map((n) => (n.id === action.id ? { ...n, x, y } : n)) };
+    }
+    case "delete-note": {
+      if (!model.notes?.some((n) => n.id === action.id)) return null;
+      const notes = model.notes.filter((n) => n.id !== action.id);
+      if (notes.length) return { ...model, notes };
+      const { notes: _gone, ...rest } = model;
+      void _gone;
+      return rest;
+    }
+    case "attach-note": {
+      const next = withNoteAttached(model, action.id, action.to);
+      return next === model ? null : next;
+    }
     case "reverse-edge": {
       const next = withReversed(model, action.id);
       return next === model ? null : next;
@@ -421,7 +462,9 @@ export function reduce(state: History, action: Action, now: () => string = () =>
       return next ? { past: [...state.past, state.present], present: next, future: state.future.slice(1) } : state;
     }
     default: {
-      const changed = withFlowsPruned(apply(state.present, action));
+      // M93: a note whose element went stays where it was, free (the same step).
+      const applied = apply(state.present, action);
+      const changed = withFlowsPruned(applied && withNotesKept(state.present, applied));
       if (!changed) return state;
       return { past: [...state.past, state.present].slice(-HISTORY_LIMIT), present: { ...changed, updated: now() }, future: [] };
     }
