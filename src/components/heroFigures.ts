@@ -16,9 +16,9 @@ export const heroFigures = [
     desc: "The same chain, with a line drawn straight from the Business Application Checkout to the Host web-prod-01. The editor refuses it: a Business Application is not related directly to a Host in CSDM. The route goes through the Application Service Checkout — production instead.",
   },
   {
-    label: "Read it in ArchiMate",
-    summary: "Same model, read in ArchiMate 3.2: a view-only lens.",
+    label: "Read it in ArchiMate® notation",
+    summary: "Same model in ArchiMate® 3.2 notation: a view-only lens.",
     href: "/guide#archimate",
-    desc: "The same elements read in ArchiMate 3.2: Order Management is a Capability realized by the Application Component Checkout, which is realized by the Application Component Checkout — production. The System Software checkout-web serves it, and the Node web-prod-01 aggregates the system software. Elements take their ArchiMate layer colors; the model itself stays in CSDM.",
+    desc: "The same elements in ArchiMate® 3.2 notation: Order Management is a Capability realized by the Application Component Checkout, which is realized by the Application Component Checkout — production. The System Software checkout-web serves it, and the Node web-prod-01 aggregates the system software. Elements take their ArchiMate layer colors; the model itself stays in CSDM.",
   },
 ] as const;

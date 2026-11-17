@@ -71,7 +71,7 @@ test.describe("landing: the same chain, three ways", () => {
     await page.goto("/");
     await expect(cards(page)).toHaveCount(3);
     const hrefs = ["/guide#relationships", "/guide#hints", "/guide#archimate"];
-    const names = ["The realization chain", "Caught early", "Read it in ArchiMate"];
+    const names = ["The realization chain", "Caught early", "Read it in ArchiMate® notation"];
     for (let i = 0; i < 3; i++) {
       const card = cards(page).nth(i);
       await expect(card).toHaveAttribute("href", hrefs[i]!);

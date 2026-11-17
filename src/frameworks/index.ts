@@ -6,8 +6,8 @@ export type Lens = "csdm" | "archimate" | "archimate-only";
 export const LENS_KEY = "bm-lens";
 export const lenses: { id: Lens; label: string }[] = [
   { id: "csdm", label: "CSDM" },
-  { id: "archimate", label: "CSDM + ArchiMate 3.2" },
-  { id: "archimate-only", label: "ArchiMate 3.2 only" },
+  { id: "archimate", label: "CSDM with ArchiMate® 3.2 notation" },
+  { id: "archimate-only", label: "ArchiMate® 3.2 modeling language view" },
 ];
 
 /** Whether a lens shows ArchiMate names (alongside CSDM, or instead of it). */

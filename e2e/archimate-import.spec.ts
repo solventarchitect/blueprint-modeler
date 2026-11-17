@@ -54,7 +54,7 @@ test.describe("ArchiMate exchange import (M87, desktop)", () => {
     await expect(currentModel(page)).toHaveText("Online Store Checkout");
     await saved(page);
     const original = JSON.parse((await exportFile(page, /Model file \(JSON\)/)).text);
-    const xml = await exportFile(page, /ArchiMate model \(XML\)/);
+    const xml = await exportFile(page, /ArchiMate® model \(XML\)/);
     const before = Number(await modelButton(page).getAttribute("data-count"));
 
     await importXml(page, xml.name, xml.text);

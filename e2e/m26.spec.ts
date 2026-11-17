@@ -19,7 +19,7 @@ test.describe("M26: ArchiMate notation, layer colors and the Read tab (desktop)"
 
   test("the ArchiMate-only lens draws relationship notation with a legend; other lenses keep plain arrows", async ({ page }) => {
     await openExample(page, "Online Store Checkout");
-    await page.getByRole("combobox", { name: "Framework lens" }).selectOption({ label: "ArchiMate 3.2 only" });
+    await page.getByRole("combobox", { name: "Framework lens" }).selectOption({ label: "ArchiMate® 3.2 modeling language view" });
 
     // Every edge carries ArchiMate markers, and realizations are dashed with the hollow triangle.
     const paths = page.locator(".react-flow__edge-path");
@@ -31,7 +31,7 @@ test.describe("M26: ArchiMate notation, layer colors and the Read tab (desktop)"
     expect(`${await realization.locator(".react-flow__edge-path").getAttribute("marker-start")}${await realization.locator(".react-flow__edge-path").getAttribute("marker-end")}`).toContain("am-triangle-hollow-line");
 
     const legend = page.getByTestId("notation-legend");
-    await expect(legend).toContainText("ArchiMate relationships");
+    await expect(legend).toContainText("ArchiMate® relationships");
     await expect(legend).toContainText("Realization");
     await expect(legend).toContainText("Serving");
     await expect(legend).not.toContainText("Influence"); // only the types the model uses
@@ -41,7 +41,7 @@ test.describe("M26: ArchiMate notation, layer colors and the Read tab (desktop)"
     const fills = await page.locator("[data-archimate-layer]").evaluateAll((els) => new Set(els.map((el) => getComputedStyle(el).backgroundColor)).size);
     expect(fills).toBeGreaterThanOrEqual(3);
 
-    await page.getByRole("combobox", { name: "Framework lens" }).selectOption({ label: "CSDM + ArchiMate 3.2" });
+    await page.getByRole("combobox", { name: "Framework lens" }).selectOption({ label: "CSDM with ArchiMate® 3.2 notation" });
     await expect(legend).toHaveCount(0);
     await expect(page.locator("[data-archimate-layer]")).toHaveCount(0);
     const plain = await paths.evaluateAll((els) => els.every((el) => (el.getAttribute("marker-end") ?? "").includes("arrowclosed") && !el.getAttribute("marker-start")));
@@ -49,7 +49,7 @@ test.describe("M26: ArchiMate notation, layer colors and the Read tab (desktop)"
   });
 
   test("text on ArchiMate layer fills stays readable in both themes", async ({ page }) => {
-    await openExample(page, "Claims Handling (ArchiMate View)");
+    await openExample(page, "Claims Handling (ArchiMate® View)");
     await expect(page.getByRole("combobox", { name: "Framework lens" })).toHaveValue("archimate-only");
     for (const scheme of ["dark", "light"] as const) {
       await page.emulateMedia({ colorScheme: scheme });
@@ -92,14 +92,14 @@ test.describe("M26: ArchiMate notation, layer colors and the Read tab (desktop)"
     await page.locator(".react-flow__pane").click({ position: { x: 5, y: 5 } });
 
     // The ArchiMate-only lens reads ArchiMate relationships from ArchiMate's source end.
-    await page.getByRole("combobox", { name: "Framework lens" }).selectOption({ label: "ArchiMate 3.2 only" });
+    await page.getByRole("combobox", { name: "Framework lens" }).selectOption({ label: "ArchiMate® 3.2 modeling language view" });
     await expect(panel).toContainText("Application Component “Checkout — production” realizes Application Component “Checkout”.");
   });
 
   for (const scheme of ["dark", "light"] as const) {
     test(`notation legend, layer fills and the Read tab have no WCAG 2.2 AA violations (${scheme})`, async ({ page }) => {
       await page.emulateMedia({ colorScheme: scheme });
-      await openExample(page, "Claims Handling (ArchiMate View)");
+      await openExample(page, "Claims Handling (ArchiMate® View)");
       await expect(page.getByTestId("notation-legend")).toBeVisible();
       await page.getByRole("tab", { name: "Read" }).click();
       await page.getByTestId("read-panel").getByRole("button").first().click();

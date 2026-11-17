@@ -21,11 +21,11 @@ const chain: { cls: ClassId; name: string; rel?: string }[] = [
 ];
 
 /** The three figures' titles and footers. Each figure's accessible name and description live in heroFigures. */
-const titles = ["FIG.01 — THE REALIZATION CHAIN", "FIG.02 — CAUGHT EARLY", "FIG.03 — READ IT IN ARCHIMATE"];
+const titles = ["FIG.01 — THE REALIZATION CHAIN", "FIG.02 — CAUGHT EARLY", "FIG.03 — READ IT IN ARCHIMATE® NOTATION"];
 const footers: { text: string; color: string }[] = [
   { text: "Allowed relationships only. Every rule cites its source.", color: "var(--accent)" },
   { text: "A Business Application is not related directly to a Host in CSDM.", color: "var(--invalid)" },
-  { text: "Same model, read in ArchiMate 3.2: a view-only lens.", color: "var(--ai)" },
+  { text: "Same model in ArchiMate® 3.2 notation: a view-only lens.", color: "var(--ai)" },
 ];
 
 const TOP = 52;
