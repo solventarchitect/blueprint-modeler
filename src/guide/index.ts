@@ -6,7 +6,7 @@ export const GUIDE_SECTIONS = [
   { id: "relationships", label: "Relationships" },
   { id: "impact", label: "Impact" },
   { id: "hints", label: "Hints" },
-  { id: "archimate", label: "ArchiMate mapping" },
+  { id: "archimate", label: "ArchiMate® mapping" },
 ] as const;
 
 /** A class's anchor on the guide, e.g. `/guide#business-application`. */

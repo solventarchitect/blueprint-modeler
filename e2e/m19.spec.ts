@@ -115,7 +115,7 @@ test.describe("exports and examples", () => {
   });
 
   test("the ArchiMate example reads purely in ArchiMate; the metamodel example is CSDM 5", async ({ page }) => {
-    await openExample(page, "Claims Handling (ArchiMate View)");
+    await openExample(page, "Claims Handling (ArchiMate® View)");
     await expect(page.getByRole("combobox", { name: "Framework lens" })).toHaveValue("archimate-only");
     await expect(node(page, "Claims system").getByTestId("archimate-type").first()).toHaveText("Application Component");
     await expect(page.locator(".react-flow__edge-text").filter({ hasText: "Realization" }).first()).toBeVisible();

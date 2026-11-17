@@ -558,10 +558,10 @@ const specs: Spec[] = [
   },
   {
     id: "archimate-claims",
-    name: "Claims Handling (ArchiMate View)",
+    name: "Claims Handling (ArchiMate® View)",
     category: "frameworks",
-    summary: "A claims system read purely in ArchiMate 3.2: opens in the ArchiMate-only lens, so elements show their ArchiMate type and relationships their ArchiMate name — capability, process, product, application components, interface, system software and nodes.",
-    description: "An insurance claims system read in ArchiMate 3.2, from capability and process to application and infrastructure.",
+    summary: "A claims system shown purely in ArchiMate® 3.2 notation: opens in the ArchiMate® 3.2 modeling language view, so elements show their ArchiMate type and relationships their ArchiMate name — capability, process, product, application components, interface, system software and nodes.",
+    description: "An insurance claims system in ArchiMate® 3.2 notation, from capability and process to application and infrastructure.",
     lens: "archimate-only",
     nodes: [
       ["cap", "business_capability", "Claims management"],

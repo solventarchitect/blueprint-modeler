@@ -423,7 +423,7 @@ export function modelToSvg(whole: Model, theme: SvgTheme, opts: { lens?: Lens; h
         (n.plan === "retiring" ? `<line data-strike="" x1="${b.x + 14}" y1="${nameY - 5}" x2="${r1(b.x + 14 + Math.min(shownName.length * 7.8, b.w - 24))}" y2="${nameY - 5}" stroke="${ghost ? p.muted : p.ink}" stroke-width="1.5"/>` : "") +
         (alt
           ? `<line x1="${b.x + 14}" y1="${b.y + b.h - 26}" x2="${b.x + b.w - 10}" y2="${b.y + b.h - 26}" stroke="${p.line}" stroke-opacity="0.4"/>` +
-            `<text x="${b.x + 14}" y="${b.y + b.h - 10}" font-family="${MONO}" font-size="10" fill="${ghost ? p.muted : p.ai}">ArchiMate · ${esc(alt)}</text>`
+            `<text x="${b.x + 14}" y="${b.y + b.h - 10}" font-family="${MONO}" font-size="10" fill="${ghost ? p.muted : p.ai}">ArchiMate® ${esc(alt)}</text>`
           : "") +
         `</g>`,
     );
@@ -456,8 +456,8 @@ export function modelToSvg(whole: Model, theme: SvgTheme, opts: { lens?: Lens; h
   const title = esc(name);
   const desc = esc(
     amOnly
-      ? `CSDM model with ${count(model.nodes.length, "element")} and ${count(model.edges.length, "relationship")}, shown as an ArchiMate 3.2 view (ArchiMate element types, relationship notation and layer colors), exported from Blueprint Modeler.${stateDesc}${focusDesc(view)}`
-      : `CSDM model with ${count(model.nodes.length, "element")} and ${count(model.edges.length, "relationship")}${showsArchimate(lens) ? ", with ArchiMate 3.2 element names" : ""}, exported from Blueprint Modeler.${stateDesc}${focusDesc(view)}`,
+      ? `CSDM model with ${count(model.nodes.length, "element")} and ${count(model.edges.length, "relationship")}, shown in the ArchiMate® 3.2 modeling language view (ArchiMate element types, relationship notation and layer colors), exported from Blueprint Modeler.${stateDesc}${focusDesc(view)}`
+      : `CSDM model with ${count(model.nodes.length, "element")} and ${count(model.edges.length, "relationship")}${showsArchimate(lens) ? ", with ArchiMate® 3.2 element names" : ""}, exported from Blueprint Modeler.${stateDesc}${focusDesc(view)}`,
   );
   return [
     `<?xml version="1.0" encoding="UTF-8"?>`,

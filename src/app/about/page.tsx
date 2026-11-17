@@ -26,10 +26,10 @@ export default function AboutPage() {
       </p>
       <h2>Other frameworks</h2>
       <p>
-        Switch the lens to <strong>CSDM + ArchiMate 3.2</strong> and every element also shows the ArchiMate element it
+        Switch the lens to <strong>CSDM with ArchiMate® 3.2 notation</strong> and every element also shows the ArchiMate element it
         maps to, with the notation icon. The model itself stays in CSDM terms, so nothing about your files changes. The
-        mapping is written in our own words and linked to the public ArchiMate specification in the{" "}
-        <a href="/guide#archimate">class guide</a>, and Export › ArchiMate model writes a Model Exchange File you can open in Archi or another ArchiMate tool. ArchiMate® is a registered trademark of The Open Group; this tool is
+        mapping is written in our own words and linked to the public ArchiMate 3.2 Specification in the{" "}
+        <a href="/guide#archimate">class guide</a>, and Export › ArchiMate® model (XML) writes a Model Exchange File you can open in Archi or another ArchiMate tool. ArchiMate® is a registered trademark of The Open Group; this tool is
         not affiliated with or endorsed by The Open Group.
       </p>
       <h2>Blast radius</h2>

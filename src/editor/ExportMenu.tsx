@@ -21,7 +21,7 @@ export const exportItems: { kind: ExportKind; label: string; note: string }[] = 
   { kind: "blast-gif", label: "Blast radius animation (GIF)", note: "The open blast radius, one frame a hop" },
   { kind: "flow-gif", label: "Data flow animation (GIF)", note: "The open data flow, one frame a step" },
   { kind: "scenario-gif", label: "Saved flow animation (GIF)", note: "The saved flow playing, one frame a step" },
-  { kind: "archimate", label: "ArchiMate model (XML)", note: "Open in Archi or another ArchiMate tool" },
+  { kind: "archimate", label: "ArchiMate® model (XML)", note: "Open in Archi or another ArchiMate tool" },
   { kind: "drawio", label: "draw.io / Lucidchart (.drawio)", note: "Open in draw.io, or import into Lucidchart" },
   { kind: "servicenow", label: "ServiceNow import (Excel)", note: "One sheet per CMDB table, plus relationships" },
   { kind: "mermaid", label: "Mermaid diagram (.mmd)", note: "Text that GitHub, GitLab, Confluence and Notion draw in Markdown; follows what's shown" },

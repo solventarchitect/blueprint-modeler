@@ -58,8 +58,8 @@ describe("SVG export", () => {
 
   it("adds ArchiMate element names under the ArchiMate lens", () => {
     const svg = modelToSvg(model(), "dark", { lens: "archimate" });
-    expect(svg).toContain("ArchiMate · Application Component");
-    expect(svg).toContain("ArchiMate · Capability");
+    expect(svg).toContain("ArchiMate® Application Component");
+    expect(svg).toContain("ArchiMate® Capability");
     expect(modelToSvg(model(), "dark")).not.toContain("ArchiMate");
   });
 

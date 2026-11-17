@@ -38,7 +38,7 @@
 | Storage | IndexedDB via a small in-repo wrapper; import/export = JSON model file (versioned schema), SVG |
 | Model | `src/model/` typed JSON: nodes `{id, class, name, attrs}`, edges `{id, from, to, type}`; layout is a sidecar keyed by id |
 | Metamodel | `src/metamodel/` — CSDM classes, allowed relationship types, conformance hints; each entry has `source` (public URL) |
-| Frameworks | `src/frameworks/` — view-only lenses (ArchiMate 3.2). Mapping in our own words, each element cites a public Open Group spec chapter; every relationship must be allowed by the ArchiMate relationship tables; carry the ArchiMate® trademark notice wherever the lens appears |
+| Frameworks | `src/frameworks/` — view-only lenses (ArchiMate 3.2). Mapping in our own words, each element cites a public Open Group spec chapter; every relationship must be allowed by the ArchiMate relationship tables; carry the ArchiMate® trademark notice wherever the lens appears. The Open Group (2026-11-16): ArchiMate® and TOGAF® are adjectives, never standalone nouns ("the ArchiMate® modeling language", not "in ArchiMate"), with ® on labels, headings and the first mention on a page; "TOGAF® Standard" capitalized; `src/frameworks/trademarks.test.ts` checks the app and README. Their guidance covers ArchiMate® 3.2 only: stay on 3.2 (Mike, 2026-11-17) |
 | Tests | Vitest (model, metamodel, hints, import/export round-trip) · Playwright (hero flow, keyboard, axe) |
 | Copy | American English in UI text, docs and comments (modeling, color, center, catalog). Entity (class) names in Title Case everywhere they appear as entities: Business Application, Application Service, Kubernetes Workload; never lowercase a class label in messages. Source quotes stay verbatim |
 | License | MIT, © Mike Reams |
@@ -61,6 +61,9 @@
 - Any metamodel content without a public source, or anything resembling employer material
 - A change to the model file schema that breaks files users already exported (bump the version, write a migration)
 - Anything that would make it commercial (pricing, payments, gated features)
+- Any donation mechanism (The Open Group asked to be contacted first, 2026-11-16)
+- Any TOGAF® content beyond the guide's short note, such as a CSDM-to-TOGAF crosswalk (on hold until The Open Group's licensing review)
+- Moving the lens past ArchiMate® 3.2 (their guidance names 3.2; the question about ArchiMate® 4 is with them)
 
 ## Identifiers (fill in — no secrets here)
 

@@ -139,7 +139,7 @@ const primaryButton =
   "inline-flex min-h-8 cursor-pointer items-center gap-1.5 border border-accent bg-accent px-3 text-sm font-medium text-accent-ink hover:opacity-90 disabled:cursor-not-allowed disabled:opacity-60";
 /** Toolbar groups (Model, Edit, Arrange, Lens): a caption on wide screens, a divider between groups. */
 const toolbarGroup = "flex flex-wrap items-center gap-1.5";
-const groupCaption = "mr-0.5 hidden font-mono text-[0.65rem] tracking-[0.14em] text-ink-muted uppercase min-[2120px]:inline";
+const groupCaption = "mr-0.5 hidden font-mono text-[0.65rem] tracking-[0.14em] text-ink-muted uppercase min-[2216px]:inline";
 const toolbarDivider = "h-6 w-px bg-border-strong/50";
 const toolbarSelect = "min-h-8 max-w-60 border border-border-strong bg-surface-raised px-2 text-sm text-ink";
 /** Minimap node fill per CSDM layer: the same tokens as the nodes' left borders (layerAccent). */
@@ -2937,7 +2937,7 @@ function EditorInner() {
           </span>
           <label className="flex items-center text-sm">
             <span className="sr-only">Framework lens</span>
-            <select className={`${toolbarSelect} w-44`} value={lens} onChange={(e) => setLens(e.target.value as Lens)} data-testid="lens-select">
+            <select className={`${toolbarSelect} w-[17rem] max-w-none`} value={lens} onChange={(e) => setLens(e.target.value as Lens)} data-testid="lens-select">
               {lenses.map((l) => (
                 <option key={l.id} value={l.id}>
                   {l.label}
@@ -2967,10 +2967,11 @@ function EditorInner() {
         </div>
         {/* Commands and Present wrap together, so Present never sits alone on a second row. */}
         <div className="flex items-center gap-2">
-          {/* Icon only from 1778 to 1847px: there the word would push Present onto a second row (narrower, the toolbar has two rows anyway). */}
+          {/* Icon only from 1874 to 1943px, where the word would push Present onto a second row, and below 1100px, where it
+              would push both onto a third (T1: the lens select's longer labels). */}
           <button type="button" className={toolbarButton} onClick={() => openDialog(setPalette)} aria-label="Commands" title="Commands (Ctrl+K or ⌘K)" aria-keyshortcuts="Control+K Meta+K">
             <ToolbarIcon name="commands" />
-            <span aria-hidden="true" className="min-[1778px]:max-[1847px]:hidden">
+            <span aria-hidden="true" className="min-[1874px]:max-[1943px]:hidden max-[1099px]:hidden">
               Commands
             </span>
           </button>

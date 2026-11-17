@@ -17,7 +17,7 @@ test.describe("framework lens (desktop)", () => {
   test("the ArchiMate lens adds mapped names to nodes and the inspector, and survives a reload", async ({ page }) => {
     await openCheckout(page);
     await expect(page.getByTestId("lens-label")).toHaveCount(0);
-    await page.getByRole("combobox", { name: "Framework lens" }).selectOption({ label: "CSDM + ArchiMate 3.2" });
+    await page.getByRole("combobox", { name: "Framework lens" }).selectOption({ label: "CSDM with ArchiMate® 3.2 notation" });
     const labels = page.getByTestId("lens-label");
     await expect(labels).toHaveCount(await page.locator(".react-flow__node").count());
     await expect(page.locator(".react-flow__node").filter({ hasText: "Checkout — production" }).getByTestId("lens-label")).toHaveText(
@@ -28,8 +28,8 @@ test.describe("framework lens (desktop)", () => {
     const panel = page.getByTestId("lens-panel");
     await expect(panel).toContainText("Application Component");
     await expect(panel).toContainText("not an ArchiMate Application Service");
-    await expect(panel.getByRole("link", { name: /Source: ArchiMate 3.2, Application Layer/ })).toHaveAttribute("href", /pubs\.opengroup\.org/);
-    await expect(page.getByRole("complementary", { name: "Inspector" })).toContainText("ArchiMate: Serving");
+    await expect(panel.getByRole("link", { name: /Source: ArchiMate 3.2 Specification, Application Layer/ })).toHaveAttribute("href", /pubs\.opengroup\.org/);
+    await expect(page.getByRole("complementary", { name: "Inspector" })).toContainText("ArchiMate relationship: Serving");
 
     await page.reload();
     await expect(page.getByRole("combobox", { name: "Framework lens" })).toHaveValue("archimate");
@@ -42,7 +42,7 @@ test.describe("framework lens (desktop)", () => {
     test(`the ArchiMate lens has no WCAG 2.2 AA violations (${scheme})`, async ({ page }) => {
       await page.emulateMedia({ colorScheme: scheme });
       await openCheckout(page);
-      await page.getByRole("combobox", { name: "Framework lens" }).selectOption({ label: "CSDM + ArchiMate 3.2" });
+      await page.getByRole("combobox", { name: "Framework lens" }).selectOption({ label: "CSDM with ArchiMate® 3.2 notation" });
       await page.locator(".react-flow__node").filter({ hasText: "Checkout — production" }).click();
       await expect(page.getByTestId("lens-panel")).toBeVisible();
       const results = await new AxeBuilder({ page }).withTags(tags).analyze();

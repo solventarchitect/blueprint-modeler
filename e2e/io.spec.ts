@@ -67,7 +67,7 @@ test.describe("import, export and layout (desktop)", () => {
 
   test("exports an ArchiMate exchange file that parses and matches the model", async ({ page }) => {
     await openExample(page, "Online Store Checkout");
-    const file = await exportFile(page, /ArchiMate model \(XML\)/);
+    const file = await exportFile(page, /ArchiMate® model \(XML\)/);
     expect(file.name).toBe("online-store-checkout-archimate.xml");
     await expect(page.getByRole("status")).toContainText("Open Exchange XML Model");
     const counts = await page.evaluate((xml) => {

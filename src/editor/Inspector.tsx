@@ -587,7 +587,7 @@ export function Inspector({ model, selectedId, dispatch, focusName, focusConnect
       {am && (
         <section aria-labelledby="archimate-heading" className="border border-border p-3" data-testid="lens-panel">
           <h2 id="archimate-heading" className="font-mono text-[0.65rem] tracking-[0.14em] text-ink-muted uppercase">
-            In ArchiMate 3.2
+            ArchiMate® 3.2 mapping
           </h2>
           <p className="mt-1.5 flex items-center gap-1.5 text-sm font-medium text-ai">
             <ArchimateGlyph type={am.type} />
@@ -596,7 +596,7 @@ export function Inspector({ model, selectedId, dispatch, focusName, focusConnect
           <p className="text-xs text-ink-muted">{am.layer} layer</p>
           {am.note && <p className="mt-1 text-xs text-ink-soft">{am.note}</p>}
           <a className="mt-1 inline-block text-xs text-accent underline underline-offset-4" href={archimateSources[am.source].url} target="_blank" rel="noopener noreferrer">
-            Source: {archimateSources[am.source].title.replace("ArchiMate® 3.2 Specification — ", "ArchiMate 3.2, ")}
+            Source: {archimateSources[am.source].title.replace("ArchiMate® 3.2 Specification — ", "ArchiMate 3.2 Specification, ")}
             <span className="sr-only"> (opens in a new tab)</span>
           </a>
           <p className="mt-1 text-[0.65rem] text-ink-muted">{ARCHIMATE_TRADEMARK}</p>
@@ -675,7 +675,7 @@ export function Inspector({ model, selectedId, dispatch, focusName, focusConnect
               <span className="flex flex-col">
                 <span>{text}</span>
                 <span className="font-mono text-xs text-ink-muted">{e.type}</span>
-                {showsArchimate(lens) && archimateRel(e.from, e.to) && <span className="text-xs text-ai">ArchiMate: {archimateRel(e.from, e.to)}</span>}
+                {showsArchimate(lens) && archimateRel(e.from, e.to) && <span className="text-xs text-ai">ArchiMate relationship: {archimateRel(e.from, e.to)}</span>}
                 <PlanSelect compact value={planOf(e)} label={`Plan status of relationship ${text} ${e.type}`} onCommit={(plan) => dispatch({ type: "set-plan", target: "edge", id: e.id, plan })} />
               </span>
               <button type="button" className={button} onClick={() => dispatch({ type: "delete-edge", id: e.id })} aria-label={`Remove relationship ${text} ${e.type}`}>
