@@ -70,7 +70,8 @@ export function ViewsMenu({ model, shown, onShow, onEdit, buttonClass }: { model
       {/*
         A fixed width, so choosing a view never reflows the toolbar: a dot marks a view in use, and its name
         is in the button's name and tooltip (and the canvas legend). Icon only from 1180 to 1319px, where
-        the word would push the Arrange group onto a second row.
+        the word would push the Arrange group onto a second row, and from 768 to 1099px, where it would push
+        Commands and Present onto a third (T1: the lens select's longer labels).
       */}
       <button
         ref={button}
@@ -84,7 +85,7 @@ export function ViewsMenu({ model, shown, onShow, onEdit, buttonClass }: { model
         onClick={() => setOpen((o) => !o)}
       >
         <ToolbarIcon name="views" />
-        <span aria-hidden="true" className="min-[1180px]:max-[1319px]:hidden">
+        <span aria-hidden="true" className="min-[1180px]:max-[1319px]:hidden min-[768px]:max-[1100px]:hidden">
           Views
         </span>
         {!all && <span aria-hidden="true" data-testid="views-active" className="size-1.5 rounded-full bg-accent" />}
