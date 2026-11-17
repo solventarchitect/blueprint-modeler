@@ -31,7 +31,7 @@ test.describe("M26: ArchiMate notation, layer colors and the Read tab (desktop)"
     expect(`${await realization.locator(".react-flow__edge-path").getAttribute("marker-start")}${await realization.locator(".react-flow__edge-path").getAttribute("marker-end")}`).toContain("am-triangle-hollow-line");
 
     const legend = page.getByTestId("notation-legend");
-    await expect(legend).toContainText("ArchiMate relationships");
+    await expect(legend).toContainText("ArchiMate® relationships");
     await expect(legend).toContainText("Realization");
     await expect(legend).toContainText("Serving");
     await expect(legend).not.toContainText("Influence"); // only the types the model uses

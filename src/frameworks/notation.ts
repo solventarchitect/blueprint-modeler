@@ -1,7 +1,7 @@
 import type { ArchimateLayer, ArchimateRelationshipType, RelationshipMapping } from "./archimate";
 
 /**
- * ArchiMate® 3.2 relationship notation and layer colors for the "ArchiMate 3.2 only" lens. Drawn for
+ * ArchiMate® 3.2 relationship notation and layer colors for the "ArchiMate® 3.2 modeling language view" lens. Drawn for
  * this app from the specification's descriptions (no copied artwork); shared by the canvas, its legend
  * and the SVG export so they always agree.
  */

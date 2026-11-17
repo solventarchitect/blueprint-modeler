@@ -8,7 +8,7 @@ Include what you found, how to reproduce it, and what it could affect. You'll ge
 
 ## Scope
 
-Blueprint Modeler is a static site: no server, no accounts, no database. Models stay in the visitor's browser (IndexedDB), and import, export and auto-layout run on their device. The most relevant issues are therefore in the browser: for example script injection through an imported model file, a model name or an exported file (SVG, draw.io, ArchiMate XML, Excel), or anything that sends a model off the device.
+Blueprint Modeler is a static site: no server, no accounts, no database. Models stay in the visitor's browser (IndexedDB), and import, export and auto-layout run on their device. The most relevant issues are therefore in the browser: for example script injection through an imported model file, a model name or an exported file (SVG, draw.io, ArchiMate® exchange XML, Excel), or anything that sends a model off the device.
 
 ## Supported versions
 

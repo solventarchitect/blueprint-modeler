@@ -2967,11 +2967,11 @@ function EditorInner() {
         </div>
         {/* Commands and Present wrap together, so Present never sits alone on a second row. */}
         <div className="flex items-center gap-2">
-          {/* Icon only from 1874 to 1943px, where the word would push Present onto a second row, and below 1100px, where it
-              would push both onto a third (T1: the lens select's longer labels). */}
+          {/* Icon only from 1874 to 1943px, where the word would push Present onto a second row, and from 768px to
+              1099px, where it would push both onto a third (T1: the lens select's longer labels). */}
           <button type="button" className={toolbarButton} onClick={() => openDialog(setPalette)} aria-label="Commands" title="Commands (Ctrl+K or ⌘K)" aria-keyshortcuts="Control+K Meta+K">
             <ToolbarIcon name="commands" />
-            <span aria-hidden="true" className="min-[1874px]:max-[1943px]:hidden max-[1099px]:hidden">
+            <span aria-hidden="true" className="min-[1874px]:max-[1943px]:hidden min-[768px]:max-[1100px]:hidden">
               Commands
             </span>
           </button>

@@ -1,6 +1,9 @@
 import { readdirSync, readFileSync, statSync } from "node:fs";
 import { join } from "node:path";
 import { describe, expect, it } from "vitest";
+import { exportItems } from "../editor/ExportMenu";
+import { GUIDE_SECTIONS } from "../guide";
+import { heroFigures } from "../components/heroFigures";
 import { lenses } from "./index";
 
 /**
@@ -37,21 +40,33 @@ function withoutComments(text: string) {
 /** Each use of a mark that isn't followed (after ® and a version) by one of its nouns. */
 function misuses(text: string, mark: string, nouns: Set<string>) {
   const found: string[] = [];
-  const re = new RegExp(`${mark}(?![A-Za-z])(®)?((?: 3\\.2| 4)?)(?:\\s+|-)?([A-Za-z']*)`, "g");
+  const re = new RegExp(`(?<![A-Za-z_])${mark}(?![A-Za-z_])(®)?((?: 3\\.2| 4)?)(?:\\s+|-)?([A-Za-z']*)`, "gi");
   for (const m of text.matchAll(re)) {
-    const next = m[3] ?? "";
+    const at = m.index ?? 0;
+    const used = m[0].slice(0, mark.length);
+    const rest = text.slice(at + m[0].length);
+    const shown = () => text.slice(Math.max(0, at - 30), at + m[0].length + 20).replace(/\s+/g, " ");
+    // All lowercase is an identifier (`archimate-only`, `/guide#archimate`), not a use of the mark.
+    if (used === mark.toLowerCase()) continue;
+    // In capitals (a figure title), the mark still needs ® and a noun; any other spelling is wrong.
+    const shouted = used !== mark && used === mark.toUpperCase();
+    if (used !== mark && !(shouted && m[1])) {
+      found.push(shown());
+      continue;
+    }
+    const next = shouted ? (m[3] ?? "").toLowerCase() : (m[3] ?? "");
     // The trademark notice itself: "ArchiMate® is a registered trademark…", "ArchiMate® and TOGAF® are registered trademarks…".
-    const rest = text.slice((m.index ?? 0) + m[0].length);
     if (["is", "and", "are"].includes(next) && /^[^.]*registered trademark/.test(rest)) continue;
     // An element type filled in at run time: `ArchiMate® ${type}` in an image, `ArchiMate® {type}` in JSX.
-    if (next === "" && /^\$?\{/.test(text.slice((m.index ?? 0) + m[0].length))) continue;
-    if (!nouns.has(next)) found.push(text.slice(Math.max(0, (m.index ?? 0) - 30), (m.index ?? 0) + m[0].length + 20).replace(/\s+/g, " "));
+    if (next === "" && /^\$?\{/.test(rest)) continue;
+    if (!nouns.has(next) && !(shouted && [...nouns].some((n) => n.toLowerCase() === next))) found.push(shown());
   }
   return found;
 }
 
 const texts = [
   ...sourceFiles(join(ROOT, "src")).map((path) => ({ path, text: withoutComments(readFileSync(path, "utf8")) })),
+  ...["CONTRIBUTING.md", "CODE_OF_CONDUCT.md", "SECURITY.md"].map((path) => ({ path, text: readFileSync(join(ROOT, path), "utf8") })),
   { path: "README.md", text: readFileSync(join(ROOT, "README.md"), "utf8") },
 ];
 
@@ -60,7 +75,18 @@ describe("The Open Group's marks (guidance of 2026-11-16)", () => {
     expect(lenses.map((l) => l.label)).toEqual(["CSDM", "CSDM with ArchiMate® 3.2 notation", "ArchiMate® 3.2 modeling language view"]);
   });
 
-  it("uses ArchiMate® only as an adjective, in the app and the README", () => {
+  it("puts ® on every label that names ArchiMate®", () => {
+    const labels = [
+      ...lenses.map((l) => l.label),
+      ...exportItems.map((i) => i.label),
+      ...GUIDE_SECTIONS.map((g) => g.label),
+      ...heroFigures.map((f) => f.label),
+    ].filter((label) => /archimate/i.test(label));
+    expect(labels.length).toBeGreaterThan(4);
+    expect(labels.filter((label) => !/ArchiMate®/.test(label))).toEqual([]);
+  });
+
+  it("uses ArchiMate® only as an adjective, in the app and its public docs", () => {
     expect(texts.flatMap(({ path, text }) => misuses(text, "ArchiMate", ARCHIMATE_NOUNS).map((m) => `${path}: ${m}`))).toEqual([]);
   });
 
